@@ -2907,6 +2907,16 @@
                     isActive ? "1" : "0";
             }
         });
+
+        document.dispatchEvent(new CustomEvent("imomir:card-image-refreshed", {
+            detail: {
+                cardUuid: cardUuid,
+                imageChanged: true,
+                hasAlternateSource: null,
+                removeBleed: null,
+                isFoil: null
+            }
+        }));
     }
 
     async function acceptCandidate() {

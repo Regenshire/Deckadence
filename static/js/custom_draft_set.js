@@ -3570,6 +3570,55 @@
         });
     }
 
+    function refreshCurrentCardImages(cardUuid) {
+        const cacheVersion = String(Date.now());
+
+        findCurrentCardRowsByCardUuid(cardUuid).forEach(function (row) {
+            const imageElement = row.querySelector(
+                ".custom-draft-current-card-image"
+            );
+
+            if (!imageElement) {
+                return;
+            }
+
+            const imageUrl = new URL(
+                imageElement.dataset.cardImageSrc
+                    || (
+                        "/chaos-card-image-preview/"
+                        + encodeURIComponent(cardUuid)
+                    ),
+                window.location.href
+            );
+
+            imageUrl.searchParams.set("face", "front");
+            imageUrl.searchParams.set("v", cacheVersion);
+
+            const refreshedSrc = imageUrl.toString();
+
+            if (window.iMomirCardFlip) {
+                window.iMomirCardFlip.resetImageBinding(imageElement);
+            }
+
+            imageElement.dataset.cardImageSrc = refreshedSrc;
+            imageElement.dataset.zoomSrc = refreshedSrc;
+            imageElement.dataset.zoomAlt = (
+                row.dataset.displayCardName
+                || row.dataset.cardName
+                || imageElement.alt
+                || ""
+            );
+
+            if (activeCardImageElements.has(imageElement)) {
+                // Reuse this image's existing loader slot and listeners.
+                imageElement.src = refreshedSrc;
+            } else {
+                // The existing pagination/visibility code queues it later.
+                imageElement.dataset.cardImageState = "idle";
+            }
+        });
+    }
+
     document.addEventListener("imomir:card-image-refreshed", function (event) {
         const detail = event.detail || {};
         const cardUuid = detail.cardUuid || "";
@@ -3580,8 +3629,22 @@
 
         updateCustomDraftAlternateImageRowState(cardUuid, detail);
 
-        filterCurrentCards();
+        if (detail.imageChanged || detail.imageUrl) {
+            refreshCurrentCardImages(cardUuid);
+        }
+
+        if (detail.imageChanged) {
+            // An upscale does not change the active filters or current page.
+            applyCurrentCardPagination();
+        } else {
+            filterCurrentCards();
+        }
+
         bindZoomableImages();
+
+        if (window.iMomirCardFlip) {
+            window.iMomirCardFlip.enhance(currentCardList);
+        }
     });
 
     applySavedSelectValue(searchPageSizeSelect, addCardsPageSizeStorageKey, "500");

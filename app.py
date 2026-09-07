@@ -24157,7 +24157,7 @@ def chaos_card_image_preview(card_uuid):
             return send_file(
                 local_image_path,
                 conditional=True,
-                max_age=86400,
+                max_age=None,
             )
 
     if not image_url:
@@ -24179,7 +24179,7 @@ def chaos_card_image_preview(card_uuid):
             return send_file(
                 absolute_path,
                 conditional=True,
-                max_age=86400,
+                max_age=None,
             )
 
     preview_url = (
