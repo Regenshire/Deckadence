@@ -2820,6 +2820,26 @@
         return payload;
     }
 
+    function getDeckbuilderVersionedImageUrl(imageUrl) {
+        const cleanImageUrl = String(imageUrl || "").trim();
+
+        if (!cleanImageUrl) {
+            return "";
+        }
+
+        const separator = cleanImageUrl.indexOf("?") === -1
+            ? "?"
+            : "&";
+
+        return (
+            cleanImageUrl
+            + separator
+            + "v="
+            + Date.now()
+        );
+    }
+
+
     function buildDeckBasicLandCardHtml(landName, landIndex) {
         const paletteCardData = getBasicLandPaletteCardData(landName);
 
@@ -2832,8 +2852,19 @@
             : "";
 
         const imageSrc = paletteCardData
-            ? window.iMomirImageUrl(paletteCardData.image_src || (cardUuid ? "/chaos-card-image/" + encodeURIComponent(cardUuid) : ""))
+            ? window.iMomirImageUrl(
+                paletteCardData.image_src
+                || (
+                    cardUuid
+                        ? "/chaos-card-image/" + encodeURIComponent(cardUuid)
+                        : ""
+                )
+            )
             : "";
+
+        const versionedImageSrc = getDeckbuilderVersionedImageUrl(
+            imageSrc
+        );
 
         const rarity = paletteCardData
             ? (paletteCardData.rarity || "common")
@@ -2852,8 +2883,8 @@
         return (
             '<div class="deckbuilder-card campaign-test-draft-picked-row" draggable="true" data-drag-type="picked-card" data-source-kind="basic_land" data-deck-card-id="" data-draft-test-pick-id="' + escapeHtml(safeSyntheticId) + '" data-current-zone="deck" data-card-name="' + escapeHtml(cardName) + '" data-card-uuid="' + escapeHtml(cardUuid) + '" data-card-rarity="' + escapeHtml(rarity) + '" data-card-mana-value="' + escapeHtml(manaValue) + '" data-card-type-line="' + escapeHtml(typeLine) + '" data-is-basic-land="1" data-is-foil="0" data-has-alternate-image="0" data-alternate-image-remove-bleed="0">' +
                 (
-                    imageSrc
-                        ? '<img src="' + escapeHtml(imageSrc) + '?v=' + Date.now() + '" alt="' + escapeHtml(cardName) + '" class="campaign-test-draft-picked-thumb">'
+                    versionedImageSrc
+                        ? '<img src="' + escapeHtml(versionedImageSrc) + '" alt="' + escapeHtml(cardName) + '" class="campaign-test-draft-picked-thumb">'
                         : '<div class="deckbuilder-basic-land-missing-image">' + escapeHtml(cardName) + '</div>'
                 ) +
                 '<div class="campaign-test-draft-picked-main">' +
@@ -3052,13 +3083,25 @@
     function buildBasicLandPaletteCardHtml(landCard) {
         const cardUuid = landCard.card_uuid || "";
         const cardName = landCard.card_name || "";
-        const imageSrc = window.iMomirImageUrl(landCard.image_src || (cardUuid ? "/chaos-card-image/" + encodeURIComponent(cardUuid) : ""));
+
+        const imageSrc = window.iMomirImageUrl(
+            landCard.image_src
+            || (
+                cardUuid
+                    ? "/chaos-card-image/" + encodeURIComponent(cardUuid)
+                    : ""
+            )
+        );
+
+        const versionedImageSrc = getDeckbuilderVersionedImageUrl(
+            imageSrc
+        );
 
         return (
             '<div class="deckbuilder-card deckbuilder-basic-land-card" draggable="true" data-drag-type="basic-land" data-is-land-palette="1" data-basic-land-name="' + escapeHtml(cardName) + '" data-current-zone="sideboard" data-card-name="' + escapeHtml(cardName) + '" data-card-uuid="' + escapeHtml(cardUuid) + '" data-card-image-src="' + escapeHtml(imageSrc) + '" data-card-rarity="' + escapeHtml(landCard.rarity || "common") + '" data-card-mana-value="' + escapeHtml(landCard.mana_value ?? 0) + '" data-card-type-line="' + escapeHtml(landCard.type_line || "Basic Land") + '" data-card-set-code="' + escapeHtml(landCard.set_code || "") + '" data-card-collector-number="' + escapeHtml(landCard.collector_number || "") + '">' +
                 (
-                    imageSrc
-                        ? '<img src="' + escapeHtml(imageSrc) + '?v=' + Date.now() + '" alt="' + escapeHtml(cardName) + '" class="campaign-test-draft-picked-thumb">'
+                    versionedImageSrc
+                        ? '<img src="' + escapeHtml(versionedImageSrc) + '" alt="' + escapeHtml(cardName) + '" class="campaign-test-draft-picked-thumb">'
                         : '<div class="deckbuilder-basic-land-missing-image">' + escapeHtml(cardName) + '</div>'
                 ) +
                 '<div class="deckbuilder-basic-land-infinite">∞</div>' +
@@ -3123,8 +3166,14 @@
             existingFilterMetadata
         );
 
-        if (safePayload.basic_land_cards && sideboardList) {
-            sideboardList.dataset.basicLandCards = JSON.stringify(safePayload.basic_land_cards);
+        if (
+            safePayload._basicLandPaletteAuthoritative === true
+            && Array.isArray(safePayload.basic_land_cards)
+            && sideboardList
+        ) {
+            sideboardList.dataset.basicLandCards = JSON.stringify(
+                safePayload.basic_land_cards
+            );
         }
 
         renderDeckbuilderZone(
