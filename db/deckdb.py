@@ -2,6 +2,9 @@ import json
 from datetime import datetime, timezone
 
 from db.database import (
+    ensure_isolation_storage_schema,
+    isolation_operation,
+    prepare_draft_image_import,
     AlternateImageRepository,
     clone_alternate_image_scope,
     ensure_column_exists,
@@ -282,6 +285,7 @@ def ensure_deck_schema():
         """
     )
 
+    ensure_isolation_storage_schema(conn)
     conn.commit()
     conn.close()
 
@@ -396,6 +400,7 @@ def update_deck_card_back_key(
         "card_back_key": clean_card_back_key,
     }
 
+@isolation_operation
 def archive_deck(deck_id):
     ensure_deck_schema()
 
@@ -586,165 +591,75 @@ def deckbuilder_row_get(row, key, default=None):
     return default
 
 
+@isolation_operation
 def import_draft_cards_into_deck(deck_id, draft_cards, default_zone):
     ensure_deck_schema()
-
     parsed_deck_id = normalize_deck_optional_int(deck_id)
-    clean_default_zone = normalize_deck_zone(default_zone)
-
     if parsed_deck_id is None:
-        return {
-            "ok": False,
-            "message": "Invalid deck ID.",
-        }
-
-    if clean_default_zone not in {"deck", "sideboard"}:
-        clean_default_zone = "deck"
-
-    now_utc = deck_utc_now()
-
+        return {"ok": False, "message": "Invalid deck ID."}
+    default_zone = normalize_deck_zone(default_zone)
+    if default_zone not in {"deck", "sideboard"}:
+        default_zone = "deck"
+    now = deck_utc_now()
     conn = get_db_connection()
-    cursor = conn.cursor()
-
-    imported_count = 0
-
-    for card in draft_cards or []:
-        draft_test_pick_id = normalize_deck_optional_int(deckbuilder_row_get(card, "draft_test_pick_id"))
-
-        if draft_test_pick_id is None:
-            continue
-
-        card_uuid = str(deckbuilder_row_get(card, "card_uuid", "") or "").strip()
-        card_name = str(deckbuilder_row_get(card, "card_name", "") or "").strip()
-
-        if not card_uuid or not card_name:
-            continue
-
-        cursor.execute(
-            """
-            SELECT deck_card_id
-            FROM deck_cards
-            WHERE deck_id = ?
-              AND source_type = ?
-              AND source_item_id = ?
-            LIMIT 1
-            """,
-            (
-                parsed_deck_id,
-                "draft_pick",
-                draft_test_pick_id,
-            ),
-        )
-
-        existing_row = cursor.fetchone()
-
-        if existing_row:
-            continue
-
-        cursor.execute(
-            """
-            INSERT INTO deck_cards (
-                deck_id,
-                card_uuid,
-                card_name,
-                deck_zone,
-                quantity,
-                source_type,
-                source_id,
-                source_item_id,
-                is_basic_land,
-                sheet_is_foil,
-                deck_role,
-                stack_column,
-                stack_order,
-                display_order,
-                created_at_utc,
-                updated_at_utc
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                parsed_deck_id,
-                card_uuid,
-                card_name,
-                clean_default_zone,
-                1,
-                "draft_pick",
-                normalize_deck_optional_int(deckbuilder_row_get(card, "draft_test_id")),
-                draft_test_pick_id,
-                0,
-                0,
-                DECK_ROLE_MAIN,
-                None,
-                None,
-                0,
-                now_utc,
-                now_utc,
-            ),
-        )
-
-        imported_count += 1
-
-    if imported_count > 0:
-        cursor.execute(
-            """
-            UPDATE decks
-            SET updated_at_utc = ?
-            WHERE deck_id = ?
-            """,
-            (
-                now_utc,
-                parsed_deck_id,
-            ),
-        )
-
-    conn.commit()
-    conn.close()
-
-    return {
-        "ok": True,
-        "message": f"Imported {imported_count} drafted card(s).",
-        "imported_count": imported_count,
-    }
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        pending = []
+        seen = set()
+        for value in draft_cards or []:
+            card = dict(value)
+            pick_id = normalize_deck_optional_int(card.get("draft_test_pick_id"))
+            card_uuid = str(card.get("card_uuid") or "").strip()
+            card_name = str(card.get("card_name") or "").strip()
+            if pick_id is None or pick_id in seen or not card_uuid or not card_name:
+                continue
+            seen.add(pick_id)
+            if conn.execute(
+                "SELECT 1 FROM deck_cards WHERE deck_id = ? AND source_type = 'draft_pick' "
+                "AND source_item_id = ? LIMIT 1", (parsed_deck_id, pick_id),
+            ).fetchone():
+                continue
+            pending.append({**card, "card_uuid": card_uuid, "card_name": card_name,
+                            "draft_test_pick_id": pick_id})
+        with prepare_draft_image_import(conn, parsed_deck_id, pending) as keep_files:
+            counts = {"deck": 0, "sideboard": 0}
+            for card in pending:
+                zone = normalize_deck_zone(card.get("_import_zone") or default_zone)
+                if zone not in counts:
+                    zone = default_zone
+                conn.execute(
+                    "INSERT INTO deck_cards (deck_id, card_uuid, card_name, deck_zone, quantity, "
+                    "source_type, source_id, source_item_id, is_basic_land, sheet_is_foil, deck_role, "
+                    "stack_column, stack_order, display_order, created_at_utc, updated_at_utc) "
+                    "VALUES (?, ?, ?, ?, 1, 'draft_pick', ?, ?, 0, ?, ?, NULL, NULL, 0, ?, ?)",
+                    (parsed_deck_id, card["card_uuid"], card["card_name"], zone,
+                     normalize_deck_optional_int(card.get("draft_test_id")), card["draft_test_pick_id"],
+                     int(card.get("is_foil") or card.get("sheet_is_foil") or 0), DECK_ROLE_MAIN, now, now),
+                )
+                counts[zone] += 1
+            if pending:
+                conn.execute("UPDATE decks SET updated_at_utc = ? WHERE deck_id = ?", (now, parsed_deck_id))
+            conn.commit()
+            keep_files()
+        return {"ok": True, "message": f"Imported {len(pending)} drafted card(s).",
+                "imported_count": len(pending), "deck_imported_count": counts["deck"],
+                "sideboard_imported_count": counts["sideboard"]}
+    except Exception as exc:
+        conn.rollback()
+        return {"ok": False, "message": str(exc), "imported_count": 0}
+    finally:
+        conn.close()
 
 
 def import_draft_state_into_deck(deck_id, draft_state):
-    deck_cards = [
-        card
-        for card in ((draft_state or {}).get("human_deck_cards") or [])
+    cards = [
+        {**dict(card), "_import_zone": zone}
+        for key, zone in (("human_deck_cards", "deck"), ("human_sideboard_cards", "sideboard"))
+        for card in ((draft_state or {}).get(key) or [])
         if not is_draft_basic_land_pick_row(card)
     ]
-
-    sideboard_cards = [
-        card
-        for card in ((draft_state or {}).get("human_sideboard_cards") or [])
-        if not is_draft_basic_land_pick_row(card)
-    ]
-
-    deck_result = import_draft_cards_into_deck(
-        deck_id=deck_id,
-        draft_cards=deck_cards,
-        default_zone="deck",
-    )
-
-    if not deck_result.get("ok"):
-        return deck_result
-
-    sideboard_result = import_draft_cards_into_deck(
-        deck_id=deck_id,
-        draft_cards=sideboard_cards,
-        default_zone="sideboard",
-    )
-
-    if not sideboard_result.get("ok"):
-        return sideboard_result
-
-    return {
-        "ok": True,
-        "message": "Draft cards imported into Deck Builder.",
-        "deck_imported_count": deck_result.get("imported_count", 0),
-        "sideboard_imported_count": sideboard_result.get("imported_count", 0),
-    }
+    # Deck and sideboard are one transaction, including the adopted image library.
+    return import_draft_cards_into_deck(deck_id, cards, "deck")
 
 
 def get_saved_deckbuilder_cards_for_deck(deck_id, deck_zone=None, include_basic_lands=False):
@@ -3287,6 +3202,7 @@ def create_standalone_deck(deck_name="Untitled Deck", deck_format=DECK_FORMAT_ST
     }
 
 
+@isolation_operation
 def duplicate_deck(deck_id):
     ensure_deck_schema()
 

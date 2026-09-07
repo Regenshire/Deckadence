@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+import click
 import random
 import re
 import shutil
@@ -191,6 +192,9 @@ from db.exports import (
 )
 
 from db.database import (
+    IsolationStorage, isolation_operation, isolation_guard,
+    get_isolation_epoch, validate_preview_isolation,
+    stamp_preview_isolation, repair_legacy_isolated_packs,
     AlternateImageContext,
     AlternateImageIsolationService,
     AlternateImageRepository,
@@ -9076,6 +9080,8 @@ class AlternateImageFileSnapshot:
         }
 
 
+AlternateImageIsolationService.snapshot_factory = AlternateImageFileSnapshot
+
 def get_alternate_image_isolation_service():
     return AlternateImageIsolationService(
         get_db_connection, AlternateImageFileSnapshot
@@ -10179,6 +10185,7 @@ def save_reprocessed_alternate_image_atomic(
                 pass
 
 
+@isolation_operation
 def run_alternate_bleed_reprocess_job():
     started_at = datetime.now(
         timezone.utc
@@ -10636,6 +10643,7 @@ def prepare_alternate_source_for_card(
     }
 
 
+@isolation_operation
 def create_alternate_source_for_card(*args, **kwargs):
     """Compatibility entry point for callers explicitly using global sources."""
     values = prepare_alternate_source_for_card(*args, **kwargs)
@@ -10659,6 +10667,34 @@ def alternate_image_api(function):
             write_error_log("ALTERNATE IMAGE EDIT FAILED", exc=exc)
             return jsonify(ok=False, message="The alternate image operation failed. Check the application log."), 500
     return wrapped
+
+_isolation_maintenance_next = 0.0
+
+
+@app.before_request
+def maintain_isolated_images():
+    global _isolation_maintenance_next
+    now = time.monotonic()
+    if now < _isolation_maintenance_next:
+        return
+    _isolation_maintenance_next = now + 60
+    result = IsolationStorage.collect(scan=True, wait=False)
+    if result.get("error"):
+        write_debug_log("ISOLATION CLEANUP | " + result["error"])
+
+
+@app.cli.command("cleanup-isolated-images")
+@click.option("--apply", "apply_changes", is_flag=True, help="Delete unreferenced managed files; default is a dry run.")
+def cleanup_isolated_images_command(apply_changes):
+    result = IsolationStorage.collect(scan=True, dry_run=not apply_changes)
+    click.echo(json.dumps(result, indent=2))
+    if result.get("error"):
+        raise click.ClickException(result["error"])
+
+@app.cli.command("repair-isolated-packs")
+@click.option("--apply", "apply_changes", is_flag=True, help="Adopt available legacy scope settings; default is a dry run.")
+def repair_isolated_packs_command(apply_changes):
+    click.echo(json.dumps(repair_legacy_isolated_packs(apply=apply_changes), indent=2))
 
 def get_requested_image_context():
     if request.args.get("image_owner_kind"):
@@ -10730,6 +10766,7 @@ def image_isolation_template_context():
         "image_isolation": {
             "enabled": context.is_isolated,
             "scope_token": context.scope_id or "global",
+            "epoch": get_isolation_epoch(owner_kind, owner_id),
             "owner_kind": owner_kind,
             "owner_id": owner_id,
             "enable_url": url_for(
@@ -10751,6 +10788,7 @@ def image_isolation_template_context():
     methods=["POST"],
 )
 @alternate_image_api
+@isolation_operation
 def enable_alternate_image_isolation(owner_kind, owner_id):
     if owner_kind not in {"deck", "set"}:
         raise ValueError(
@@ -10762,13 +10800,15 @@ def enable_alternate_image_isolation(owner_kind, owner_id):
             "Use the confirmation control to enable isolation."
         )
 
-    payload = request.get_json(silent=True) or {}
+    payload = request.get_json(silent=True)
 
-    if payload.get("confirm") is not True:
+    if not isinstance(payload, dict) or payload.get("confirm") is not True:
         raise ValueError("Explicit confirmation is required.")
 
     context = get_alternate_image_isolation_service().enable_for_owner(
-        owner_kind, owner_id
+        owner_kind, owner_id,
+        expected_scope=payload.get("expected_scope"),
+        expected_epoch=payload.get("expected_epoch"),
     )
 
     return jsonify(
@@ -10781,6 +10821,7 @@ def enable_alternate_image_isolation(owner_kind, owner_id):
     methods=["POST"],
 )
 @alternate_image_api
+@isolation_operation
 def disable_alternate_image_isolation(owner_kind, owner_id):
     if owner_kind not in {"deck", "set"}:
         raise ValueError("Isolation can be changed only for a deck or custom set.")
@@ -10792,14 +10833,17 @@ def disable_alternate_image_isolation(owner_kind, owner_id):
     if not isinstance(payload, dict) or payload.get("confirm") is not True:
         raise ValueError("Explicit confirmation is required.")
 
-    context = get_alternate_image_isolation_service().disable_for_owner(
+    service = get_alternate_image_isolation_service()
+    context = service.disable_for_owner(
         owner_kind,
         owner_id,
         expected_scope=payload.get("expected_scope"),
+        expected_epoch=payload.get("expected_epoch"),
     )
     return jsonify(
         ok=True,
         image_scope_id=context.scope_id,
+        cleanup=service.last_cleanup,
     )
 
 
@@ -10890,6 +10934,7 @@ class AlternateImageEditor:
             conn.execute("BEGIN")
             return self._payload(card_uuid, self.repository(conn))
 
+    @isolation_operation
     def change(self, source_id, *, updates=None, delete=False):
         deleted_paths = []
         with closing(get_db_connection()) as conn:
@@ -10913,11 +10958,17 @@ class AlternateImageEditor:
         return card_uuid
 
     @staticmethod
+    @isolation_operation
     def remove_unreferenced_files(paths):
         """Deletion is rare: compare canonical paths across both source libraries."""
         def absolute(path):
             return os.path.normcase(os.path.realpath(os.path.join(RUNTIME_BASE_DIR, path)))
 
+        isolated_paths = [path for path in paths if path and IsolationStorage.managed_path(path)]
+        if isolated_paths:
+            IsolationStorage.enqueue(isolated_paths)
+            IsolationStorage.collect()
+        paths = [path for path in paths if path not in isolated_paths]
         try:
             root = absolute(ALTERNATE_SOURCE_DIR)
             with closing(get_db_connection()) as conn:
@@ -10949,6 +11000,7 @@ class AlternateImageEditor:
             # The DB deletion succeeded. Retain an unreferenced file on failure.
             write_error_log("ALTERNATE IMAGE FILE CLEANUP FAILED", exc=exc)
 
+    @isolation_operation
     def add_from_form(self, card_uuid):
         context = self.context()
         source_type = str(request.form.get("source_type") or "external_url").strip().lower()
@@ -12192,6 +12244,7 @@ def build_no_waste_surprise_cards(
 
     return surprise_cards
 
+@isolation_operation
 def build_chaos_pack_pdf(
     cards,
     pack_display_name,
@@ -14029,6 +14082,7 @@ def build_custom_draft_set_image_export_rows(set_code, selected_card_ids=None):
 
     return export_rows
 
+@isolation_operation
 def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, separate_special_slots=False):
     if export_rows is None:
         export_rows = get_tracked_pack_card_export_rows(tracked_pack_ids or [])
@@ -14091,6 +14145,8 @@ def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, s
         card_row = get_chaos_card_for_image(export_row)
 
         if not card_row:
+            if export_row.get("image_scope_id"):
+                raise RuntimeError(f"Isolated export card is missing from the catalog: {card_uuid}")
             write_debug_log(
                 f"IMAGE EXPORT SKIP | card_uuid={card_uuid} | reason=card row not found"
             )
@@ -14098,6 +14154,8 @@ def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, s
 
         page_entries = build_chaos_print_pages_for_card(card_row)
         if not page_entries:
+            if card_row.get("image_scope_id"):
+                raise RuntimeError(f"Isolated export has no printable faces: {card_uuid}")
             write_debug_log(
                 f"IMAGE EXPORT SKIP | card_uuid={card_uuid} | reason=no printable page entries"
             )
@@ -14174,6 +14232,8 @@ def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, s
             )
 
         if not front_cached_result:
+            if card_row.get("image_scope_id"):
+                raise RuntimeError(f"Isolated export front unavailable: {card_uuid}")
             warning_text = (
                 f"Skipped card because front image was unavailable: "
                 f"{export_row.get('card_name')} | {card_uuid}"
@@ -14210,6 +14270,8 @@ def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, s
                 skip_card_corner_radius=front_bleed_source["used_fullbleed_source"],
             )
         except Exception as exc:
+            if card_row.get("image_scope_id"):
+                raise RuntimeError(f"Isolated export front failed: {card_uuid}") from exc
             write_debug_log(
                 f"IMAGE EXPORT FRONT RENDER FAILED | card_uuid={card_uuid} | "
                 f"card_name={export_row.get('card_name')} | error={str(exc)} | skipping card"
@@ -14267,12 +14329,16 @@ def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, s
                     )
                     back_relative_xml_path = f"\\Images\\{finish_folder_name}\\{back_filename}"
                 except Exception as exc:
+                    if card_row.get("image_scope_id"):
+                        raise RuntimeError(f"Isolated export back failed: {card_uuid}") from exc
                     write_debug_log(
                         f"IMAGE EXPORT BACK RENDER FAILED | card_uuid={card_uuid} | "
                         f"card_name={export_row.get('card_name')} | error={str(exc)} | using default back"
                     )
                     back_relative_xml_path = f"\\Images\\Default\\{default_back_filename}"
             else:
+                if card_row.get("image_scope_id"):
+                    raise RuntimeError(f"Isolated export back unavailable: {card_uuid}")
                 write_debug_log(
                     f"IMAGE EXPORT BACK FALLBACK | card_uuid={card_uuid} | "
                     f"card_name={export_row.get('card_name')} | back image unavailable; using default back"
@@ -20604,8 +20670,14 @@ def campaign_chaos_packs_add_custom_preview():
         )
 
 @app.route("/campaign-chaos/packs/preview/view", methods=["GET"])
+@isolation_operation
 def campaign_chaos_pack_preview_view():
     preview_pack = get_chaos_session_state("pending_manage_pack_preview", default_value=None)
+
+    try:
+        validate_preview_isolation(preview_pack)
+    except (RuntimeError, LookupError) as exc:
+        return str(exc), 409
 
     if not preview_pack:
         return "No generated pack preview is available.", 404
@@ -20679,6 +20751,7 @@ def build_campaign_preview_image_export_rows(preview_pack):
 
             "tracked_pack_card_id": card_index,
             "card_order": card_index,
+            "image_scope_id": card.get("image_scope_id"),
             "card_uuid": card_uuid,
             "card_name": card.get("card_name") or (card_row["card_name"] if card_row else ""),
             "card_set_code": (
@@ -20703,8 +20776,14 @@ def build_campaign_preview_image_export_rows(preview_pack):
 
 
 @app.route("/campaign-chaos/packs/preview/print", methods=["GET", "POST"])
+@isolation_operation
 def campaign_chaos_pack_preview_print():
     preview_pack = get_chaos_session_state("pending_manage_pack_preview", default_value=None)
+
+    try:
+        validate_preview_isolation(preview_pack)
+    except (RuntimeError, LookupError) as exc:
+        return str(exc), 409
 
     if not preview_pack:
         return "No generated pack preview is available.", 404
@@ -20742,8 +20821,14 @@ def campaign_chaos_pack_preview_print():
 
 
 @app.route("/campaign-chaos/packs/preview/export-zip", methods=["POST"])
+@isolation_operation
 def campaign_chaos_pack_preview_export_zip():
     preview_pack = get_chaos_session_state("pending_manage_pack_preview", default_value=None)
+
+    try:
+        validate_preview_isolation(preview_pack)
+    except (RuntimeError, LookupError) as exc:
+        return str(exc), 409
 
     if not preview_pack:
         return "No generated pack preview is available.", 404
@@ -20825,8 +20910,15 @@ def campaign_chaos_manage_pack_bulk_create_one():
     return jsonify(result)
 
 @app.route("/campaign-chaos/packs/preview/save", methods=["POST"])
+@isolation_operation
+@alternate_image_api
 def campaign_chaos_pack_preview_save():
     preview_pack = get_chaos_session_state("pending_manage_pack_preview", default_value=None)
+
+    try:
+        validate_preview_isolation(preview_pack)
+    except (RuntimeError, LookupError) as exc:
+        return jsonify(ok=False, message=str(exc)), 409
 
     if not preview_pack:
         return jsonify({
@@ -21111,7 +21203,11 @@ def serialize_draft_test_card(row):
         "mana_cost": row["mana_cost"] or "",
         "colors_json": row["colors_json"] or "[]",
         "color_identity_json": row["color_identity_json"] or "[]",
-        "image_src": url_for("chaos_card_image", card_uuid=row["card_uuid"]),
+        "image_scope_id": dict(row).get("image_scope_id"),
+        "image_src": url_for(
+            "chaos_card_image", card_uuid=row["card_uuid"],
+            image_scope_id=dict(row).get("image_scope_id") or "",
+        ),
     }
 
 
@@ -21142,7 +21238,11 @@ def serialize_draft_test_pick(row):
         "mana_cost": row["mana_cost"] or "",
         "colors_json": row["colors_json"] or "[]",
         "color_identity_json": row["color_identity_json"] or "[]",
-        "image_src": url_for("chaos_card_image", card_uuid=row["card_uuid"]),
+        "image_scope_id": dict(row).get("image_scope_id"),
+        "image_src": url_for(
+            "chaos_card_image", card_uuid=row["card_uuid"],
+            image_scope_id=dict(row).get("image_scope_id") or "",
+        ),
     }
 
 def deckbuilder_row_get(row, key, default=None):
@@ -27172,9 +27272,21 @@ def chaos_card_upscale_run(card_uuid):
         ),
     })
 
+def batch_image_context(owner):
+    if not owner:
+        return AlternateImageContext()
+    with closing(get_db_connection()) as conn:
+        conn.execute("BEGIN")
+        context = AlternateImageRepository.for_owner(conn, owner["kind"], owner["id"]).context
+        if (context.scope_id != owner["scope"] or
+                get_isolation_epoch(owner["kind"], owner["id"], conn) != owner["epoch"]):
+            raise RuntimeError("The collection's isolation changed during upscaling. Start a new batch.")
+        return context
+
 def get_card_upscale_batch_eligibility(
     card_row,
     replace_existing=False,
+    image_context=None,
 ):
     if not card_row:
         return {
@@ -27242,6 +27354,9 @@ def get_card_upscale_batch_eligibility(
 
         if get_alternate_source_for_card(
             card_row,
+            image_context=image_context or AlternateImageContext(
+                dict(card_row).get("image_scope_id")
+            ),
             face_kind=(
                 face_context[
                     "page_kind"
@@ -27833,6 +27948,7 @@ def run_upscaling_batch_job(
     source_label="Batch Upscale",
     replace_existing=False,
     holofoil_stamp_replacement=None,
+    image_owner=None,
 ):
     try:
         total_cards = len(
@@ -27889,9 +28005,11 @@ def run_upscaling_batch_job(
                 )
                 continue
 
+            image_context = batch_image_context(image_owner)
             eligibility = (
                 get_card_upscale_batch_eligibility(
                     card_row,
+                    image_context=image_context,
                     replace_existing=(
                         replace_existing
                     ),
@@ -28218,6 +28336,21 @@ def upscaling_batch_start():
             or "Next Cards"
         )
 
+    image_owner = None
+    try:
+        owner_kind = payload.get("image_owner_kind") or ("pack" if raw_tracked_pack_id else "")
+        owner_id = payload.get("image_owner_id") or raw_tracked_pack_id
+        if owner_kind or owner_id:
+            if raw_card_uuids is None and raw_tracked_pack_id is None:
+                raise ValueError("Collection scope is not valid for a global Next Cards batch.")
+            with closing(get_db_connection()) as conn:
+                conn.execute("BEGIN")
+                context = AlternateImageRepository.for_owner(conn, owner_kind, owner_id).context
+                image_owner = {"kind": owner_kind, "id": str(owner_id), "scope": context.scope_id,
+                               "epoch": get_isolation_epoch(owner_kind, owner_id, conn)}
+    except (ValueError, LookupError) as exc:
+        return jsonify(ok=False, message=str(exc)), 400
+
     if not card_uuids:
         return jsonify({
             "ok": True,
@@ -28330,6 +28463,7 @@ def upscaling_batch_start():
     worker = threading.Thread(
         target=run_upscaling_batch_job,
         kwargs={
+            "image_owner": image_owner,
             "card_uuids": (
                 card_uuids
             ),

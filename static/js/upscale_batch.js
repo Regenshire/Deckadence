@@ -919,6 +919,11 @@
             }
         }
 
+        const imageOwner = document.getElementById("alternateImageOverlay");
+        if (pendingRequest.mode !== "next" && imageOwner?.dataset.imageOwnerKind) {
+            payload.image_owner_kind = imageOwner.dataset.imageOwnerKind;
+            payload.image_owner_id = imageOwner.dataset.imageOwnerId;
+        }
         return payload;
     }
 

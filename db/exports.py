@@ -5,6 +5,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from io import BytesIO
+from contextlib import closing
 from uuid import uuid4
 import json
 
@@ -15,7 +16,7 @@ from paths import (
     RUNTIME_BASE_DIR,
 )
 
-from db.database import get_db_connection
+from db.database import get_db_connection, isolation_operation, IsolationStorage
 
 
 IMOMIR_EXPORT_VERSION = "1"
@@ -173,6 +174,7 @@ def clear_all_history_data():
         "total_deleted": sum(deleted_counts.values()),
     }
 
+@isolation_operation
 def clear_all_packs_data():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -529,6 +531,8 @@ def get_existing_full_backup_tables():
         "card_prices",
         "import_metadata",
         "chaos_session_state",
+        "_isolation_gc_queue",
+        "_isolation_epochs",
     }
 
     return sorted([
@@ -630,7 +634,7 @@ def build_pack_rows_by_table(tracked_pack_ids=None):
             tracked_pack_ids=pack_ids,
         )
 
-    return rows_by_table
+    return include_isolated_archive_dependencies(rows_by_table)
 
 
 def build_campaign_rows_by_table(campaign_id):
@@ -653,7 +657,7 @@ def build_campaign_rows_by_table(campaign_id):
             existing_rows = rows_by_table.get(table_name, [])
             rows_by_table[table_name] = merge_rows_by_identity(existing_rows, table_rows)
 
-    return rows_by_table
+    return include_isolated_archive_dependencies(rows_by_table)
 
 def build_default_campaign_rows_by_table():
     rows_by_table = {}
@@ -670,6 +674,29 @@ def build_default_campaign_rows_by_table():
             existing_rows = rows_by_table.get(table_name, [])
             rows_by_table[table_name] = merge_rows_by_identity(existing_rows, table_rows)
 
+    return include_isolated_archive_dependencies(rows_by_table)
+
+def include_isolated_archive_dependencies(rows_by_table):
+    scopes = set()
+    for rows in rows_by_table.values():
+        for row in rows:
+            scope = row.get("image_scope_id") or row.get("alternate_image_scope_id")
+            if scope:
+                scopes.add(scope)
+            if row.get("source_json"):
+                parsed = json.loads(row["source_json"])
+                scopes.update(card.get("image_scope_id") for card in parsed.get("cards", [])
+                              if card.get("image_scope_id"))
+    with closing(get_db_connection()) as conn:
+        for scope in scopes:
+            row = conn.execute("SELECT * FROM alternate_image_scopes WHERE image_scope_id = ?", (scope,)).fetchone()
+            if row is None:
+                raise ValueError("An exported record references a missing image scope. Repair or regenerate that record first.")
+            for table in ("alternate_image_scopes", "alternate_image_isolation"):
+                required = [dict(item) for item in conn.execute(
+                    f"SELECT * FROM {table} WHERE image_scope_id = ?", (scope,)
+                )]
+                rows_by_table[table] = merge_rows_by_identity(rows_by_table.get(table, []), required)
     return rows_by_table
 
 def build_full_rows_by_table():
@@ -678,16 +705,16 @@ def build_full_rows_by_table():
     for table_name in get_existing_full_backup_tables():
         rows_by_table[table_name] = fetch_table_rows(table_name)
 
-    return rows_by_table
+    return include_isolated_archive_dependencies(rows_by_table)
 
 
 def get_row_identity(row):
-    if "image_scope_id" in row:
-        return (
-            "image_scope",
-            row["image_scope_id"],
-            row.get("alternate_source_id"),
-        )
+    if "image_scope_id" in row and (
+        "alternate_source_id" in row or set(row).issubset({
+            "image_scope_id", "revision", "created_at_utc", "updated_at_utc"
+        })
+    ):
+        return ("image_scope", row["image_scope_id"], row.get("alternate_source_id"))
     # Used only to merge rows inside one export payload.
     # Keep simple and stable across schema changes.
     for key_name in (
@@ -898,6 +925,7 @@ def create_export_archive(export_kind, rows_by_table, filename_prefix, auto_clea
     }
 
 
+@isolation_operation
 def export_packs_archive(tracked_pack_ids=None, auto_clear_exports_value=None):
     rows_by_table = build_pack_rows_by_table(tracked_pack_ids)
 
@@ -909,6 +937,7 @@ def export_packs_archive(tracked_pack_ids=None, auto_clear_exports_value=None):
     )
 
 
+@isolation_operation
 def export_campaign_archive(campaign_id, auto_clear_exports_value=None):
     rows_by_table = build_campaign_rows_by_table(campaign_id)
 
@@ -922,6 +951,7 @@ def export_campaign_archive(campaign_id, auto_clear_exports_value=None):
         auto_clear_exports_value=auto_clear_exports_value,
     )
 
+@isolation_operation
 def export_default_campaign_archive(auto_clear_exports_value=None):
     rows_by_table = build_default_campaign_rows_by_table()
 
@@ -935,6 +965,7 @@ def export_default_campaign_archive(auto_clear_exports_value=None):
         auto_clear_exports_value=auto_clear_exports_value,
     )
 
+@isolation_operation
 def export_full_archive(auto_clear_exports_value=None):
     rows_by_table = build_full_rows_by_table()
 
@@ -1251,7 +1282,11 @@ def prepare_isolated_archive_import(zip_file, root):
     ).replace("\\", "/")
     archive_names = set(zip_file.namelist())
 
-    for row in tables.get("alternate_image_isolation", []):
+    tables["alternate_image_isolation"] = sorted(
+        tables.get("alternate_image_isolation", []),
+        key=lambda row: (row["image_scope_id"], int(row["alternate_source_id"])),
+    )
+    for row in tables["alternate_image_isolation"]:
         if row.get("image_scope_id") not in mapping:
             raise ValueError(
                 "Archive contains an isolated source without its scope."
@@ -1316,6 +1351,32 @@ def prepare_isolated_archive_import(zip_file, root):
         for name, rows in tables.items()
     }
 
+@isolation_operation
+def reject_import_owner_collisions(rows_by_table, import_scope):
+    """A partial import must not silently replace an unrelated owner or child row."""
+    if import_scope == EXPORT_KIND_FULL:
+        return  # Explicit full restore preserves existing replacement semantics.
+    with closing(get_db_connection()) as conn:
+        for table in get_allowed_tables_for_import(import_scope):
+            if table in {"alternate_image_scopes", "alternate_image_isolation"}:
+                continue  # These IDs are remapped; source row IDs are reallocated.
+            rows = rows_by_table.get(table, [])
+            if not rows:
+                continue
+            keys = [row[1] for row in conn.execute(f"PRAGMA table_info({table})") if row[5]]
+            for row in rows:
+                if not keys or not all(key in row for key in keys):
+                    continue
+                match = conn.execute(
+                    f"SELECT 1 FROM {table} WHERE " + " AND ".join(f"{key} = ?" for key in keys),
+                    tuple(row[key] for key in keys),
+                ).fetchone()
+                if match:
+                    raise ValueError(
+                        f"Import would replace an existing {table} record ({tuple(row[key] for key in keys)}). "
+                        "No files were extracted. Use an explicit full restore to replace existing data."
+                    )
+
 def import_archive_from_path(archive_path, import_scope, campaign_name_override=""):
     if not archive_path or not os.path.exists(archive_path):
         raise ValueError("Export archive was not found.")
@@ -1329,6 +1390,7 @@ def import_archive_from_path(archive_path, import_scope, campaign_name_override=
         allowed_tables = get_allowed_tables_for_import(import_scope)
 
         rows_by_table = prepare_isolated_archive_import(zip_file, root)
+        reject_import_owner_collisions(rows_by_table, import_scope)
         extracted_files = extract_files_from_manifest(zip_file, root)
 
         if import_scope == EXPORT_KIND_CAMPAIGN:
@@ -1347,6 +1409,7 @@ def import_archive_from_path(archive_path, import_scope, campaign_name_override=
     }
 
 
+@isolation_operation
 def import_archive_from_file_object(file_object, import_scope, campaign_name_override=""):
     if not file_object:
         raise ValueError("No export archive file was provided.")
@@ -1363,6 +1426,7 @@ def import_archive_from_file_object(file_object, import_scope, campaign_name_ove
         allowed_tables = get_allowed_tables_for_import(import_scope)
 
         rows_by_table = prepare_isolated_archive_import(zip_file, root)
+        reject_import_owner_collisions(rows_by_table, import_scope)
         extracted_files = extract_files_from_manifest(zip_file, root)
 
         if import_scope == EXPORT_KIND_CAMPAIGN:

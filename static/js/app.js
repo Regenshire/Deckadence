@@ -608,6 +608,7 @@ function initializeAppNavigationMenus() {
         message.style.color = "var(--muted)";
         message.style.lineHeight = "1.45";
         message.style.marginBottom = "18px";
+        message.style.textAlign = "justify";
 
         const actions = overlay.querySelector("#imomirConfirmActions");
         actions.style.display = "grid";

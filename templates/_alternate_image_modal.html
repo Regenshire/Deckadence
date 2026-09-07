@@ -355,16 +355,13 @@ for (const button of document.querySelectorAll("[data-image-isolation-toggle]"))
         button.disabled = true;
 
         const message = turnOn
-            ? "Copy this collection's current global alternate-image settings into " +
-              "an independent library? Future edits will stay separate. Cards added later " +
+            ? "Do you want to turn on Image Isolation?  This action will copy this collection's current alternate image settings into " +
+              "an independent library and future edits will be isolated to this collect. Cards added later " +
               "will not inherit global alternates. Standard Scryfall and accepted-upscale " +
               "fallback remain shared. You can turn isolation off later, which discards " +
-              "the isolated settings. Save other page edits first; this page will reload."
-            : "Turn isolation off and discard this collection's isolated alternate-image " +
-              "settings? It will use global alternate images again. Nothing is copied " +
-              "back to the global library. Other decks, sets, and saved-pack snapshots " +
-              "are not changed. Turning isolation on again creates a fresh copy, not a " +
-              "restore. Save other page edits first; this page will reload.";
+              "the isolated settings. Do you want to proceed?"
+            : "Do you want to turn Image Isolation off and discard this collection's isolated images? " + 
+              "The deck will revert to using the global images again for each selected printing if you turn Image Isolation Off.";
 
         try {
             const confirmed = window.iMomirConfirm?.show
@@ -392,7 +389,8 @@ for (const button of document.querySelectorAll("[data-image-isolation-toggle]"))
                     },
                     body: JSON.stringify({
                         confirm: true,
-                        expected_scope: button.dataset.scopeToken
+                        expected_scope: button.dataset.scopeToken,
+                        expected_epoch: Number(button.dataset.isolationEpoch)
                     })
                 }
             );
@@ -405,6 +403,13 @@ for (const button of document.querySelectorAll("[data-image-isolation-toggle]"))
             button.dataset.scopeToken = result.image_scope_id || "global";
             label.textContent = result.image_scope_id ? "Isolation On" : "Isolation Off";
             saved = true;
+            if (result.cleanup?.error || result.cleanup?.pending_files) {
+                window.alert(
+                    "Isolation changed successfully. Some unused image files could not " +
+                    "be deleted yet. Cleanup will retry during normal app activity; " +
+                    "details are in the application log."
+                );
+            }
             window.location.reload();
         } catch (error) {
             window.alert(error.message || String(error));

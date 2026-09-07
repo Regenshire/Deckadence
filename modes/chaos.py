@@ -21,7 +21,7 @@ from settings import (
     CHAOS_PACK_TYPE_OPTIONS,
 )
 from db.database import (
-    clone_alternate_image_scope,
+    clone_alternate_image_scope, isolation_operation, validate_preview_isolation, stamp_preview_isolation,
     generate_custom_draft_set_pack_cards,
     get_config,
     get_db_connection,
@@ -1220,6 +1220,8 @@ def open_chaos_pack_with_bonus_rule(
 
 
 def set_chaos_session_state(state_key, state_value):
+    if state_key in {"pending_manage_pack_preview", "pending_opened_pack"} and isinstance(state_value, dict):
+        state_value = stamp_preview_isolation(state_value)
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -3026,6 +3028,7 @@ def build_chaos_pack_pdf_from_variant(
         include_pack_labels=include_pack_labels,
     )
 
+@isolation_operation
 def save_opened_chaos_pack_to_tracking_db(opened_pack=None, campaign_id=None):
     if opened_pack is None:
         opened_pack = get_chaos_session_state("pending_opened_pack", default_value=None)
@@ -3080,6 +3083,8 @@ def save_opened_chaos_pack_to_tracking_db(opened_pack=None, campaign_id=None):
     except (TypeError, ValueError):
         parsed_campaign_id = None
 
+    if "isolation_preview_token" in opened_pack:
+        validate_preview_isolation(opened_pack)
     opened_pack["campaign_id"] = parsed_campaign_id
 
     conn = get_db_connection()
@@ -3151,35 +3156,19 @@ def save_opened_chaos_pack_to_tracking_db(opened_pack=None, campaign_id=None):
 
         tracked_pack_id = cursor.lastrowid
 
-        scope_ids = {
-            card.get("image_scope_id")
-            for card in cards
-            if card.get("image_scope_id")
-        }
-
+        scope_ids = {card.get("image_scope_id") for card in cards}
         if len(scope_ids) > 1:
-            raise ValueError(
-                "A saved pack cannot combine different isolated image libraries."
-            )
-
-        copied_scope = clone_alternate_image_scope(
-            conn, next(iter(scope_ids), None)
-        )
-
+            raise ValueError("A saved pack cannot combine different image libraries.")
+        copied_scope = clone_alternate_image_scope(conn, next(iter(scope_ids), None))
+        saved_pack = {
+            **opened_pack,
+            "cards": [{**card, "image_scope_id": copied_scope} for card in cards],
+        }
+        saved_pack.pop("isolation_preview_token", None)
         cursor.execute(
             "UPDATE tracked_chaos_packs SET alternate_image_scope_id = ?, source_json = ? "
             "WHERE tracked_pack_id = ?",
-            (
-                copied_scope,
-                json.dumps({
-                    **opened_pack,
-                    "cards": [
-                        {**card, "image_scope_id": copied_scope}
-                        for card in cards
-                    ],
-                }),
-                tracked_pack_id,
-            ),
+            (copied_scope, json.dumps(saved_pack), tracked_pack_id),
         )
 
         for card_order, card in enumerate(cards, start=1):
@@ -6135,6 +6124,7 @@ def get_tracked_pack_state_by_id(tracked_pack_id):
         "cards": cards,
     }
 
+@isolation_operation
 def build_tracked_packs_combined_pdf(
     tracked_pack_ids,
     build_chaos_pack_pdf_fn,

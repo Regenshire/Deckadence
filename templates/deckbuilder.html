@@ -257,6 +257,7 @@
                 data-enable-url="{{ image_isolation.enable_url }}"
                 data-disable-url="{{ image_isolation.disable_url }}"
                 data-scope-token="{{ image_isolation.scope_token }}"
+                    data-isolation-epoch="{{ image_isolation.epoch }}"
             >
                 <span class="imomir-isolation-track" aria-hidden="true"></span>
                 <span data-isolation-label aria-hidden="true">Isolation {{ 'On' if image_isolation.enabled else 'Off' }}</span>
@@ -1478,7 +1479,8 @@
         const cardWidth = getDeckbuilderCardSizePixels(sizePercent);
         const stackColumnWidth = Math.max(96, cardWidth);
         const stackCardWidth = Math.max(80, stackColumnWidth - 16);
-        const visibleStackStrip = Math.max(30, Math.round(stackCardWidth * 0.22));
+        //const visibleStackStrip = Math.max(30, Math.round(stackCardWidth * 0.22));
+        const visibleStackStrip = Math.max(14, Math.round(stackCardWidth * 0.09));
         const cardHeight = Math.round(stackCardWidth * 1.40);
         const overlap = Math.max(0, cardHeight - visibleStackStrip);
 

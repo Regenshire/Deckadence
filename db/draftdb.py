@@ -1,7 +1,10 @@
 import random
 from datetime import datetime, timezone
 
-from db.database import get_db_connection
+from db.database import (
+    get_db_connection, ensure_column_exists, ensure_isolation_storage_schema,
+    clone_alternate_image_scope, isolation_operation,
+)
 from modes.bot_selection import choose_bot_draft_pick
 
 
@@ -254,6 +257,8 @@ def ensure_draft_testing_schema():
         """
     )
 
+    ensure_isolation_storage_schema(conn)
+    ensure_column_exists(cursor, "draft_test_pack_cards", "image_scope_id", "TEXT")
     conn.commit()
     conn.close()
 
@@ -584,6 +589,8 @@ def get_tracked_pack_card_rows_for_draft_pool(tracked_pack_id):
         """
         SELECT
             tcpc.card_order,
+            (SELECT alternate_image_scope_id FROM tracked_chaos_packs p
+             WHERE p.tracked_pack_id = tcpc.tracked_pack_id) AS image_scope_id,
             tcpc.card_uuid,
             tcpc.card_name,
             tcpc.set_code,
@@ -615,6 +622,7 @@ def get_tracked_pack_card_rows_for_draft_pool(tracked_pack_id):
 
 
 
+@isolation_operation
 def create_draft_test_session_from_pack_pool(
     campaign_id=None,
     tracked_pack_ids=None,
@@ -808,6 +816,11 @@ def create_draft_test_session_from_pack_pool(
                 first_human_pack_id = draft_test_pack_id
 
             card_rows = get_tracked_pack_card_rows_for_draft_pool(tracked_pack_id)
+            pack_scope = cursor.execute(
+                "SELECT alternate_image_scope_id FROM tracked_chaos_packs "
+                "WHERE tracked_pack_id = ?", (tracked_pack_id,),
+            ).fetchone()[0]
+            draft_scope = clone_alternate_image_scope(conn, pack_scope)
 
             for card_index, card_row in enumerate(card_rows, start=1):
                 cursor.execute(
@@ -833,9 +846,10 @@ def create_draft_test_session_from_pack_pool(
                         is_picked,
                         picked_by_seat_index,
                         picked_at_pick_number,
-                        picked_at_utc
+                        picked_at_utc,
+                        image_scope_id
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         draft_test_pack_id,
@@ -859,6 +873,7 @@ def create_draft_test_session_from_pack_pool(
                         None,
                         None,
                         None,
+                        draft_scope,
                     ),
                 )
 
@@ -1170,6 +1185,7 @@ def get_draft_test_detail(draft_test_id):
         """
         SELECT
             dtpick.*,
+            dtpc.image_scope_id,
             COALESCE(dtpc.set_code, cc.set_code, '') AS set_code,
             COALESCE(dtpc.collector_number, cc.collector_number, '') AS collector_number,
             COALESCE(dtpc.rarity, cc.rarity, 'common') AS rarity,
@@ -1201,6 +1217,7 @@ def get_draft_test_detail(draft_test_id):
         """
         SELECT
             dtpick.*,
+            dtpc.image_scope_id,
             COALESCE(dtpc.set_code, cc.set_code, '') AS set_code,
             COALESCE(dtpc.collector_number, cc.collector_number, '') AS collector_number,
             COALESCE(dtpc.rarity, cc.rarity, 'common') AS rarity,
@@ -1313,6 +1330,7 @@ def get_draft_test_virtual_player_detail(draft_test_id, draft_test_player_id=Non
             """
             SELECT
                 dtpick.*,
+                dtpc.image_scope_id,
                 COALESCE(dtpc.set_code, cc.set_code, '') AS set_code,
                 COALESCE(dtpc.collector_number, cc.collector_number, '') AS collector_number,
                 COALESCE(dtpc.rarity, cc.rarity, '') AS rarity,

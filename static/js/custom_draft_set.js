@@ -357,8 +357,17 @@
             imageSrc || ""
         ).trim();
 
-        imageElement.src = deferredCardImagePlaceholder;
         imageElement.dataset.cardImageSrc = cleanImageSrc;
+
+        if (activeCardImageElements.has(imageElement)) {
+            // Reuse the active request's loader slot and completion handlers.
+            // Loading the placeholder here would mark it as the finished card.
+            imageElement.dataset.cardImageState = "loading";
+            imageElement.src = cleanImageSrc;
+            return;
+        }
+
+        imageElement.src = deferredCardImagePlaceholder;
         imageElement.dataset.cardImageState = "idle";
         imageElement.loading = "lazy";
         imageElement.decoding = "async";
@@ -1557,11 +1566,12 @@
         const hasAlternateSource = Boolean(card.has_alternate_source);
         const hasUpscaledImage = Boolean(card.has_upscaled_image);
         const alternateRemoveBleed = Boolean(card.alternate_remove_bleed);
-        const imageSrc = card.image_src || (
-            "/chaos-card-image-preview/"
-            + encodeURIComponent(cardUuid)
-        );
-        const cacheBustedImageSrc = imageSrc + "?v=" + Date.now();
+        const imageSrc = window.iMomirImageUrl(card.image_src || (
+            "/chaos-card-image-preview/" + encodeURIComponent(cardUuid)
+        ));
+        const versionedImageUrl = new URL(imageSrc, window.location.href);
+        versionedImageUrl.searchParams.set("v", String(Date.now()));
+        const cacheBustedImageSrc = versionedImageUrl.toString();
 
         row.dataset.cardUuid = cardUuid;
         row.dataset.cardSearch = buildCurrentCardSearchTextFromCard(card);

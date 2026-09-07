@@ -1,11 +1,17 @@
 import os
 import sqlite3
+import json
+import logging
+import hashlib
+import threading
+from contextlib import closing, contextmanager, ExitStack
+from functools import wraps
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
-from paths import DATABASE_PATH
+from paths import DATABASE_PATH, ALTERNATE_SOURCE_DIR, RUNTIME_BASE_DIR
 from settings import (
     CHAOS_BATCH_REPEAT_REPLACEMENT_CHANCES,
     DEFAULT_CONFIG,
@@ -68,6 +74,297 @@ def table_exists_with_cursor(cursor, table_name):
     )
 
     return cursor.fetchone() is not None
+
+# This lock is separate from the application database. It also coordinates
+# multiple app processes, and SQLite releases it automatically after a crash.
+_isolation_mutex = threading.RLock()
+_isolation_local = threading.local()
+
+
+@contextmanager
+def isolation_guard(wait=True):
+    acquired = _isolation_mutex.acquire(blocking=wait)
+    if not acquired:
+        raise RuntimeError("An image operation is in progress; try again shortly.")
+    connection = None
+    try:
+        if getattr(_isolation_local, "active", False):
+            yield
+            return
+        os.makedirs(os.path.dirname(os.path.abspath(DATABASE_PATH)), exist_ok=True)
+        connection = sqlite3.connect(
+            str(DATABASE_PATH) + ".image-operations.sqlite3",
+            timeout=120 if wait else 0,
+        )
+        try:
+            connection.execute("BEGIN EXCLUSIVE")
+        except sqlite3.OperationalError as exc:
+            raise RuntimeError(
+                "Another image operation is still running. Retry when it finishes."
+            ) from exc
+        _isolation_local.active = True
+        try:
+            yield
+        finally:
+            _isolation_local.active = False
+    finally:
+        if connection is not None:
+            connection.rollback()
+            connection.close()
+        _isolation_mutex.release()
+
+
+def isolation_operation(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        with isolation_guard():
+            return function(*args, **kwargs)
+    return wrapped
+
+
+def ensure_isolation_storage_schema(connection):
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS _isolation_gc_queue ("
+        "path TEXT PRIMARY KEY, attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT)"
+    )
+    connection.execute(
+        "CREATE TABLE IF NOT EXISTS _isolation_epochs ("
+        "owner_kind TEXT, owner_id TEXT, epoch INTEGER NOT NULL DEFAULT 0, "
+        "PRIMARY KEY (owner_kind, owner_id))"
+    )
+    for kind, table, key in (
+        ("deck", "decks", "deck_id"),
+        ("set", "custom_draft_sets", "set_code"),
+        ("pack", "tracked_chaos_packs", "tracked_pack_id"),
+    ):
+        columns = {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
+        if "alternate_image_scope_id" not in columns:
+            continue
+        for event, suffix, condition, alias in (
+            ("UPDATE OF alternate_image_scope_id", "change",
+             "WHEN OLD.alternate_image_scope_id IS NOT NEW.alternate_image_scope_id", "NEW"),
+            ("DELETE", "delete", "", "OLD"),
+            ("INSERT", "create", "", "NEW"),
+        ):
+            connection.execute(f"""
+                CREATE TRIGGER IF NOT EXISTS isolation_{kind}_{suffix}
+                AFTER {event} ON {table} {condition}
+                BEGIN
+                    INSERT INTO _isolation_epochs (owner_kind, owner_id, epoch)
+                    VALUES ('{kind}', CAST({alias}.{key} AS TEXT), 1)
+                    ON CONFLICT(owner_kind, owner_id) DO UPDATE SET epoch = epoch + 1;
+                END
+            """)
+
+
+def get_isolation_epoch(owner_kind, owner_id, connection=None):
+    _, _, owner_id = AlternateImageRepository.owner_key(owner_kind, owner_id)
+    with ExitStack() as stack:
+        conn = connection or stack.enter_context(closing(get_db_connection()))
+        row = conn.execute(
+            "SELECT epoch FROM _isolation_epochs WHERE owner_kind = ? AND owner_id = ?",
+            (owner_kind, str(owner_id)),
+        ).fetchone()
+        return int(row[0]) if row else 0
+
+
+def validate_isolation_epoch(connection, owner_kind, owner_id, expected):
+    if isinstance(expected, bool) or not isinstance(expected, int):
+        raise RuntimeError("Reload the page before changing isolation.")
+    if expected != get_isolation_epoch(owner_kind, owner_id, connection):
+        raise RuntimeError("Isolation changed in another request. Reload the page and try again.")
+
+
+class IsolationStorage:
+    """Reference-aware collection confined to the managed isolation directory."""
+
+    @staticmethod
+    def managed_path(value):
+        if not isinstance(value, str) or not value:
+            return None
+        root = os.path.abspath(os.path.join(ALTERNATE_SOURCE_DIR, "isolation"))
+        candidate = os.path.abspath(os.path.join(RUNTIME_BASE_DIR, value.replace("\\", os.sep)))
+        try:
+            if os.path.commonpath([root, candidate]) != root or candidate == root:
+                return None
+            # Do not follow links or Windows directory junctions during cleanup.
+            current = root
+            for part in [""] + os.path.relpath(candidate, root).split(os.sep):
+                current = os.path.join(current, part)
+                if os.path.islink(current):
+                    return None
+                if hasattr(os.path, "isjunction") and os.path.isjunction(current):
+                    return None
+            real_root = os.path.normcase(os.path.realpath(root))
+            real_candidate = os.path.normcase(os.path.realpath(candidate))
+            if real_root != os.path.normcase(root):
+                return None
+            if os.path.commonpath([real_root, real_candidate]) != real_root:
+                return None
+        except (OSError, ValueError):
+            return None
+        return os.path.normcase(candidate)
+
+    @staticmethod
+    def canonical(value):
+        return os.path.normcase(os.path.realpath(os.path.join(
+            RUNTIME_BASE_DIR, str(value).replace("\\", os.sep)
+        )))
+
+    @classmethod
+    def enqueue(cls, paths, connection=None):
+        with ExitStack() as stack:
+            conn = connection or stack.enter_context(closing(get_db_connection()))
+            for value in paths:
+                path = cls.managed_path(value)
+                if path:
+                    stored = os.path.relpath(path, RUNTIME_BASE_DIR).replace("\\", "/")
+                    conn.execute("INSERT OR IGNORE INTO _isolation_gc_queue(path) VALUES (?)", (stored,))
+            if connection is None:
+                conn.commit()
+
+    @staticmethod
+    def _owned_scopes(conn):
+        scopes = set()
+        for table, column in (
+            ("decks", "alternate_image_scope_id"),
+            ("custom_draft_sets", "alternate_image_scope_id"),
+            ("tracked_chaos_packs", "alternate_image_scope_id"),
+            ("draft_test_pack_cards", "image_scope_id"),
+        ):
+            columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+            if column in columns:
+                scopes.update(row[0] for row in conn.execute(
+                    f"SELECT DISTINCT {column} FROM {table} WHERE {column} IS NOT NULL"
+                ))
+        # Preserve legacy saved-pack references until the explicit repair is run.
+        if table_exists_with_cursor(conn.cursor(), "tracked_chaos_packs"):
+            for row in conn.execute("SELECT source_json FROM tracked_chaos_packs WHERE alternate_image_scope_id IS NULL"):
+                try:
+                    cards = json.loads(row[0] or "{}").get("cards", [])
+                    scopes.update(card.get("image_scope_id") for card in cards if isinstance(card, dict))
+                except (ValueError, TypeError, AttributeError):
+                    # Malformed historical metadata is not permission to remove assets.
+                    raise RuntimeError("A saved pack has invalid source_json; repair it before cleanup.")
+        return scopes
+
+    @classmethod
+    def collect(cls, *, scan=False, dry_run=False, wait=True):
+        report = {"files_deleted": 0, "bytes_deleted": 0, "scopes_removed": 0,
+                  "pending_files": 0, "candidate_files": 0, "retained_files": 0}
+        try:
+            with isolation_guard(wait=wait), closing(get_db_connection()) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                owned = cls._owned_scopes(conn)
+                for row in conn.execute("SELECT image_scope_id FROM alternate_image_scopes").fetchall():
+                    scope_id = row[0]
+                    if scope_id in owned:
+                        continue
+                    paths = [value for source in conn.execute(
+                        "SELECT local_image_path, fullbleed_image_path FROM alternate_image_isolation "
+                        "WHERE image_scope_id = ?", (scope_id,)
+                    ) for value in source if value]
+                    cls.enqueue(paths, conn)
+                    conn.execute("DELETE FROM alternate_image_isolation WHERE image_scope_id = ?", (scope_id,))
+                    conn.execute("DELETE FROM alternate_image_scopes WHERE image_scope_id = ?", (scope_id,))
+                    report["scopes_removed"] += 1
+                if scan:
+                    root = os.path.join(ALTERNATE_SOURCE_DIR, "isolation")
+                    # Scan only managed files; active preparation holds isolation_guard.
+                    for directory, children, files in os.walk(root, followlinks=False):
+                        children[:] = [name for name in children if cls.managed_path(os.path.join(directory, name))]
+                        cls.enqueue([os.path.join(directory, name) for name in files], conn)
+                referenced = {
+                    cls.canonical(value)
+                    for row in conn.execute(
+                        "SELECT local_image_path, fullbleed_image_path FROM alternate_sources UNION ALL "
+                        "SELECT local_image_path, fullbleed_image_path FROM alternate_image_isolation"
+                    ) for value in row if value
+                }
+                queued = [row[0] for row in conn.execute("SELECT path FROM _isolation_gc_queue")]
+                candidates = []
+                for value in queued:
+                    path = cls.managed_path(value)
+                    if path and cls.canonical(path) not in referenced:
+                        candidates.append((value, path))
+                    else:
+                        report["retained_files"] += 1
+                        conn.execute("DELETE FROM _isolation_gc_queue WHERE path = ?", (value,))
+                report["candidate_files"] = len(candidates)
+                if dry_run:
+                    conn.rollback()
+                    return report
+                # Commit database removal before touching the filesystem. The queue
+                # survives crashes and failed deletes; the operation guard remains held.
+                conn.commit()
+                for value, path in candidates:
+                    try:
+                        size = os.path.getsize(path) if os.path.isfile(path) else 0
+                        if os.path.isfile(path):
+                            os.remove(path)
+                            report["files_deleted"] += 1
+                            report["bytes_deleted"] += size
+                        conn.execute("DELETE FROM _isolation_gc_queue WHERE path = ?", (value,))
+                        parent = os.path.dirname(path)
+                        root = os.path.abspath(os.path.join(ALTERNATE_SOURCE_DIR, "isolation"))
+                        while parent != root and cls.managed_path(parent):
+                            try:
+                                os.rmdir(parent)
+                            except OSError:
+                                break
+                            parent = os.path.dirname(parent)
+                    except OSError as exc:
+                        conn.execute(
+                            "UPDATE _isolation_gc_queue SET attempts = attempts + 1, last_error = ? WHERE path = ?",
+                            (str(exc), value),
+                        )
+                        logging.getLogger(__name__).warning("Isolation cleanup deferred for %s: %s", path, exc)
+                conn.commit()
+                root = os.path.join(ALTERNATE_SOURCE_DIR, "isolation")
+                for directory, children, files in os.walk(root, topdown=False, followlinks=False):
+                    if cls.managed_path(directory):
+                        try:
+                            os.rmdir(directory)
+                        except OSError:
+                            pass
+                report["pending_files"] = conn.execute("SELECT COUNT(*) FROM _isolation_gc_queue").fetchone()[0]
+        except Exception as exc:
+            if not wait and isinstance(exc, RuntimeError):
+                report["busy"] = True
+            else:
+                report["error"] = str(exc)
+                logging.getLogger(__name__).exception("Isolation cleanup failed; files were retained")
+        return report
+
+
+def stamp_preview_isolation(pack):
+    if not pack or not str(pack.get("set_code") or "").endswith("^"):
+        return pack
+    with closing(get_db_connection()) as conn:
+        conn.execute("BEGIN")
+        code = normalize_custom_draft_set_code(pack["set_code"])
+        scope = AlternateImageRepository.for_owner(conn, "set", code).context.scope_id
+        epoch = get_isolation_epoch("set", code, conn)
+        pack = {**pack, "cards": [{**dict(card), "image_scope_id": scope} for card in pack.get("cards", [])]}
+        pack["isolation_preview_token"] = [code, epoch, scope]
+        return pack
+
+
+def validate_preview_isolation(pack):
+    if not pack:
+        return
+    with closing(get_db_connection()) as conn:
+        conn.execute("BEGIN")
+        for scope in {card.get("image_scope_id") for card in pack.get("cards", []) if card.get("image_scope_id")}:
+            if conn.execute("SELECT 1 FROM alternate_image_scopes WHERE image_scope_id = ?", (scope,)).fetchone() is None:
+                raise RuntimeError("This preview's image library no longer exists. Generate a new preview.")
+        if str(pack.get("set_code") or "").endswith("^"):
+            token = pack.get("isolation_preview_token")
+            code = normalize_custom_draft_set_code(pack["set_code"])
+            current = AlternateImageRepository.for_owner(conn, "set", code).context.scope_id
+            expected = [code, get_isolation_epoch("set", code, conn), current]
+            if token != expected:
+                raise RuntimeError("Image isolation changed since this preview was generated. Generate a new preview.")
 
 @dataclass(frozen=True)
 class AlternateImageContext:
@@ -349,6 +646,8 @@ class AlternateImageRepository:
 class AlternateImageIsolationService:
     """Create independent source snapshots without changing global sources."""
 
+    snapshot_factory = None
+
     SOURCE_FIELDS = (
         "source_name", "source_type", "card_uuid", "set_code",
         "collector_number", "scryfall_id", "card_name", "face_kind",
@@ -420,8 +719,11 @@ class AlternateImageIsolationService:
         ]
         return members, sources
 
-    def disable_for_owner(self, owner_kind, owner_id, *, expected_scope):
-        """Return an owner to global settings without deleting image files."""
+    @isolation_operation
+    def disable_for_owner(
+        self, owner_kind, owner_id, *, expected_scope, expected_epoch=None
+    ):
+        """Detach the owner; collect unused scopes and managed files after commit."""
         table_name, key_name, owner_id = AlternateImageRepository.owner_key(
             owner_kind, owner_id
         )
@@ -433,6 +735,9 @@ class AlternateImageIsolationService:
         connection = self.connection_factory()
         try:
             connection.execute("BEGIN IMMEDIATE")
+            validate_isolation_epoch(
+                connection, owner_kind, owner_id, expected_epoch
+            )
             context = AlternateImageRepository.for_owner(
                 connection, owner_kind, owner_id
             ).context
@@ -455,31 +760,7 @@ class AlternateImageIsolationService:
                 (now, owner_id),
             )
 
-            # Normally scopes have one owner. Protect shared references too.
-            shared = connection.execute(
-                """
-                SELECT 1 FROM decks WHERE alternate_image_scope_id = ?
-                UNION ALL
-                SELECT 1 FROM custom_draft_sets
-                WHERE alternate_image_scope_id = ?
-                UNION ALL
-                SELECT 1 FROM tracked_chaos_packs
-                WHERE alternate_image_scope_id = ?
-                LIMIT 1
-                """,
-                (context.scope_id, context.scope_id, context.scope_id),
-            ).fetchone()
-
-            if shared is None:
-                connection.execute(
-                    "DELETE FROM alternate_image_isolation WHERE image_scope_id = ?",
-                    (context.scope_id,),
-                )
-                connection.execute(
-                    "DELETE FROM alternate_image_scopes WHERE image_scope_id = ?",
-                    (context.scope_id,),
-                )
-
+            # Keep scope rows until the reference-aware collector examines them.
             connection.commit()
             return AlternateImageContext()
         except Exception:
@@ -487,13 +768,20 @@ class AlternateImageIsolationService:
             raise
         finally:
             connection.close()
+            self.last_cleanup = IsolationStorage.collect(scan=True)
 
-    def enable_for_owner(self, owner_kind, owner_id):
+    @isolation_operation
+    def enable_for_owner(
+        self, owner_kind, owner_id, *, expected_scope="global", expected_epoch=None
+    ):
         table_name, key_name, owner_id = AlternateImageRepository.owner_key(
             owner_kind, owner_id
         )
         connection = self.connection_factory()
         try:
+            validate_isolation_epoch(
+                connection, owner_kind, owner_id, expected_epoch
+            )
             # Read membership and settings from one consistent snapshot.
             connection.execute("BEGIN")
             repository = AlternateImageRepository.for_owner(
@@ -503,6 +791,8 @@ class AlternateImageIsolationService:
                 connection.commit()
                 return repository.context
 
+            if expected_scope != "global":
+                raise RuntimeError("The image library changed. Reload before enabling isolation.")
             original_state = self._read_state(connection, owner_kind, owner_id)
             connection.commit()
 
@@ -520,6 +810,9 @@ class AlternateImageIsolationService:
                         ) from exc
                     prepared_sources.append({**source, **paths})
 
+                validate_isolation_epoch(
+                    connection, owner_kind, owner_id, expected_epoch
+                )
                 # Network transfers and image decoding are already complete.
                 connection.execute("BEGIN IMMEDIATE")
                 repository = AlternateImageRepository.for_owner(
@@ -613,6 +906,156 @@ def clone_alternate_image_scope(connection, scope_id):
     )
 
     return new_scope_id
+
+@contextmanager
+def prepare_draft_image_import(connection, deck_id, cards):
+    """Preserve draft artwork without overwriting established destination choices."""
+    owner = AlternateImageRepository.for_owner(connection, "deck", deck_id)
+    inherited = any(card.get("image_scope_id") for card in cards)
+    if not inherited:
+        yield lambda: None
+        return
+
+    existing_ids = {row[0] for row in connection.execute(
+        "SELECT card_uuid FROM deck_cards WHERE deck_id = ? UNION "
+        "SELECT card_uuid FROM deck_basic_land_printings WHERE deck_id = ?",
+        (deck_id, deck_id),
+    )}
+    fingerprints = {}
+
+    def file_fingerprint(value, external_url=""):
+        if not value:
+            return ("url", external_url) if external_url else None
+        path = IsolationStorage.canonical(value)
+        if path not in fingerprints:
+            digest = hashlib.sha256()
+            with open(path, "rb") as image:
+                for chunk in iter(lambda: image.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            fingerprints[path] = digest.hexdigest()
+        return fingerprints[path]
+
+    def selected_artwork(context, card_uuid):
+        repository = AlternateImageRepository(connection, context)
+        card = connection.execute("SELECT * FROM chaos_cards WHERE card_uuid = ?", (card_uuid,)).fetchone()
+        signatures = []
+        for face in ("front", "back"):
+            source = repository.find_enabled(card, face)
+            signatures.append(None if source is None else (
+                file_fingerprint(source["local_image_path"], source["external_image_url"]),
+                file_fingerprint(source["fullbleed_image_path"]),
+                source["remove_bleed"], source["bleed_size_mm"],
+                source["bleed_processing_version"], source["export_frame_template"],
+            ))
+        return signatures
+
+    desired = {}
+    for card in cards:
+        card_uuid = card["card_uuid"]
+        if card_uuid in existing_ids:
+            continue  # Existing destination settings always win.
+        context = AlternateImageContext(card.get("image_scope_id"))
+        previous = desired.get(card_uuid)
+        if previous is not None and previous != context:
+            if selected_artwork(previous, card_uuid) == selected_artwork(context, card_uuid):
+                continue
+            raise ValueError(
+                f"Different artwork was drafted for {card.get('card_name') or card_uuid}. "
+                "Import those copies separately and choose the destination artwork explicitly."
+            )
+        desired[card_uuid] = context
+
+    new_scope = owner.context.scope_id or uuid4().hex
+    sources = {}
+    # A global destination is snapshotted before changing its library, including
+    # configured basic lands. New global picks must retain their global artwork too.
+    if not owner.context.is_isolated:
+        for source in AlternateImageIsolationService._read_state(
+            connection, "deck", deck_id
+        )[1]:
+            sources[(None, source["alternate_source_id"])] = source
+    for card_uuid, context in desired.items():
+        if owner.context.is_isolated and owner.list_for_card(card_uuid):
+            continue
+        repository = AlternateImageRepository(connection, context)
+        for row in repository.list_for_card(card_uuid):
+            sources[(context.scope_id, row["alternate_source_id"])] = dict(row)
+
+    factory = AlternateImageIsolationService.snapshot_factory
+    if factory is None:
+        raise RuntimeError("Image snapshot service is not configured. Start iMomir normally.")
+    with factory(new_scope, file_group_id=uuid4().hex) as files:
+        prepared = []
+        # Sorting by original ID preserves each library's source precedence.
+        for (scope, source_id), source in sorted(sources.items(), key=lambda item: item[0][1]):
+            if scope is None:
+                source = {**source, **files.prepare_source(source)}
+            prepared.append(source)
+        files.validate_inputs()
+        now = datetime.now(timezone.utc).isoformat()
+        if not owner.context.is_isolated:
+            connection.execute(
+                "INSERT INTO alternate_image_scopes "
+                "(image_scope_id, revision, created_at_utc, updated_at_utc) VALUES (?, 1, ?, ?)",
+                (new_scope, now, now),
+            )
+            connection.execute(
+                "UPDATE decks SET alternate_image_scope_id = ? WHERE deck_id = ?",
+                (new_scope, deck_id),
+            )
+        target = AlternateImageRepository(connection, AlternateImageContext(new_scope))
+        fields = AlternateImageIsolationService.SOURCE_FIELDS
+        for source in prepared:
+            target.insert({**{key: source[key] for key in fields},
+                           "created_at_utc": now, "updated_at_utc": now})
+        yield files.keep
+
+@isolation_operation
+def repair_legacy_isolated_packs(*, apply=False):
+    """Recover legacy references only when the referenced settings/files still exist."""
+    result = {"recoverable_pack_ids": [], "repaired_pack_ids": [], "unrecoverable": []}
+    with closing(get_db_connection()) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        for row in conn.execute(
+            "SELECT tracked_pack_id, source_json FROM tracked_chaos_packs "
+            "WHERE alternate_image_scope_id IS NULL"
+        ).fetchall():
+            pack_id = row["tracked_pack_id"]
+            try:
+                original = json.loads(row["source_json"] or "{}")
+                cards = original.get("cards") or []
+                scopes = {card.get("image_scope_id") for card in cards}
+                if not any(scopes):
+                    continue
+                if len(scopes) != 1:
+                    raise ValueError("The legacy pack contains different image libraries.")
+                scope = next(iter(scopes))
+                repository = AlternateImageRepository(conn, AlternateImageContext(scope))
+                sources = conn.execute(
+                    "SELECT local_image_path, fullbleed_image_path FROM alternate_image_isolation "
+                    "WHERE image_scope_id = ?", (repository.context.scope_id,)
+                )
+                for source in sources:
+                    for value in source:
+                        if value and not os.path.isfile(IsolationStorage.canonical(value)):
+                            raise FileNotFoundError("A referenced image file no longer exists.")
+                result["recoverable_pack_ids"].append(pack_id)
+                if apply:
+                    copied = clone_alternate_image_scope(conn, scope)
+                    restored = {**original, "cards": [{**card, "image_scope_id": copied} for card in cards]}
+                    restored.pop("isolation_preview_token", None)
+                    conn.execute(
+                        "UPDATE tracked_chaos_packs SET alternate_image_scope_id = ?, source_json = ? "
+                        "WHERE tracked_pack_id = ?", (copied, json.dumps(restored), pack_id)
+                    )
+                    result["repaired_pack_ids"].append(pack_id)
+            except (LookupError, ValueError, TypeError, AttributeError, OSError) as exc:
+                result["unrecoverable"].append({"pack_id": pack_id, "reason": str(exc)})
+        if apply:
+            conn.commit()
+        else:
+            conn.rollback()
+    return result
 
 def initialize_database():
     conn = get_db_connection()
@@ -1306,6 +1749,7 @@ def initialize_database():
             (key, value),
         )
 
+    ensure_isolation_storage_schema(conn)
     conn.commit()
     conn.close()
 
