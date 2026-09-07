@@ -113,29 +113,10 @@ from settings import (
     PDF_OUTER_SLOT_REGION_BAND_DEFAULT_MODE,
     PDF_OUTER_SLOT_REGION_BAND_DEFAULT_SIZE_MM,
     PRINT_COLOR_MODE_OPTIONS,
-    PRINT_TEMPLATE_OPTIONS,
+    PRINT_EDGE_BORDER_PIXELS,
     REPEAT_MODE_OPTIONS,
     SCRYFALL_IMAGE_QUALITY_OPTIONS,
     SCRYFALL_BULK_DATA_URL,
-    SILHOUETTE_A4_BLEED_MM,
-    SILHOUETTE_A4_CARD_HEIGHT_MM,
-    SILHOUETTE_A4_CARD_SPACING_MM,
-    SILHOUETTE_A4_CARD_WIDTH_MM,
-    SILHOUETTE_A4_COLUMNS,
-    SILHOUETTE_A4_PAGE_HEIGHT_MM,
-    SILHOUETTE_A4_PAGE_WIDTH_MM,
-    SILHOUETTE_A4_ROWS,
-    SILHOUETTE_CORNER_RADIUS_MM,
-    SILHOUETTE_EDGE_BORDER_PIXELS,
-    SILHOUETTE_FILL_UNUSED_SLOTS_WITH_WHITE,
-    SILHOUETTE_LETTER_CARD_HEIGHT_MM,
-    SILHOUETTE_LETTER_CARD_WIDTH_MM,
-    SILHOUETTE_LETTER_COLUMNS,
-    SILHOUETTE_LETTER_ROWS,
-    SILHOUETTE_LETTER_START_X_MM,
-    SILHOUETTE_LETTER_START_Y_MM,
-    SILHOUETTE_RENDER_TARGET_HEIGHT_PX,
-    SILHOUETTE_RENDER_TARGET_WIDTH_PX,
     SUPPLEMENTAL_TYPE_KEYS,
     TYPE_FLAG_MAP,
     resolve_chaos_draft_mode_value,
@@ -3185,32 +3166,7 @@ def build_momir_registry_template_layout(
         print_template,
         "momir",
     )
-
-def resolve_print_template_layout(print_template):
-    normalized_template = (print_template or "").strip().lower()
-
-    if normalized_template == "standard":
-        return {
-            "print_template": "standard",
-
-            "page_width_css": "2.5in",
-            "page_height_css": "3.5in",
-            "page_width_mm": 63.5,
-            "page_height_mm": 88.9,
-
-            "sheet_width_css": "2.5in",
-            "sheet_height_css": "3.5in",
-            "sheet_width_mm": 63.5,
-            "sheet_height_mm": 88.9,
-
-            "sheet_offset_x_css": "0mm",
-            "sheet_offset_y_css": "0mm",
-            "sheet_offset_x_mm": 0.0,
-            "sheet_offset_y_mm": 0.0,
-
-            "uses_fixed_inner_margin": False,
-        }
-    
+   
     if normalized_template == "borderless-3p5x5-two-card":
         return {
             "print_template": "borderless-3p5x5-two-card",
@@ -3443,18 +3399,10 @@ def is_silhouette_template(print_template):
         print_template
     )
 
-    if template:
-        return template.is_silhouette_layout
-
-    normalized_template = (
-        print_template
-        or ""
-    ).strip().lower()
-
-    return normalized_template in {
-        "silhouette-letter-horizontal-8",
-        "silhouette-a4-vertical-9",
-    }
+    return bool(
+        template
+        and template.is_silhouette_layout
+    )
 
 def resolve_pdf_template_layout():
     return get_request_pdf_template_layout()
@@ -3485,14 +3433,12 @@ def get_active_print_template_metadata():
 def get_silhouette_print_template_options():
     return [
         {
-            "value": value,
-            "label": label,
+            "value": template.template_id,
+            "label": template.display_name,
         }
-        for value, label
-        in PRINT_TEMPLATE_OPTIONS
-        if is_silhouette_template(
-            value
-        )
+        for template
+        in get_print_template_registry().list_templates()
+        if template.is_silhouette_layout
     ]
 
 
@@ -4852,9 +4798,9 @@ def get_serialized_card_back_options():
 
 
 
-def get_silhouette_edge_border_pixels():
+def get_print_edge_border_pixels():
     try:
-        parsed_value = int(SILHOUETTE_EDGE_BORDER_PIXELS)
+        parsed_value = int(PRINT_EDGE_BORDER_PIXELS)
     except Exception:
         parsed_value = 1
 
@@ -4862,16 +4808,6 @@ def get_silhouette_edge_border_pixels():
         parsed_value = 0
 
     return parsed_value
-
-
-def get_silhouette_horizontal_border_mm():
-    border_pixels = get_silhouette_edge_border_pixels()
-    return (border_pixels / SILHOUETTE_RENDER_TARGET_WIDTH_PX) * SILHOUETTE_LETTER_CARD_WIDTH_MM
-
-
-def get_silhouette_vertical_border_mm():
-    border_pixels = get_silhouette_edge_border_pixels()
-    return (border_pixels / SILHOUETTE_RENDER_TARGET_HEIGHT_PX) * SILHOUETTE_LETTER_CARD_HEIGHT_MM
 
 def build_chaos_cached_image_filename(card_uuid, page_kind, face_name, image_url):
     uuid_part = safe_filename(card_uuid or "card")
@@ -5033,149 +4969,6 @@ def try_download_chaos_image_to_cache(card_uuid, page_kind, face_name, image_url
 
         return None
 
-def get_two_card_borderless_slots_mm():
-    # 3.5" x 5" portrait page
-    # Two rotated cards, stacked vertically, no margins.
-    return [
-        {
-            "x_mm": 0.0,
-            "y_mm": 63.5,
-            "width_mm": 88.9,
-            "height_mm": 63.5,
-            "rotation_degrees": 90,
-        },
-        {
-            "x_mm": 0.0,
-            "y_mm": 0.0,
-            "width_mm": 88.9,
-            "height_mm": 63.5,
-            "rotation_degrees": 90,
-        },
-    ]
-
-def get_silhouette_letter_horizontal_8_slots_mm():
-    horizontal_border_mm = get_silhouette_horizontal_border_mm()
-    vertical_border_mm = get_silhouette_vertical_border_mm()
-
-    horizontal_step_mm = SILHOUETTE_LETTER_CARD_WIDTH_MM + (horizontal_border_mm * 2)
-    vertical_step_mm = SILHOUETTE_LETTER_CARD_HEIGHT_MM + (vertical_border_mm * 2)
-
-    slot_defs = []
-
-    for row_index in range(SILHOUETTE_LETTER_ROWS):
-        for column_index in range(SILHOUETTE_LETTER_COLUMNS):
-            display_row_index = (SILHOUETTE_LETTER_ROWS - 1) - row_index
-
-            art_x_mm = SILHOUETTE_LETTER_START_X_MM + (column_index * horizontal_step_mm)
-            art_y_mm = SILHOUETTE_LETTER_START_Y_MM + (display_row_index * vertical_step_mm)
-
-            slot_defs.append({
-                "x_mm": art_x_mm - horizontal_border_mm,
-                "y_mm": art_y_mm - vertical_border_mm,
-                "width_mm": SILHOUETTE_LETTER_CARD_WIDTH_MM + (horizontal_border_mm * 2),
-                "height_mm": SILHOUETTE_LETTER_CARD_HEIGHT_MM + (vertical_border_mm * 2),
-
-                # The physical card inside every paper-template slot is always
-                # 63 x 88 mm. Any additional slot area is template bleed.
-                "finished_card_width_mm": CARD_PRINT_WIDTH_MM,
-                "finished_card_height_mm": CARD_PRINT_HEIGHT_MM,
-
-                "rotation_degrees": 0,
-            })
-
-    write_debug_log(
-        f"SILHOUETTE LETTER LAYOUT | border_pixels={get_silhouette_edge_border_pixels()} | "
-        f"horizontal_border_mm={horizontal_border_mm:.6f} | vertical_border_mm={vertical_border_mm:.6f} | "
-        f"horizontal_step_mm={horizontal_step_mm:.6f} | vertical_step_mm={vertical_step_mm:.6f}"
-    )
-
-    return slot_defs
-
-def get_silhouette_a4_vertical_9_slots_mm():
-    slot_width_mm = SILHOUETTE_A4_CARD_WIDTH_MM + (SILHOUETTE_A4_BLEED_MM * 2)
-    slot_height_mm = SILHOUETTE_A4_CARD_HEIGHT_MM + (SILHOUETTE_A4_BLEED_MM * 2)
-
-    horizontal_step_mm = (
-        SILHOUETTE_A4_CARD_WIDTH_MM
-        + SILHOUETTE_A4_CARD_SPACING_MM
-    )
-    vertical_step_mm = (
-        SILHOUETTE_A4_CARD_HEIGHT_MM
-        + SILHOUETTE_A4_CARD_SPACING_MM
-    )
-
-    group_width_mm = (
-        slot_width_mm
-        + ((SILHOUETTE_A4_COLUMNS - 1) * horizontal_step_mm)
-    )
-    group_height_mm = (
-        slot_height_mm
-        + ((SILHOUETTE_A4_ROWS - 1) * vertical_step_mm)
-    )
-
-    start_x_mm = (
-        SILHOUETTE_A4_PAGE_WIDTH_MM - group_width_mm
-    ) / 2.0
-    start_y_mm = (
-        SILHOUETTE_A4_PAGE_HEIGHT_MM - group_height_mm
-    ) / 2.0
-
-    slot_defs = []
-
-    for row_index in range(SILHOUETTE_A4_ROWS):
-        for column_index in range(SILHOUETTE_A4_COLUMNS):
-            display_row_index = (SILHOUETTE_A4_ROWS - 1) - row_index
-
-            slot_defs.append({
-                "x_mm": start_x_mm + (column_index * horizontal_step_mm),
-                "y_mm": start_y_mm + (display_row_index * vertical_step_mm),
-                "width_mm": slot_width_mm,
-                "height_mm": slot_height_mm,
-
-                # The physical card remains 63 x 88 mm. The A4 template's
-                # fixed 0.5925 mm bleed exists outside this inner rectangle.
-                "finished_card_width_mm": CARD_PRINT_WIDTH_MM,
-                "finished_card_height_mm": CARD_PRINT_HEIGHT_MM,
-
-                "rotation_degrees": 0,
-            })
-
-    write_debug_log(
-        f"SILHOUETTE A4 9 CARD LAYOUT | "
-        f"bleed_mm={SILHOUETTE_A4_BLEED_MM:.4f} | "
-        f"slot_width_mm={slot_width_mm:.4f} | "
-        f"slot_height_mm={slot_height_mm:.4f} | "
-        f"horizontal_step_mm={horizontal_step_mm:.4f} | "
-        f"vertical_step_mm={vertical_step_mm:.4f} | "
-        f"group_width_mm={group_width_mm:.4f} | "
-        f"group_height_mm={group_height_mm:.4f} | "
-        f"start_x_mm={start_x_mm:.4f} | "
-        f"start_y_mm={start_y_mm:.4f}"
-    )
-
-    return slot_defs
-
-def get_silhouette_pdf_layout_spec(print_template):
-    normalized_template = (print_template or "").strip().lower()
-
-    if normalized_template == "silhouette-letter-horizontal-8":
-        return {
-            "background_filename": "SIL_LETTER_HORIZONTAL.png",
-            "slot_defs": get_silhouette_letter_horizontal_8_slots_mm(),
-            "columns": SILHOUETTE_LETTER_COLUMNS,
-            "rows": SILHOUETTE_LETTER_ROWS,
-        }
-
-    if normalized_template == "silhouette-a4-vertical-9":
-        return {
-            "background_filename": "SIL_A4_NINE_CARD.png",
-            "slot_defs": get_silhouette_a4_vertical_9_slots_mm(),
-            "columns": SILHOUETTE_A4_COLUMNS,
-            "rows": SILHOUETTE_A4_ROWS,
-        }
-
-    return None
-
 def build_pdf_image_reader_from_bytes(image_bytes, print_mode):
     with Image.open(BytesIO(image_bytes)) as source_image:
         image = source_image.convert("RGB")
@@ -5216,7 +5009,7 @@ def build_pdf_image_reader_from_bytes(image_bytes, print_mode):
 
 def add_duplicated_edge_border(image, border_pixels=None):
     if border_pixels is None:
-        border_pixels = get_silhouette_edge_border_pixels()
+        border_pixels = get_print_edge_border_pixels()
 
     if isinstance(border_pixels, (tuple, list)):
         if len(border_pixels) != 4:
@@ -5457,28 +5250,6 @@ def get_processed_card_image_bytes(image_path, print_mode):
         g.processed_card_image_bytes_cache[cache_key] = processed_bytes
 
     return processed_bytes
-
-def draw_processed_image_into_two_card_slot(pdf_canvas, image_path, print_mode, slot_def):
-    processed_image_bytes = get_processed_card_image_bytes(image_path, print_mode)
-
-    with Image.open(BytesIO(processed_image_bytes)) as source_image:
-        rotated_image = source_image.convert("RGB").transpose(Image.Transpose.ROTATE_270)
-
-        rotated_buffer = BytesIO()
-        rotated_image.save(rotated_buffer, format="PNG")
-        rotated_buffer.seek(0)
-
-        slot_reader = ImageReader(rotated_buffer)
-
-    pdf_canvas.drawImage(
-        slot_reader,
-        slot_def["x_mm"] * mm,
-        slot_def["y_mm"] * mm,
-        width=slot_def["width_mm"] * mm,
-        height=slot_def["height_mm"] * mm,
-        preserveAspectRatio=False,
-        mask="auto",
-    )
 
 def draw_pdf_background_image(pdf_canvas, image_path, page_width_mm, page_height_mm):
     background_reader = ImageReader(image_path)
@@ -7043,9 +6814,6 @@ def render_print_page(card, image_src):
         image_src=image_src,
         print_mode=print_settings[
             "print_mode"
-        ],
-        print_template=print_settings[
-            "print_template"
         ],
         print_width=print_settings[
             "print_width"
@@ -12564,364 +12332,6 @@ def build_chaos_pack_pdf(
             except Exception:
                 pass
 
-    if not is_silhouette_layout:
-        # Title card page.
-        title_card_bytes = build_chaos_pack_title_card_image_bytes(
-            pack_display_name,
-            set_code=set_code,
-            booster_name=booster_name,
-            pack_tracking_code=pack_tracking_code,
-            card_width_mm=width_mm,
-            card_height_mm=height_mm,
-        )
-
-        title_reader = ImageReader(BytesIO(title_card_bytes))
-
-        c.drawImage(
-            title_reader,
-            0,
-            0,
-            width=width_mm * mm,
-            height=height_mm * mm,
-            preserveAspectRatio=False,
-            mask="auto",
-        )
-
-        c.showPage()
-
-    draw_x_mm = pdf_template_layout["draw_x_mm"]
-    draw_y_mm = pdf_template_layout["draw_y_mm"]
-    draw_width_mm = pdf_template_layout["draw_width_mm"]
-    draw_height_mm = pdf_template_layout["draw_height_mm"]
-
-    if crop_border and not pdf_template_layout["uses_fixed_inner_margin"]:
-        crop_left_right_mm = width_mm * 0.05
-        crop_top_bottom_mm = height_mm * 0.034
-
-        draw_x_mm = -crop_left_right_mm
-        draw_y_mm = -crop_top_bottom_mm
-        draw_width_mm = width_mm + (crop_left_right_mm * 2)
-        draw_height_mm = height_mm + (crop_top_bottom_mm * 2)
-
-    rendered_image_entries = []
-
-    if is_silhouette_template(pdf_template_layout["print_template"]):
-        try:
-            config = get_request_config()
-            use_pack_image_for_title = (config.get("use_pack_image_for_title") or "0").strip() == "1"
-
-            title_card_bytes = None
-
-            if use_pack_image_for_title and set_code and booster_name:
-                title_card_bytes = build_chaos_pack_image_title_card_bytes(set_code, booster_name)
-
-            if not title_card_bytes:
-                title_card_bytes = build_chaos_pack_title_card_image_bytes(
-                    pack_display_name,
-                    set_code=set_code,
-                    booster_name=booster_name,
-                    pack_tracking_code=pack_tracking_code,
-                )
-
-            title_temp_filename = f"chaos_title_{safe_filename(pack_display_name)}.png"
-            title_temp_path = get_chaos_temp_file_path(title_temp_filename)
-
-            with open(title_temp_path, "wb") as title_file:
-                title_file.write(title_card_bytes)
-
-            rendered_image_entries.append({
-                "temp_path": title_temp_path,
-                "page_kind": "title",
-                "card_uuid": "",
-                "card_row": None,
-                "is_dual_faced": 0,
-                "is_persistent_cache_file": False,
-                "is_template_rendered": False,
-            })
-        except Exception as exc:
-            write_debug_log(f"CHAOS TITLE CARD ERROR | pack={pack_display_name} | error={str(exc)}")
-
-    for card in cards:
-        card_uuid = card.get("card_uuid")
-        card_row = get_chaos_card_by_uuid(card_uuid)
-
-        if not card_row:
-            continue
-
-        page_entries = build_chaos_print_pages_for_card(card_row)
-        if not page_entries:
-            continue
-
-        for page_entry in page_entries:
-            page_image_url = (page_entry.get("image_url") or "").strip()
-            page_kind = (page_entry.get("page_kind") or "").strip().lower()
-
-            image_source = resolve_card_image_source_for_page(
-                card_row,
-                page_kind,
-                page_image_url,
-            )
-
-            write_debug_log(
-                f"CHAOS PDF RENDER | card_name={page_entry.get('card_name')} | "
-                f"page_kind={page_entry.get('page_kind')} | face_name={page_entry.get('face_name')} | "
-                f"source_type={image_source.get('source_type')} | has_url={'yes' if page_image_url else 'no'}"
-            )
-
-            try:
-                cached_result = (
-                    get_local_card_image_result_from_source(
-                        image_source
-                    )
-                )
-
-                if cached_result is None:
-                    if not page_image_url:
-                        continue
-
-                    cached_result = download_chaos_image_to_cache(
-                        page_entry.get("card_uuid"),
-                        page_entry.get("page_kind"),
-                        page_entry.get("face_name"),
-                        page_image_url,
-                    )
-
-                if not cached_result:
-                    raise ValueError("No cached result returned for chaos image download.")
-
-                rendered_image_entries.append({
-                    "temp_path": cached_result["absolute_path"],
-                    "page_kind": (page_entry.get("page_kind") or "").strip().lower(),
-                    "card_uuid": (page_entry.get("card_uuid") or card_uuid or "").strip(),
-                    "card_row": card_row,
-                    "is_dual_faced": int(card_row["is_dual_faced"] or 0),
-                    "is_persistent_cache_file": True,
-                    "is_template_rendered": False,
-                    "export_frame_template": image_source.get("export_frame_template") or "auto",
-                })
-
-            except Exception as exc:
-                write_debug_log(
-                    f"CHAOS PDF RENDER ERROR | card_name={page_entry.get('card_name')} | "
-                    f"page_kind={page_entry.get('page_kind')} | error={str(exc)}"
-                )
-                continue
-
-    pages_rendered = 0
-
-    template_rendered_entries = []
-
-    for rendered_entry in rendered_image_entries:
-        if rendered_entry.get("page_kind") == "title":
-            template_rendered_entries.append(rendered_entry)
-            continue
-
-        template_rendered_entries.append(
-            build_pdf_rendered_entry_with_template(
-                rendered_entry,
-                pack_tracking_code=pack_tracking_code if pdf_settings.get("print_pack_tracking_code") else "",
-                print_front_back_label=pdf_settings.get("print_front_back_label"),
-            )
-        )
-
-    rendered_image_entries = template_rendered_entries
-
-    if (
-        include_pack_labels
-        and get_configured_print_pack_labels()
-        and not pack_label_card_already_included
-    ):
-        try:
-            pack_label_bytes = build_chaos_pack_title_card_image_bytes(
-                pack_display_name,
-                set_code=set_code,
-                booster_name=booster_name,
-                pack_tracking_code=get_effective_pack_tracking_code(
-                    pack_tracking_code,
-                    label_settings=pdf_settings,
-                ),
-            )
-
-            pack_label_temp_filename = (
-                f"chaos_pack_label_{safe_filename(pack_display_name)}"
-                f"_{safe_filename(pack_tracking_code or 'label')}.png"
-            )
-            pack_label_temp_path = get_chaos_temp_file_path(pack_label_temp_filename)
-
-            with open(pack_label_temp_path, "wb") as pack_label_file:
-                pack_label_file.write(pack_label_bytes)
-
-            rendered_image_entries.append({
-                "temp_path": pack_label_temp_path,
-                "page_kind": "title",
-                "card_uuid": "",
-                "card_row": None,
-                "is_dual_faced": 0,
-                "is_persistent_cache_file": False,
-                "is_template_rendered": False,
-            })
-
-        except Exception as exc:
-            write_debug_log(
-                f"CHAOS PACK LABEL PDF ERROR | pack={pack_display_name} | error={str(exc)}"
-            )
-
-    try:
-        silhouette_spec = get_silhouette_pdf_layout_spec(
-            pdf_template_layout["print_template"]
-        )
-
-        if silhouette_spec:
-            background_abs_path = os.path.join(
-                app.static_folder,
-                "sil",
-                silhouette_spec["background_filename"],
-            )
-
-            if not os.path.exists(background_abs_path):
-                raise FileNotFoundError(f"Silhouette background not found: {background_abs_path}")
-
-            slot_defs = silhouette_spec["slot_defs"]
-            cards_per_page = len(slot_defs)
-
-            for page_start_index in range(0, len(rendered_image_entries), cards_per_page):
-                page_entries = rendered_image_entries[
-                    page_start_index:page_start_index + cards_per_page
-                ]
-
-                draw_pdf_background_image(
-                    c,
-                    background_abs_path,
-                    width_mm,
-                    height_mm,
-                )
-
-                if should_draw_pdf_outer_slot_region_band(
-                    print_settings,
-                    "front",
-                ):
-                    draw_pdf_outer_slot_region_band(
-                        c,
-                        slot_defs,
-                        band_width_mm=print_settings.get(
-                            "pdf_outer_slot_region_band_size_mm",
-                            PDF_OUTER_SLOT_REGION_BAND_DEFAULT_SIZE_MM,
-                        ),
-                        color_hex=print_settings.get(
-                            "pdf_outer_slot_region_band_color_hex",
-                            PDF_OUTER_SLOT_REGION_BAND_DEFAULT_COLOR_HEX,
-                        ),
-                    )
-
-                for slot_index, rendered_entry in enumerate(page_entries):
-                    slot_def = slot_defs[slot_index]
-
-                    use_real_source_bleed = bool(
-                        rendered_entry.get(
-                            "uses_real_source_bleed"
-                        )
-                    )
-
-                    draw_processed_image_into_slot(
-                        c,
-                        rendered_entry["temp_path"],
-                        print_settings["print_mode"],
-                        slot_def,
-
-                        add_edge_bleed_border=(
-                            not use_real_source_bleed
-                        ),
-
-                        rounded_corner_radius_mm=(
-                            0.0
-                            if use_real_source_bleed
-                            else SILHOUETTE_CORNER_RADIUS_MM
-                        ),
-
-                        preserve_real_source_bleed=(
-                            use_real_source_bleed
-                        ),
-
-                        source_bleed_mm=(
-                            rendered_entry.get(
-                                "source_bleed_mm"
-                            )
-                            or 0.0
-                        ),
-                    )
-
-                if SILHOUETTE_FILL_UNUSED_SLOTS_WITH_WHITE and len(page_entries) < len(slot_defs):
-                    for blank_slot_index in range(len(page_entries), len(slot_defs)):
-                        draw_processed_image_into_slot(
-                            c,
-                            image_path=None,
-                            print_mode=print_settings["print_mode"],
-                            slot_def=slot_defs[blank_slot_index],
-                            add_edge_bleed_border=False,
-                            rounded_corner_radius_mm=SILHOUETTE_CORNER_RADIUS_MM,
-                            blank_white_card=True,
-                        )
-
-                c.showPage()
-                pages_rendered += 1
-
-        elif pdf_template_layout.get("is_multi_card_layout", False) and pdf_template_layout["print_template"] == "borderless-3p5x5-two-card":
-            slot_defs = get_two_card_borderless_slots_mm()
-
-            for page_start_index in range(0, len(rendered_image_entries), 2):
-                page_entries = rendered_image_entries[page_start_index:page_start_index + 2]
-
-                for slot_index, rendered_entry in enumerate(page_entries):
-                    slot_def = slot_defs[slot_index]
-
-                    draw_processed_image_into_two_card_slot(
-                        c,
-                        rendered_entry["temp_path"],
-                        print_settings["print_mode"],
-                        slot_def,
-                    )
-
-                c.showPage()
-                pages_rendered += 1
-        else:
-            for rendered_entry in rendered_image_entries:
-                pdf_image_reader = build_pdf_image_reader(
-                    rendered_entry["temp_path"],
-                    print_settings["print_mode"],
-                )
-
-                c.drawImage(
-                    pdf_image_reader,
-                    draw_x_mm * mm,
-                    draw_y_mm * mm,
-                    width=draw_width_mm * mm,
-                    height=draw_height_mm * mm,
-                    preserveAspectRatio=False,
-                    mask="auto",
-                )
-
-                c.showPage()
-                pages_rendered += 1
-
-    finally:
-        for rendered_entry in rendered_image_entries:
-            try:
-                if rendered_entry.get("is_persistent_cache_file", False):
-                    continue
-
-                temp_path = rendered_entry.get("temp_path")
-                if temp_path and os.path.exists(temp_path):
-                    os.remove(temp_path)
-            except Exception:
-                pass
-
-    if pages_rendered == 0:
-        raise ValueError("No Chaos Draft card images could be rendered into the PDF.")
-
-    c.save()
-    buffer.seek(0)
-
-    return buffer
 
 def get_next_image_export_folder():
     auto_clear_export_root(get_auto_clear_exports_config_value())
@@ -18821,7 +18231,6 @@ def config():
         game_mode_options=resolved_game_mode_cards,
         grouped_game_modes=grouped_game_modes,
         repeat_mode_options=REPEAT_MODE_OPTIONS,
-        print_template_options=PRINT_TEMPLATE_OPTIONS,
         momir_print_template_options=(
             get_momir_print_template_options()
         ),
