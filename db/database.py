@@ -1,5 +1,8 @@
 import os
 import sqlite3
+from dataclasses import dataclass
+from typing import Optional
+from uuid import UUID
 
 from paths import DATABASE_PATH
 from settings import (
@@ -64,6 +67,167 @@ def table_exists_with_cursor(cursor, table_name):
     )
 
     return cursor.fetchone() is not None
+
+@dataclass(frozen=True)
+class AlternateImageContext:
+    """An explicit alternate-image namespace; None means the global library."""
+
+    scope_id: Optional[str] = None
+
+    def __post_init__(self):
+        if self.scope_id is None:
+            return
+
+        if not isinstance(self.scope_id, str):
+            raise ValueError("Image scope IDs must be lowercase UUID hex strings.")
+
+        try:
+            valid_scope_id = UUID(self.scope_id).hex == self.scope_id
+        except ValueError:
+            valid_scope_id = False
+
+        if not valid_scope_id:
+            raise ValueError("Image scope IDs must be lowercase UUID hex strings.")
+
+    @property
+    def is_isolated(self):
+        return self.scope_id is not None
+
+
+class AlternateImageRepository:
+    """Read alternate sources using a caller-owned database connection."""
+
+    def __init__(self, connection, image_context=None):
+        if image_context is None:
+            image_context = AlternateImageContext()
+        if not isinstance(image_context, AlternateImageContext):
+            raise TypeError("image_context must be an AlternateImageContext.")
+
+        self.connection = connection
+        self.context = image_context
+        self._table = "alternate_sources"
+        self._scope_filter = ""
+        self._scope_parameters = ()
+
+        if image_context.is_isolated:
+            scope = connection.execute(
+                """
+                SELECT image_scope_id
+                FROM alternate_image_scopes
+                WHERE image_scope_id = ?
+                """,
+                (image_context.scope_id,),
+            ).fetchone()
+
+            if scope is None:
+                raise LookupError("Alternate image scope was not found.")
+
+            self._table = "alternate_image_isolation"
+            self._scope_filter = "image_scope_id = ? AND "
+            self._scope_parameters = (image_context.scope_id,)
+
+    @classmethod
+    def for_owner(cls, connection, owner_kind, owner_id):
+        """Resolve the namespace from a stored owner, not a client flag."""
+        if owner_kind == "deck":
+            table_name, key_name = "decks", "deck_id"
+            clean_owner_id = str(owner_id).strip()
+            if not clean_owner_id.isdecimal() or int(clean_owner_id) <= 0:
+                raise ValueError("Invalid deck ID.")
+            clean_owner_id = int(clean_owner_id)
+        elif owner_kind == "set":
+            table_name, key_name = "custom_draft_sets", "set_code"
+            clean_owner_id = normalize_custom_draft_set_code(owner_id)
+            if not clean_owner_id:
+                raise ValueError("Invalid custom set code.")
+        else:
+            raise ValueError("Unsupported alternate image owner type.")
+
+        owner = connection.execute(
+            f"SELECT alternate_image_scope_id FROM {table_name} "
+            f"WHERE {key_name} = ?",
+            (clean_owner_id,),
+        ).fetchone()
+
+        if owner is None:
+            raise LookupError("Alternate image owner was not found.")
+
+        return cls(
+            connection,
+            AlternateImageContext(owner["alternate_image_scope_id"]),
+        )
+
+    def find_enabled(self, card_row, face_kind="single"):
+        if not card_row:
+            return None
+
+        card = dict(card_row)
+        normalized_face = (face_kind or "single").strip().lower()
+        if normalized_face not in {"single", "front", "back"}:
+            normalized_face = "single"
+
+        identities = []
+        if card.get("card_uuid"):
+            identities.append(("card_uuid = ?", (card["card_uuid"],)))
+        if card.get("set_code") and card.get("collector_number"):
+            identities.append((
+                "UPPER(COALESCE(set_code, '')) = UPPER(?) "
+                "AND LOWER(COALESCE(collector_number, '')) = LOWER(?)",
+                (card["set_code"], card["collector_number"]),
+            ))
+
+        for identity_sql, identity_parameters in identities:
+            row = self.connection.execute(
+                f"""
+                SELECT *
+                FROM {self._table}
+                WHERE {self._scope_filter}is_enabled = 1
+                  AND {identity_sql}
+                  AND face_kind IN (?, 'single')
+                ORDER BY
+                    CASE WHEN face_kind = ? THEN 0 ELSE 1 END,
+                    alternate_source_id DESC
+                LIMIT 1
+                """,
+                self._scope_parameters + identity_parameters + (
+                    normalized_face,
+                    normalized_face,
+                ),
+            ).fetchone()
+            if row is not None:
+                return row
+
+        return None
+
+    def list_for_card(self, card_uuid):
+        clean_card_uuid = (card_uuid or "").strip()
+        if not clean_card_uuid:
+            return []
+
+        return self.connection.execute(
+            f"""
+            SELECT *
+            FROM {self._table}
+            WHERE {self._scope_filter}card_uuid = ?
+            ORDER BY
+                is_enabled DESC,
+                priority ASC,
+                alternate_source_id DESC
+            """,
+            self._scope_parameters + (clean_card_uuid,),
+        ).fetchall()
+
+    def get_by_id(self, alternate_source_id):
+        return self.connection.execute(
+            f"""
+            SELECT *
+            FROM {self._table}
+            WHERE {self._scope_filter}alternate_source_id = ?
+            """,
+            self._scope_parameters + (int(alternate_source_id),),
+        ).fetchone()
+
+
 
 def initialize_database():
     conn = get_db_connection()
@@ -521,6 +685,72 @@ def initialize_database():
 
     cursor.execute(
         """
+        CREATE TABLE IF NOT EXISTS alternate_image_scopes (
+            image_scope_id TEXT PRIMARY KEY NOT NULL,
+            revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1),
+            created_at_utc TEXT NOT NULL,
+            updated_at_utc TEXT
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS alternate_image_isolation (
+            alternate_source_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            image_scope_id TEXT NOT NULL,
+            original_alternate_source_id INTEGER,
+            source_name TEXT NOT NULL,
+            source_type TEXT NOT NULL,
+            card_uuid TEXT,
+            set_code TEXT,
+            collector_number TEXT,
+            scryfall_id TEXT,
+            card_name TEXT,
+            face_kind TEXT NOT NULL DEFAULT 'single'
+                CHECK (face_kind IN ('single', 'front', 'back')),
+            external_image_url TEXT,
+            local_image_path TEXT,
+            fullbleed_image_path TEXT,
+            remove_bleed INTEGER NOT NULL DEFAULT 0,
+            bleed_size_mm REAL,
+            bleed_processing_version INTEGER NOT NULL DEFAULT 1,
+            export_frame_template TEXT,
+            is_enabled INTEGER NOT NULL DEFAULT 1,
+            priority INTEGER NOT NULL DEFAULT 100,
+            notes TEXT,
+            created_at_utc TEXT NOT NULL,
+            updated_at_utc TEXT,
+            FOREIGN KEY (image_scope_id)
+                REFERENCES alternate_image_scopes (image_scope_id)
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_alternate_image_isolation_card
+        ON alternate_image_isolation (
+            image_scope_id, card_uuid, is_enabled,
+            face_kind, alternate_source_id DESC
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_alternate_image_isolation_printing
+        ON alternate_image_isolation (
+            image_scope_id,
+            UPPER(COALESCE(set_code, '')),
+            LOWER(COALESCE(collector_number, '')),
+            is_enabled, face_kind, alternate_source_id DESC
+        )
+        """
+    )
+
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS card_prices (
             card_uuid TEXT PRIMARY KEY,
             tcgplayer_normal_price REAL,
@@ -561,6 +791,13 @@ def initialize_database():
         "custom_draft_sets",
         "card_back_key",
         "TEXT",
+    )
+
+    ensure_column_exists(
+        cursor,
+        "custom_draft_sets",
+        "alternate_image_scope_id",
+        "TEXT REFERENCES alternate_image_scopes (image_scope_id)",
     )
 
     cursor.execute(

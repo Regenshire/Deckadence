@@ -31,7 +31,7 @@ STAMP_SEARCH_BOX = (
 
 STAMP_COMPONENT_BOX = (
     0.433,
-    0.906, #0.890
+    0.904, #0.890
     0.567,
     0.955,
 )

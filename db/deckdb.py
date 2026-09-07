@@ -152,6 +152,13 @@ def ensure_deck_schema():
         "TEXT",
     )
 
+    ensure_column_exists(
+        cursor,
+        "decks",
+        "alternate_image_scope_id",
+        "TEXT REFERENCES alternate_image_scopes (image_scope_id)",
+    )
+
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS deck_cards (

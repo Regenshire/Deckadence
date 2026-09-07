@@ -187,6 +187,8 @@ from db.exports import (
 )
 
 from db.database import (
+    AlternateImageContext,
+    AlternateImageRepository,
     CUSTOM_DRAFT_PACK_DEFAULT_SLOT_COUNT,
     CUSTOM_DRAFT_PACK_MAX_SLOT_COUNT,
     ensure_column_exists,
@@ -8793,76 +8795,18 @@ def normalize_alternate_face_kind(face_kind):
 
     return normalized_face_kind
 
-
-def get_alternate_source_for_card(card_row, face_kind="single"):
-    if not card_row:
-        return None
-
-    normalized_face_kind = normalize_alternate_face_kind(face_kind)
-    row_keys = set(card_row.keys()) if hasattr(card_row, "keys") else set()
-
-    card_uuid = (card_row["card_uuid"] if "card_uuid" in row_keys else "") or ""
-    set_code = (card_row["set_code"] if "set_code" in row_keys else "") or ""
-    collector_number = (card_row["collector_number"] if "collector_number" in row_keys else "") or ""
-
+def get_alternate_source_for_card(
+    card_row,
+    face_kind="single",
+    *,
+    image_context=None,
+):
     conn = get_db_connection()
-    cursor = conn.cursor()
-
-    if card_uuid:
-        cursor.execute(
-            """
-            SELECT *
-            FROM alternate_sources
-            WHERE is_enabled = 1
-              AND card_uuid = ?
-              AND face_kind IN (?, 'single')
-            ORDER BY
-                CASE WHEN face_kind = ? THEN 0 ELSE 1 END,
-                alternate_source_id DESC
-            LIMIT 1
-            """,
-            (
-                card_uuid,
-                normalized_face_kind,
-                normalized_face_kind,
-            ),
-        )
-
-        row = cursor.fetchone()
-        if row:
-            conn.close()
-            return row
-
-    if set_code and collector_number:
-        cursor.execute(
-            """
-            SELECT *
-            FROM alternate_sources
-            WHERE is_enabled = 1
-              AND UPPER(COALESCE(set_code, '')) = UPPER(?)
-              AND LOWER(COALESCE(collector_number, '')) = LOWER(?)
-              AND face_kind IN (?, 'single')
-            ORDER BY
-                CASE WHEN face_kind = ? THEN 0 ELSE 1 END,
-                alternate_source_id DESC
-            LIMIT 1
-            """,
-            (
-                set_code,
-                collector_number,
-                normalized_face_kind,
-                normalized_face_kind,
-            ),
-        )
-
-        row = cursor.fetchone()
-        if row:
-            conn.close()
-            return row
-
-    conn.close()
-    return None
-
+    try:
+        repository = AlternateImageRepository(conn, image_context)
+        return repository.find_enabled(card_row, face_kind)
+    finally:
+        conn.close()
 
 def get_alternate_source_local_absolute_path(alternate_source_row):
     if not alternate_source_row:
@@ -8898,6 +8842,19 @@ def ensure_alternate_source_cached(alternate_source_row):
         return None
 
     local_path = get_alternate_source_local_absolute_path(alternate_source_row)
+    image_scope_id = (
+        alternate_source_row["image_scope_id"]
+        if "image_scope_id" in alternate_source_row.keys()
+        else None
+    )
+
+    if image_scope_id is not None and (
+        not local_path or not os.path.isfile(local_path)
+    ):
+        raise FileNotFoundError(
+            "An isolated alternate image file is missing. "
+            "Restore the file or replace the isolated source."
+        )
 
     if local_path and os.path.exists(local_path):
         return {
@@ -8956,7 +8913,16 @@ def ensure_alternate_source_cached(alternate_source_row):
     }
 
 
-def resolve_card_image_source_for_page(card_row, page_kind, fallback_image_url):
+def resolve_card_image_source_for_page(
+    card_row,
+    page_kind,
+    fallback_image_url,
+    *,
+    image_context=None,
+):
+    if image_context is None:
+        image_context = AlternateImageContext()
+
     normalized_page_kind = (page_kind or "single").strip().lower()
 
     if normalized_page_kind not in {"front", "back"}:
@@ -8965,6 +8931,7 @@ def resolve_card_image_source_for_page(card_row, page_kind, fallback_image_url):
     alternate_source = get_alternate_source_for_card(
         card_row,
         face_kind=normalized_page_kind,
+        image_context=image_context,
     )
 
     if alternate_source:
@@ -8989,6 +8956,16 @@ def resolve_card_image_source_for_page(card_row, page_kind, fallback_image_url):
                         fullbleed_absolute_path
                     )
                 )
+
+                if (
+                    image_context.is_isolated
+                    and fullbleed_absolute_path
+                    and not os.path.isfile(fullbleed_absolute_path)
+                ):
+                    raise FileNotFoundError(
+                        "An isolated alternate full-bleed image is missing."
+                    )
+
 
                 # Legacy database field name:
                 #
@@ -9026,6 +9003,7 @@ def resolve_card_image_source_for_page(card_row, page_kind, fallback_image_url):
 
                 return {
                     "source_type": "alternate_source",
+                    "image_scope_id": image_context.scope_id,
                     "source_level": 2,
                     "source_label": "Alternate",
                     "upscaled_image_id": None,
@@ -9082,7 +9060,15 @@ def resolve_card_image_source_for_page(card_row, page_kind, fallback_image_url):
                     ),
                 }
 
+            if image_context.is_isolated:
+                raise FileNotFoundError(
+                    "An isolated alternate image could not be resolved."
+                )
+
         except Exception as exc:
+            if image_context.is_isolated:
+                raise
+
             write_debug_log(
                 f"ALTERNATE SOURCE FAILED | card_uuid={card_row['card_uuid']} | "
                 f"page_kind={normalized_page_kind} | error={str(exc)} | falling back to Scryfall"
@@ -9164,6 +9150,7 @@ def resolve_card_image_source_for_page(card_row, page_kind, fallback_image_url):
 
             return {
                 "source_type": "upscaled",
+                "image_scope_id": image_context.scope_id,
                 "source_level": 1,
                 "source_label": "Upscaled",
 
@@ -9236,6 +9223,7 @@ def resolve_card_image_source_for_page(card_row, page_kind, fallback_image_url):
 
     return {
         "source_type": "scryfall",
+        "image_scope_id": image_context.scope_id,
         "source_level": 0,
         "source_label": "Scryfall",
         "absolute_path": "",
@@ -9336,54 +9324,25 @@ def serialize_alternate_source_row(row):
     }
 
 
-def get_alternate_sources_for_card(card_uuid):
-    clean_card_uuid = (card_uuid or "").strip()
-
-    if not clean_card_uuid:
-        return []
-
+def get_alternate_sources_for_card(card_uuid, *, image_context=None):
     conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT *
-        FROM alternate_sources
-        WHERE card_uuid = ?
-        ORDER BY
-            is_enabled DESC,
-            priority ASC,
-            alternate_source_id DESC
-        """,
-        (clean_card_uuid,),
-    )
-
-    rows = cursor.fetchall()
-    conn.close()
-
-    return [
-        serialize_alternate_source_row(row)
-        for row in rows
-    ]
+    try:
+        repository = AlternateImageRepository(conn, image_context)
+        return [
+            serialize_alternate_source_row(row)
+            for row in repository.list_for_card(card_uuid)
+        ]
+    finally:
+        conn.close()
 
 
-def get_alternate_source_by_id(alternate_source_id):
+def get_alternate_source_by_id(alternate_source_id, *, image_context=None):
     conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT *
-        FROM alternate_sources
-        WHERE alternate_source_id = ?
-        """,
-        (int(alternate_source_id),),
-    )
-
-    row = cursor.fetchone()
-    conn.close()
-
-    return row
+    try:
+        repository = AlternateImageRepository(conn, image_context)
+        return repository.get_by_id(alternate_source_id)
+    finally:
+        conn.close()
 
 CARD_PRINT_WIDTH_MM = 63.0
 CARD_PRINT_HEIGHT_MM = 88.0
