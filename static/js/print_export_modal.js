@@ -51,6 +51,9 @@
         const exportZipButton = getElement("printExportExportZipButton");
         const settingsToggle = getElement("printExportSettingsToggle");
         const settingsPanel = getElement("printExportSettingsPanel");
+        const subtitle = modal
+            ? modal.querySelector(".campaign-add-pack-subtitle")
+            : null;
 
         const statusPanel = getElement("printExportStatusPanel");
         const statusTitle = getElement("printExportStatusTitle");
@@ -64,6 +67,11 @@
 
         let activePrintUrl = config.printUrl || "";
         let activeExportZipUrl = config.exportZipUrl || "";
+        let activeExtraFormFields = {};
+
+        const defaultSubtitleText = subtitle
+            ? String(subtitle.textContent || "").trim()
+            : "";
 
         let activeObjectUrl = "";
 
@@ -85,6 +93,52 @@
         function setUrls(nextPrintUrl, nextExportZipUrl) {
             activePrintUrl = nextPrintUrl || config.printUrl || "";
             activeExportZipUrl = nextExportZipUrl || config.exportZipUrl || "";
+        }
+
+        function setSubtitleText(nextSubtitleText) {
+            if (!subtitle) {
+                return;
+            }
+
+            const cleanSubtitleText = String(nextSubtitleText || "").trim();
+
+            subtitle.textContent = cleanSubtitleText || defaultSubtitleText;
+        }
+
+        function setExtraFormFields(extraFormFields) {
+            activeExtraFormFields = (
+                extraFormFields
+                && typeof extraFormFields === "object"
+            )
+                ? extraFormFields
+                : {};
+        }
+
+        function appendExtraFormFields(formData) {
+            if (!formData) {
+                return;
+            }
+
+            Object.keys(activeExtraFormFields).forEach(function (fieldName) {
+                const rawValue = activeExtraFormFields[fieldName];
+                const fieldValues = Array.isArray(rawValue)
+                    ? rawValue
+                    : [rawValue];
+
+                fieldValues.forEach(function (fieldValue) {
+                    if (
+                        fieldValue === null
+                        || fieldValue === undefined
+                    ) {
+                        return;
+                    }
+
+                    formData.append(
+                        fieldName,
+                        String(fieldValue)
+                    );
+                });
+            });
         }
 
         function setModalVisible(isVisible) {
@@ -308,6 +362,8 @@
 
             const formData = new FormData(form);
 
+            appendExtraFormFields(formData);
+
             window.setTimeout(function () {
                 updateStatus(
                     "generate",
@@ -379,6 +435,9 @@
                 openButton.addEventListener("click", function (event) {
                     event.preventDefault();
                     event.stopPropagation();
+
+                    setSubtitleText("");
+                    setExtraFormFields(null);
 
                     if (form) {
                         form.reset();
@@ -454,6 +513,9 @@
                 if (options.printUrl || options.exportZipUrl) {
                     setUrls(options.printUrl || "", options.exportZipUrl || "");
                 }
+
+                setSubtitleText(options.subtitle || "");
+                setExtraFormFields(options.extraFormFields || null);
 
                 if (form) {
                     form.reset();

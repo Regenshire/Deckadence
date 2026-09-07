@@ -21748,10 +21748,21 @@ def get_deckbuilder_pack_tracking_code(deck_id):
     return f"Deck Builder {parsed_deck_id}"
 
 
-def get_deckbuilder_print_cards(deck_id):
+def get_deckbuilder_print_cards(deck_id, deck_zone="deck"):
+    clean_deck_zone = (
+        deck_zone
+        or "deck"
+    ).strip().lower()
+
+    if clean_deck_zone not in {
+        "deck",
+        "sideboard",
+    }:
+        clean_deck_zone = "deck"
+
     cards = get_saved_deckbuilder_cards_for_deck(
         deck_id,
-        deck_zone="deck",
+        deck_zone=clean_deck_zone,
         include_basic_lands=True,
     )
 
@@ -21760,6 +21771,153 @@ def get_deckbuilder_print_cards(deck_id):
         for card in cards
         if (card.get("card_uuid") or "").strip()
     ]
+
+def get_deckbuilder_selected_print_cards(
+    deck_id,
+    deck_zone,
+    selection_tokens,
+):
+    clean_deck_zone = (
+        deck_zone
+        or ""
+    ).strip().lower()
+
+    if clean_deck_zone not in {
+        "deck",
+        "sideboard",
+    }:
+        raise ValueError(
+            "The selected card zone is invalid."
+        )
+
+    clean_selection_tokens = [
+        str(token or "").strip()
+        for token in (selection_tokens or [])
+        if str(token or "").strip()
+    ]
+
+    if not clean_selection_tokens:
+        raise ValueError(
+            "No cards were selected for Print / Export."
+        )
+
+    remaining_cards = list(
+        get_deckbuilder_print_cards(
+            deck_id,
+            deck_zone=clean_deck_zone,
+        )
+    )
+
+    selected_cards = []
+
+    for selection_token in clean_selection_tokens:
+        matching_index = None
+
+        if selection_token.startswith("deck_card:"):
+            raw_deck_card_id = (
+                selection_token
+                .split(":", 1)[1]
+                .strip()
+            )
+
+            try:
+                deck_card_id = int(raw_deck_card_id)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    "A selected Deck Builder card ID is invalid."
+                )
+
+            for card_index, card in enumerate(
+                remaining_cards
+            ):
+                try:
+                    card_deck_card_id = int(
+                        card.get("deck_card_id")
+                        or 0
+                    )
+                except (TypeError, ValueError):
+                    card_deck_card_id = 0
+
+                if card_deck_card_id == deck_card_id:
+                    matching_index = card_index
+                    break
+
+        elif selection_token.startswith("basic_land:"):
+            basic_land_name = (
+                selection_token
+                .split(":", 1)[1]
+                .strip()
+                .casefold()
+            )
+
+            for card_index, card in enumerate(
+                remaining_cards
+            ):
+                is_basic_land = (
+                    str(
+                        card.get("is_basic_land")
+                        or "0"
+                    ).strip()
+                    == "1"
+                )
+
+                card_name = (
+                    card.get("card_name")
+                    or ""
+                ).strip().casefold()
+
+                if (
+                    is_basic_land
+                    and card_name == basic_land_name
+                ):
+                    matching_index = card_index
+                    break
+
+        else:
+            raise ValueError(
+                "A selected card reference is invalid."
+            )
+
+        if matching_index is None:
+            raise ValueError(
+                "One or more selected cards are no longer available. "
+                "Refresh Deck Builder and try again."
+            )
+
+        selected_cards.append(
+            remaining_cards.pop(
+                matching_index
+            )
+        )
+
+    return selected_cards
+
+
+def get_deckbuilder_print_request_cards(deck_id):
+    selection_only = (
+        request.form.get("print_selection_only")
+        or ""
+    ).strip() == "1"
+
+    if not selection_only:
+        return get_deckbuilder_print_cards(
+            deck_id
+        )
+
+    selection_zone = (
+        request.form.get("print_selection_zone")
+        or ""
+    ).strip().lower()
+
+    selection_tokens = request.form.getlist(
+        "selected_card_tokens"
+    )
+
+    return get_deckbuilder_selected_print_cards(
+        deck_id,
+        selection_zone,
+        selection_tokens,
+    )
 
 
 def get_deckbuilder_routes(deckbuilder_context, back_url=None):
@@ -21907,13 +22065,21 @@ def get_print_export_defaults_from_config(config):
     }
 
 
-def build_deckbuilder_image_export_rows(deck_id):
+def build_deckbuilder_image_export_rows(
+    deck_id,
+    cards=None,
+):
     deck_row = get_deck_by_id(deck_id)
 
     if not deck_row:
         raise ValueError("Deck was not found.")
 
-    cards = get_deckbuilder_print_cards(deck_id)
+    if cards is None:
+        cards = get_deckbuilder_print_cards(
+            deck_id
+        )
+    else:
+        cards = list(cards)
 
     if not cards:
         raise ValueError("This deck does not have any cards to export.")
@@ -22202,7 +22368,12 @@ def deckbuilder_print(deck_id):
     if not deck_row:
         return "Deck was not found.", 404
 
-    cards = get_deckbuilder_print_cards(deck_id)
+    try:
+        cards = get_deckbuilder_print_request_cards(
+            deck_id
+        )
+    except ValueError as exc:
+        return str(exc), 400
 
     if not cards:
         return "This deck does not have any cards to print.", 400
@@ -22272,7 +22443,19 @@ def deckbuilder_export_zip(deck_id):
     )
 
     try:
-        export_rows = build_deckbuilder_image_export_rows(deck_id)
+        cards = get_deckbuilder_print_request_cards(
+            deck_id
+        )
+
+        if not cards:
+            raise ValueError(
+                "This deck does not have any cards to export."
+            )
+
+        export_rows = build_deckbuilder_image_export_rows(
+            deck_id,
+            cards=cards,
+        )
 
         export_result = build_chaos_card_image_export_zip(
             export_rows=export_rows,

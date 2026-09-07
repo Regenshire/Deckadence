@@ -7532,6 +7532,13 @@ input {
     margin-bottom: var(--deckbuilder-stack-overlap);
     border: 0;
     background: transparent;
+    transition: margin-bottom 160ms ease;
+}
+
+.deckbuilder-stack-active
+.deckbuilder-zone-deck
+.deckbuilder-card.deckbuilder-stack-hover-expanded {
+    margin-bottom: 0;
 }
 
 .deckbuilder-stack-active .deckbuilder-zone-deck .deckbuilder-card:last-child {
