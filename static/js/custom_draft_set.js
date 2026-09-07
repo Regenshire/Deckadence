@@ -1211,11 +1211,12 @@
         const hasUpscaledImage = Boolean(card.has_upscaled_image);
         const alternateRemoveBleed = Boolean(card.alternate_remove_bleed);
         const isFoil = Boolean(card.sheet_is_foil);
-        const imageSrc = card.image_src || (
-            "/chaos-card-image-preview/"
-            + encodeURIComponent(cardUuid)
-        );
-        const cacheBustedImageSrc = imageSrc + "?v=" + Date.now();
+        const imageSrc = window.iMomirImageUrl(card.image_src || (
+            "/chaos-card-image-preview/" + encodeURIComponent(cardUuid)
+        ));
+        const versionedImageUrl = new URL(imageSrc, window.location.href);
+        versionedImageUrl.searchParams.set("v", String(Date.now()));
+        const cacheBustedImageSrc = versionedImageUrl.toString();
 
         const upscaleControlUrl = String(
             card.upscale_control_url

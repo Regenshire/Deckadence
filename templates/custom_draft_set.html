@@ -154,6 +154,29 @@
                     {% if custom_set.is_active %}checked{% endif %}
                 >
             </label>
+            {% if image_isolation %}
+            <div class="toggle-row imomir-isolation-setting-row">
+                <span
+                    id="customDraftImageIsolationTitle"
+                    class="imomir-isolation-setting-title"
+                >Alternate Image Isolation</span>
+
+                <button
+                    type="button"
+                    class="imomir-isolation-toggle"
+                    role="switch"
+                    aria-checked="{{ 'true' if image_isolation.enabled else 'false' }}"
+                    aria-labelledby="customDraftImageIsolationTitle"
+                    data-image-isolation-toggle
+                    data-enable-url="{{ image_isolation.enable_url }}"
+                    data-disable-url="{{ image_isolation.disable_url }}"
+                    data-scope-token="{{ image_isolation.scope_token }}"
+                >
+                    <span class="imomir-isolation-track" aria-hidden="true"></span>
+                    <span data-isolation-label aria-hidden="true">Isolation {{ 'On' if image_isolation.enabled else 'Off' }}</span>
+                </button>
+            </div>
+            {% endif %}
         </div>
 
         <div class="page-panel">

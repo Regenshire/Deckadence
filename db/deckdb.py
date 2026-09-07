@@ -2,6 +2,8 @@ import json
 from datetime import datetime, timezone
 
 from db.database import (
+    AlternateImageRepository,
+    clone_alternate_image_scope,
     ensure_column_exists,
     get_db_connection,
 )
@@ -879,7 +881,14 @@ def get_saved_deckbuilder_cards_for_deck(deck_id, deck_zone=None, include_basic_
                 "alternate_image_remove_bleed": int(row["alternate_image_remove_bleed"] or 0),
             })
 
-    return cards
+    conn = get_db_connection()
+
+    try:
+        return AlternateImageRepository.for_owner(
+            conn, "deck", parsed_deck_id
+        ).decorate_cards(cards)
+    finally:
+        conn.close()
 
 def add_card_to_deckbuilder_sideboard(deck_id, card_uuid):
     ensure_deck_schema()
@@ -3452,8 +3461,19 @@ def duplicate_deck(deck_id):
         ),
     )
 
-    conn.commit()
-    conn.close()
+    try:
+        copied_scope = clone_alternate_image_scope(
+            conn, source_deck["alternate_image_scope_id"]
+        )
+
+        conn.execute(
+            "UPDATE decks SET alternate_image_scope_id = ? WHERE deck_id = ?",
+            (copied_scope, new_deck_id),
+        )
+
+        conn.commit()
+    finally:
+        conn.close()
 
     return {
         "ok": True,

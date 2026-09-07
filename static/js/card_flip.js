@@ -286,9 +286,34 @@
         );
     }
 
+    function scopedFaceUrl(imageElement, rawUrl) {
+        if (!rawUrl) return "";
+
+        const url = new URL(rawUrl, window.location.href);
+        const source = new URL(
+            imageElement.dataset.cardImageSrc || imageElement.src || rawUrl,
+            window.location.href
+        );
+
+        for (const key of [
+            "image_scope_id",
+            "image_owner_kind",
+            "image_owner_id",
+            "v"
+        ]) {
+            if (source.searchParams.has(key)) {
+                url.searchParams.set(key, source.searchParams.get(key));
+            }
+        }
+
+        return window.iMomirImageUrl
+            ? window.iMomirImageUrl(url.toString())
+            : url.toString();
+    }
+
     function setCardFace(imageElement, buttonElement, metadata, faceName) {
         const targetFace = faceName === "back" ? "back" : "front";
-        const targetSrc = targetFace === "back" ? metadata.back_src : metadata.front_src;
+        const targetSrc = scopedFaceUrl(imageElement, targetFace === "back" ? metadata.back_src : metadata.front_src);
         const targetAlt = targetFace === "back" ? metadata.back_alt : metadata.front_alt;
 
         if (!targetSrc || !imageElement || imageElement.dataset.cardFlipFace === targetFace) {
@@ -363,8 +388,8 @@
 
         imageElement.dataset.cardFlipBound = "1";
         imageElement.dataset.cardFlipFace = imageElement.dataset.cardFlipFace || "front";
-        imageElement.dataset.cardFlipFrontSrc = metadata.front_src;
-        imageElement.dataset.cardFlipBackSrc = metadata.back_src;
+        imageElement.dataset.cardFlipFrontSrc = scopedFaceUrl(imageElement, metadata.front_src);
+        imageElement.dataset.cardFlipBackSrc = scopedFaceUrl(imageElement, metadata.back_src);
         imageElement.dataset.cardFlipLastSrc = imageElement.src || "";
 
         wrapElement.classList.add("imomir-card-flip-wrap");

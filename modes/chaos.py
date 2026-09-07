@@ -21,6 +21,7 @@ from settings import (
     CHAOS_PACK_TYPE_OPTIONS,
 )
 from db.database import (
+    clone_alternate_image_scope,
     generate_custom_draft_set_pack_cards,
     get_config,
     get_db_connection,
@@ -3150,6 +3151,37 @@ def save_opened_chaos_pack_to_tracking_db(opened_pack=None, campaign_id=None):
 
         tracked_pack_id = cursor.lastrowid
 
+        scope_ids = {
+            card.get("image_scope_id")
+            for card in cards
+            if card.get("image_scope_id")
+        }
+
+        if len(scope_ids) > 1:
+            raise ValueError(
+                "A saved pack cannot combine different isolated image libraries."
+            )
+
+        copied_scope = clone_alternate_image_scope(
+            conn, next(iter(scope_ids), None)
+        )
+
+        cursor.execute(
+            "UPDATE tracked_chaos_packs SET alternate_image_scope_id = ?, source_json = ? "
+            "WHERE tracked_pack_id = ?",
+            (
+                copied_scope,
+                json.dumps({
+                    **opened_pack,
+                    "cards": [
+                        {**card, "image_scope_id": copied_scope}
+                        for card in cards
+                    ],
+                }),
+                tracked_pack_id,
+            ),
+        )
+
         for card_order, card in enumerate(cards, start=1):
             cursor.execute(
                 """
@@ -3707,7 +3739,10 @@ def get_tracked_chaos_pack_cards(tracked_pack_id):
             type_line,
             image_url,
             scryfall_id,
-            collector_number
+            collector_number,
+            (SELECT alternate_image_scope_id FROM tracked_chaos_packs p
+             WHERE p.tracked_pack_id = tracked_chaos_pack_cards.tracked_pack_id)
+                AS image_scope_id
         FROM tracked_chaos_pack_cards
         WHERE tracked_pack_id = ?
         ORDER BY card_order ASC
@@ -3722,6 +3757,7 @@ def get_tracked_chaos_pack_cards(tracked_pack_id):
 
     for row in rows:
         cards.append({
+            "image_scope_id": row["image_scope_id"],
             "card_uuid": row["card_uuid"],
             "card_name": row["card_name"],
             "set_code": row["set_code"],
@@ -6040,7 +6076,10 @@ def get_tracked_pack_state_by_id(tracked_pack_id):
             type_line,
             image_url,
             scryfall_id,
-            collector_number
+            collector_number,
+            (SELECT alternate_image_scope_id FROM tracked_chaos_packs p
+             WHERE p.tracked_pack_id = tracked_chaos_pack_cards.tracked_pack_id)
+                AS image_scope_id
         FROM tracked_chaos_pack_cards
         WHERE tracked_pack_id = ?
         ORDER BY card_order ASC
@@ -6056,6 +6095,7 @@ def get_tracked_pack_state_by_id(tracked_pack_id):
     for card_row in card_rows:
         cards.append({
             "tracked_pack_card_id": int(card_row["tracked_pack_card_id"]),
+            "image_scope_id": card_row["image_scope_id"],
             "card_uuid": card_row["card_uuid"],
             "card_name": card_row["card_name"],
             "set_code": card_row["set_code"],

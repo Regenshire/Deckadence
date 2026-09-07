@@ -210,13 +210,13 @@
         >
             <div class="chaos-pack-view-image-wrap" data-card-uuid="{{ card.card_uuid }}">
                 <img
-                    src="{{ url_for('chaos_card_image', card_uuid=card.card_uuid) }}"
+                    src="{{ url_for('chaos_card_image', card_uuid=card.card_uuid, image_scope_id=card.image_scope_id or '') if pack.is_preview else url_for('chaos_card_image', card_uuid=card.card_uuid) }}"
                     alt="{{ card.card_name }}"
                     class="chaos-pack-view-image campaign-pack-detail-zoomable"
                     role="button"
                     tabindex="0"
                     data-card-uuid="{{ card.card_uuid }}"
-                    data-zoom-src="{{ url_for('chaos_card_image', card_uuid=card.card_uuid) }}"
+                    data-zoom-src="{{ url_for('chaos_card_image', card_uuid=card.card_uuid, image_scope_id=card.image_scope_id or '') if pack.is_preview else url_for('chaos_card_image', card_uuid=card.card_uuid) }}"
                     data-zoom-alt="{{ card.card_name }}"
                     aria-label="Zoom {{ card.card_name }}"
                 >
@@ -254,7 +254,8 @@
 
                     <button
                         type="button"
-                        class="alternate-image-gear alternate-image-button"
+                        class="alternate-image-gear alternate-image-button {% if card.has_alternate_source %}custom-draft-alternate-image-active{% endif %}"
+                        data-has-alternate-source="{{ 1 if card.has_alternate_source else 0 }}"
                         data-card-uuid="{{ card.card_uuid }}"
                         data-card-name="{{ card.card_name }}"
                         data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"

@@ -1,4 +1,88 @@
 <style>
+.imomir-isolation-toggle {
+    display: inline-grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: center;
+    align-self: center;
+    flex: 0 0 auto;
+    gap: 0.5rem;
+    width: max-content;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 36px;
+    box-sizing: border-box;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--border-color, #394860);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-main, #ffffff);
+    font: inherit;
+    cursor: pointer;
+}
+
+.imomir-isolation-toggle [data-isolation-label] {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+    text-align: left;
+}
+
+.imomir-isolation-setting-row {
+    margin-top: 16px;
+    flex-wrap: wrap;
+    cursor: default;
+}
+
+.imomir-isolation-setting-row > .imomir-isolation-setting-title {
+    flex: 1 1 16rem;
+    min-width: 0;
+}
+
+.imomir-isolation-track {
+    display: inline-block;
+    position: relative;
+    flex: 0 0 34px;
+    height: 20px;
+    border-radius: 999px;
+    background: #64748b;
+}
+
+.imomir-isolation-track::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #ffffff;
+}
+
+.imomir-isolation-toggle[aria-checked="true"] .imomir-isolation-track {
+    background: #15803d;
+}
+
+.imomir-isolation-toggle[aria-checked="true"] .imomir-isolation-track::after {
+    transform: translateX(14px);
+}
+
+.imomir-isolation-toggle:focus-visible {
+    outline: 2px solid #86efac;
+    outline-offset: 3px;
+}
+
+.imomir-isolation-toggle:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+.alternate-image-button.custom-draft-alternate-image-active {
+    color: #86efac;
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.14);
+}
+
 .alternate-image-modal-panel {
     position: relative;
     width: 100%;
@@ -78,7 +162,20 @@
 }
 </style>
 
-<div id="alternateImageOverlay" class="card-zoom-overlay hidden" aria-hidden="true">
+{% set modal_image_owner = image_isolation | default(none) %}
+{% set preview_set_code = (
+    (pack.set_code | default('', true))
+    if pack is defined and (pack.is_preview | default(false))
+    else ''
+) %}
+
+<div
+    id="alternateImageOverlay"
+    class="card-zoom-overlay hidden"
+    aria-hidden="true"
+    data-image-owner-kind="{{ modal_image_owner.owner_kind if modal_image_owner else ('set' if preview_set_code.endswith('^') else '') }}"
+    data-image-owner-id="{{ modal_image_owner.owner_id if modal_image_owner else (preview_set_code if preview_set_code.endswith('^') else '') }}"
+>
     <div id="alternateImageBackdrop" class="card-zoom-backdrop"></div>
 
     <div class="card-zoom-content" style="max-width: 720px; width: min(720px, 94vw);">
@@ -96,6 +193,7 @@
             <div class="chaos-pack-view-header-copy">
                 <h2 class="page-title" style="margin-bottom: 0.25rem;">Alternate Image</h2>
                 <p id="alternateImageCardName" class="page-subtitle"></p>
+                <p id="alternateImageScopeNotice" class="page-subtitle" role="status"></p>
             </div>
 
             <div id="alternateImageMessage" class="flash-message alternate-image-message hidden"></div>
@@ -226,6 +324,100 @@
 </div>
 
 <script>
+    window.iMomirImageUrl = function (rawUrl) {
+    if (!rawUrl) return "";
+
+    const url = new URL(rawUrl, window.location.href);
+    const owner = document.getElementById("alternateImageOverlay");
+
+    if (
+        url.origin === window.location.origin &&
+        /^\/chaos-card-image(?:-preview)?\//.test(url.pathname) &&
+        !url.searchParams.has("image_scope_id") &&
+        !url.searchParams.has("image_owner_kind") &&
+        owner?.dataset.imageOwnerKind
+    ) {
+        url.searchParams.set("image_owner_kind", owner.dataset.imageOwnerKind);
+        url.searchParams.set("image_owner_id", owner.dataset.imageOwnerId);
+    }
+
+    return url.toString();
+};
+
+for (const button of document.querySelectorAll("[data-image-isolation-toggle]")) {
+    button.addEventListener("click", async function () {
+        if (button.disabled) return;
+
+        const turnOn = button.getAttribute("aria-checked") !== "true";
+        const label = button.querySelector("[data-isolation-label]");
+        const previousLabel = label.textContent;
+        let saved = false;
+        button.disabled = true;
+
+        const message = turnOn
+            ? "Copy this collection's current global alternate-image settings into " +
+              "an independent library? Future edits will stay separate. Cards added later " +
+              "will not inherit global alternates. Standard Scryfall and accepted-upscale " +
+              "fallback remain shared. You can turn isolation off later, which discards " +
+              "the isolated settings. Save other page edits first; this page will reload."
+            : "Turn isolation off and discard this collection's isolated alternate-image " +
+              "settings? It will use global alternate images again. Nothing is copied " +
+              "back to the global library. Other decks, sets, and saved-pack snapshots " +
+              "are not changed. Turning isolation on again creates a fresh copy, not a " +
+              "restore. Save other page edits first; this page will reload.";
+
+        try {
+            const confirmed = window.iMomirConfirm?.show
+                ? await window.iMomirConfirm.show({
+                    title: turnOn ? "Turn Image Isolation On?" : "Turn Image Isolation Off?",
+                    message: message,
+                    confirmText: turnOn ? "Turn On" : "Turn Off and Discard Settings",
+                    cancelText: "Cancel",
+                    danger: !turnOn
+                })
+                : window.confirm(message);
+
+            if (!confirmed) return;
+
+            label.textContent = turnOn ? "Copying images…" : "Clearing settings…";
+            button.setAttribute("aria-busy", "true");
+
+            const response = await fetch(
+                turnOn ? button.dataset.enableUrl : button.dataset.disableUrl,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-Requested-With": "XMLHttpRequest"
+                    },
+                    body: JSON.stringify({
+                        confirm: true,
+                        expected_scope: button.dataset.scopeToken
+                    })
+                }
+            );
+            const result = await response.json();
+            if (!response.ok || !result.ok) {
+                throw new Error(result.message || "Image isolation could not be changed.");
+            }
+
+            button.setAttribute("aria-checked", result.image_scope_id ? "true" : "false");
+            button.dataset.scopeToken = result.image_scope_id || "global";
+            label.textContent = result.image_scope_id ? "Isolation On" : "Isolation Off";
+            saved = true;
+            window.location.reload();
+        } catch (error) {
+            window.alert(error.message || String(error));
+        } finally {
+            button.removeAttribute("aria-busy");
+            if (!saved) {
+                button.disabled = false;
+                label.textContent = previousLabel;
+                button.focus();
+            }
+        }
+    });
+}
 (function () {
     const alternateOverlay = document.getElementById("alternateImageOverlay");
     const alternateBackdrop = document.getElementById("alternateImageBackdrop");
@@ -263,6 +455,66 @@
 
     let currentAlternateCardUuid = "";
     let currentFoilUpdateUrl = "";
+
+    const alternateScopeNotice = document.getElementById("alternateImageScopeNotice");
+    let currentImageScopeToken = null;
+    let currentImagePreviewUrl = "";
+    let alternateModalVersion = 0;
+    let alternateMutationPending = false;
+
+    function alternateRequestUrl(path, writing) {
+        const url = new URL(path, window.location.href);
+        const ownerKind = alternateOverlay.dataset.imageOwnerKind || "";
+        const ownerId = alternateOverlay.dataset.imageOwnerId || "";
+        if (ownerKind || ownerId) {
+            url.searchParams.set("image_owner_kind", ownerKind);
+            url.searchParams.set("image_owner_id", ownerId);
+        }
+        url.searchParams.set("card_uuid", currentAlternateCardUuid);
+        if (writing) {
+            if (!currentImageScopeToken) throw new Error("Wait for the image library to load before saving.");
+            url.searchParams.set("expected_scope", currentImageScopeToken);
+        }
+        return url.toString();
+    }
+
+    function updateAlternateIndicators(cardUuid, state) {
+        const selector = '.alternate-image-button[data-card-uuid="' + CSS.escape(cardUuid) + '"]';
+        document.querySelectorAll(selector).forEach(function (button) {
+            button.classList.toggle("custom-draft-alternate-image-active", Boolean(state.hasAlternateSource));
+            button.dataset.hasAlternateSource = state.hasAlternateSource ? "1" : "0";
+        });
+    }
+
+    async function saveAlternateChange(path, options) {
+        if (alternateMutationPending) return null;
+        const cardUuid = currentAlternateCardUuid;
+        const version = alternateModalVersion;
+        try {
+            const requestUrl = alternateRequestUrl(path, true);
+            alternateMutationPending = true;
+            alternateOverlay.setAttribute("aria-busy", "true");
+            const response = await fetch(requestUrl, {
+                ...options, method: "POST",
+                headers: {"Accept": "application/json", ...(options.headers || {})}
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload.ok) throw new Error(payload.message || "Could not save alternate image settings.");
+            if (version !== alternateModalVersion || cardUuid !== currentAlternateCardUuid) return null;
+            renderAlternateSources(payload);
+            const state = getAlternateStateFromPayload(payload);
+            updateAlternateIndicators(cardUuid, state);
+            refreshTrackedCardImages(cardUuid, "alternate-source", state);
+            showAlternateMessage(payload.message || "Alternate image settings saved.", false);
+            return payload;
+        } catch (error) {
+            showAlternateMessage(error.message || String(error), true);
+            return null;
+        } finally {
+            alternateMutationPending = false;
+            alternateOverlay.removeAttribute("aria-busy");
+        }
+    }
 
     function getDomainFromUrl(rawUrl) {
         try {
@@ -446,20 +698,20 @@
     }
 
     function refreshCardImages(cardUuid, alternateState) {
-        if (!cardUuid) {
-            return;
-        }
-
-        const cacheBustedUrl = "/chaos-card-image/" + encodeURIComponent(cardUuid) + "?v=" + Date.now();
-
+        if (!cardUuid) return;
+        const url = new URL(
+            currentImagePreviewUrl || "/chaos-card-image/" + encodeURIComponent(cardUuid),
+            window.location.href
+        );
+        url.searchParams.set("v", String(Date.now()));
+        url.searchParams.set("face", "front");
+        const cacheBustedUrl = url.toString();
         document.querySelectorAll('[data-card-uuid="' + CSS.escape(cardUuid) + '"] img').forEach(function (imageElement) {
+            if (window.iMomirCardFlip) window.iMomirCardFlip.resetImageBinding(imageElement);
             imageElement.src = cacheBustedUrl;
-
-            if (imageElement.hasAttribute("data-zoom-src")) {
-                imageElement.setAttribute("data-zoom-src", cacheBustedUrl);
-            }
+            if (imageElement.hasAttribute("data-card-image-src")) imageElement.dataset.cardImageSrc = cacheBustedUrl;
+            if (imageElement.hasAttribute("data-zoom-src")) imageElement.dataset.zoomSrc = cacheBustedUrl;
         });
-
         document.dispatchEvent(new CustomEvent("imomir:card-image-refreshed", {
             detail: {
                 cardUuid: cardUuid,
@@ -468,6 +720,7 @@
                 removeBleed: alternateState ? Boolean(alternateState.removeBleed) : null
             }
         }));
+        if (window.iMomirCardFlip) window.iMomirCardFlip.enhance(document);
     }
 
     function refreshTrackedCardImages(cardUuid, reason, alternateState) {
@@ -559,6 +812,11 @@
     }
 
     function openAlternateModal(cardUuid, cardName, options) {
+        if (alternateMutationPending) return;
+        alternateModalVersion += 1;
+        currentImageScopeToken = null;
+        currentImagePreviewUrl = "";
+        alternateScopeNotice.textContent = "Loading image library...";
         currentAlternateCardUuid = cardUuid || "";
 
         if (!currentAlternateCardUuid || !alternateOverlay) {
@@ -599,6 +857,9 @@
     }
 
     function closeAlternateModal() {
+        if (alternateMutationPending) return;
+        alternateModalVersion += 1;
+        currentImageScopeToken = null;
         if (!alternateOverlay) {
             return;
         }
@@ -610,6 +871,11 @@
     }
 
     function renderAlternateSources(payload) {
+        currentImageScopeToken = payload.image_scope.token;
+        currentImagePreviewUrl = payload.image_url;
+        alternateScopeNotice.textContent = payload.image_scope.is_isolated
+            ? "Isolated alternate images — changes affect only this collection."
+            : "Global alternate images — changes affect every non-isolated collection using this printing.";
         const sources = payload.alternate_sources || [];
         const activeSource = payload.active_source;
         const card = payload.card || {};
@@ -639,7 +905,7 @@
         if (!sources.length) {
             const emptyRow = document.createElement("div");
             emptyRow.className = "metadata-row";
-            emptyRow.innerHTML = "<span>No alternate sources</span><strong>Using Scryfall</strong>";
+            emptyRow.innerHTML = "<span>No alternate sources</span><strong>Using accepted upscale or Scryfall</strong>";
             alternateSourceList.appendChild(emptyRow);
             return;
         }
@@ -697,153 +963,58 @@
     }
 
     async function loadAlternateSources() {
-        if (!currentAlternateCardUuid) {
-            return;
-        }
-
-        if (alternateActiveSource) {
-            alternateActiveSource.textContent = "Loading...";
-        }
-
-        if (alternateSourceList) {
-            alternateSourceList.innerHTML = "";
-        }
-
+        if (!currentAlternateCardUuid) return null;
+        const cardUuid = currentAlternateCardUuid;
+        const version = alternateModalVersion;
+        currentImageScopeToken = null;
+        if (alternateActiveSource) alternateActiveSource.textContent = "Loading...";
+        if (alternateSourceList) alternateSourceList.innerHTML = "";
         try {
-            const response = await fetch("/chaos/cards/" + encodeURIComponent(currentAlternateCardUuid) + "/alternate-sources", {
-                method: "GET",
-                headers: {
-                    "Accept": "application/json"
-                }
-            });
-
+            const response = await fetch(alternateRequestUrl(
+                "/chaos/cards/" + encodeURIComponent(cardUuid) + "/alternate-sources"
+            ), {headers: {"Accept": "application/json"}, cache: "no-store"});
             const payload = await response.json();
-
-            if (!response.ok || !payload.ok) {
-                throw new Error(payload.message || "Could not load alternate sources.");
-            }
-
+            if (version !== alternateModalVersion || cardUuid !== currentAlternateCardUuid) return null;
+            if (!response.ok || !payload.ok) throw new Error(payload.message || "Could not load alternate sources.");
             renderAlternateSources(payload);
+            updateAlternateIndicators(cardUuid, getAlternateStateFromPayload(payload));
             return payload;
         } catch (error) {
-            showAlternateMessage(error.message || String(error), true);
+            if (version === alternateModalVersion) showAlternateMessage(error.message || String(error), true);
             return null;
         }
     }
 
     async function toggleAlternateSource(alternateSourceId, enabled) {
-        try {
-            const response = await fetch("/chaos/alternate-sources/" + alternateSourceId + "/toggle", {
-                method: "POST",
-                headers: {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    enabled: enabled
-                })
-            });
-
-            const payload = await response.json();
-
-            if (!response.ok || !payload.ok) {
-                throw new Error(payload.message || "Could not update alternate source.");
-            }
-
-            const latestPayload = await loadAlternateSources();
-            refreshTrackedCardImages(
-                currentAlternateCardUuid,
-                "alternate-source",
-                getAlternateStateFromPayload(latestPayload)
-            );
-        } catch (error) {
-            showAlternateMessage(error.message || String(error), true);
-        }
+        await saveAlternateChange(
+            "/chaos/alternate-sources/" + alternateSourceId + "/toggle",
+            {headers: {"Content-Type": "application/json"}, body: JSON.stringify({enabled: enabled})}
+        );
     }
 
     async function deleteAlternateSource(alternateSourceId) {
-        let confirmed = true;
-
-        if (window.iMomirConfirm && typeof window.iMomirConfirm.show === "function") {
-            confirmed = await window.iMomirConfirm.show({
+        if (alternateMutationPending) return;
+        const version = alternateModalVersion;
+        const confirmed = window.iMomirConfirm && typeof window.iMomirConfirm.show === "function"
+            ? await window.iMomirConfirm.show({
                 title: "Delete Alternate Source",
-                message: "Delete this alternate image source? This cannot be undone.",
-                confirmText: "Delete Source",
-                cancelText: "Cancel",
-                danger: true
-            });
-        } else {
-            confirmed = window.confirm("Delete this alternate image source?");
-        }
-
-        if (!confirmed) {
-            return;
-        }
-
-        try {
-            const response = await fetch("/chaos/alternate-sources/" + alternateSourceId + "/delete", {
-                method: "POST",
-                headers: {
-                    "Accept": "application/json"
-                }
-            });
-
-            const payload = await response.json();
-
-            if (!response.ok || !payload.ok) {
-                throw new Error(payload.message || "Could not delete alternate source.");
-            }
-
-            const latestPayload = await loadAlternateSources();
-            refreshTrackedCardImages(
-                currentAlternateCardUuid,
-                "alternate-source-delete",
-                getAlternateStateFromPayload(latestPayload)
-            );
-        } catch (error) {
-            showAlternateMessage(error.message || String(error), true);
-        }
+                message: "Delete this source from the image library shown above? This cannot be undone.",
+                confirmText: "Delete Source", cancelText: "Cancel", danger: true
+            })
+            : window.confirm("Delete this source from the image library shown above?");
+        if (!confirmed || version !== alternateModalVersion) return;
+        await saveAlternateChange("/chaos/alternate-sources/" + alternateSourceId + "/delete", {});
     }
 
     async function saveAlternateFrameTemplate() {
-        if (!currentActiveAlternateSourceId || !alternateExportFrameTemplate) {
-            return;
-        }
-
-        try {
-            const response = await fetch(
-                "/chaos/alternate-sources/" + currentActiveAlternateSourceId + "/frame-template",
-                {
-                    method: "POST",
-                    headers: {
-                        "Accept": "application/json",
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        export_frame_template: alternateExportFrameTemplate.value || "auto"
-                    })
-                }
-            );
-
-            const payload = await response.json();
-
-            if (!response.ok || !payload.ok) {
-                throw new Error(payload.message || "Could not update frame template.");
-            }
-
-            const latestPayload = await loadAlternateSources();
-
-            refreshTrackedCardImages(
-                currentAlternateCardUuid,
-                "alternate-frame-template",
-                getAlternateStateFromPayload(latestPayload)
-            );
-
-            closeAlternateModal();
-            showUiMessage(payload.message || "Card frame template updated.", false);
-        } catch (error) {
-            showAlternateMessage(error.message || String(error), true);
-        }
+        if (!currentActiveAlternateSourceId || !alternateExportFrameTemplate) return;
+        const payload = await saveAlternateChange(
+            "/chaos/alternate-sources/" + currentActiveAlternateSourceId + "/frame-template",
+            {headers: {"Content-Type": "application/json"}, body: JSON.stringify({
+                export_frame_template: alternateExportFrameTemplate.value || "auto"
+            })}
+        );
+        if (payload) closeAlternateModal();
     }
 
     if (alternateFoilInput) {
@@ -888,63 +1059,19 @@
     if (alternateForm) {
         alternateForm.addEventListener("submit", async function (event) {
             event.preventDefault();
-
-            if (!currentAlternateCardUuid) {
-                return;
-            }
-
+            if (!currentAlternateCardUuid || alternateMutationPending) return;
             applyDefaultAlternateSourceNameIfBlank();
-
-            const formData = new FormData(alternateForm);
-
-            try {
-                const response = await fetch("/chaos/cards/" + encodeURIComponent(currentAlternateCardUuid) + "/alternate-sources/add", {
-                    method: "POST",
-                    body: formData,
-                    headers: {
-                        "Accept": "application/json"
-                    }
-                });
-
-                const payload = await response.json();
-
-                if (!response.ok || !payload.ok) {
-                    throw new Error(payload.message || "Could not add alternate source.");
-                }
-
-                alternateForm.reset();
-
-                if (alternateSourceType) {
-                    alternateSourceType.value = "uploaded_file";
-                }
-
-                if (alternateSourceNameInput) {
-                    alternateSourceNameInput.value = "";
-                }
-
-                updateAlternateSourceFieldVisibility();
-
-                const latestPayload = await loadAlternateSources();
-                refreshTrackedCardImages(
-                    currentAlternateCardUuid,
-                    "alternate-source",
-                    getAlternateStateFromPayload(latestPayload)
-                );
-
-                const isDualFacedCard = Boolean(
-                    latestPayload
-                    && latestPayload.card
-                    && latestPayload.card.is_dual_faced
-                );
-
-                if (isDualFacedCard) {
-                    showAlternateMessage("Alternate image source added. Add the other face if needed.", false);
-                } else {
-                    closeAlternateModal();
-                }
-            } catch (error) {
-                showAlternateMessage(error.message || String(error), true);
-            }
+            const payload = await saveAlternateChange(
+                "/chaos/cards/" + encodeURIComponent(currentAlternateCardUuid) + "/alternate-sources/add",
+                {body: new FormData(alternateForm)}
+            );
+            if (!payload) return;
+            alternateForm.reset();
+            if (alternateSourceType) alternateSourceType.value = "uploaded_file";
+            if (alternateSourceNameInput) alternateSourceNameInput.value = "";
+            updateAlternateSourceFieldVisibility();
+            renderAlternateSources(payload);
+            if (!payload.card.is_dual_faced) closeAlternateModal();
         });
     }
 

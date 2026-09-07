@@ -16,7 +16,11 @@ import zipfile
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from contextlib import ExitStack, closing
+from functools import wraps
+from tempfile import TemporaryDirectory
 from urllib.parse import urlparse
+from uuid import uuid4
 
 import requests
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter, ImageChops, ImageDraw, ImageFont
@@ -188,6 +192,7 @@ from db.exports import (
 
 from db.database import (
     AlternateImageContext,
+    AlternateImageIsolationService,
     AlternateImageRepository,
     CUSTOM_DRAFT_PACK_DEFAULT_SLOT_COUNT,
     CUSTOM_DRAFT_PACK_MAX_SLOT_COUNT,
@@ -7376,7 +7381,7 @@ def get_chaos_temp_file_path(filename):
 
 def get_chaos_rendered_pdf_image_temp_path(card_uuid, page_kind, label_text):
     label_part = safe_filename(label_text or "nolabel")
-    filename = f"chaos_pdf_rendered_{safe_filename(card_uuid)}_{safe_filename(page_kind)}_{label_part}.jpg"
+    filename = f"chaos_pdf_rendered_{safe_filename(card_uuid)}_{safe_filename(page_kind)}_{label_part}_{uuid4().hex}.jpg"
     return get_chaos_temp_file_path(filename)
 
 def build_chaos_pack_image_title_card_bytes(set_code, booster_name, card_width_mm=63.5, card_height_mm=88.9):
@@ -8795,6 +8800,19 @@ def normalize_alternate_face_kind(face_kind):
 
     return normalized_face_kind
 
+def get_chaos_card_for_image(card):
+    """Reload catalog data without discarding the occurrence's image library."""
+    card = dict(card)
+    row = get_chaos_card_by_uuid(card.get("card_uuid"))
+
+    if row is None:
+        return None
+
+    return {
+        **dict(row),
+        "image_scope_id": card.get("image_scope_id"),
+    }
+
 def get_alternate_source_for_card(
     card_row,
     face_kind="single",
@@ -8912,6 +8930,158 @@ def ensure_alternate_source_cached(alternate_source_row):
         "alternate_source_id": alternate_source_id,
     }
 
+class AlternateImageFileSnapshot:
+    """Prepare independent files; discard them unless the DB commit succeeds."""
+
+    MAX_IMAGE_BYTES = 256 * 1024 * 1024
+    CHUNK_BYTES = 1024 * 1024
+    DOWNLOAD_SECONDS = 180
+
+    def __init__(self, scope_id, *, file_group_id=None):
+        context = AlternateImageContext(scope_id)
+        if not context.is_isolated:
+            raise ValueError("A snapshot requires an isolated image scope.")
+        self.directory = os.path.join(
+            ALTERNATE_SOURCE_DIR, "isolation", context.scope_id
+        )
+        if file_group_id is not None:
+            group = AlternateImageContext(file_group_id)
+            self.directory = os.path.join(self.directory, group.scope_id)
+        self._copies = {}
+        self._file_signatures = {}
+        self._keep = False
+
+    def __enter__(self):
+        os.makedirs(os.path.dirname(self.directory), exist_ok=True)
+        os.mkdir(self.directory)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if not self._keep:
+            try:
+                shutil.rmtree(self.directory)
+            except OSError as exc:
+                write_debug_log(
+                    f"ISOLATION CLEANUP FAILED | path={self.directory} | {exc}"
+                )
+        return False
+
+    def keep(self):
+        self._keep = True
+
+    @staticmethod
+    def _signature(path):
+        info = os.stat(path)
+        return (
+            info.st_dev, info.st_ino, info.st_size,
+            info.st_mtime_ns, info.st_ctime_ns,
+        )
+
+    def validate_inputs(self):
+        for path, signature in self._file_signatures.items():
+            if self._signature(path) != signature:
+                raise RuntimeError(
+                    f"An image changed during isolation preparation: {path}"
+                )
+
+    def _store_image(self, chunks):
+        temporary_path = os.path.join(self.directory, uuid4().hex + ".tmp")
+        total_bytes = 0
+        with open(temporary_path, "xb") as output:
+            for chunk in chunks:
+                if not chunk:
+                    continue
+                total_bytes += len(chunk)
+                if total_bytes > self.MAX_IMAGE_BYTES:
+                    raise ValueError("An alternate image exceeds the 256 MiB limit.")
+                output.write(chunk)
+            output.flush()
+            os.fsync(output.fileno())
+
+        # Validate structure and decode pixels; never re-encode the source.
+        with Image.open(temporary_path) as image:
+            image_format = image.format
+            image.verify()
+        with Image.open(temporary_path) as image:
+            image.load()
+
+        extension = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}.get(
+            image_format
+        )
+        if extension is None:
+            raise ValueError("Alternate images must be PNG, JPEG, or WEBP.")
+        target_path = os.path.splitext(temporary_path)[0] + extension
+        os.replace(temporary_path, target_path)
+        self._file_signatures[target_path] = self._signature(target_path)
+        return os.path.relpath(target_path, RUNTIME_BASE_DIR).replace("\\", "/")
+
+    def _copy_file(self, path):
+        absolute_path = os.path.normcase(os.path.realpath(path))
+        key = ("file", absolute_path)
+        if key not in self._copies:
+            if not os.path.isfile(absolute_path):
+                raise FileNotFoundError(f"Alternate image is missing: {path}")
+            before = self._signature(absolute_path)
+            with open(absolute_path, "rb") as source:
+                copied_path = self._store_image(
+                    iter(lambda: source.read(self.CHUNK_BYTES), b"")
+                )
+            if self._signature(absolute_path) != before:
+                raise RuntimeError(f"Alternate image changed while copying: {path}")
+            self._file_signatures[absolute_path] = before
+            self._copies[key] = copied_path
+        return self._copies[key]
+
+    def _copy_url(self, url):
+        parsed = urlparse(url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Alternate image URL must be an absolute HTTP(S) URL.")
+        key = ("url", url)
+        if key not in self._copies:
+            started_at = time.monotonic()
+            with requests.get(
+                url,
+                headers={"User-Agent": "iMomir/1.0", "Accept": "image/*"},
+                stream=True,
+                timeout=(10, 60),
+            ) as response:
+                response.raise_for_status()
+
+                def chunks():
+                    for chunk in response.iter_content(self.CHUNK_BYTES):
+                        if time.monotonic() - started_at > self.DOWNLOAD_SECONDS:
+                            raise TimeoutError("Alternate image download took too long.")
+                        yield chunk
+
+                self._copies[key] = self._store_image(chunks())
+        return self._copies[key]
+
+    def prepare_source(self, source):
+        local_path = get_alternate_source_local_absolute_path(source)
+        if local_path:
+            # A missing saved file is an error, not permission to change artwork.
+            copied_local_path = self._copy_file(local_path)
+        else:
+            external_url = (source["external_image_url"] or "").strip()
+            if not external_url:
+                raise ValueError("Alternate source has no image file or URL.")
+            copied_local_path = self._copy_url(external_url)
+
+        fullbleed_path = get_alternate_source_fullbleed_absolute_path(source)
+        return {
+            "local_image_path": copied_local_path,
+            "fullbleed_image_path": (
+                self._copy_file(fullbleed_path) if fullbleed_path else ""
+            ),
+        }
+
+
+def get_alternate_image_isolation_service():
+    return AlternateImageIsolationService(
+        get_db_connection, AlternateImageFileSnapshot
+    )
+
+
 
 def resolve_card_image_source_for_page(
     card_row,
@@ -8921,7 +9091,9 @@ def resolve_card_image_source_for_page(
     image_context=None,
 ):
     if image_context is None:
-        image_context = AlternateImageContext()
+        image_context = AlternateImageContext(
+            dict(card_row or {}).get("image_scope_id")
+        )
 
     normalized_page_kind = (page_kind or "single").strip().lower()
 
@@ -9845,7 +10017,10 @@ def remove_card_bleed(
     # configured 63 x 88 mm card slot later.
     return bleed_removed_image
 
-def save_alternate_source_upload_file(uploaded_file, card_uuid, face_kind, remove_bleed=False, bleed_size_mm=None):
+def save_alternate_source_upload_file(
+    uploaded_file, card_uuid, face_kind, remove_bleed=False, bleed_size_mm=None,
+    *, destination_dir=None,
+):
     if not uploaded_file or not uploaded_file.filename:
         return {
             "local_image_path": "",
@@ -9862,7 +10037,9 @@ def save_alternate_source_upload_file(uploaded_file, card_uuid, face_kind, remov
 
     ensure_download_directories()
 
-    fullbleed_dir = os.path.join(ALTERNATE_SOURCE_DIR, "fullbleed")
+    output_dir = destination_dir or ALTERNATE_SOURCE_DIR
+    os.makedirs(output_dir, exist_ok=True)
+    fullbleed_dir = os.path.join(output_dir, "fullbleed")
     os.makedirs(fullbleed_dir, exist_ok=True)
 
     safe_uuid = safe_filename(card_uuid or "card")
@@ -9870,7 +10047,7 @@ def save_alternate_source_upload_file(uploaded_file, card_uuid, face_kind, remov
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
 
     output_filename = f"alternate_{safe_uuid}_{safe_face}_{timestamp}{file_ext}"
-    output_path = os.path.join(ALTERNATE_SOURCE_DIR, output_filename)
+    output_path = os.path.join(output_dir, output_filename)
 
     fullbleed_relative_path = ""
 
@@ -10381,7 +10558,7 @@ def run_alternate_bleed_reprocess_job():
             ),
         )
 
-def create_alternate_source_for_card(
+def prepare_alternate_source_for_card(
     card_uuid,
     source_name,
     source_type,
@@ -10435,76 +10612,413 @@ def create_alternate_source_for_card(
 
     now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    return {
+        "source_name": clean_source_name,
+        "source_type": clean_source_type,
+        "card_uuid": card_uuid,
+        "set_code": card_row["set_code"],
+        "collector_number": card_row["collector_number"],
+        "scryfall_id": card_row["scryfall_id"],
+        "card_name": card_row["card_name"],
+        "face_kind": clean_face_kind,
+        "external_image_url": clean_external_url,
+        "local_image_path": clean_local_path,
+        "fullbleed_image_path": (fullbleed_image_path or "").strip(),
+        "remove_bleed": 1 if remove_bleed else 0,
+        "bleed_size_mm": float(bleed_size_mm) if bleed_size_mm is not None else None,
+        "bleed_processing_version": ALTERNATE_BLEED_PROCESSING_VERSION if remove_bleed else 1,
+        "export_frame_template": clean_export_frame_template,
+        "is_enabled": 1,
+        "priority": parsed_priority,
+        "notes": (notes or "").strip(),
+        "created_at_utc": now_utc,
+        "updated_at_utc": now_utc,
+    }
 
-    cursor.execute(
-        """
-        INSERT INTO alternate_sources (
-            source_name,
-            source_type,
-            card_uuid,
-            set_code,
-            collector_number,
-            scryfall_id,
-            card_name,
-            face_kind,
-            external_image_url,
-            local_image_path,
-            fullbleed_image_path,
-            remove_bleed,
-            bleed_size_mm,
-            export_frame_template,
-            is_enabled,
-            priority,
-            notes,
-            created_at_utc,
-            updated_at_utc
+
+def create_alternate_source_for_card(*args, **kwargs):
+    """Compatibility entry point for callers explicitly using global sources."""
+    values = prepare_alternate_source_for_card(*args, **kwargs)
+    with closing(get_db_connection()) as conn:
+        with conn:
+            return AlternateImageRepository(conn).insert(values)
+
+def alternate_image_api(function):
+    """Use consistent JSON errors for alternate-source and scoped-image requests."""
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        try:
+            return function(*args, **kwargs)
+        except LookupError as exc:
+            return jsonify(ok=False, message=str(exc)), 404
+        except (ValueError, TypeError) as exc:
+            return jsonify(ok=False, message=str(exc)), 400
+        except (RuntimeError, FileNotFoundError) as exc:
+            return jsonify(ok=False, message=str(exc)), 409
+        except Exception as exc:
+            write_error_log("ALTERNATE IMAGE EDIT FAILED", exc=exc)
+            return jsonify(ok=False, message="The alternate image operation failed. Check the application log."), 500
+    return wrapped
+
+def get_requested_image_context():
+    if request.args.get("image_owner_kind"):
+        return AlternateImageEditor.from_request().context()
+
+    scope_id = request.args.get("image_scope_id") or None
+    context = AlternateImageContext(scope_id)
+
+    with closing(get_db_connection()) as conn:
+        AlternateImageRepository(conn, context)
+
+    return context
+
+
+def get_image_owner_for_page():
+    values = request.view_args or {}
+
+    if "deck_id" in values:
+        return "deck", str(values["deck_id"])
+
+    if (
+        "set_code" in values
+        and str(request.endpoint or "").startswith("custom_draft_")
+    ):
+        return "set", str(values["set_code"])
+
+    if "tracked_pack_id" in values:
+        return "pack", str(values["tracked_pack_id"])
+
+    return "", ""
+
+
+@app.url_defaults
+def add_image_owner_to_urls(endpoint, values):
+    if (
+        endpoint not in {"chaos_card_image", "chaos_card_image_preview"}
+        or not has_request_context()
+    ):
+        return
+
+    if "image_scope_id" in values or "image_owner_kind" in values:
+        return
+
+    owner_kind, owner_id = get_image_owner_for_page()
+
+    if owner_kind:
+        values.update(
+            image_owner_kind=owner_kind,
+            image_owner_id=owner_id,
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            clean_source_name,
-            clean_source_type,
-            card_uuid,
-            card_row["set_code"],
-            card_row["collector_number"],
-            card_row["scryfall_id"],
-            card_row["card_name"],
-            clean_face_kind,
-            clean_external_url,
-            clean_local_path,
-            (fullbleed_image_path or "").strip(),
-            1 if remove_bleed else 0,
-            float(bleed_size_mm) if bleed_size_mm is not None else None,
-            clean_export_frame_template,
-            1,
-            parsed_priority,
-            (notes or "").strip(),
-            now_utc,
-            now_utc,
-        ),
+
+
+@app.context_processor
+def image_isolation_template_context():
+    owner_kind, owner_id = get_image_owner_for_page()
+
+    if not owner_kind:
+        return {"image_isolation": None}
+
+    try:
+        with closing(get_db_connection()) as conn:
+            context = AlternateImageRepository.for_owner(
+                conn, owner_kind, owner_id
+            ).context
+    except LookupError:
+        return {"image_isolation": None}
+
+    return {
+        "image_isolation": {
+            "enabled": context.is_isolated,
+            "scope_token": context.scope_id or "global",
+            "owner_kind": owner_kind,
+            "owner_id": owner_id,
+            "enable_url": url_for(
+                "enable_alternate_image_isolation",
+                owner_kind=owner_kind,
+                owner_id=owner_id,
+            ),
+            "disable_url": url_for(
+                "disable_alternate_image_isolation",
+                owner_kind=owner_kind,
+                owner_id=owner_id,
+            ),
+        }
+    }
+
+
+@app.route(
+    "/alternate-image-isolation/<owner_kind>/<path:owner_id>/enable",
+    methods=["POST"],
+)
+@alternate_image_api
+def enable_alternate_image_isolation(owner_kind, owner_id):
+    if owner_kind not in {"deck", "set"}:
+        raise ValueError(
+            "Isolation can be enabled only for a deck or custom set."
+        )
+
+    if request.headers.get("X-Requested-With") != "XMLHttpRequest":
+        raise ValueError(
+            "Use the confirmation control to enable isolation."
+        )
+
+    payload = request.get_json(silent=True) or {}
+
+    if payload.get("confirm") is not True:
+        raise ValueError("Explicit confirmation is required.")
+
+    context = get_alternate_image_isolation_service().enable_for_owner(
+        owner_kind, owner_id
     )
 
-    alternate_source_id = cursor.lastrowid
+    return jsonify(
+        ok=True,
+        image_scope_id=context.scope_id,
+    )
 
-    if remove_bleed:
-        cursor.execute(
-            """
-            UPDATE alternate_sources
-            SET bleed_processing_version = ?
-            WHERE alternate_source_id = ?
-            """,
-            (
-                ALTERNATE_BLEED_PROCESSING_VERSION,
-                int(alternate_source_id),
-            ),
+@app.route(
+    "/alternate-image-isolation/<owner_kind>/<path:owner_id>/disable",
+    methods=["POST"],
+)
+@alternate_image_api
+def disable_alternate_image_isolation(owner_kind, owner_id):
+    if owner_kind not in {"deck", "set"}:
+        raise ValueError("Isolation can be changed only for a deck or custom set.")
+
+    if request.headers.get("X-Requested-With") != "XMLHttpRequest":
+        raise ValueError("Use the confirmation control to change isolation.")
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get("confirm") is not True:
+        raise ValueError("Explicit confirmation is required.")
+
+    context = get_alternate_image_isolation_service().disable_for_owner(
+        owner_kind,
+        owner_id,
+        expected_scope=payload.get("expected_scope"),
+    )
+    return jsonify(
+        ok=True,
+        image_scope_id=context.scope_id,
+    )
+
+
+
+class AlternateImageEditor:
+    """Owner-aware editing; no activation and no implicit global fallback."""
+
+    def __init__(self, owner_kind="", owner_id="", expected_scope=None, card_uuid=""):
+        self.owner_kind = owner_kind
+        self.owner_id = owner_id
+        self.expected_scope = expected_scope
+        self.card_uuid = card_uuid
+        if bool(owner_kind) != bool(owner_id):
+            raise ValueError("Both image owner kind and owner ID are required.")
+        if owner_kind:
+            AlternateImageRepository.owner_key(owner_kind, owner_id)
+
+    @classmethod
+    def from_request(cls):
+        return cls(
+            request.args.get("image_owner_kind", ""),
+            request.args.get("image_owner_id", ""),
+            request.args.get("expected_scope"),
+            request.args.get("card_uuid", ""),
         )
 
-    conn.commit()
-    conn.close()
+    def repository(self, conn, *, writing=False):
+        repository = (
+            AlternateImageRepository.for_owner(conn, self.owner_kind, self.owner_id)
+            if self.owner_kind else AlternateImageRepository(conn)
+        )
+        token = repository.context.scope_id or "global"
+        if writing and self.owner_kind and self.expected_scope is None:
+            raise RuntimeError("Reload Alternate Image Settings before saving.")
+        if self.expected_scope is not None and self.expected_scope != token:
+            raise RuntimeError("This collection's image library changed. Close and reopen Alternate Image Settings.")
+        return repository
 
-    return int(alternate_source_id)
+    def context(self):
+        with closing(get_db_connection()) as conn:
+            return self.repository(conn).context
+
+    def _payload(self, card_uuid, repository):
+        card = repository.connection.execute(
+            "SELECT * FROM chaos_cards WHERE card_uuid = ?", (card_uuid,)
+        ).fetchone()
+        if card is None:
+            raise LookupError("Card UUID was not found.")
+        sources = repository.list_for_card(card_uuid)
+        # Match the renderer, not the source list's display sort order.
+        active = repository.find_enabled(card, "front")
+        if active is None:
+            active = repository.find_enabled(card, "back")
+        context = repository.context
+        url_parameters = {"card_uuid": card_uuid}
+        if self.owner_kind:
+            url_parameters.update(
+                image_owner_kind=self.owner_kind, image_owner_id=self.owner_id
+            )
+        return {
+            "ok": True,
+            "card": {
+                "card_uuid": card["card_uuid"],
+                "card_name": card["card_name"],
+                "set_code": card["set_code"],
+                "collector_number": card["collector_number"],
+                "scryfall_id": card["scryfall_id"],
+                "is_dual_faced": int(card["is_dual_faced"] or 0) == 1,
+                "face_count": int(card["face_count"] or 0),
+                "front_face_name": card["front_face_name"] or card["card_name"],
+                "back_face_name": card["back_face_name"] or "",
+            },
+            "image_scope": {
+                "token": context.scope_id or "global",
+                "is_isolated": context.is_isolated,
+                "owner_kind": self.owner_kind,
+                "owner_id": str(self.owner_id),
+            },
+            "image_url": url_for("chaos_card_image", **url_parameters),
+            "frame_template_options": get_card_export_template_options(),
+            "active_source": serialize_alternate_source_row(active),
+            "alternate_sources": [serialize_alternate_source_row(row) for row in sources],
+        }
+
+    def payload(self, card_uuid):
+        with closing(get_db_connection()) as conn:
+            # Keep the selected source and source list in one read snapshot.
+            conn.execute("BEGIN")
+            return self._payload(card_uuid, self.repository(conn))
+
+    def change(self, source_id, *, updates=None, delete=False):
+        deleted_paths = []
+        with closing(get_db_connection()) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            repository = self.repository(conn, writing=True)
+            source = repository.get_by_id(source_id)
+            if source is None:
+                raise LookupError("Alternate source was not found in this library.")
+            card_uuid = self.card_uuid or source["card_uuid"]
+            if not card_uuid or not any(
+                row["alternate_source_id"] == int(source_id)
+                for row in repository.list_for_card(card_uuid)
+            ):
+                raise LookupError("Alternate source does not belong to this printing.")
+            repository.change(source_id, updates=updates, delete=delete)
+            if delete:
+                deleted_paths = [source["local_image_path"], source["fullbleed_image_path"]]
+            conn.commit()
+        if deleted_paths:
+            self.remove_unreferenced_files(deleted_paths)
+        return card_uuid
+
+    @staticmethod
+    def remove_unreferenced_files(paths):
+        """Deletion is rare: compare canonical paths across both source libraries."""
+        def absolute(path):
+            return os.path.normcase(os.path.realpath(os.path.join(RUNTIME_BASE_DIR, path)))
+
+        try:
+            root = absolute(ALTERNATE_SOURCE_DIR)
+            with closing(get_db_connection()) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                rows = conn.execute(
+                    """
+                    SELECT local_image_path, fullbleed_image_path FROM alternate_sources
+                    UNION ALL
+                    SELECT local_image_path, fullbleed_image_path FROM alternate_image_isolation
+                    """
+                ).fetchall()
+                referenced = {
+                    absolute(path) for row in rows for path in row if path
+                }
+                for value in set(paths):
+                    if not value:
+                        continue
+                    path = absolute(value)
+                    if path in referenced:
+                        continue
+                    try:
+                        inside = os.path.commonpath([root, path]) == root
+                    except ValueError:
+                        inside = False
+                    if inside and os.path.isfile(path):
+                        os.remove(path)
+                conn.commit()
+        except Exception as exc:
+            # The DB deletion succeeded. Retain an unreferenced file on failure.
+            write_error_log("ALTERNATE IMAGE FILE CLEANUP FAILED", exc=exc)
+
+    def add_from_form(self, card_uuid):
+        context = self.context()
+        source_type = str(request.form.get("source_type") or "external_url").strip().lower()
+        source_name = str(request.form.get("source_name") or "").strip()
+        face_kind = normalize_alternate_face_kind(request.form.get("face_kind") or "single")
+        external_url = str(request.form.get("external_image_url") or "").strip()
+        local_path = str(request.form.get("local_image_path") or "").strip()
+        remove_bleed = request.form.get("remove_bleed") == "on"
+        bleed_mm = ALTERNATE_UPLOAD_BLEED_MM if remove_bleed else None
+        uploaded_file = request.files.get("alternate_image_file")
+        uploaded = bool(uploaded_file and uploaded_file.filename)
+        if not source_name:
+            source_name = (
+                "Upload File" if uploaded else "Local File" if source_type == "local_file"
+                else (urlparse(external_url).hostname or "External URL")
+            )
+        upload_paths = []
+        committed = False
+        try:
+            with ExitStack() as stack:
+                files = None
+                destination = None
+                if context.is_isolated:
+                    files = stack.enter_context(AlternateImageFileSnapshot(
+                        context.scope_id, file_group_id=uuid4().hex
+                    ))
+                    if uploaded:
+                        destination = stack.enter_context(TemporaryDirectory(
+                            prefix="alternate-upload-", dir=ALTERNATE_SOURCE_DIR
+                        ))
+                fullbleed_path = ""
+                if uploaded:
+                    source_type = "uploaded_file"
+                    result = save_alternate_source_upload_file(
+                        uploaded_file, card_uuid, face_kind,
+                        remove_bleed=remove_bleed, bleed_size_mm=bleed_mm,
+                        destination_dir=destination,
+                    )
+                    local_path = result["local_image_path"]
+                    fullbleed_path = result["fullbleed_image_path"]
+                    upload_paths = [local_path, fullbleed_path]
+                values = prepare_alternate_source_for_card(
+                    card_uuid, source_name, source_type, face_kind,
+                    external_image_url=external_url, local_image_path=local_path,
+                    fullbleed_image_path=fullbleed_path, remove_bleed=remove_bleed,
+                    bleed_size_mm=bleed_mm,
+                    export_frame_template=request.form.get("export_frame_template") or "auto",
+                    notes=request.form.get("notes") or "",
+                )
+                if files is not None:
+                    values.update(files.prepare_source(values))
+                with closing(get_db_connection()) as conn:
+                    conn.execute("BEGIN IMMEDIATE")
+                    repository = self.repository(conn, writing=True)
+                    if repository.context != context:
+                        raise RuntimeError("The image library changed during upload. Reopen the dialog and retry.")
+                    if conn.execute("SELECT 1 FROM chaos_cards WHERE card_uuid = ?", (card_uuid,)).fetchone() is None:
+                        raise LookupError("Card UUID was not found.")
+                    if files is not None:
+                        files.validate_inputs()
+                    source_id = repository.insert(values)
+                    conn.commit()
+                    committed = True
+                    if files is not None:
+                        files.keep()
+                return source_id
+        finally:
+            if upload_paths and not committed and not context.is_isolated:
+                self.remove_unreferenced_files(upload_paths)
+
 
 def get_chaos_card_by_uuid(card_uuid):
     conn = get_db_connection()
@@ -10647,7 +11161,7 @@ def prefetch_chaos_pdf_remote_images(
         if not card_uuid:
             continue
 
-        card_row = get_chaos_card_by_uuid(card_uuid)
+        card_row = get_chaos_card_for_image(card)
 
         if not card_row:
             continue
@@ -11958,9 +12472,7 @@ def build_chaos_pack_pdf(
                 )
             )
 
-            card_row = get_chaos_card_by_uuid(
-                card_uuid
-            )
+            card_row = get_chaos_card_for_image(card)
 
             if not card_row:
                 continue
@@ -12008,6 +12520,9 @@ def build_chaos_pack_pdf(
                         )
                     )
                 except Exception as exc:
+                    if card_row.get("image_scope_id"):
+                        raise
+
                     write_debug_log(
                         f"CHAOS PDF CARD BACK ERROR | "
                         f"card_name={card_row['card_name']} | "
@@ -13225,7 +13740,7 @@ def get_tracked_pack_card_export_rows(tracked_pack_ids):
             tcp.booster_index,
             tcp.pack_display_name,
             tcp.print_labels_enabled_override,
-
+            tcp.alternate_image_scope_id AS image_scope_id,
             tcpc.tracked_pack_card_id,
             tcpc.card_order,
             tcpc.card_uuid,
@@ -13269,6 +13784,7 @@ def get_tracked_pack_card_export_rows(tracked_pack_ids):
             "labels_disabled_for_pack": row["print_labels_enabled_override"] is not None and int(row["print_labels_enabled_override"]) == 0,
             "tracked_pack_card_id": int(row["tracked_pack_card_id"]),
             "card_order": int(row["card_order"] or 0),
+            "image_scope_id": row["image_scope_id"],
             "card_uuid": (row["card_uuid"] or "").strip(),
             "card_name": row["card_name"] or "",
             "card_set_code": (row["card_set_code"] or row["pack_set_code"] or "").strip().upper(),
@@ -13432,6 +13948,7 @@ def get_custom_draft_set_print_cards(set_code, selected_card_ids=None):
         {
             "card_uuid": (card["card_uuid"] or "").strip(),
             "card_name": card["card_name"] or "",
+            "image_scope_id": card["image_scope_id"],
         }
         for card in custom_set_cards
         if (card["card_uuid"] or "").strip()
@@ -13494,6 +14011,7 @@ def build_custom_draft_set_image_export_rows(set_code, selected_card_ids=None):
 
             "tracked_pack_card_id": int(card["custom_set_card_id"]),
             "card_order": card_index,
+            "image_scope_id": card["image_scope_id"],
             "card_uuid": (card["card_uuid"] or "").strip(),
             "card_name": card["card_name"] or "",
             "card_set_code": (card["card_set_code"] or "").strip().upper(),
@@ -13570,7 +14088,7 @@ def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, s
 
     for export_row in export_rows:
         card_uuid = export_row["card_uuid"]
-        card_row = get_chaos_card_by_uuid(card_uuid)
+        card_row = get_chaos_card_for_image(export_row)
 
         if not card_row:
             write_debug_log(
@@ -19523,6 +20041,34 @@ def campaign_chaos_history_delete_all():
 
     return redirect(url_for("campaign_chaos_history"))
 
+def add_alternate_state_to_cards(cards, *, image_context=None):
+    cards = [dict(card) for card in (cards or [])]
+    groups = {}
+
+    for index, card in enumerate(cards):
+        scope_id = (
+            image_context.scope_id
+            if image_context is not None
+            else card.get("image_scope_id")
+        )
+        groups.setdefault(scope_id, []).append(index)
+
+    with closing(get_db_connection()) as conn:
+        for scope_id, indexes in groups.items():
+            repository = AlternateImageRepository(
+                conn, AlternateImageContext(scope_id)
+            )
+
+            decorated = repository.decorate_cards(
+                cards[index] for index in indexes
+            )
+
+            for index, card in zip(indexes, decorated):
+                cards[index] = card
+
+    return cards
+
+
 def add_upscaled_state_to_cards(cards):
     cards = list(cards or [])
 
@@ -19592,7 +20138,7 @@ def campaign_chaos_pack_detail(tracked_pack_id):
     return render_template(
         "campaign_pack_detail.html",
         pack=pack,
-        cards=cards,
+        cards=add_alternate_state_to_cards(cards),
         display_pack_prices=display_pack_prices,
         pack_price_source=pack_price_source,
         print_export_defaults=get_print_export_defaults_from_config(config),
@@ -20080,6 +20626,7 @@ def campaign_chaos_pack_preview_view():
         "campaign_pack_detail.html",
         pack={
             "tracked_pack_id": 0,
+            "set_code": (preview_pack.get("set_code") or "").strip(),
             "pack_tracking_code": preview_pack.get("pack_tracking_code") or "",
             "pack_display_name": preview_pack.get("pack_display_name") or preview_pack.get("display_name") or "",
             "total_cards": int(preview_pack.get("total_cards") or 0),
@@ -20087,7 +20634,7 @@ def campaign_chaos_pack_preview_view():
             "campaign_enabled": True,
             "is_preview": True,
         },
-        cards=cards,
+        cards=add_alternate_state_to_cards(cards),
         display_pack_prices=display_pack_prices,
         pack_price_source=pack_price_source,
         print_export_defaults=get_print_export_defaults_from_config(config),
@@ -20636,6 +21183,13 @@ def serialize_deckbuilder_card(card):
         "draft_test_pick_id": deckbuilder_row_get(card, "draft_test_pick_id", "") or "",
         "pick_number": deckbuilder_row_get(card, "pick_number", 0) or 0,
         "pack_number": deckbuilder_row_get(card, "pack_number", 0) or 0,
+        "image_scope_id": deckbuilder_row_get(card, "image_scope_id", None),
+        "has_alternate_image": int(
+            deckbuilder_row_get(card, "has_alternate_image", 0) or 0
+        ),
+        "alternate_image_remove_bleed": int(
+            deckbuilder_row_get(card, "alternate_image_remove_bleed", 0) or 0
+        ),
         "card_uuid": card_uuid,
         "card_name": deckbuilder_row_get(card, "card_name", "") or "",
         "deck_zone": deckbuilder_row_get(card, "deck_zone", "deck") or "deck",
@@ -21282,6 +21836,7 @@ def build_deckbuilder_image_export_rows(deck_id):
 
             "tracked_pack_card_id": card_index,
             "card_order": card_index,
+            "image_scope_id": card.get("image_scope_id"),
             "card_uuid": (card.get("card_uuid") or "").strip(),
             "card_name": card.get("card_name") or "",
             "card_set_code": (card.get("set_code") or "").strip().upper(),
@@ -23306,281 +23861,57 @@ def campaign_chaos_pack_card_update_foil(tracked_pack_card_id):
 
 @app.route("/chaos/cards/<card_uuid>/alternate-sources", methods=["GET"])
 @app.route("/campaign-chaos/cards/<card_uuid>/alternate-sources", methods=["GET"])
+@alternate_image_api
 def campaign_chaos_card_alternate_sources(card_uuid):
-    card_row = get_chaos_card_by_uuid(card_uuid)
-
-    if not card_row:
-        return jsonify({
-            "ok": False,
-            "message": "Card UUID was not found.",
-            "alternate_sources": [],
-        }), 404
-
-    alternate_sources = get_alternate_sources_for_card(card_uuid)
-
-    active_source = None
-    for source in alternate_sources:
-        if source["is_enabled"]:
-            active_source = source
-            break
-
-    return jsonify({
-        "ok": True,
-        "card": {
-            "card_uuid": card_row["card_uuid"],
-            "card_name": card_row["card_name"],
-            "set_code": card_row["set_code"],
-            "collector_number": card_row["collector_number"],
-            "scryfall_id": card_row["scryfall_id"],
-            "is_dual_faced": int(card_row["is_dual_faced"] or 0) == 1,
-            "face_count": int(card_row["face_count"] or 0),
-            "front_face_name": card_row["front_face_name"] or card_row["card_name"],
-            "back_face_name": card_row["back_face_name"] or "",
-        },
-        "frame_template_options": get_card_export_template_options(),
-        "active_source": active_source,
-        "alternate_sources": alternate_sources,
-    })
+    return jsonify(AlternateImageEditor.from_request().payload(card_uuid))
 
 @app.route("/chaos/cards/<card_uuid>/alternate-sources/add", methods=["POST"])
 @app.route("/campaign-chaos/cards/<card_uuid>/alternate-sources/add", methods=["POST"])
+@alternate_image_api
 def campaign_chaos_card_alternate_sources_add(card_uuid):
-    card_row = get_chaos_card_by_uuid(card_uuid)
-
-    if not card_row:
-        return jsonify({
-            "ok": False,
-            "message": "Card UUID was not found.",
-        }), 404
-
-    source_name = (request.form.get("source_name") or "").strip()
-    source_type = (request.form.get("source_type") or "external_url").strip().lower()
-    face_kind = normalize_alternate_face_kind(request.form.get("face_kind") or "single")
-    external_image_url = (request.form.get("external_image_url") or "").strip()
-    local_image_path = (request.form.get("local_image_path") or "").strip()
-    priority = "100"
-    notes = (request.form.get("notes") or "").strip()
-    remove_bleed = request.form.get("remove_bleed") == "on"
-
-    bleed_size_mm = (
-        ALTERNATE_UPLOAD_BLEED_MM
-        if remove_bleed
-        else None
-    )
-    export_frame_template = (request.form.get("export_frame_template") or "auto").strip().lower()
-
-    fullbleed_image_path = ""
-
-    uploaded_file = request.files.get("alternate_image_file")
-
-    if not source_name:
-        if uploaded_file and uploaded_file.filename:
-            source_name = "Upload File"
-        elif source_type == "external_url" and external_image_url:
-            try:
-                parsed_domain = re.sub(
-                    r"^www\.",
-                    "",
-                    urlparse(external_image_url).hostname or "",
-                    flags=re.IGNORECASE,
-                )
-                source_name = parsed_domain or "External URL"
-            except Exception:
-                source_name = "External URL"
-        elif source_type == "local_file":
-            source_name = "Local File"
-        else:
-            source_name = "Manual Alternate Image"
-
-    try:
-        if uploaded_file and uploaded_file.filename:
-            source_type = "uploaded_file"
-            upload_result = save_alternate_source_upload_file(
-                uploaded_file,
-                card_uuid=card_uuid,
-                face_kind=face_kind,
-                remove_bleed=remove_bleed,
-                bleed_size_mm=bleed_size_mm,
-            )
-
-            local_image_path = upload_result["local_image_path"]
-            fullbleed_image_path = upload_result["fullbleed_image_path"]
-            remove_bleed = upload_result["remove_bleed"]
-            bleed_size_mm = upload_result["bleed_size_mm"]
-
-        alternate_source_id = create_alternate_source_for_card(
-            card_uuid=card_uuid,
-            source_name=source_name,
-            source_type=source_type,
-            face_kind=face_kind,
-            external_image_url=external_image_url,
-            local_image_path=local_image_path,
-            fullbleed_image_path=fullbleed_image_path,
-            remove_bleed=remove_bleed,
-            bleed_size_mm=bleed_size_mm,
-            export_frame_template=export_frame_template,
-            priority=priority,
-            notes=notes,
-        )
-
-        return jsonify({
-            "ok": True,
-            "message": "Alternate image source added.",
-            "alternate_source_id": alternate_source_id,
-            "alternate_sources": get_alternate_sources_for_card(card_uuid),
-        })
-
-    except Exception as exc:
-        return jsonify({
-            "ok": False,
-            "message": str(exc),
-        }), 400
+    editor = AlternateImageEditor.from_request()
+    source_id = editor.add_from_form(card_uuid)
+    payload = editor.payload(card_uuid)
+    payload.update(message="Alternate image source added.", alternate_source_id=source_id)
+    return jsonify(payload)
 
 @app.route("/chaos/alternate-sources/<int:alternate_source_id>/frame-template", methods=["POST"])
 @app.route("/campaign-chaos/alternate-sources/<int:alternate_source_id>/frame-template", methods=["POST"])
+@alternate_image_api
 def campaign_chaos_alternate_source_frame_template_update(alternate_source_id):
-    source_row = get_alternate_source_by_id(alternate_source_id)
-
-    if not source_row:
-        return jsonify({
-            "ok": False,
-            "message": "Alternate source was not found.",
-        }), 404
-
     payload = request.get_json(silent=True) or {}
-    export_frame_template = (payload.get("export_frame_template") or "auto").strip().lower()
-
-    valid_export_frame_templates = {
-        option["value"]
-        for option in get_card_export_template_options()
-    }
-
-    if export_frame_template not in valid_export_frame_templates:
-        export_frame_template = "auto"
-
-    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        UPDATE alternate_sources
-        SET export_frame_template = ?,
-            updated_at_utc = ?
-        WHERE alternate_source_id = ?
-        """,
-        (
-            export_frame_template,
-            now_utc,
-            int(alternate_source_id),
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    return jsonify({
-        "ok": True,
-        "message": "Card frame template updated.",
-        "alternate_sources": get_alternate_sources_for_card(source_row["card_uuid"]),
-    })
+    value = str(payload.get("export_frame_template") or "auto").strip().lower()
+    if value not in {option["value"] for option in get_card_export_template_options()}:
+        raise ValueError("Unknown card frame template.")
+    editor = AlternateImageEditor.from_request()
+    card_uuid = editor.change(alternate_source_id, updates={"export_frame_template": value})
+    result = editor.payload(card_uuid)
+    result["message"] = "Card frame template updated."
+    return jsonify(result)
 
 @app.route("/chaos/alternate-sources/<int:alternate_source_id>/toggle", methods=["POST"])
 @app.route("/campaign-chaos/alternate-sources/<int:alternate_source_id>/toggle", methods=["POST"])
+@alternate_image_api
 def campaign_chaos_alternate_source_toggle(alternate_source_id):
-    source_row = get_alternate_source_by_id(alternate_source_id)
-
-    if not source_row:
-        return jsonify({
-            "ok": False,
-            "message": "Alternate source was not found.",
-        }), 404
-
     payload = request.get_json(silent=True) or {}
-    enabled = bool(payload.get("enabled", False))
-
-    now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        UPDATE alternate_sources
-        SET is_enabled = ?,
-            updated_at_utc = ?
-        WHERE alternate_source_id = ?
-        """,
-        (
-            1 if enabled else 0,
-            now_utc,
-            int(alternate_source_id),
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    return jsonify({
-        "ok": True,
-        "message": "Alternate source updated.",
-        "alternate_sources": get_alternate_sources_for_card(source_row["card_uuid"]),
-    })
+    enabled = payload.get("enabled")
+    if not isinstance(enabled, bool):
+        raise ValueError("enabled must be true or false.")
+    editor = AlternateImageEditor.from_request()
+    card_uuid = editor.change(alternate_source_id, updates={"is_enabled": int(enabled)})
+    result = editor.payload(card_uuid)
+    result["message"] = "Alternate source updated."
+    return jsonify(result)
 
 @app.route("/chaos/alternate-sources/<int:alternate_source_id>/delete", methods=["POST"])
 @app.route("/campaign-chaos/alternate-sources/<int:alternate_source_id>/delete", methods=["POST"])
+@alternate_image_api
 def campaign_chaos_alternate_source_delete(alternate_source_id):
-    source_row = get_alternate_source_by_id(alternate_source_id)
-
-    if not source_row:
-        return jsonify({
-            "ok": False,
-            "message": "Alternate source was not found.",
-        }), 404
-
-    card_uuid = source_row["card_uuid"]
-    local_path = get_alternate_source_local_absolute_path(source_row)
-
-    fullbleed_path = ""
-    if "fullbleed_image_path" in source_row.keys():
-        fullbleed_relative_path = (source_row["fullbleed_image_path"] or "").strip()
-        if fullbleed_relative_path:
-            fullbleed_path = os.path.abspath(os.path.join(RUNTIME_BASE_DIR, fullbleed_relative_path))
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        DELETE FROM alternate_sources
-        WHERE alternate_source_id = ?
-        """,
-        (int(alternate_source_id),),
-    )
-
-    conn.commit()
-    conn.close()
-
-    # Only remove files inside the managed alternate source folder.
-    try:
-        alternate_root = os.path.abspath(ALTERNATE_SOURCE_DIR)
-
-        for candidate_path in [local_path, fullbleed_path]:
-            if not candidate_path:
-                continue
-
-            local_abs = os.path.abspath(candidate_path)
-            if local_abs.startswith(alternate_root) and os.path.exists(local_abs):
-                os.remove(local_abs)
-    except Exception:
-        pass
-
-    return jsonify({
-        "ok": True,
-        "message": "Alternate source deleted.",
-        "alternate_sources": get_alternate_sources_for_card(card_uuid),
-    })
+    editor = AlternateImageEditor.from_request()
+    card_uuid = editor.change(alternate_source_id, delete=True)
+    result = editor.payload(card_uuid)
+    result["message"] = "Alternate source deleted."
+    return jsonify(result)
 
 @app.route("/debug/alternate-source/add", methods=["POST"])
 def debug_alternate_source_add():
@@ -24000,6 +24331,7 @@ def card_face_data():
     })
 
 @app.route("/chaos-card-image/<card_uuid>", methods=["GET"])
+@alternate_image_api
 def chaos_card_image(card_uuid):
     requested_face = (request.args.get("face") or "front").strip().lower()
     if requested_face not in {"front", "back"}:
@@ -24033,6 +24365,7 @@ def chaos_card_image(card_uuid):
         card_row,
         page_kind,
         image_url,
+        image_context=get_requested_image_context(),
     )
 
     if image_source.get("source_type") in {
@@ -24068,6 +24401,7 @@ def chaos_card_image(card_uuid):
     return redirect(image_url)
 
 @app.route("/chaos-card-image-preview/<card_uuid>", methods=["GET"])
+@alternate_image_api
 def chaos_card_image_preview(card_uuid):
     requested_face = (request.args.get("face") or "front").strip().lower()
 
@@ -24102,6 +24436,7 @@ def chaos_card_image_preview(card_uuid):
         card_row,
         page_kind,
         image_url,
+        image_context=get_requested_image_context(),
     )
 
     if image_source.get("source_type") in {

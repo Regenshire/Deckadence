@@ -6850,7 +6850,14 @@ input {
     flex: 0 0 190px;
 }
 
-.deckbuilder-sort-wrap label,
+.deckbuilder-sort-wrap label {
+    color: var(--muted);
+    font-size: 0.82rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    text-align: right;
+}
+
 .deckbuilder-card-size-wrap label {
     color: var(--muted);
     font-size: 0.82rem;

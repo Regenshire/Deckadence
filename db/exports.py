@@ -5,6 +5,8 @@ import zipfile
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from io import BytesIO
+from uuid import uuid4
+import json
 
 from paths import (
     ALTERNATE_SOURCE_DIR,
@@ -32,6 +34,8 @@ PACK_TABLE_NAMES = {
     "tracked_chaos_pack_openings",
     "tracked_chaos_pack_campaigns",
     "alternate_sources",
+    "alternate_image_scopes",
+    "alternate_image_isolation",
 }
 
 SETTINGS_TABLE_NAMES = {
@@ -540,6 +544,19 @@ def get_rows_for_pack_table(table_name, tracked_pack_ids):
     if not pack_ids:
         return []
 
+    if table_name in {"alternate_image_scopes", "alternate_image_isolation"}:
+        placeholders = ",".join("?" for _ in pack_ids)
+
+        return fetch_table_rows(
+            table_name,
+            where_clause=(
+                "image_scope_id IN (SELECT alternate_image_scope_id "
+                "FROM tracked_chaos_packs WHERE tracked_pack_id IN ("
+                + placeholders + "))"
+            ),
+            params=pack_ids,
+        )
+
     if table_name == "alternate_sources":
         card_uuids = get_card_uuids_for_tracked_pack_ids(pack_ids)
 
@@ -665,6 +682,12 @@ def build_full_rows_by_table():
 
 
 def get_row_identity(row):
+    if "image_scope_id" in row:
+        return (
+            "image_scope",
+            row["image_scope_id"],
+            row.get("alternate_source_id"),
+        )
     # Used only to merge rows inside one export payload.
     # Keep simple and stable across schema changes.
     for key_name in (
@@ -1167,7 +1190,11 @@ def insert_or_replace_manifest_rows(rows_by_table, allowed_tables):
     cursor = conn.cursor()
 
     try:
-        for table_name, table_rows in rows_by_table.items():
+        for table_name in sorted(
+            rows_by_table,
+            key=lambda name: (name != "alternate_image_scopes", name),
+        ):
+            table_rows = rows_by_table[table_name]
             if table_name not in existing_tables:
                 continue
 
@@ -1204,6 +1231,90 @@ def insert_or_replace_manifest_rows(rows_by_table, allowed_tables):
 
     return imported_rows
 
+def prepare_isolated_archive_import(zip_file, root):
+    """Remap isolated namespaces and paths before extracting or inserting anything."""
+    tables = get_tables_from_manifest(root)
+    scopes = tables.get("alternate_image_scopes", [])
+    mapping = {
+        row["image_scope_id"]: uuid4().hex
+        for row in scopes
+    }
+
+    file_elements = {
+        item.get("relative_path"): item
+        for item in root.findall("./files/file")
+    }
+
+    paths = {}
+    prefix = os.path.relpath(
+        ALTERNATE_SOURCE_DIR, RUNTIME_BASE_DIR
+    ).replace("\\", "/")
+    archive_names = set(zip_file.namelist())
+
+    for row in tables.get("alternate_image_isolation", []):
+        if row.get("image_scope_id") not in mapping:
+            raise ValueError(
+                "Archive contains an isolated source without its scope."
+            )
+
+        row.pop("alternate_source_id", None)
+
+        for field in ("local_image_path", "fullbleed_image_path"):
+            path = row.get(field)
+
+            if not path or path in paths:
+                continue
+
+            item = file_elements.get(path)
+
+            if (
+                item is None
+                or item.get("archive_path") not in archive_names
+            ):
+                raise ValueError(
+                    "Archive is missing an isolated image: " + path
+                )
+
+            paths[path] = (
+                prefix + "/isolation/import-" + uuid4().hex
+                + os.path.splitext(path)[1]
+            )
+
+            item.set("relative_path", paths[path])
+
+    def remap(value):
+        if isinstance(value, list):
+            return [remap(item) for item in value]
+
+        if not isinstance(value, dict):
+            return value
+
+        result = dict(value)
+
+        for key, item in result.items():
+            if key in {"image_scope_id", "alternate_image_scope_id"} and item:
+                if item not in mapping:
+                    raise ValueError(
+                        "Archive references an image scope it does not contain."
+                    )
+
+                result[key] = mapping[item]
+
+            elif key in FILE_FIELD_NAMES and item in paths:
+                result[key] = paths[item]
+
+            elif isinstance(item, (list, dict)):
+                result[key] = remap(item)
+
+            elif key == "source_json" and item:
+                result[key] = json.dumps(remap(json.loads(item)))
+
+        return result
+
+    return {
+        name: [remap(row) for row in rows]
+        for name, rows in tables.items()
+    }
 
 def import_archive_from_path(archive_path, import_scope, campaign_name_override=""):
     if not archive_path or not os.path.exists(archive_path):
@@ -1217,8 +1328,8 @@ def import_archive_from_path(archive_path, import_scope, campaign_name_override=
         # but only the pack tables are restored when import_scope='packs'.
         allowed_tables = get_allowed_tables_for_import(import_scope)
 
+        rows_by_table = prepare_isolated_archive_import(zip_file, root)
         extracted_files = extract_files_from_manifest(zip_file, root)
-        rows_by_table = get_tables_from_manifest(root)
 
         if import_scope == EXPORT_KIND_CAMPAIGN:
             rows_by_table = remap_campaign_import_rows(
@@ -1251,8 +1362,8 @@ def import_archive_from_file_object(file_object, import_scope, campaign_name_ove
 
         allowed_tables = get_allowed_tables_for_import(import_scope)
 
+        rows_by_table = prepare_isolated_archive_import(zip_file, root)
         extracted_files = extract_files_from_manifest(zip_file, root)
-        rows_by_table = get_tables_from_manifest(root)
 
         if import_scope == EXPORT_KIND_CAMPAIGN:
             rows_by_table = remap_campaign_import_rows(

@@ -246,6 +246,22 @@
 
     <section class="deckbuilder-controls">
         <div class="deckbuilder-control-fields">
+            {% if image_isolation %}
+            <button
+                type="button"
+                class="imomir-isolation-toggle"
+                role="switch"
+                aria-checked="{{ 'true' if image_isolation.enabled else 'false' }}"
+                aria-label="Alternate Image Isolation"
+                data-image-isolation-toggle
+                data-enable-url="{{ image_isolation.enable_url }}"
+                data-disable-url="{{ image_isolation.disable_url }}"
+                data-scope-token="{{ image_isolation.scope_token }}"
+            >
+                <span class="imomir-isolation-track" aria-hidden="true"></span>
+                <span data-isolation-label aria-hidden="true">Isolation {{ 'On' if image_isolation.enabled else 'Off' }}</span>
+            </button>
+            {% endif %}
             <div class="deckbuilder-sort-wrap">
                 <label for="deckbuilderSortSelect">Sort</label>
 
@@ -2661,7 +2677,7 @@
 
         const cleanLandName = String(landName || "").trim();
         const cleanLandKey = cleanLandName.toLowerCase();
-        const imageSrc = "/chaos-card-image/" + encodeURIComponent(cardUuid);
+        const imageSrc = window.iMomirImageUrl("/chaos-card-image/" + encodeURIComponent(cardUuid));
 
         const paletteCards = Array.isArray(payload.basic_land_cards)
             ? payload.basic_land_cards.slice()
@@ -2718,7 +2734,7 @@
             : "";
 
         const imageSrc = paletteCardData
-            ? (paletteCardData.image_src || (cardUuid ? "/chaos-card-image/" + encodeURIComponent(cardUuid) : ""))
+            ? window.iMomirImageUrl(paletteCardData.image_src || (cardUuid ? "/chaos-card-image/" + encodeURIComponent(cardUuid) : ""))
             : "";
 
         const rarity = paletteCardData
@@ -2938,7 +2954,7 @@
     function buildBasicLandPaletteCardHtml(landCard) {
         const cardUuid = landCard.card_uuid || "";
         const cardName = landCard.card_name || "";
-        const imageSrc = landCard.image_src || (cardUuid ? "/chaos-card-image/" + encodeURIComponent(cardUuid) : "");
+        const imageSrc = window.iMomirImageUrl(landCard.image_src || (cardUuid ? "/chaos-card-image/" + encodeURIComponent(cardUuid) : ""));
 
         return (
             '<div class="deckbuilder-card deckbuilder-basic-land-card" draggable="true" data-drag-type="basic-land" data-is-land-palette="1" data-basic-land-name="' + escapeHtml(cardName) + '" data-current-zone="sideboard" data-card-name="' + escapeHtml(cardName) + '" data-card-uuid="' + escapeHtml(cardUuid) + '" data-card-image-src="' + escapeHtml(imageSrc) + '" data-card-rarity="' + escapeHtml(landCard.rarity || "common") + '" data-card-mana-value="' + escapeHtml(landCard.mana_value ?? 0) + '" data-card-type-line="' + escapeHtml(landCard.type_line || "Basic Land") + '" data-card-set-code="' + escapeHtml(landCard.set_code || "") + '" data-card-collector-number="' + escapeHtml(landCard.collector_number || "") + '">' +

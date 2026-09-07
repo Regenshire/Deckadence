@@ -1,8 +1,9 @@
 import os
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from paths import DATABASE_PATH
 from settings import (
@@ -126,23 +127,32 @@ class AlternateImageRepository:
             self._scope_filter = "image_scope_id = ? AND "
             self._scope_parameters = (image_context.scope_id,)
 
-    @classmethod
-    def for_owner(cls, connection, owner_kind, owner_id):
-        """Resolve the namespace from a stored owner, not a client flag."""
-        if owner_kind == "deck":
-            table_name, key_name = "decks", "deck_id"
+    @staticmethod
+    def owner_key(owner_kind, owner_id):
+        """Return trusted table/key identifiers and a normalized owner ID."""
+        if owner_kind in {"deck", "pack"}:
             clean_owner_id = str(owner_id).strip()
             if not clean_owner_id.isdecimal() or int(clean_owner_id) <= 0:
                 raise ValueError("Invalid deck ID.")
-            clean_owner_id = int(clean_owner_id)
-        elif owner_kind == "set":
-            table_name, key_name = "custom_draft_sets", "set_code"
+            if owner_kind == "pack":
+                return "tracked_chaos_packs", "tracked_pack_id", int(clean_owner_id)
+
+            return "decks", "deck_id", int(clean_owner_id)
+
+        if owner_kind == "set":
             clean_owner_id = normalize_custom_draft_set_code(owner_id)
             if not clean_owner_id:
                 raise ValueError("Invalid custom set code.")
-        else:
-            raise ValueError("Unsupported alternate image owner type.")
+            return "custom_draft_sets", "set_code", clean_owner_id
 
+        raise ValueError("Unsupported alternate image owner type.")
+
+    @classmethod
+    def for_owner(cls, connection, owner_kind, owner_id):
+        """Resolve the namespace from a stored owner, not a client flag."""
+        table_name, key_name, clean_owner_id = cls.owner_key(
+            owner_kind, owner_id
+        )
         owner = connection.execute(
             f"SELECT alternate_image_scope_id FROM {table_name} "
             f"WHERE {key_name} = ?",
@@ -156,6 +166,7 @@ class AlternateImageRepository:
             connection,
             AlternateImageContext(owner["alternate_image_scope_id"]),
         )
+
 
     def find_enabled(self, card_row, face_kind="single"):
         if not card_row:
@@ -206,16 +217,124 @@ class AlternateImageRepository:
 
         return self.connection.execute(
             f"""
-            SELECT *
-            FROM {self._table}
-            WHERE {self._scope_filter}card_uuid = ?
-            ORDER BY
-                is_enabled DESC,
-                priority ASC,
-                alternate_source_id DESC
+            SELECT a.*
+            FROM {self._table} AS a
+            WHERE {self._scope_filter}(
+                a.card_uuid = ? OR EXISTS (
+                    SELECT 1 FROM chaos_cards AS c
+                    WHERE c.card_uuid = ?
+                      AND COALESCE(c.set_code, '') <> ''
+                      AND COALESCE(c.collector_number, '') <> ''
+                      AND UPPER(COALESCE(a.set_code, '')) = UPPER(c.set_code)
+                      AND LOWER(COALESCE(a.collector_number, '')) =
+                          LOWER(c.collector_number)
+                )
+            )
+            ORDER BY a.is_enabled DESC, a.priority ASC,
+                     a.alternate_source_id DESC
             """,
-            self._scope_parameters + (clean_card_uuid,),
+            self._scope_parameters + (clean_card_uuid, clean_card_uuid),
         ).fetchall()
+
+    def enabled_card_uuids(self, card_uuids, *, remove_bleed_only=False):
+        """Batch state for indicators, including printing and back-face sources."""
+        identifiers = sorted({str(value).strip() for value in card_uuids if value})
+        enabled = set()
+        for offset in range(0, len(identifiers), 400):
+            batch = identifiers[offset:offset + 400]
+            placeholders = ",".join("?" for _ in batch)
+            rows = self.connection.execute(
+                f"""
+                SELECT c.card_uuid FROM chaos_cards AS c
+                WHERE c.card_uuid IN ({placeholders})
+                  AND EXISTS (
+                    SELECT 1 FROM {self._table} AS a
+                    WHERE {self._scope_filter}a.is_enabled = 1
+                      AND (? = 0 OR a.remove_bleed = 1)
+                      AND (
+                        a.card_uuid = c.card_uuid OR (
+                            COALESCE(c.set_code, '') <> ''
+                            AND COALESCE(c.collector_number, '') <> ''
+                            AND UPPER(COALESCE(a.set_code, '')) = UPPER(c.set_code)
+                            AND LOWER(COALESCE(a.collector_number, '')) =
+                                LOWER(c.collector_number)
+                        )
+                      )
+                  )
+                """,
+                tuple(batch) + self._scope_parameters + (int(remove_bleed_only),),
+            ).fetchall()
+            enabled.update(row["card_uuid"] for row in rows)
+        return enabled
+
+    def _bump_revision(self):
+        if self.context.is_isolated:
+            self.connection.execute(
+                """
+                UPDATE alternate_image_scopes
+                SET revision = revision + 1, updated_at_utc = ?
+                WHERE image_scope_id = ?
+                """,
+                (datetime.now(timezone.utc).isoformat(), self.context.scope_id),
+            )
+
+    def insert(self, source):
+        allowed = set(AlternateImageIsolationService.SOURCE_FIELDS) | {
+            "created_at_utc", "updated_at_utc"
+        }
+        if not source or set(source) - allowed:
+            raise ValueError("Unexpected alternate-source fields.")
+        values = dict(source)
+        if self.context.is_isolated:
+            values["image_scope_id"] = self.context.scope_id
+        columns = tuple(values)
+        cursor = self.connection.execute(
+            f"INSERT INTO {self._table} (" + ", ".join(columns)
+            + ") VALUES (" + ", ".join("?" for _ in columns) + ")",
+            tuple(values[column] for column in columns),
+        )
+        self._bump_revision()
+        return int(cursor.lastrowid)
+
+    def change(self, alternate_source_id, *, updates=None, delete=False):
+        source = self.get_by_id(alternate_source_id)
+        if source is None:
+            raise LookupError("Alternate source was not found in this library.")
+        if delete:
+            self.connection.execute(
+                f"DELETE FROM {self._table} WHERE {self._scope_filter}"
+                "alternate_source_id = ?",
+                self._scope_parameters + (int(alternate_source_id),),
+            )
+        else:
+            values = dict(updates or {})
+            if not values or set(values) - {"is_enabled", "export_frame_template"}:
+                raise ValueError("Unsupported alternate-source update.")
+            values["updated_at_utc"] = datetime.now(timezone.utc).isoformat()
+            self.connection.execute(
+                f"UPDATE {self._table} SET "
+                + ", ".join(f"{column} = ?" for column in values)
+                + f" WHERE {self._scope_filter}alternate_source_id = ?",
+                tuple(values.values()) + self._scope_parameters
+                + (int(alternate_source_id),),
+            )
+        self._bump_revision()
+        return source
+
+    def decorate_cards(self, cards):
+        cards = [dict(card) for card in cards]
+        identifiers = [card.get("card_uuid") for card in cards]
+        enabled = self.enabled_card_uuids(identifiers)
+        bleed = self.enabled_card_uuids(identifiers, remove_bleed_only=True)
+
+        for card in cards:
+            card["image_scope_id"] = self.context.scope_id
+            card["has_alternate_source"] = int(card.get("card_uuid") in enabled)
+            card["has_alternate_image"] = card["has_alternate_source"]
+            card["alternate_remove_bleed"] = int(card.get("card_uuid") in bleed)
+            card["alternate_image_remove_bleed"] = card["alternate_remove_bleed"]
+
+        return cards
 
     def get_by_id(self, alternate_source_id):
         return self.connection.execute(
@@ -227,7 +346,273 @@ class AlternateImageRepository:
             self._scope_parameters + (int(alternate_source_id),),
         ).fetchone()
 
+class AlternateImageIsolationService:
+    """Create independent source snapshots without changing global sources."""
 
+    SOURCE_FIELDS = (
+        "source_name", "source_type", "card_uuid", "set_code",
+        "collector_number", "scryfall_id", "card_name", "face_kind",
+        "external_image_url", "local_image_path", "fullbleed_image_path",
+        "remove_bleed", "bleed_size_mm", "bleed_processing_version",
+        "export_frame_template", "is_enabled", "priority", "notes",
+    )
+
+    def __init__(self, connection_factory, file_snapshot_factory):
+        self.connection_factory = connection_factory
+        self.file_snapshot_factory = file_snapshot_factory
+
+    @staticmethod
+    def _read_state(connection, owner_kind, owner_id):
+        if owner_kind == "deck":
+            membership_sql = """
+                SELECT card_uuid FROM deck_cards WHERE deck_id = ?
+                UNION
+                SELECT card_uuid FROM deck_basic_land_printings
+                WHERE deck_id = ?
+            """
+            parameters = (owner_id, owner_id)
+        else:
+            membership_sql = """
+                SELECT card_uuid FROM custom_draft_set_cards
+                WHERE set_code = ?
+            """
+            parameters = (owner_id,)
+
+        members_sql = f"""
+            SELECT m.card_uuid, c.card_uuid AS catalog_uuid,
+                   c.set_code, c.collector_number
+            FROM ({membership_sql}) AS m
+            LEFT JOIN chaos_cards AS c ON c.card_uuid = m.card_uuid
+        """
+        members = [
+            dict(row)
+            for row in connection.execute(
+                members_sql + " ORDER BY m.card_uuid", parameters
+            ).fetchall()
+        ]
+        if any(row["catalog_uuid"] is None for row in members):
+            raise ValueError(
+                "A collection card is missing from chaos_cards. "
+                "Repair the missing printing before enabling isolation."
+            )
+
+        sources = [
+            dict(row)
+            for row in connection.execute(
+                f"""
+                WITH members AS ({members_sql})
+                SELECT a.*
+                FROM alternate_sources AS a
+                JOIN members AS m ON a.card_uuid = m.card_uuid
+                UNION
+                SELECT a.*
+                FROM alternate_sources AS a
+                JOIN members AS m
+                  ON UPPER(COALESCE(a.set_code, '')) = UPPER(m.set_code)
+                 AND LOWER(COALESCE(a.collector_number, '')) =
+                     LOWER(m.collector_number)
+                WHERE COALESCE(m.set_code, '') <> ''
+                  AND COALESCE(m.collector_number, '') <> ''
+                ORDER BY alternate_source_id
+                """,
+                parameters,
+            ).fetchall()
+        ]
+        return members, sources
+
+    def disable_for_owner(self, owner_kind, owner_id, *, expected_scope):
+        """Return an owner to global settings without deleting image files."""
+        table_name, key_name, owner_id = AlternateImageRepository.owner_key(
+            owner_kind, owner_id
+        )
+        if not isinstance(expected_scope, str) or not expected_scope:
+            raise ValueError("Reload the page before changing isolation.")
+        if expected_scope != "global":
+            AlternateImageContext(expected_scope)
+
+        connection = self.connection_factory()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            context = AlternateImageRepository.for_owner(
+                connection, owner_kind, owner_id
+            ).context
+
+            if not context.is_isolated:
+                connection.commit()
+                return context
+
+            if expected_scope != context.scope_id:
+                raise RuntimeError(
+                    "This collection's image library changed. "
+                    "Reload the page before turning isolation off."
+                )
+
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            connection.execute(
+                f"UPDATE {table_name} "
+                "SET alternate_image_scope_id = NULL, updated_at_utc = ? "
+                f"WHERE {key_name} = ?",
+                (now, owner_id),
+            )
+
+            # Normally scopes have one owner. Protect shared references too.
+            shared = connection.execute(
+                """
+                SELECT 1 FROM decks WHERE alternate_image_scope_id = ?
+                UNION ALL
+                SELECT 1 FROM custom_draft_sets
+                WHERE alternate_image_scope_id = ?
+                UNION ALL
+                SELECT 1 FROM tracked_chaos_packs
+                WHERE alternate_image_scope_id = ?
+                LIMIT 1
+                """,
+                (context.scope_id, context.scope_id, context.scope_id),
+            ).fetchone()
+
+            if shared is None:
+                connection.execute(
+                    "DELETE FROM alternate_image_isolation WHERE image_scope_id = ?",
+                    (context.scope_id,),
+                )
+                connection.execute(
+                    "DELETE FROM alternate_image_scopes WHERE image_scope_id = ?",
+                    (context.scope_id,),
+                )
+
+            connection.commit()
+            return AlternateImageContext()
+        except Exception:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    def enable_for_owner(self, owner_kind, owner_id):
+        table_name, key_name, owner_id = AlternateImageRepository.owner_key(
+            owner_kind, owner_id
+        )
+        connection = self.connection_factory()
+        try:
+            # Read membership and settings from one consistent snapshot.
+            connection.execute("BEGIN")
+            repository = AlternateImageRepository.for_owner(
+                connection, owner_kind, owner_id
+            )
+            if repository.context.is_isolated:
+                connection.commit()
+                return repository.context
+
+            original_state = self._read_state(connection, owner_kind, owner_id)
+            connection.commit()
+
+            scope_id = uuid4().hex
+            with self.file_snapshot_factory(scope_id) as files:
+                prepared_sources = []
+                for source in original_state[1]:
+                    try:
+                        paths = files.prepare_source(source)
+                    except Exception as exc:
+                        raise RuntimeError(
+                            "Cannot copy alternate source "
+                            f"{source['alternate_source_id']} "
+                            f"({source['source_name']}): {exc}"
+                        ) from exc
+                    prepared_sources.append({**source, **paths})
+
+                # Network transfers and image decoding are already complete.
+                connection.execute("BEGIN IMMEDIATE")
+                repository = AlternateImageRepository.for_owner(
+                    connection, owner_kind, owner_id
+                )
+                if repository.context.is_isolated:
+                    connection.commit()
+                    return repository.context
+
+                if self._read_state(connection, owner_kind, owner_id) != original_state:
+                    raise RuntimeError(
+                        "The card list or alternate sources changed during "
+                        "preparation. Nothing was enabled; please retry."
+                    )
+                files.validate_inputs()
+
+                now_utc = datetime.now(timezone.utc).strftime(
+                    "%Y-%m-%d %H:%M:%S UTC"
+                )
+                connection.execute(
+                    """
+                    INSERT INTO alternate_image_scopes (
+                        image_scope_id, revision, created_at_utc, updated_at_utc
+                    ) VALUES (?, 1, ?, ?)
+                    """,
+                    (scope_id, now_utc, now_utc),
+                )
+                columns = (
+                    "image_scope_id", "original_alternate_source_id",
+                    *self.SOURCE_FIELDS, "created_at_utc", "updated_at_utc",
+                )
+                connection.executemany(
+                    "INSERT INTO alternate_image_isolation ("
+                    + ", ".join(columns)
+                    + ") VALUES ("
+                    + ", ".join("?" for _ in columns)
+                    + ")",
+                    [
+                        (
+                            scope_id, source["alternate_source_id"],
+                            *(source[field] for field in self.SOURCE_FIELDS),
+                            now_utc, now_utc,
+                        )
+                        for source in prepared_sources
+                    ],
+                )
+                # Ascending original IDs preserve the existing selection order.
+                updated = connection.execute(
+                    f"UPDATE {table_name} "
+                    "SET alternate_image_scope_id = ?, updated_at_utc = ? "
+                    f"WHERE {key_name} = ? AND alternate_image_scope_id IS NULL",
+                    (scope_id, now_utc, owner_id),
+                )
+                if updated.rowcount != 1:
+                    raise RuntimeError("The collection could not be isolated.")
+
+                connection.commit()
+                files.keep()
+                return AlternateImageContext(scope_id)
+        finally:
+            connection.close()
+
+def clone_alternate_image_scope(connection, scope_id):
+    """Clone settings in the caller's transaction; share immutable managed files."""
+    if not scope_id:
+        return None
+
+    context = AlternateImageContext(scope_id)
+    AlternateImageRepository(connection, context)
+
+    new_scope_id = uuid4().hex
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    connection.execute(
+        "INSERT INTO alternate_image_scopes "
+        "(image_scope_id, revision, created_at_utc, updated_at_utc) "
+        "VALUES (?, 1, ?, ?)",
+        (new_scope_id, now, now),
+    )
+
+    columns = ", ".join(AlternateImageIsolationService.SOURCE_FIELDS)
+
+    connection.execute(
+        "INSERT INTO alternate_image_isolation "
+        "(image_scope_id, original_alternate_source_id, " + columns +
+        ", created_at_utc, updated_at_utc) "
+        "SELECT ?, original_alternate_source_id, " + columns +
+        ", ?, ? FROM alternate_image_isolation WHERE image_scope_id = ? "
+        "ORDER BY alternate_source_id",
+        (new_scope_id, now, now, scope_id),
+    )
+
+    return new_scope_id
 
 def initialize_database():
     conn = get_db_connection()
@@ -681,6 +1066,10 @@ def initialize_database():
         "bleed_processing_version",
         "INTEGER NOT NULL DEFAULT 1",
     )
+    ensure_column_exists(
+        cursor, "tracked_chaos_packs", "alternate_image_scope_id", "TEXT"
+    )
+
     ensure_column_exists(cursor, "alternate_sources", "export_frame_template", "TEXT")
 
     cursor.execute(
@@ -1077,19 +1466,16 @@ def is_card_database_ready():
 
 def get_all_sets():
     conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT set_code, set_name, release_date, set_block, set_type
-        FROM sets
-        ORDER BY release_date DESC, set_name COLLATE NOCASE ASC
-        """
-    )
-
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
+    try:
+        return conn.execute(
+            """
+            SELECT set_code, set_name, release_date, set_block, set_type
+            FROM sets
+            ORDER BY release_date DESC, set_name COLLATE NOCASE ASC
+            """
+        ).fetchall()
+    finally:
+        conn.close()
 
 
 def get_card_by_key(card_key):
@@ -2584,6 +2970,18 @@ def generate_custom_draft_set_pack_cards(set_code, booster_name, batch_card_name
 
         generated_cards.append(generated_card)
 
+    conn = get_db_connection()
+
+    try:
+        context = AlternateImageRepository.for_owner(
+            conn, "set", clean_set_code
+        ).context
+
+        for card in generated_cards:
+            card["image_scope_id"] = context.scope_id
+    finally:
+        conn.close()
+
     return generated_cards
 
 def get_custom_draft_set_card_rows(set_code, search_text=""):
@@ -2745,8 +3143,13 @@ def get_custom_draft_set_card_rows(set_code, search_text=""):
     cursor.execute(sql, params)
 
     rows = cursor.fetchall()
-    conn.close()
-    return rows
+
+    try:
+        return AlternateImageRepository.for_owner(
+            conn, "set", clean_set_code
+        ).decorate_cards(rows)
+    finally:
+        conn.close()
 
 def get_custom_draft_digital_set_sql(
     set_code_sql="cc.set_code",
