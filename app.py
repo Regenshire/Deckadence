@@ -1564,6 +1564,42 @@ def get_reminder_frequency_days(config):
     return reminder_frequency_days.get(reminder_frequency)
 
 
+def build_print_template_load_reminder_items():
+    reminder_items = []
+
+    for template_error in get_print_template_registry().get_errors():
+        error_path = str(
+            template_error.get("path")
+            or ""
+        ).strip()
+
+        filename = (
+            os.path.basename(error_path)
+            or "Unknown Template"
+        )
+
+        error_message = str(
+            template_error.get("error")
+            or "Unknown template load error."
+        ).strip()
+
+        reminder_items.append({
+            "key": (
+                "print_template_load_error:"
+                f"{error_path or filename}"
+            ),
+            "severity": "warning",
+            "title": (
+                f"Print Template Load Error: "
+                f"{filename}"
+            ),
+            "message": error_message,
+            "target_section": "chaos_print_settings",
+        })
+
+    return reminder_items
+
+
 def build_global_reminder_state(config=None, import_metadata=None):
     if config is None:
         config = get_request_config()
@@ -1629,6 +1665,14 @@ def build_global_reminder_state(config=None, import_metadata=None):
                 "message": "The app could not determine when the card database was last refreshed.",
                 "target_section": "card_database",
             })
+
+    if (
+        has_request_context()
+        and request.endpoint == "config"
+    ):
+        reminder_items.extend(
+            build_print_template_load_reminder_items()
+        )
 
     return {
         "count": len(reminder_items),
