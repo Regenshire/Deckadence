@@ -985,12 +985,12 @@ def load_export_manifest_from_zip(zip_file):
     root = ET.fromstring(manifest_bytes)
 
     if root.tag != "imomir_export":
-        raise ValueError("XML manifest is not an iMomir export file.")
+        raise ValueError("XML manifest is not a Deckadence export file.")
 
     version = root.get("version") or ""
 
     if version != IMOMIR_EXPORT_VERSION:
-        raise ValueError(f"Unsupported iMomir export version: {version}")
+        raise ValueError(f"Unsupported Deckadence export version: {version}")
 
     return root
 

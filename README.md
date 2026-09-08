@@ -1,6 +1,6 @@
 # iMomir
 
-iMomir is a web app for playing paper versions of Magic: The Gathering random card formats.
+Deckadence is a web app for playing paper versions of Magic: The Gathering random card formats.
 
 You can use it to generate cards by mana value, open random Chaos Draft packs, print cards and packs, and export Chaos Draft deck lists.
 
@@ -209,7 +209,7 @@ iMomir uses:
 
 ## Notes
 
-- iMomir is meant to run as a local web app
+- Deckadence is meant to run as a local web app
 - it works on the same computer or across your local network
 - first-time database setup can take a little time
 - image downloads can also take some time
@@ -221,7 +221,7 @@ MIT License
 
 ## Disclaimer
 
-iMomir is an unofficial fan project and is not affiliated with Wizards of the Coast.
+Deckadence is an unofficial fan project and is not affiliated with Wizards of the Coast.
 
 ## Credits
 The following online resources are used extensively by the application:

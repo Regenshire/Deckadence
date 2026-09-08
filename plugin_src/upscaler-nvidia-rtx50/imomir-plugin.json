@@ -3,7 +3,7 @@
     "protocol_version": 1,
     "plugin_id": "upscaler-nvidia-rtx50",
     "plugin_type": "upscaler",
-    "name": "iMomir Upscaler - NVIDIA RTX 50 Series",
+    "name": "Deckadence Upscaler - NVIDIA RTX 50 Series",
     "version": "0.10.0",
     "entrypoint": "plugin.py",
     "requirements_file": "requirements.txt"

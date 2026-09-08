@@ -94,7 +94,7 @@ CARD_EXPORT_FRAME_TEMPLATES = {
         "overlay_box_enabled": True,
 
         # Draw static proxy text using the resolved Auto template's text box.
-        "custom_text": "iMomir PROXY",
+        "custom_text": "PROXY",
         "custom_text_box": "__text_box__",
         "custom_text_align": "__text_align__",
 
@@ -423,7 +423,7 @@ CARD_EXPORT_FRAME_TEMPLATES = {
         "text_box_enabled": False,
 
         # Draw static proxy text in the same general location as the old pack-code text.
-        "custom_text": "iMomir PROXY",
+        "custom_text": "PROXY",
         "custom_text_box": {
             "x1": 0.066,
             "y1": 0.940,

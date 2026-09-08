@@ -247,7 +247,7 @@
                 );
             } else if (plugin.development) {
                 statusMessage.textContent =
-                    "iMomir is currently using this plugin directly from plugin_src.";
+                    "Deckadence is currently using this plugin directly from plugin_src.";
             } else {
                 statusMessage.textContent = (
                     plugin.message

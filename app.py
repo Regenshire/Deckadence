@@ -638,7 +638,7 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
     g.print_export_label_mode_override = label_mode
 
     if label_mode == "proxy":
-        label_text = "iMomir PROXY"
+        label_text = "PROXY"
     elif clean_default_label_text is None:
         label_text = None
     else:
@@ -868,9 +868,9 @@ def get_effective_pack_tracking_code(pack_tracking_code, label_settings=None):
                 getattr(
                     g,
                     "print_export_label_text_override",
-                    "iMomir PROXY",
+                    "PROXY",
                 )
-                or "iMomir PROXY"
+                or "PROXY"
             ).strip()
 
         if label_mode_override == "pack_code":
@@ -1612,7 +1612,7 @@ def build_global_reminder_state(config=None, import_metadata=None):
         reminder_items.append({
             "key": "imomir_update_available",
             "severity": "info",
-            "title": "iMomir Update Available",
+            "title": "Deckadence Update Available",
             "message": f"Version {latest_version} is available. You are running {APP_VERSION}.",
             "target_section": "reminders",
             "action_url": release_update_state.get("release_url") or "",
@@ -1632,7 +1632,7 @@ def build_global_reminder_state(config=None, import_metadata=None):
             "key": "card_database_missing",
             "severity": "warning",
             "title": "Card Database Setup Needed",
-            "message": "Download the card database before using iMomir normally.",
+            "message": "Download the card database before using Deckadence normally.",
             "target_section": "card_database",
         })
     elif reminder_frequency != "never":
@@ -18263,13 +18263,13 @@ def config_check_new_releases():
 
     if release_state.get("update_available"):
         flash(
-            f"iMomir update available: {release_state.get('latest_version')}. "
+            f"Deckadence Update available: {release_state.get('latest_version')}. "
             f"You are running {APP_VERSION}."
         )
     elif release_state.get("error"):
         flash(f"Release check failed: {release_state.get('error')}")
     elif release_state.get("latest_version"):
-        flash(f"iMomir is up to date. Current version: {APP_VERSION}.")
+        flash(f"Deckadence is up to date. Current version: {APP_VERSION}.")
     else:
         flash("Release check complete. No GitHub Releases were found yet.")
 
@@ -18930,11 +18930,11 @@ def maintenance_import_imomir():
             EXPORT_KIND_FULL,
         )
     except Exception as exc:
-        flash(f"iMomir import failed: {str(exc)}")
+        flash(f"Import failed: {str(exc)}")
         return redirect(url_for("config"))
 
     flash(
-        f"iMomir import complete. Imported {import_result['imported_rows']} row(s) "
+        f"Import complete. Imported {import_result['imported_rows']} row(s) "
         f"and restored {import_result['extracted_files']} file(s)."
     )
 
@@ -20532,7 +20532,7 @@ def campaign_chaos_packs_add_random():
     except Exception as exc:
         return jsonify_pack_generation_error(
             "MANAGE_PACK_RANDOM_EXCEPTION",
-            "iMomir could not generate a random saved pack. Check the log for details.",
+            "Deckadence could not generate a random saved pack. Check the log for details.",
             exc,
             extra={
                 "route": "campaign_chaos_packs_add_random",
@@ -20585,7 +20585,7 @@ def campaign_chaos_packs_add_specific_random():
     except Exception as exc:
         return jsonify_pack_generation_error(
             "MANAGE_PACK_SPECIFIC_EXCEPTION",
-            "iMomir could not generate this pack. The custom set may have a missing or invalid pack layout, or one of the slot rules may not have enough matching cards.",
+            "Deckadence could not generate this pack. The custom set may have a missing or invalid pack layout, or one of the slot rules may not have enough matching cards.",
             exc,
             extra={
                 "route": "campaign_chaos_packs_add_specific_random",
@@ -20659,7 +20659,7 @@ def campaign_chaos_packs_add_custom_preview():
     except Exception as exc:
         return jsonify_pack_generation_error(
             "MANAGE_PACK_CUSTOM_PREVIEW_EXCEPTION",
-            "iMomir could not generate the custom pack preview. Check the decklist and set code, then try again.",
+            "Deckadence could not generate the custom pack preview. Check the decklist and set code, then try again.",
             exc,
             extra={
                 "route": "campaign_chaos_packs_add_custom_preview",

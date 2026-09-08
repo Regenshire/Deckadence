@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{% block title %}iMomir{% endblock %}</title>
+    <title>{% block title %}Deckadence{% endblock %}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link
       rel="stylesheet"
@@ -32,8 +32,17 @@
             >
               <img
                 src="{{ url_for('static', filename='img/Logos/deckadence.svg') }}"
-                alt="iMomir"
-                class="app-logo"
+                alt="Deckadence"
+                class="app-logo app-logo-expanded"
+                loading="eager"
+                decoding="async"
+                fetchpriority="high"
+              >
+
+              <img
+                src="{{ url_for('static', filename='img/Logos/deckadence_d.svg') }}"
+                alt="Deckadence"
+                class="app-logo app-logo-collapsed"
                 loading="eager"
                 decoding="async"
                 fetchpriority="high"
@@ -359,8 +368,8 @@
               type="button"
               id="appQrButton"
               class="app-nav-square-button app-qr-nav-button"
-              aria-label="Open iMomir QR code"
-              title="Open iMomir on another device"
+              aria-label="Open Deckadence QR code"
+              title="Open Deckadence on another device"
             >
               <img
                 src="{{ global_qr_image_url }}"
@@ -384,7 +393,7 @@
       <div class="app-qr-modal" role="dialog" aria-modal="true" aria-labelledby="appQrModalTitle">
         <div class="app-qr-modal-header">
           <div>
-            <div id="appQrModalTitle" class="app-qr-modal-title">Scan to Open iMomir</div>
+            <div id="appQrModalTitle" class="app-qr-modal-title">Scan to Open Deckadence</div>
             <div class="app-qr-modal-subtitle">Use a phone or tablet connected to the same network.</div>
           </div>
           <button

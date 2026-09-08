@@ -10,7 +10,7 @@ from processors.rules_text import (
 
 PLUGIN_ID = "upscaler-nvidia-rtx50"
 PLUGIN_NAME = (
-    "iMomir Upscaler - "
+    "Deckadence Upscaler - "
     "NVIDIA RTX 50 Series"
 )
 PLUGIN_VERSION = "0.10.0"

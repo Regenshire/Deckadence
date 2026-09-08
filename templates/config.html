@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}iMomir - Config{% endblock %}
+{% block title %}Deckadence - Config{% endblock %}
 
 {% block page_styles %}
 <link
@@ -72,7 +72,7 @@
 
             {% if global_reminder_state and global_reminder_state["items"] %}
                 {% for reminder in global_reminder_state["items"] %}
-                    {% if reminder.title != "iMomir Update Available" %}
+                    {% if reminder.title != "Deckadence Update Available" %}
                         {% set non_release_reminders.count = non_release_reminders.count + 1 %}
                         <div class="reminder-card reminder-card-{{ reminder.severity }}">
                             <div class="reminder-card-header">
@@ -127,13 +127,13 @@
                                 <div class="reminder-card-title">Release Status</div>
                                 <div class="reminder-card-subtitle">
                                     {% if release_has_update %}
-                                        A newer version of iMomir is available.
+                                        A newer version of Deckadence is available.
                                     {% elif release_update_state.error %}
-                                        iMomir could not complete the last release check.
+                                        Deckadence could not complete the last release check.
                                     {% elif release_update_state.latest_version %}
-                                        iMomir release tracking is working normally.
+                                        Deckadence release tracking is working normally.
                                     {% else %}
-                                        iMomir has not checked GitHub releases yet.
+                                        Deckadence has not checked GitHub releases yet.
                                     {% endif %}
                                 </div>
                             </div>
@@ -209,7 +209,7 @@
                     <div>
                         <div class="reminder-modal-title">Reminder Settings</div>
                         <div class="reminder-modal-subtitle">
-                            Control how iMomir checks and displays reminder-related notifications.
+                            Control how Deckadence checks and displays reminder-related notifications.
                         </div>
                     </div>
 
@@ -792,7 +792,7 @@
                 <div class="cleanup-action-row">
                     <form method="post" action="{{ url_for('maintenance_backup_imomir') }}" target="_blank">
                         <button type="submit" class="action-button cleanup-action-button">
-                            Backup iMomir
+                            Backup Deckadence
                         </button>
                     </form>
 
@@ -803,7 +803,7 @@
                         class="campaign-inline-import-form"
                     >
                         <label class="action-button secondary-button cleanup-action-button cleanup-file-button">
-                            Import iMomir
+                            Import Deckadence
                             <input
                                 type="file"
                                 name="backup_file"
@@ -1025,7 +1025,7 @@
                                     {% if install_status.get("is_running") or install_status.get("error") %}
                                         {{ install_status.get("message", "") }}
                                     {% elif plugin_status.get("development") %}
-                                        iMomir is currently using this plugin directly from plugin_src.
+                                        Deckadence is currently using this plugin directly from plugin_src.
                                     {% else %}
                                         {{ plugin_status.get("message", "") }}
                                     {% endif %}
@@ -1130,7 +1130,7 @@
                         </div>
 
                         <div class="plugin-group-description">
-                            Optional plugins that can be added to iMomir.
+                            Optional plugins that can be added to Deckadence.
                         </div>
                     </div>
 
@@ -1217,7 +1217,7 @@
         </div>
 
         <div class="app-footer-disclaimer">
-        iMomir is not approved or endorsed by Wizards of the Coast in any way. Magic: The Gathering card images and rules are property of Wizards of the Coast. © Wizards of the Coast LLC.
+        Deckadence is not approved or endorsed by Wizards of the Coast in any way. Magic: The Gathering card images and rules are property of Wizards of the Coast. © Wizards of the Coast LLC.
         </div>
     </footer>
 </div>
@@ -1251,7 +1251,7 @@
 
             const confirmed = await confirmUiAction({
                 title: "Clear All History",
-                message: "This will permanently clear all iMomir history.",
+                message: "This will permanently clear all Deckadence history.",
                 confirmText: "Clear History",
                 cancelText: "Cancel",
                 danger: true

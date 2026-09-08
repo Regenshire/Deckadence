@@ -135,7 +135,7 @@ Write-Host ""
 
 Write-Host "[4/6] Building iMomir with PyInstaller..."
 Write-Host ""
-Write-Host "      pyinstaller --noconfirm --clean iMomir.spec"
+Write-Host "      pyinstaller --noconfirm --clea Deckadence.spec"
 Write-Host ""
 Write-Host "----------------------------------------"
 

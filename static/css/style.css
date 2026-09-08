@@ -173,6 +173,18 @@ input {
   filter: var(--app-logo-filter);
 }
 
+.app-logo-collapsed {
+  display: none;
+}
+
+.app-tabs-collapsed .app-logo-expanded {
+  display: none;
+}
+
+.app-tabs-collapsed .app-logo-collapsed {
+  display: block;
+}
+
 .app-tabs-nav {
   margin-left: 8px;
   display: flex;
@@ -1558,6 +1570,14 @@ input {
   .app-tabs {
     padding: 14px 20px;
     border-radius: 20px;
+  }
+  
+  .app-tabs-collapsed {
+    padding: 14px 3px;
+  }
+
+  .app-logo-collapsed {
+    max-width: 46px;
   }
 
   .page-title {
