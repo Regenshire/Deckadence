@@ -69,12 +69,25 @@
             </div>
 
             <div id="chaosDraftIdleCta" class="chaos-draft-idle-cta">
-                <button type="button" id="chaosSpinButton" class="chaos-draft-spin-cta" {% if not card_database_ready %}disabled{% endif %}>
-                    <img
-                        src="{{ url_for('static', filename='img/spinlogo1.png') }}"
-                        alt="Spin"
-                        class="chaos-draft-spin-cta-image"
-                    >
+                <button
+                    type="button"
+                    id="chaosSpinButton"
+                    class="chaos-draft-spin-cta"
+                    aria-label="Spin Chaos Draft"
+                    {% if not card_database_ready %}disabled{% endif %}
+                >
+                    <span class="chaos-draft-spin-logo" aria-hidden="true">
+                        <img
+                            src="{{ url_for('static', filename='img/Logos/spinlogo_D.svg') }}"
+                            alt=""
+                            class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-base"
+                        >
+                        <img
+                            src="{{ url_for('static', filename='img/Logos/spinlogo_spinning.svg') }}"
+                            alt=""
+                            class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-rotor"
+                        >
+                    </span>
                 </button>
             </div>
 

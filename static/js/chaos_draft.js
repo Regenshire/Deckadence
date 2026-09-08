@@ -2,6 +2,122 @@ document.addEventListener("DOMContentLoaded", function () {
     initializeChaosDraftPage();
 });
 
+function initializeChaosSpinLogoAnimation(spinCtaButton) {
+    const rotor = spinCtaButton.querySelector(
+        ".chaos-draft-spin-logo-rotor"
+    );
+
+    if (!rotor) {
+        return;
+    }
+
+    const baseRotationsPerSecond = 1 / 24;
+    const maxRotationsPerSecond = 1.5;
+    const accelerationMarginRatio = 0.05;
+    const speedResponse = 10;
+
+    let targetRotationsPerSecond = baseRotationsPerSecond;
+    let currentRotationsPerSecond = baseRotationsPerSecond;
+    let currentAngle = 0;
+    let previousTimestamp = null;
+
+    function setSpeedFromPointer(event) {
+        const rect = spinCtaButton.getBoundingClientRect();
+        const centerX = rect.left + (rect.width / 2);
+        const centerY = rect.top + (rect.height / 2);
+        const radius = Math.min(rect.width, rect.height) / 2;
+        const accelerationRadius = radius * (
+            1 + accelerationMarginRatio
+        );
+        const distance = Math.hypot(
+            event.clientX - centerX,
+            event.clientY - centerY
+        );
+
+        if (distance >= accelerationRadius) {
+            targetRotationsPerSecond = baseRotationsPerSecond;
+            return;
+        }
+
+        const proximity = 1 - (
+            distance / accelerationRadius
+        );
+
+        const easedProximity = (
+            proximity
+            * proximity
+            * (3 - (2 * proximity))
+        );
+
+        targetRotationsPerSecond = (
+            baseRotationsPerSecond
+            + (
+                maxRotationsPerSecond
+                - baseRotationsPerSecond
+            ) * easedProximity
+        );
+    }
+
+    function resetPointerSpeed() {
+        targetRotationsPerSecond = baseRotationsPerSecond;
+    }
+
+    function animate(timestamp) {
+        if (previousTimestamp === null) {
+            previousTimestamp = timestamp;
+        }
+
+        const elapsedSeconds = Math.min(
+            (timestamp - previousTimestamp) / 1000,
+            0.05
+        );
+
+        previousTimestamp = timestamp;
+
+        const responseAmount = 1 - Math.exp(
+            -speedResponse * elapsedSeconds
+        );
+
+        currentRotationsPerSecond += (
+            targetRotationsPerSecond
+            - currentRotationsPerSecond
+        ) * responseAmount;
+
+        currentAngle = (
+            currentAngle
+            + (
+                currentRotationsPerSecond
+                * 360
+                * elapsedSeconds
+            )
+        ) % 360;
+
+        rotor.style.transform = (
+            `rotate(${currentAngle}deg)`
+        );
+
+        window.requestAnimationFrame(animate);
+    }
+
+    document.addEventListener(
+        "pointermove",
+        setSpeedFromPointer,
+        { passive: true }
+    );
+
+    document.documentElement.addEventListener(
+        "pointerleave",
+        resetPointerSpeed
+    );
+
+    window.addEventListener(
+        "blur",
+        resetPointerSpeed
+    );
+
+    window.requestAnimationFrame(animate);
+}
+
 function initializeChaosDraftPage() {
     const spinButton = document.getElementById("chaosSpinButton");
     const viewButton = document.getElementById("chaosViewButton");
@@ -78,6 +194,10 @@ function initializeChaosDraftPage() {
     ) {
         return;
     }
+
+    initializeChaosSpinLogoAnimation(
+        spinCtaButton
+    );
 
     // Allow clicking outside the busy modal to cancel
     busyOverlay.addEventListener("click", function (e) {

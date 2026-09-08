@@ -20,6 +20,10 @@
   --content-narrow: 720px;
   --content-medium: 960px;
   --content-wide: 1400px;
+
+  --app-logo-height: 50px;
+  --app-logo-height-mobile: 46px;
+  /* --app-logo-filter: brightness(0) invert(1); */
 }
 
 * {
@@ -160,10 +164,13 @@ input {
 }
 
 .app-logo {
-  width: 55px;
-  height: 55px;
+  display: block;
+  width: auto;
+  max-width: none;
+  height: var(--app-logo-height);
   object-fit: contain;
-  border-radius: 10px;
+  border-radius: 0;
+  filter: var(--app-logo-filter);
 }
 
 .app-tabs-nav {
@@ -214,12 +221,6 @@ input {
     box-shadow:
         0 8px 24px rgba(0, 0, 0, 0.22),
         inset 0 1px 0 rgba(255, 255, 255, 0.02);
-}
-
-.app-logo {
-    width: 50px;
-    height: 50px;
-    border-radius: 11px;
 }
 
 .app-tabs-nav {
@@ -702,8 +703,7 @@ input {
     }
 
     .app-logo {
-        width: 46px;
-        height: 46px;
+        height: var(--app-logo-height-mobile);
     }
 
     .app-tabs-nav {
@@ -996,9 +996,9 @@ input {
     top: 0;
     left: 10px;
     z-index: 1600;
-    width: 50px;
-    min-width: 50px;
-    max-width: 50px;
+    width: auto;
+    min-width: 0;
+    max-width: none;
     min-height: 50px;
     padding: 0;
     gap: 0;
@@ -1010,22 +1010,21 @@ input {
 }
 
 .app-tabs-collapsed .app-tabs-left {
-    width: 100%;
+    width: auto;
     height: 100%;
     justify-content: center;
 }
 
 .app-tabs-collapsed .app-menu-toggle-button {
-    width: 50px;
-    min-width: 50px;
+    width: auto;
+    min-width: 0;
     height: 50px;
     min-height: 50px;
     border-radius: 0;
 }
 
 .app-tabs-collapsed .app-logo {
-    width: 50px;
-    height: 50px;
+    height: var(--app-logo-height);
 }
 
 .app-tabs-collapsed .app-menu-expandable {
@@ -1073,9 +1072,9 @@ input {
     .app-tabs-collapsed {
         top: 8px;
         left: 8px;
-        width: 48px;
-        min-width: 48px;
-        max-width: 48px;
+        width: auto;
+        min-width: 0;
+        max-width: none;
         min-height: 48px;
         padding: 0;
         border: 0;
@@ -1086,15 +1085,14 @@ input {
     }
 
     .app-tabs-collapsed .app-menu-toggle-button {
-        width: 48px;
-        min-width: 48px;
+        width: auto;
+        min-width: 0;
         height: 48px;
         min-height: 48px;
     }
 
     .app-tabs-collapsed .app-logo {
-        width: 44px;
-        height: 44px;
+        height: var(--app-logo-height-mobile);
     }
 
     .app-menu-is-collapsed .deckbuilder-workspace {
@@ -2809,43 +2807,47 @@ input {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    animation: chaos-spin-pulse 1.6s ease-in-out infinite;
     transition: transform 0.12s ease, filter 0.12s ease;
 }
 
 .chaos-draft-spin-cta:hover {
-    transform: scale(1.03);
+    transform: scale(1.23);
     filter: brightness(1.03);
 }
 
 .chaos-draft-spin-cta:disabled {
     opacity: 0.85;
     cursor: wait;
-    animation: none;
 }
 
-.chaos-draft-spin-cta-image {
-    width: 100%;
-    height: auto;
+.chaos-draft-spin-logo {
+    position: relative;
     display: block;
+    width: 100%;
+    height: 100%;
+    user-select: none;
+    pointer-events: none;
+}
+
+.chaos-draft-spin-logo-layer {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
     user-select: none;
     -webkit-user-drag: none;
     pointer-events: none;
 }
 
-@keyframes chaos-spin-pulse {
-    0% {
-        transform: scale(1);
-        filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.28));
-    }
-    50% {
-        transform: scale(1.045);
-        filter: drop-shadow(0 16px 24px rgba(0, 0, 0, 0.34));
-    }
-    100% {
-        transform: scale(1);
-        filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.28));
-    }
+.chaos-draft-spin-logo-base {
+    z-index: 1;
+}
+
+.chaos-draft-spin-logo-rotor {
+    z-index: 2;
+    transform-origin: 50% 50%;
+    will-change: transform;
 }
 
 .action-button-loading {
@@ -2856,9 +2858,9 @@ input {
 
 .chaos-pack-card {
     flex: 0 0 180px;
-    border: 1px solid var(--border);
+    /*border: 1px solid var(--border);*/
     border-radius: 14px;
-    background: var(--panel-2);
+    /*background: var(--panel-2);*/
     padding: 10px;
     display: flex;
     flex-direction: column;
