@@ -191,7 +191,7 @@ def ensure_model_file(
         model_spec["url"],
         headers={
             "User-Agent": (
-                "iMomir-Upscaler/0.3"
+                "Deckadence-Upscaler/0.3"
             ),
 
             "Accept": (

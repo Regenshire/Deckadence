@@ -16,7 +16,7 @@ $PluginSource = Join-Path `
 
 $ManifestPath = Join-Path `
     $PluginSource `
-    "imomir-plugin.json"
+    "deckadence-plugin.json"
 
 $BuildRoot = Join-Path `
     $RepoRoot `
@@ -85,7 +85,7 @@ Write-Host ""
 Write-Host "[3/7] Copying plugin files..."
 
 $RequiredFiles = @(
-    "imomir-plugin.json",
+    "deckadence-plugin.json",
     "plugin.py",
     "model_runtime.py",
     "requirements.txt",

@@ -22,7 +22,7 @@ from plugin_system.catalog import (
 
 
 PLUGIN_MANIFEST_FILENAME = (
-    "imomir-plugin.json"
+    "deckadence-plugin.json"
 )
 
 PLUGIN_INSTALL_STATUS = {}
@@ -639,7 +639,7 @@ def _find_manifest_root(
     if len(manifest_paths) != 1:
         raise ValueError(
             "Plugin package must contain "
-            "exactly one imomir-plugin.json."
+            "exactly one deckadence-plugin.json."
         )
 
     return os.path.dirname(
@@ -940,7 +940,7 @@ def _download_latest_release_asset(
                 "application/vnd.github+json"
             ),
             "User-Agent": (
-                "iMomir-Plugin-Installer"
+                "Deckadence-Plugin-Installer"
             ),
         },
         timeout=30,
@@ -1109,7 +1109,7 @@ def install_plugin(
 
     staging_dir = tempfile.mkdtemp(
         prefix=(
-            f"imomir-plugin-{plugin_id}-"
+            f"deckadence-plugin-{plugin_id}-"
         )
     )
 
@@ -1284,7 +1284,7 @@ def start_plugin_install(
         args=(plugin_id,),
         daemon=True,
         name=(
-            "imomir-plugin-install-"
+            "deckadence-plugin-install-"
             f"{plugin_id}"
         ),
     )
