@@ -802,7 +802,7 @@ input {
  *
  * Remove the green underline/accent completely.
  * Active items now use a neutral raised-panel treatment
- * that fits the rest of the dark iMomir interface.
+ * that fits the rest of the dark Deckadence interface.
  */
 .app-nav-menu-active .app-nav-main-control {
     background: rgba(255, 255, 255, 0.075);

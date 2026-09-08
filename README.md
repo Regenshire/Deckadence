@@ -1,4 +1,4 @@
-# iMomir
+# Deckadence
 
 Deckadence is a web app for playing paper versions of Magic: The Gathering random card formats.
 
@@ -6,7 +6,7 @@ You can use it to generate cards by mana value, open random Chaos Draft packs, p
 
 It is designed to work well on a computer, laptop, phone, or tablet when it is hosted on a device on your local network.
 
-## What iMomir Can Do
+## What Deckadence Can Do
 
 - Generate random cards by mana value
 - Support multiple game modes
@@ -19,7 +19,7 @@ It is designed to work well on a computer, laptop, phone, or tablet when it is h
 
 ## Game Modes
 
-iMomir currently includes:
+Deckadence currently includes:
 
 - Custom
 - Momir Basic
@@ -67,7 +67,7 @@ http://127.0.0.1:5000
 
 ### If you are using a phone or another device on your network
 
-Find the IP address of the computer or device running the iMomir application, then open:
+Find the IP address of the computer or device running the Deckadence application, then open:
 
 ```text
 http://YOUR-IP-ADDRESS:5000
@@ -81,7 +81,7 @@ http://192.168.1.50:5000
 
 ## First Time Setup
 
-When you first open iMomir, you need to load the database.
+When you first open Deckadence, you need to load the database.
 
 ### Step 1
 Open the `Modes` tab.
@@ -97,7 +97,7 @@ This loads the card data and set data needed for the app.
 ### Step 4
 If you want, you can also use the image download tools in the same section to pre-download card images.
 
-If you do not do that, iMomir can still download images later as needed.
+If you do not do that, Deckadence can still download images later as needed.
 
 ## Main Tabs
 
@@ -141,7 +141,7 @@ You can:
 
 ## Printing
 
-iMomir supports normal browser printing and PDF printing.
+Deckadence supports normal browser printing and PDF printing.
 
 ### Browser Printing
 
@@ -171,7 +171,7 @@ Chaos Draft lets you spin for a random booster pack from the sets and booster ty
 Click the spin button.
 
 ### Step 2
-iMomir selects a random eligible booster pack.
+Deckadence selects a random eligible booster pack.
 
 ### Step 3
 The pack contents are generated immediately.
@@ -192,17 +192,17 @@ You choose:
 - number of players
 - number of packs per player
 
-iMomir then generates a combined printable PDF that can be printed.
+Deckadence then generates a combined printable PDF that can be printed.
 
 ## QR Code
 
-The QR code screen makes it easy to open iMomir on a phone or tablet.
+The QR code screen makes it easy to open Deckadence on a phone or tablet.
 
 Open the QR code from the `Modes` tab and scan it with your phone.
 
 ## Data Sources
 
-iMomir uses:
+Deckadence uses:
 
 - MTGJSON for card and booster data
 - Scryfall for image matching and card image data

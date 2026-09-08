@@ -1,14 +1,14 @@
 /* ==========================================
-   iMomir Client Refresh Tracker
+   Deckadence Client Refresh Tracker
    ------------------------------------------
    Lightweight page-local refresh/change helper.
    No database state. No server calls.
    
    Usage:
-   - iMomirRefresh.check("object-key", signature, refreshCallback)
-   - iMomirRefresh.changed("object-key", signature, refreshCallback)
-   - iMomirRefresh.refreshCheck(0, "object-key", signature, refreshCallback)
-   - iMomirRefresh.refreshCheck(1, "object-key", signature, refreshCallback)
+   - DeckadenceRefresh.check("object-key", signature, refreshCallback)
+   - DeckadenceRefresh.changed("object-key", signature, refreshCallback)
+   - DeckadenceRefresh.refreshCheck(0, "object-key", signature, refreshCallback)
+   - DeckadenceRefresh.refreshCheck(1, "object-key", signature, refreshCallback)
    ========================================== */
 (function () {
     if (window.iMomirRefresh) {
@@ -476,7 +476,7 @@ function initializeAppNavigationMenus() {
 }
 
 /* ==========================================
-   iMomir Toast + Confirm UI Helpers
+   Deckadence Toast + Confirm UI Helpers
    ========================================== */
 (function () {
     if (window.iMomirToast && window.iMomirConfirm) {

@@ -27,7 +27,7 @@ PLUGIN_CATALOG = {
         ),
 
         "release_asset_name": (
-            "imomir-upscaler-nvidia.zip"
+            "deckadence-upscaler-nvidia.zip"
         ),
     },
 }

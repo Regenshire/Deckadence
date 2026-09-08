@@ -189,7 +189,7 @@
             imageElement.dataset.cardImageState = "loading";
 
             /*
-             * iMomir already controls concurrency with this queue.
+             * Deckadence already controls concurrency with this queue.
              *
              * Once an image receives one of the four available slots,
              * force the browser to actually begin loading it. Native

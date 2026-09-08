@@ -1,5 +1,5 @@
 /* ==========================================
-   iMomir Shared UI Controllers
+   Deckadence Shared UI Controllers
    ========================================== */
 
 (function () {
@@ -165,7 +165,7 @@
 
 
     /*
-     * Shared iMomir UI namespace.
+     * Shared Deckadence UI namespace.
      *
      * Future reusable UI controllers can be added here:
      *

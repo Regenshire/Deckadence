@@ -319,13 +319,13 @@ function initializeSettingsConsole() {
             description: "Manage generated files and automatic export cleanup."
         },
         backup: {
-            description: "Create, download, import, and restore iMomir backups."
+            description: "Create, download, import, and restore Deckadence backups."
         },
         image_maintenance: {
             description: "Repair and reprocess generated alternate-image derivatives."
         },
         plugins: {
-            description: "View installed plugins and add optional iMomir capabilities."
+            description: "View installed plugins and add optional Deckadence capabilities."
         },
         image_upscaling: {
             description: "Choose the active Upscaler and configure image upscaling behavior."
@@ -391,7 +391,7 @@ function initializeSettingsConsole() {
             key: "plugins",
             eyebrow: "EXTENSIONS",
             title: "Plugins",
-            description: "Install and manage optional capabilities for iMomir.",
+            description: "Install and manage optional capabilities for Deckadence.",
             iconClass: "fa-solid fa-puzzle-piece",
             sections: [
                 "plugins"

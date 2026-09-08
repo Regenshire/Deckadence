@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "========================================"
-Write-Host " iMomir NVIDIA Plugin Package Builder"
+Write-Host " Deckadence NVIDIA Plugin Package Builder"
 Write-Host "========================================"
 Write-Host ""
 
@@ -28,7 +28,7 @@ $DistRoot = Join-Path `
 
 $OutputZip = Join-Path `
     $DistRoot `
-    "imomir-upscaler-nvidia.zip"
+    "deckadence-upscaler-nvidia.zip"
 
 
 Write-Host "[1/7] Checking plugin source..."
@@ -219,7 +219,7 @@ Write-Host "GitHub release tag:"
 Write-Host "  plugin-upscaler-nvidia-v$Version"
 Write-Host ""
 Write-Host "GitHub asset name:"
-Write-Host "  imomir-upscaler-nvidia.zip"
+Write-Host "  deckadence-upscaler-nvidia.zip"
 Write-Host ""
 Write-Host "========================================"
 Write-Host " Build completed successfully"

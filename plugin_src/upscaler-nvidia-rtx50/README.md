@@ -1,6 +1,6 @@
-# iMomir NVIDIA RTX 50 Series Upscaler
+# Deckadence NVIDIA RTX 50 Series Upscaler
 
-Optional AI image upscaling plugin for iMomir.
+Optional AI image upscaling plugin for Deckadence.
 
 ## Requirements
 
@@ -12,18 +12,18 @@ Optional AI image upscaling plugin for iMomir.
 
 ## Installation
 
-Install the plugin directly from iMomir:
+Install the plugin directly from Deckadence:
 
 Settings → Plugins → Plugin Manager → Available → Download & Install
 
-iMomir will automatically:
+Deckadence will automatically:
 
 1. Download the plugin.
 2. Create an isolated Python environment.
 3. Install the required NVIDIA/PyTorch dependencies.
 4. Download AI model files when required.
 
-The plugin is optional. iMomir does not require the plugin or Python for normal use.
+The plugin is optional. Deckadence does not require the plugin or Python for normal use.
 
 ## Plugin ID
 

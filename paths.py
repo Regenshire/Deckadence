@@ -73,7 +73,7 @@ SET_BOOSTER_CONTENT_WEIGHTS_CSV_PATH = os.path.join(DATA_DOWNLOAD_DIR, "setBoost
 SET_BOOSTER_SHEET_CARDS_CSV_PATH = os.path.join(DATA_DOWNLOAD_DIR, "setBoosterSheetCards.csv")
 SET_BOOSTER_SHEETS_CSV_PATH = os.path.join(DATA_DOWNLOAD_DIR, "setBoosterSheets.csv")
 
-LOG_PATH = os.path.join(RUNTIME_BASE_DIR, "imomir_debug.log")
+LOG_PATH = os.path.join(RUNTIME_BASE_DIR, "app_debug.log")
 
 def get_template_dir():
     return os.path.join(BUNDLE_BASE_DIR, "templates")

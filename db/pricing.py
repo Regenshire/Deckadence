@@ -18,7 +18,7 @@ def download_all_prices_today_json():
     ensure_price_download_directories()
 
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "application/zip,application/octet-stream;q=0.9,*/*;q=0.8",
     }
 

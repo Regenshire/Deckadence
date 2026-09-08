@@ -19,7 +19,7 @@ from paths import (
 from db.database import get_db_connection, isolation_operation, IsolationStorage
 
 
-IMOMIR_EXPORT_VERSION = "1"
+DECKADENCE_EXPORT_VERSION = "1"
 
 EXPORT_KIND_PACKS = "packs"
 EXPORT_KIND_CAMPAIGN = "campaign"
@@ -860,7 +860,7 @@ def collect_file_payloads(rows_by_table):
 
 def build_export_manifest(export_kind, rows_by_table):
     root = ET.Element("imomir_export")
-    root.set("version", IMOMIR_EXPORT_VERSION)
+    root.set("version", DECKADENCE_EXPORT_VERSION)
     root.set("kind", export_kind)
     root.set("created_at_utc", utc_now_text())
 
@@ -989,7 +989,7 @@ def load_export_manifest_from_zip(zip_file):
 
     version = root.get("version") or ""
 
-    if version != IMOMIR_EXPORT_VERSION:
+    if version != DECKADENCE_EXPORT_VERSION:
         raise ValueError(f"Unsupported Deckadence export version: {version}")
 
     return root

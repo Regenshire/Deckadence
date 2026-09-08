@@ -983,7 +983,7 @@ def prepare_draft_image_import(connection, deck_id, cards):
 
     factory = AlternateImageIsolationService.snapshot_factory
     if factory is None:
-        raise RuntimeError("Image snapshot service is not configured. Start iMomir normally.")
+        raise RuntimeError("Image snapshot service is not configured. Start Deckadence normally.")
     with factory(new_scope, file_group_id=uuid4().hex) as files:
         prepared = []
         # Sorting by original ID preserves each library's source precedence.

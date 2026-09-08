@@ -1432,7 +1432,7 @@ def check_github_latest_release():
 
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": f"iMomir/{APP_VERSION}",
+        "User-Agent": f"Deckadence/{APP_VERSION}",
     }
 
     try:
@@ -4323,7 +4323,7 @@ def download_atomic_cards_json(force_download=False):
     )
 
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "application/json;q=0.9,*/*;q=0.8",
     }
 
@@ -4355,7 +4355,7 @@ def download_set_list_json(force_download=False):
     ensure_download_directories()
 
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "application/json;q=0.9,*/*;q=0.8",
     }
 
@@ -4399,7 +4399,7 @@ def download_all_printings_json(force_download=False):
     )
 
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "application/gzip,application/octet-stream;q=0.9,*/*;q=0.8",
     }
 
@@ -4471,7 +4471,7 @@ def download_chaos_booster_csvs(force_download=False):
     ]
 
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "text/csv,application/octet-stream;q=0.9,*/*;q=0.8",
     }
 
@@ -4862,7 +4862,7 @@ def download_chaos_image_to_cache(card_uuid, page_kind, face_name, image_url):
     ensure_download_directories()
 
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "*/*",
     }
 
@@ -6911,13 +6911,13 @@ def get_pack_label_set_icon_path(set_code, fallback_set_code=None):
 def get_pack_label_signature_path(template_config=None):
     template_config = template_config or {}
 
-    requested_filename = (template_config.get("signature_logo_path") or "iMomir_sig_1.png").strip()
+    requested_filename = (template_config.get("signature_logo_path") or "deckadence_sig_1.png").strip()
 
     # Only allow a filename, not a path traversal or arbitrary filesystem path.
     requested_filename = os.path.basename(requested_filename)
 
     if not requested_filename:
-        requested_filename = "iMomir_sig_1.png"
+        requested_filename = "deckadence_sig_1.png"
 
     requested_signature_path = os.path.join(
         app.static_folder,
@@ -6931,7 +6931,7 @@ def get_pack_label_signature_path(template_config=None):
     fallback_signature_path = os.path.join(
         app.static_folder,
         "img",
-        "iMomir_sig_1.png",
+        "deckadence_sig_1.png",
     )
 
     if os.path.exists(fallback_signature_path):
@@ -8671,7 +8671,7 @@ def build_chaos_pack_title_card_image_bytes(
         subtitle_line_spacing_px,
     )
 
-    # iMomir gold signature.
+    # Deckadence gold signature.
     signature_path = get_pack_label_signature_path(template_config) if show_signature else ""
 
     if signature_path:
@@ -8896,7 +8896,7 @@ def ensure_alternate_source_cached(alternate_source_row):
     output_path = os.path.join(ALTERNATE_SOURCE_DIR, filename)
 
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
     }
 
@@ -9045,7 +9045,7 @@ class AlternateImageFileSnapshot:
             started_at = time.monotonic()
             with requests.get(
                 url,
-                headers={"User-Agent": "iMomir/1.0", "Accept": "image/*"},
+                headers={"User-Agent": "Deckadence/1.0", "Accept": "image/*"},
                 stream=True,
                 timeout=(10, 60),
             ) as response:
@@ -14493,7 +14493,7 @@ def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, s
 
 def get_scryfall_bulk_default_cards_download_uri():
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "application/json;q=0.9,*/*;q=0.8",
     }
 
@@ -14667,7 +14667,7 @@ def download_scryfall_default_cards_json(force_download=False):
         }
 
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": (
             "application/jsonl,"
             "application/json,"
@@ -15516,7 +15516,7 @@ def download_and_cache_card_image(card_row, scryfall_match_row):
         return None
 
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "*/*",
     }
 
@@ -15595,7 +15595,7 @@ def download_scryfall_set_icons():
     )
 
     headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "application/json;q=0.9,*/*;q=0.8",
     }
 
@@ -15623,7 +15623,7 @@ def download_scryfall_set_icons():
     updated_count = 0
 
     svg_headers = {
-        "User-Agent": "iMomir/1.0",
+        "User-Agent": "Deckadence/1.0",
         "Accept": "image/svg+xml,*/*;q=0.8",
     }
 

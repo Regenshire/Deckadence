@@ -1894,7 +1894,7 @@ def get_custom_pack_candidate_name_aliases(candidate_row):
 
     row_keys = set(candidate_row.keys())
 
-    # Use every card-name field that iMomir already stores.
+    # Use every card-name field that Deckadence already stores.
     for column_name in (
         "card_name",
         "face_name",

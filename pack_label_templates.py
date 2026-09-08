@@ -16,8 +16,8 @@ PACK_LABEL_TEMPLATES = {
         "set_icon_opacity": 58,
         "footer_fill_rgb": (16, 16, 22),
         "footer_outline_rgb": (78, 78, 92),
-        "signature_logo_path": "iMomir_sig_1.png",
-        "signature_max_width_pct": 0.40,
+        "signature_logo_path": "deckadence_sig_1.png",
+        "signature_max_width_pct": 0.74,
         "signature_scale_pct": 1.00,
         "signature_opacity": 255,
 
@@ -55,7 +55,7 @@ PACK_LABEL_TEMPLATES = {
         "set_icon_opacity": 62,
         "footer_fill_rgb": (12, 24, 46),
         "footer_outline_rgb": (62, 104, 172),
-        "signature_max_width_pct": 0.40,
+        "signature_max_width_pct": 0.74,
         "signature_scale_pct": 1.00,
         "signature_opacity": 255,
 
@@ -93,7 +93,7 @@ PACK_LABEL_TEMPLATES = {
         "set_icon_opacity": 60,
         "footer_fill_rgb": (10, 24, 38),
         "footer_outline_rgb": (62, 120, 164),
-        "signature_max_width_pct": 0.40,
+        "signature_max_width_pct": 0.74,
         "signature_scale_pct": 1.00,
         "signature_opacity": 255,
 
@@ -131,7 +131,7 @@ PACK_LABEL_TEMPLATES = {
         "set_icon_opacity": 60,
         "footer_fill_rgb": (24, 12, 42),
         "footer_outline_rgb": (94, 62, 138),
-        "signature_max_width_pct": 0.40,
+        "signature_max_width_pct": 0.74,
         "signature_scale_pct": 1.00,
         "signature_opacity": 255,
 
@@ -177,7 +177,7 @@ PACK_LABEL_TEMPLATES = {
         "footer_fill_rgb": (20, 14, 6),
         "footer_outline_rgb": (156, 118, 8),
 
-        "signature_max_width_pct": 0.44,
+        "signature_max_width_pct": 0.74,
         "signature_scale_pct": 0.82,
         "signature_opacity": 255,
 
@@ -213,7 +213,7 @@ PACK_LABEL_TEMPLATES = {
         "set_icon_opacity": 60,
         "footer_fill_rgb": (10, 26, 22),
         "footer_outline_rgb": (54, 122, 98),
-        "signature_max_width_pct": 0.40,
+        "signature_max_width_pct": 0.74,
         "signature_scale_pct": 1.00,
         "signature_opacity": 255,
 
@@ -259,7 +259,7 @@ PACK_LABEL_TEMPLATES = {
         "footer_fill_rgb": (10, 10, 28),
         "footer_outline_rgb": (64, 222, 238),
 
-        "signature_logo_path": "iMomir_sig_silver_2.png",
+        "signature_logo_path": "deckadence_sig_1.png",
         "signature_max_width_pct": 0.44,
         "signature_scale_pct": 1.00,
         "signature_opacity": 255,

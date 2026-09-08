@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "========================================"
-Write-Host "       iMomir Windows Release Builder"
+Write-Host "       Deckadence Windows Release Builder"
 Write-Host "========================================"
 Write-Host ""
 
@@ -15,15 +15,15 @@ $SettingsPath = Join-Path `
 
 $SpecPath = Join-Path `
     $RepoRoot `
-    "iMomir.spec"
+    "deckadence.spec"
 
 $StartBatSource = Join-Path `
     $ScriptRoot `
-    "Start_iMomir.bat"
+    "Start_Deckadence.bat"
 
 $BuildAppDir = Join-Path `
     $RepoRoot `
-    "build\iMomir"
+    "build\Deckadence"
 
 $DistRoot = Join-Path `
     $RepoRoot `
@@ -31,7 +31,7 @@ $DistRoot = Join-Path `
 
 $AppDistDir = Join-Path `
     $DistRoot `
-    "iMomir"
+    "Deckadence"
 
 
 Write-Host "[1/6] Reading release version..."
@@ -61,7 +61,7 @@ if (-not $Version) {
 
 $OutputZip = Join-Path `
     $DistRoot `
-    "iMomir_v${Version}_Windows.zip"
+    "Deckadence_v${Version}_Windows.zip"
 
 Write-Host "      Version: $Version"
 Write-Host "      Output:  $OutputZip"
@@ -71,11 +71,11 @@ Write-Host ""
 Write-Host "[2/6] Checking release files..."
 
 if (-not (Test-Path $SpecPath)) {
-    throw "iMomir.spec was not found: $SpecPath"
+    throw "deckadence.spec was not found: $SpecPath"
 }
 
 if (-not (Test-Path $StartBatSource)) {
-    throw "Start_iMomir.bat was not found: $StartBatSource"
+    throw "Start_Deckadence.bat was not found: $StartBatSource"
 }
 
 $PyInstallerCommand = Get-Command `
@@ -104,7 +104,7 @@ Write-Host ""
 Write-Host "[3/6] Cleaning previous build output..."
 
 if (Test-Path $BuildAppDir) {
-    Write-Host "      Removing build\iMomir"
+    Write-Host "      Removing build\Deckadence"
 
     Remove-Item `
         $BuildAppDir `
@@ -113,7 +113,7 @@ if (Test-Path $BuildAppDir) {
 }
 
 if (Test-Path $AppDistDir) {
-    Write-Host "      Removing dist\iMomir"
+    Write-Host "      Removing dist\Deckadence"
 
     Remove-Item `
         $AppDistDir `
@@ -133,7 +133,7 @@ Write-Host "      Previous output cleared."
 Write-Host ""
 
 
-Write-Host "[4/6] Building iMomir with PyInstaller..."
+Write-Host "[4/6] Building Deckadence with PyInstaller..."
 Write-Host ""
 Write-Host "      pyinstaller --noconfirm --clea Deckadence.spec"
 Write-Host ""
@@ -145,7 +145,7 @@ try {
     & pyinstaller `
         --noconfirm `
         --clean `
-        "iMomir.spec"
+        "deckadence.spec"
 
     if ($LASTEXITCODE -ne 0) {
         throw "PyInstaller failed with exit code $LASTEXITCODE."
@@ -160,10 +160,10 @@ Write-Host ""
 
 $AppExePath = Join-Path `
     $AppDistDir `
-    "iMomir.exe"
+    "Deckadence.exe"
 
 if (-not (Test-Path $AppExePath)) {
-    throw "Build completed but iMomir.exe was not found: $AppExePath"
+    throw "Build completed but Deckadence.exe was not found: $AppExePath"
 }
 
 Write-Host "      PyInstaller build complete."
@@ -171,11 +171,11 @@ Write-Host "      Found: $AppExePath"
 Write-Host ""
 
 
-Write-Host "[5/6] Adding Start_iMomir.bat..."
+Write-Host "[5/6] Adding Start_Deckadence.bat..."
 
 $StartBatDestination = Join-Path `
     $AppDistDir `
-    "Start_iMomir.bat"
+    "Start_Deckadence.bat"
 
 Copy-Item `
     $StartBatSource `
@@ -183,7 +183,7 @@ Copy-Item `
     -Force
 
 if (-not (Test-Path $StartBatDestination)) {
-    throw "Start_iMomir.bat was not copied successfully."
+    throw "Start_Deckadence.bat was not copied successfully."
 }
 
 Write-Host "      Copied:"
@@ -218,7 +218,7 @@ Write-Host ""
 
 $ZipHelperPath = Join-Path `
     $RepoRoot `
-    "build\zip_imomir_release.py"
+    "build\zip_Deckadence_release.py"
 
 $ZipHelperCode = @'
 import os
@@ -359,7 +359,7 @@ Write-Host "========================================"
 Write-Host "       RELEASE BUILD COMPLETE"
 Write-Host "========================================"
 Write-Host ""
-Write-Host "iMomir version:"
+Write-Host "Deckadence version:"
 Write-Host "  $Version"
 Write-Host ""
 Write-Host "Release ZIP:"
@@ -372,5 +372,5 @@ Write-Host "GitHub tag:"
 Write-Host "  v$Version"
 Write-Host ""
 Write-Host "GitHub release title:"
-Write-Host "  iMomir v$Version"
+Write-Host "  Deckadence v$Version"
 Write-Host ""

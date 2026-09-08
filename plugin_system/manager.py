@@ -743,7 +743,7 @@ def _command_exists(
 def _resolve_python_command():
     configured_python = str(
         os.environ.get(
-            "IMOMIR_PLUGIN_PYTHON",
+            "DECKADENCE_PLUGIN_PYTHON",
             "",
         )
         or ""
@@ -793,7 +793,7 @@ def _resolve_python_command():
     raise RuntimeError(
         "No compatible Python installation "
         "was found for plugin installation. "
-        "Set IMOMIR_PLUGIN_PYTHON to the "
+        "Set DECKADENCE_PLUGIN_PYTHON to the "
         "Python executable to use."
     )
 

@@ -7,7 +7,7 @@ from flask import request
 
 class UINavigation:
     """
-    Standardized browser-style navigation actions for iMomir UI pages.
+    Standardized browser-style navigation actions for Deckadence UI pages.
 
     Back and Forward use the browser's actual navigation history on the
     client. This class supplies consistent action names and safe same-origin
@@ -486,7 +486,7 @@ class UIListFilter:
 class UICardCollection:
     """
     Server-side configuration and normalization layer for reusable
-    iMomir card-collection interfaces.
+    Deckadence card-collection interfaces.
 
     Routes remain responsible for loading cards and building route URLs.
     This class owns the stable UI contract consumed by card_collection.js:
@@ -1049,7 +1049,7 @@ class UICardCollection:
 
         normalized_client_state["storage_key"] = str(
             normalized_client_state.get("storage_key")
-            or f"iMomir.cardCollection.{clean_collection_id}"
+            or f"Deckadence.cardCollection.{clean_collection_id}"
         )
 
         return {

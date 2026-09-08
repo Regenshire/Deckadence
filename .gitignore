@@ -42,8 +42,8 @@ Thumbs.db
 # Dev Stuff
 .vscode/
 .dev_prompts/*
-!.dev_prompts/Start_iMomir.bat
-!.dev_prompts/build_imomir_release.ps1
+!.dev_prompts/Start_Deckadence.bat
+!.dev_prompts/build_Deckadence_release.ps1
 
 # Runtime-installed plugins
 plugins/*
@@ -59,7 +59,8 @@ plugin_src/**/models/*.safetensors
 # Distributions
 dist/
 build/
-build/iMomir/
+build/Deckadence/
+build/Deckadence/
 
 # Silhouette files
 /static/sil/Examples/
