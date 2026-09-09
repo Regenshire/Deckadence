@@ -1518,6 +1518,50 @@ def check_github_latest_release():
         return cached_state
 
 
+_github_release_check_lock = threading.Lock()
+_github_release_check_in_progress = False
+
+
+def queue_github_release_check():
+    global _github_release_check_in_progress
+
+    with _github_release_check_lock:
+        if _github_release_check_in_progress:
+            return False
+
+        _github_release_check_in_progress = True
+
+    def run_release_check():
+        global _github_release_check_in_progress
+
+        try:
+            check_github_latest_release()
+        finally:
+            with _github_release_check_lock:
+                _github_release_check_in_progress = False
+
+    release_check_thread = threading.Thread(
+        target=run_release_check,
+        name="deckadence-release-check",
+        daemon=True,
+    )
+
+    try:
+        release_check_thread.start()
+    except Exception as exc:
+        with _github_release_check_lock:
+            _github_release_check_in_progress = False
+
+        write_error_log(
+            "GITHUB RELEASE CHECK THREAD START FAILED",
+            exc=exc,
+        )
+
+        return False
+
+    return True
+
+
 def get_release_update_state(config=None, import_metadata=None, force=False):
     if config is None:
         config = get_request_config() if has_request_context() else get_config()
@@ -1535,7 +1579,10 @@ def get_release_update_state(config=None, import_metadata=None, force=False):
         return cached_state
 
     if should_check_for_github_release(config, import_metadata=import_metadata, force=force):
-        return check_github_latest_release()
+        if force:
+            return check_github_latest_release()
+
+        queue_github_release_check()
 
     cached_state = get_cached_release_update_state(import_metadata)
     cached_state["current_version"] = APP_VERSION
@@ -10678,7 +10725,7 @@ def maintain_isolated_images():
     if now < _isolation_maintenance_next:
         return
     _isolation_maintenance_next = now + 60
-    result = IsolationStorage.collect(scan=True, wait=False)
+    result = IsolationStorage.collect(scan=False, wait=False)
     if result.get("error"):
         write_debug_log("ISOLATION CLEANUP | " + result["error"])
 
@@ -31275,4 +31322,18 @@ if __name__ == "__main__":
     ensure_deck_schema()
     ensure_upscaling_schema()
     set_runtime_debug_log_enabled_from_config()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+
+    flask_debug_enabled = (
+        os.environ.get("DECKADENCE_FLASK_DEBUG", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+
+    app.config["TEMPLATES_AUTO_RELOAD"] = flask_debug_enabled
+    app.jinja_env.auto_reload = flask_debug_enabled
+
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=flask_debug_enabled,
+        use_reloader=flask_debug_enabled,
+    )

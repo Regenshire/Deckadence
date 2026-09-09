@@ -4,7 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Deckadence{% endblock %}</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
@@ -37,7 +40,7 @@
                 loading="eager"
                 decoding="async"
                 fetchpriority="high"
-              >
+              />
 
               <img
                 src="{{ url_for('static', filename='img/Logos/deckadence_d.svg') }}"
@@ -46,12 +49,14 @@
                 loading="eager"
                 decoding="async"
                 fetchpriority="high"
-              >
+              />
             </button>
           </div>
 
           <div class="app-tabs-nav app-menu-expandable">
-            <div class="app-nav-menu {% if request.endpoint in ['play_draft', 'play_momir', 'result', 'campaign_chaos_test_draft'] %}app-nav-menu-active{% endif %}">
+            <div
+              class="app-nav-menu {% if request.endpoint in ['play_draft', 'play_momir', 'result', 'campaign_chaos_test_draft'] %}app-nav-menu-active{% endif %}"
+            >
               <div class="app-nav-main-control">
                 <a
                   class="app-nav-primary-link"
@@ -96,12 +101,11 @@
               </div>
             </div>
 
-            <div class="app-nav-menu {% if request.endpoint in ['deckbuilder_index', 'deckbuilder_open', 'deckbuilder_new', 'campaign_chaos_test_draft_deck_builder', 'sets', 'campaign_chaos_packs_manage', 'campaign_chaos_packs', 'campaign_chaos_pack_detail'] %}app-nav-menu-active{% endif %}">
+            <div
+              class="app-nav-menu {% if request.endpoint in ['deckbuilder_index', 'deckbuilder_open', 'deckbuilder_new', 'campaign_chaos_test_draft_deck_builder', 'sets', 'campaign_chaos_packs_manage', 'campaign_chaos_packs', 'campaign_chaos_pack_detail'] %}app-nav-menu-active{% endif %}"
+            >
               <div class="app-nav-main-control">
-                <a
-                  class="app-nav-primary-link"
-                  href="{{ url_for('sets') }}"
-                >
+                <a class="app-nav-primary-link" href="{{ url_for('sets') }}">
                   Cards
                 </a>
 
@@ -186,7 +190,9 @@
               </div>
             </div>
 
-            <div class="app-nav-menu app-nav-icon-menu {% if request.endpoint == 'config' %}app-nav-menu-active{% endif %}">
+            <div
+              class="app-nav-menu app-nav-icon-menu {% if request.endpoint == 'config' %}app-nav-menu-active{% endif %}"
+            >
               <button
                 type="button"
                 id="appSettingsButton"
@@ -198,7 +204,8 @@
               >
                 <i class="fa-solid fa-gear"></i>
 
-                {% if global_reminder_state and global_reminder_state.has_reminders %}
+                {% if global_reminder_state and
+                global_reminder_state.has_reminders %}
                 <span class="app-gear-reminder-badge">
                   {{ global_reminder_state.count }}
                 </span>
@@ -253,9 +260,7 @@
                 </div>
 
                 <div class="app-nav-dropdown-group">
-                  <div class="app-nav-dropdown-heading">
-                    Momir Settings
-                  </div>
+                  <div class="app-nav-dropdown-heading">Momir Settings</div>
 
                   <a
                     class="app-nav-dropdown-item app-nav-dropdown-item-indented"
@@ -316,9 +321,7 @@
 
                 <div class="app-nav-dropdown-divider"></div>
 
-                <div class="app-nav-dropdown-section-label">
-                  Advanced
-                </div>
+                <div class="app-nav-dropdown-section-label">Advanced</div>
 
                 <a
                   class="app-nav-dropdown-item"
@@ -378,7 +381,7 @@
                 loading="eager"
                 decoding="async"
                 fetchpriority="high"
-              >
+              />
             </button>
           </div>
         </nav>
@@ -389,12 +392,25 @@
 
     {% include "_print_template_selector_modal.html" %}
 
-    <div id="appQrModal" class="app-qr-modal-backdrop hidden" aria-hidden="true">
-      <div class="app-qr-modal" role="dialog" aria-modal="true" aria-labelledby="appQrModalTitle">
+    <div
+      id="appQrModal"
+      class="app-qr-modal-backdrop hidden"
+      aria-hidden="true"
+    >
+      <div
+        class="app-qr-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="appQrModalTitle"
+      >
         <div class="app-qr-modal-header">
           <div>
-            <div id="appQrModalTitle" class="app-qr-modal-title">Scan to Open Deckadence</div>
-            <div class="app-qr-modal-subtitle">Use a phone or tablet connected to the same network.</div>
+            <div id="appQrModalTitle" class="app-qr-modal-title">
+              Scan to Open Deckadence
+            </div>
+            <div class="app-qr-modal-subtitle">
+              Use a phone or tablet connected to the same network.
+            </div>
           </div>
           <button
             type="button"
@@ -411,7 +427,7 @@
             src="{{ global_qr_image_url }}"
             alt="QR code for {{ global_qr_access_url }}"
             class="app-qr-image"
-          >
+          />
           <div class="app-qr-address-label">Open this address</div>
           <div class="app-qr-address">{{ global_qr_access_url }}</div>
         </div>

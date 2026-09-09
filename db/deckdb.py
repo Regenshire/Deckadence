@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from functools import lru_cache
 
 from db.database import (
     ensure_isolation_storage_schema,
@@ -125,6 +126,7 @@ def normalize_deck_role(value):
     return DECK_ROLE_MAIN
 
 
+@lru_cache(maxsize=1)
 def ensure_deck_schema():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -714,28 +716,7 @@ def get_saved_deckbuilder_cards_for_deck(deck_id, deck_zone=None, include_basic_
             cc.mana_cost,
             cc.colors_json,
             cc.color_identity_json,
-            cc.image_url,
-            CASE
-                WHEN EXISTS (
-                    SELECT 1
-                    FROM alternate_sources alt
-                    WHERE alt.card_uuid = dc.card_uuid
-                      AND alt.is_enabled = 1
-                    LIMIT 1
-                ) THEN 1
-                ELSE 0
-            END AS has_alternate_image,
-            CASE
-                WHEN EXISTS (
-                    SELECT 1
-                    FROM alternate_sources alt
-                    WHERE alt.card_uuid = dc.card_uuid
-                      AND alt.is_enabled = 1
-                      AND alt.remove_bleed = 1
-                    LIMIT 1
-                ) THEN 1
-                ELSE 0
-            END AS alternate_image_remove_bleed
+            cc.image_url
         FROM deck_cards dc
         LEFT JOIN chaos_cards cc
             ON cc.card_uuid = dc.card_uuid
@@ -792,8 +773,6 @@ def get_saved_deckbuilder_cards_for_deck(deck_id, deck_zone=None, include_basic_
                 "colors_json": row["colors_json"] or "[]",
                 "color_identity_json": row["color_identity_json"] or "[]",
                 "image_url": row["image_url"] or "",
-                "has_alternate_image": int(row["has_alternate_image"] or 0),
-                "alternate_image_remove_bleed": int(row["alternate_image_remove_bleed"] or 0),
             })
 
     conn = get_db_connection()

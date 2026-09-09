@@ -320,13 +320,16 @@ class IsolationStorage:
                         )
                         logging.getLogger(__name__).warning("Isolation cleanup deferred for %s: %s", path, exc)
                 conn.commit()
-                root = os.path.join(ALTERNATE_SOURCE_DIR, "isolation")
-                for directory, children, files in os.walk(root, topdown=False, followlinks=False):
-                    if cls.managed_path(directory):
-                        try:
-                            os.rmdir(directory)
-                        except OSError:
-                            pass
+
+                if scan:
+                    root = os.path.join(ALTERNATE_SOURCE_DIR, "isolation")
+                    for directory, children, files in os.walk(root, topdown=False, followlinks=False):
+                        if cls.managed_path(directory):
+                            try:
+                                os.rmdir(directory)
+                            except OSError:
+                                pass
+
                 report["pending_files"] = conn.execute("SELECT COUNT(*) FROM _isolation_gc_queue").fetchone()[0]
         except Exception as exc:
             if not wait and isinstance(exc, RuntimeError):
@@ -1894,18 +1897,19 @@ def is_card_database_ready():
 
     cursor.execute(
         """
-        SELECT COUNT(*) AS ready_count
+        SELECT 1
         FROM cards
         WHERE disable_card = 0
           AND is_creature = 1
           AND has_paper_printing = 1
+        LIMIT 1
         """
     )
 
     row = cursor.fetchone()
     conn.close()
 
-    return int(row["ready_count"] or 0) > 0
+    return row is not None
 
 
 def get_all_sets():
@@ -3464,24 +3468,6 @@ def get_custom_draft_set_card_rows(set_code, search_text=""):
             CASE
                 WHEN EXISTS (
                     SELECT 1
-                    FROM alternate_sources alt
-                    WHERE alt.is_enabled = 1
-                      AND alt.card_uuid = cc.card_uuid
-                )
-                OR EXISTS (
-                    SELECT 1
-                    FROM alternate_sources alt
-                    WHERE alt.is_enabled = 1
-                      AND UPPER(COALESCE(alt.set_code, '')) = UPPER(COALESCE(cc.set_code, ''))
-                      AND LOWER(COALESCE(alt.collector_number, '')) = LOWER(COALESCE(cc.collector_number, ''))
-                )
-                THEN 1
-                ELSE 0
-            END AS has_alternate_source,
-
-            CASE
-                WHEN EXISTS (
-                    SELECT 1
                     FROM upscaled_images up
                     WHERE up.is_current = 1
                       AND up.quality_status = 'accepted'
@@ -3491,31 +3477,6 @@ def get_custom_draft_set_card_rows(set_code, search_text=""):
                 THEN 1
                 ELSE 0
             END AS has_upscaled_image,
-
-            COALESCE(
-                (
-                    SELECT alt.remove_bleed
-                    FROM alternate_sources alt
-                    WHERE alt.is_enabled = 1
-                      AND alt.card_uuid = cc.card_uuid
-                    ORDER BY
-                        alt.priority ASC,
-                        alt.alternate_source_id DESC
-                    LIMIT 1
-                ),
-                (
-                    SELECT alt.remove_bleed
-                    FROM alternate_sources alt
-                    WHERE alt.is_enabled = 1
-                      AND UPPER(COALESCE(alt.set_code, '')) = UPPER(COALESCE(cc.set_code, ''))
-                      AND LOWER(COALESCE(alt.collector_number, '')) = LOWER(COALESCE(cc.collector_number, ''))
-                    ORDER BY
-                        alt.priority ASC,
-                        alt.alternate_source_id DESC
-                    LIMIT 1
-                ),
-                0
-            ) AS alternate_remove_bleed,
             cc.is_dual_faced
         FROM custom_draft_set_cards cdsc
         INNER JOIN chaos_cards cc ON cc.card_uuid = cdsc.card_uuid

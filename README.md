@@ -1,14 +1,14 @@
 # Deckadence
 
-Deckadence is a web app for playing paper versions of Magic: The Gathering random card formats.
+Deckadence is a self-hosted web app for creating, managing, and playing various paper and proxy versions of Magic: The Gathering.  The application is designed to support creating custom Draft Sets and Decks as well as supporting the play of formats such as Momir and Chaos Draft.
 
-You can use it to generate cards by mana value, open random Chaos Draft packs, print cards and packs, and export Chaos Draft deck lists.
+You can use Deckadence to create custom Sets or Cubs, to open random Chaos Draft packs, print cards and packs, and export Chaos Draft deck lists.  It also supports basic Draft testing.
 
-It is designed to work well on a computer, laptop, phone, or tablet when it is hosted on a device on your local network.
+It is designed to work well on a computer, laptop, phone, or tablet when it is hosted on a PC on your local network.
 
 ## What Deckadence Can Do
 
-- Generate random cards by mana value
+- Play Momir by generating random cards by mana value
 - Support multiple game modes
 - Filter by set
 - Open random Chaos Draft packs

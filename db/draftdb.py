@@ -1,5 +1,6 @@
 import random
 from datetime import datetime, timezone
+from functools import lru_cache
 
 from db.database import (
     get_db_connection, ensure_column_exists, ensure_isolation_storage_schema,
@@ -52,6 +53,7 @@ def draft_test_normalize_optional_int(value):
         return None
 
 
+@lru_cache(maxsize=1)
 def ensure_draft_testing_schema():
     conn = get_db_connection()
     cursor = conn.cursor()
