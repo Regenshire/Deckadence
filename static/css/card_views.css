@@ -13,18 +13,16 @@
  * continuing to grow the global style.css file.
  */
 
-
 /* ==========================================
    Card Grids
    ========================================== */
 
 .chaos-pack-view-grid,
 .chaos-pack-inline-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 18px;
 }
-
 
 /* ==========================================
    Card Shell
@@ -32,17 +30,16 @@
 
 .chaos-pack-view-card,
 .chaos-pack-inline-card {
-    min-width: 0;
-    padding: 0;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-
 
 /* ==========================================
    Card Image
@@ -50,68 +47,65 @@
 
 .chaos-pack-view-image-wrap,
 .chaos-pack-inline-image-wrap {
-    width: 100%;
-    display: block;
-    position: relative;
+  width: 100%;
+  display: block;
+  position: relative;
 }
 
 .chaos-pack-view-image,
 .chaos-pack-inline-image {
-    display: block;
+  display: block;
 
-    width: 100%;
-    max-width: none;
-    height: auto;
+  width: 100%;
+  max-width: none;
+  height: auto;
 
-    object-fit: contain;
+  object-fit: contain;
 
-    border-radius: 13px;
+  border-radius: 13px;
 
-    box-shadow:
-        0 4px 12px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
 
-    transition:
-        transform 140ms ease,
-        filter 140ms ease;
+  transition:
+    transform 140ms ease,
+    filter 140ms ease;
 }
 
 .chaos-pack-inline-image {
-    cursor: zoom-in;
+  cursor: zoom-in;
 }
 
 @media (hover: hover) {
-    .chaos-pack-view-card:hover .chaos-pack-view-image,
-    .chaos-pack-inline-card:hover .chaos-pack-inline-image {
-        transform: translateY(-2px);
-        filter: brightness(1.025);
-    }
+  .chaos-pack-view-card:hover .chaos-pack-view-image,
+  .chaos-pack-inline-card:hover .chaos-pack-inline-image {
+    transform: translateY(-2px);
+    filter: brightness(1.025);
+  }
 }
-
 
 /* ==========================================
    Card Information
    ========================================== */
 
 .chaos-pack-view-info {
-    min-width: 0;
+  min-width: 0;
 
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
 
-    column-gap: 8px;
-    row-gap: 4px;
+  column-gap: 8px;
+  row-gap: 4px;
 }
 
 .chaos-pack-inline-info {
-    min-width: 0;
+  min-width: 0;
 
-    display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
 
-    gap: 4px;
+  gap: 4px;
 }
-
 
 /* ==========================================
    Card Name
@@ -119,229 +113,221 @@
 
 .chaos-pack-view-name,
 .chaos-pack-inline-name {
-    min-width: 0;
+  min-width: 0;
 
-    font-size: 1.05rem;
-    font-weight: 750;
-    line-height: 1.2;
+  font-size: 1.05rem;
+  font-weight: 750;
+  line-height: 1.2;
 
-    color: var(--text);
+  color: var(--text);
 
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chaos-pack-view-name {
-    grid-column: 1 / -1;
+  grid-column: 1 / -1;
 }
 
 .custom-draft-grid-card-name-row {
-    grid-column: 1 / -1;
+  grid-column: 1 / -1;
 
-    display: flex;
-    align-items: center;
+  display: flex;
+  align-items: center;
 
-    min-width: 0;
-    gap: 8px;
+  min-width: 0;
+  gap: 8px;
 }
 
 .custom-draft-grid-card-name {
-    min-width: 0;
-    flex: 1 1 auto;
+  min-width: 0;
+  flex: 1 1 auto;
 
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
 
 /* ==========================================
    Action / Price Row
    ========================================== */
 
 .chaos-pack-view-card .alternate-image-price-row {
-    grid-column: 1;
-    grid-row: 2;
+  grid-column: 1;
+  grid-row: 2;
 
-    min-width: 0;
+  min-width: 0;
 
-    display: flex;
-    align-items: center;
+  display: flex;
+  align-items: center;
 
-    gap: 0.3rem;
+  gap: 0.3rem;
 }
 
 .custom-draft-grid-card-meta-row {
-    margin-top: 0;
-    flex-wrap: nowrap;
+  margin-top: 0;
+  flex-wrap: nowrap;
 }
 
 .chaos-pack-view-price {
-    margin-left: auto;
+  margin-left: auto;
 
-    color: #ffffff;
+  color: #ffffff;
 
-    font-size: 1.0rem;
-    font-weight: 600;
+  font-size: 1rem;
+  font-weight: 600;
 
-    white-space: nowrap;
+  white-space: nowrap;
 }
 
 .custom-draft-grid-card-meta-text {
-    font-size: 1.02rem;
-    font-weight: 800;
-    color: #ffffff;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: #ffffff;
 }
-
 
 /* ==========================================
    Card Action Icons
    ========================================== */
 
 .chaos-pack-view-card .alternate-image-gear {
-    width: 1.5rem;
-    height: 1.5rem;
-    min-width: 1.5rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-width: 1.5rem;
 
-    padding: 0;
+  padding: 0;
 
-    font-size: 1.4rem;
+  font-size: 1.4rem;
 
-    color: #a7b0c0;
+  color: #a7b0c0;
 }
 
 .chaos-pack-view-card .alternate-image-gear:hover,
 .chaos-pack-view-card .alternate-image-gear:focus-visible {
-    background: rgba(255, 255, 255, 0.07);
-    color: #ffffff;
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
 }
 
 .chaos-pack-view-card .custom-draft-change-printing-icon {
-    width: 32px;
-    height: 32px;
+  width: 32px;
+  height: 32px;
 }
 
 .chaos-pack-view-card .imomir-upscale-icon {
-    width: 32px;
-    height: 32px;
+  width: 32px;
+  height: 32px;
 }
-
 
 /* ==========================================
    Price / Foil / Special Badges
    ========================================== */
 
 .chaos-pack-view-badges {
-    grid-column: 2;
-    grid-row: 2;
+  grid-column: 2;
+  grid-row: 2;
 
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 
-    gap: 0.3rem;
+  gap: 0.3rem;
 }
 
 .chaos-pack-view-badge,
 .chaos-pack-inline-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 
-    min-height: 20px;
+  min-height: 20px;
 
-    padding: 2px 6px;
+  padding: 2px 6px;
 
-    border-radius: 999px;
+  border-radius: 999px;
 
-    background: rgba(72, 127, 255, 0.14);
-    border: 1px solid rgba(110, 156, 255, 0.38);
+  background: rgba(72, 127, 255, 0.14);
+  border: 1px solid rgba(110, 156, 255, 0.38);
 
-    color: #dbe6ff;
+  color: #dbe6ff;
 
-    font-size: 0.70rem;
-    font-weight: 700;
-    line-height: 1;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
 
-    white-space: nowrap;
+  white-space: nowrap;
 }
-
 
 /* ==========================================
    Draft Inline Pack Cards
    ========================================== */
 
 .chaos-pack-inline-meta-row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
 
-    min-height: 24px;
+  min-height: 24px;
 
-    gap: 0.35rem;
+  gap: 0.35rem;
 }
 
 .chaos-pack-inline-price {
-    margin-left: 0;
+  margin-left: 0;
 
-    color: #ffffff;
+  color: #ffffff;
 
-    font-size: 1.02rem;
-    font-weight: 800;
+  font-size: 1.02rem;
+  font-weight: 800;
 
-    white-space: nowrap;
+  white-space: nowrap;
 }
 
 .chaos-pack-inline-price-high {
-    color: #98f59b;
+  color: #98f59b;
 }
-
 
 /* ==========================================
    Custom Draft Grid
    ========================================== */
 
 .custom-draft-current-card-grid {
-    margin-top: 0.85rem;
+  margin-top: 0.85rem;
 
-    grid-template-columns:
-        repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
 /*
  * Maximize must remain density-focused.
- * Override the shared fixed-column pack layout so
- * Custom Draft can add columns as space becomes available.
+ * Preserve empty grid tracks so sparse search results
+ * keep the same card width instead of stretching.
  */
-.custom-draft-set-card-list-panel-maximized
-.custom-draft-current-card-grid {
-    grid-template-columns:
-        repeat(auto-fit, minmax(230px, 1fr));
+.custom-draft-set-card-list-panel-maximized .custom-draft-current-card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
 }
 
 .custom-draft-current-card-grid .chaos-pack-view-card {
-    min-width: 0;
+  min-width: 0;
 }
 
 .custom-draft-current-card-grid .chaos-pack-view-image {
-    cursor: zoom-in;
+  cursor: zoom-in;
 }
 
 .custom-draft-grid-card-select-wrap {
-    flex: 0 0 auto;
-    padding: 0;
+  flex: 0 0 auto;
+  padding: 0;
 }
 
 .custom-draft-grid-card-checkbox {
-    width: 20px;
-    height: 20px;
+  width: 20px;
+  height: 20px;
 
-    cursor: pointer;
+  cursor: pointer;
 }
 
 .custom-draft-grid-card-badges {
-    margin-top: 0.45rem;
+  margin-top: 0.45rem;
 }
 
 /* ==========================================
@@ -357,101 +343,76 @@
  */
 
 .deckbuilder-grid-active .deckbuilder-card,
-.deckbuilder-stack-active
-.deckbuilder-zone-sideboard
-.deckbuilder-card,
-.campaign-test-draft-card-list-grid
-.campaign-test-draft-card,
-.campaign-test-draft-picked-grid-active
-.campaign-test-draft-picked-row {
-    padding: 0;
-    margin-bottom: 0;
+.deckbuilder-stack-active .deckbuilder-zone-sideboard .deckbuilder-card,
+.campaign-test-draft-card-list-grid .campaign-test-draft-card,
+.campaign-test-draft-picked-grid-active .campaign-test-draft-picked-row {
+  padding: 0;
+  margin-bottom: 0;
 
-    border: 0;
-    border-radius: 0;
+  border: 0;
+  border-radius: 0;
 
-    background: transparent;
+  background: transparent;
 }
-
 
 .deckbuilder-grid-active .deckbuilder-card:hover,
-.deckbuilder-stack-active
-.deckbuilder-zone-sideboard
-.deckbuilder-card:hover,
-.campaign-test-draft-card-list-grid
-.campaign-test-draft-card:hover,
-.campaign-test-draft-picked-grid-active
-.campaign-test-draft-picked-row:hover {
-    border-color: transparent;
-    background: transparent;
+.deckbuilder-stack-active .deckbuilder-zone-sideboard .deckbuilder-card:hover,
+.campaign-test-draft-card-list-grid .campaign-test-draft-card:hover,
+.campaign-test-draft-picked-grid-active .campaign-test-draft-picked-row:hover {
+  border-color: transparent;
+  background: transparent;
 }
-
 
 /* ==========================================
    Full-width Card Images
    ========================================== */
 
-.deckbuilder-grid-active
-.deckbuilder-card-image-wrap,
+.deckbuilder-grid-active .deckbuilder-card-image-wrap,
 .deckbuilder-stack-active
-.deckbuilder-zone-sideboard
-.deckbuilder-card-image-wrap,
-.deckbuilder-stack-active
-.deckbuilder-zone-deck
-.deckbuilder-card-image-wrap {
-    width: 100%;
-    border-radius: 13px;
+  .deckbuilder-zone-sideboard
+  .deckbuilder-card-image-wrap,
+.deckbuilder-stack-active .deckbuilder-zone-deck .deckbuilder-card-image-wrap {
+  width: 100%;
+  border-radius: 13px;
 }
 
-
-.deckbuilder-grid-active
-.deckbuilder-card
-.campaign-test-draft-picked-thumb,
+.deckbuilder-grid-active .deckbuilder-card .campaign-test-draft-picked-thumb,
 .deckbuilder-stack-active
-.deckbuilder-zone-sideboard
-.deckbuilder-card
-.campaign-test-draft-picked-thumb,
+  .deckbuilder-zone-sideboard
+  .deckbuilder-card
+  .campaign-test-draft-picked-thumb,
 .deckbuilder-stack-active
-.deckbuilder-zone-deck
-.deckbuilder-card
-.campaign-test-draft-picked-thumb,
-.campaign-test-draft-card-list-grid
-.campaign-test-draft-card-image,
-.campaign-test-draft-picked-grid-active
-.campaign-test-draft-picked-thumb {
-    border-radius: 13px;
+  .deckbuilder-zone-deck
+  .deckbuilder-card
+  .campaign-test-draft-picked-thumb,
+.campaign-test-draft-card-list-grid .campaign-test-draft-card-image,
+.campaign-test-draft-picked-grid-active .campaign-test-draft-picked-thumb {
+  border-radius: 13px;
 
-    box-shadow:
-        0 4px 12px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
 
-    transition:
-        transform 140ms ease,
-        filter 140ms ease;
+  transition:
+    transform 140ms ease,
+    filter 140ms ease;
 }
-
 
 /* ==========================================
    Compact Card Information
    ========================================== */
 
-.deckbuilder-grid-active
-.deckbuilder-card
-.campaign-test-draft-picked-main,
+.deckbuilder-grid-active .deckbuilder-card .campaign-test-draft-picked-main,
 .deckbuilder-stack-active
-.deckbuilder-zone-sideboard
-.deckbuilder-card
-.campaign-test-draft-picked-main {
-    min-height: 0;
-    margin-top: 8px;
+  .deckbuilder-zone-sideboard
+  .deckbuilder-card
+  .campaign-test-draft-picked-main {
+  min-height: 0;
+  margin-top: 8px;
 }
 
-
-.campaign-test-draft-card-list-grid
-.campaign-test-draft-card-footer {
-    min-height: 0;
-    margin-top: 8px;
+.campaign-test-draft-card-list-grid .campaign-test-draft-card-footer {
+  min-height: 0;
+  margin-top: 8px;
 }
-
 
 /* ==========================================
    Borderless Stack Columns
@@ -462,49 +423,41 @@
  * Only their decorative outer box is removed.
  */
 
-.deckbuilder-stack-active
-.deckbuilder-zone-deck
-.deckbuilder-stack-column,
+.deckbuilder-stack-active .deckbuilder-zone-deck .deckbuilder-stack-column,
 .campaign-test-draft-picked-stack-active
-.campaign-test-draft-zone-deck
-.campaign-test-draft-stack-column {
-    padding: 0;
+  .campaign-test-draft-zone-deck
+  .campaign-test-draft-stack-column {
+  padding: 0;
 
-    border: 0;
-    border-radius: 0;
+  border: 0;
+  border-radius: 0;
 
-    background: transparent;
+  background: transparent;
 }
-
 
 /*
  * The old stack column reserved 8 px on each side for padding.
  * With the decorative shell gone, let the card use that full width.
  */
 
-.deckbuilder-stack-active
-.deckbuilder-zone-deck
-.deckbuilder-card {
-    width: var(--deckbuilder-stack-column-width);
-    min-width: var(--deckbuilder-stack-column-width);
-    max-width: var(--deckbuilder-stack-column-width);
+.deckbuilder-stack-active .deckbuilder-zone-deck .deckbuilder-card {
+  width: var(--deckbuilder-stack-column-width);
+  min-width: var(--deckbuilder-stack-column-width);
+  max-width: var(--deckbuilder-stack-column-width);
 }
-
 
 .campaign-test-draft-picked-stack-active
-.campaign-test-draft-zone-deck
-.campaign-test-draft-picked-row {
-    width: var(--campaign-test-draft-stack-column-width);
-    min-width: var(--campaign-test-draft-stack-column-width);
-    max-width: var(--campaign-test-draft-stack-column-width);
+  .campaign-test-draft-zone-deck
+  .campaign-test-draft-picked-row {
+  width: var(--campaign-test-draft-stack-column-width);
+  min-width: var(--campaign-test-draft-stack-column-width);
+  max-width: var(--campaign-test-draft-stack-column-width);
 }
-
 
 .deckbuilder-stack-column-title,
 .campaign-test-draft-stack-column-title {
-    padding: 0 2px;
+  padding: 0 2px;
 }
-
 
 /* ==========================================
    Test Draft Selected Card
@@ -516,44 +469,39 @@
  * itself is borderless.
  */
 
-.campaign-test-draft-card-list-grid
-.campaign-test-draft-card-selected {
-    outline: 3px solid rgba(66, 205, 111, 0.90);
-    outline-offset: 2px;
+.campaign-test-draft-card-list-grid .campaign-test-draft-card-selected {
+  outline: 3px solid rgba(66, 205, 111, 0.9);
+  outline-offset: 2px;
 
-    border-color: transparent;
-    background: transparent;
+  border-color: transparent;
+  background: transparent;
 
-    box-shadow:
-        0 0 0 1px rgba(255, 255, 255, 0.45),
-        0 0 18px rgba(66, 205, 111, 0.38);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 0 18px rgba(66, 205, 111, 0.38);
 }
-
 
 /* ==========================================
    Artwork Hover
    ========================================== */
 
 @media (hover: hover) {
-    .deckbuilder-grid-active
+  .deckbuilder-grid-active
     .deckbuilder-card:hover
     .campaign-test-draft-picked-thumb,
-
-    .deckbuilder-stack-active
+  .deckbuilder-stack-active
     .deckbuilder-zone-sideboard
     .deckbuilder-card:hover
     .campaign-test-draft-picked-thumb,
-
-    .campaign-test-draft-card-list-grid
+  .campaign-test-draft-card-list-grid
     .campaign-test-draft-card:hover
     .campaign-test-draft-card-image,
-
-    .campaign-test-draft-picked-grid-active
+  .campaign-test-draft-picked-grid-active
     .campaign-test-draft-picked-row:hover
     .campaign-test-draft-picked-thumb {
-        transform: translateY(-2px);
-        filter: brightness(1.025);
-    }
+    transform: translateY(-2px);
+    filter: brightness(1.025);
+  }
 }
 
 /* ==========================================
@@ -561,49 +509,47 @@
    ========================================== */
 
 @media (min-width: 700px) {
-    .chaos-pack-view-grid,
-    .chaos-pack-inline-grid {
-        grid-template-columns:
-            repeat(3, minmax(0, 1fr));
-    }
+  .chaos-pack-view-grid,
+  .chaos-pack-inline-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 1024px) {
-    .chaos-pack-view-grid,
-    .chaos-pack-inline-grid {
-        grid-template-columns:
-            repeat(4, minmax(0, 1fr));
-    }
+  .chaos-pack-view-grid,
+  .chaos-pack-inline-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 560px) {
-    .chaos-pack-view-grid,
-    .chaos-pack-inline-grid {
-        gap: 16px 12px;
-    }
+  .chaos-pack-view-grid,
+  .chaos-pack-inline-grid {
+    gap: 16px 12px;
+  }
 
-    .chaos-pack-view-name,
-    .chaos-pack-inline-name {
-        font-size: 0.92rem;
-    }
+  .chaos-pack-view-name,
+  .chaos-pack-inline-name {
+    font-size: 0.92rem;
+  }
 
-    .chaos-pack-view-price,
-    .chaos-pack-inline-price,
-    .custom-draft-grid-card-meta-text {
-        font-size: 0.9rem;
-    }
+  .chaos-pack-view-price,
+  .chaos-pack-inline-price,
+  .custom-draft-grid-card-meta-text {
+    font-size: 0.9rem;
+  }
 
-    .chaos-pack-view-card .alternate-image-gear {
-        width: 1.4rem;
-        height: 1.4rem;
-        min-width: 1.4rem;
-    }
+  .chaos-pack-view-card .alternate-image-gear {
+    width: 1.4rem;
+    height: 1.4rem;
+    min-width: 1.4rem;
+  }
 
-    .chaos-pack-view-badge,
-    .chaos-pack-inline-badge {
-        font-size: 0.66rem;
-        padding: 2px 5px;
-    }
+  .chaos-pack-view-badge,
+  .chaos-pack-inline-badge {
+    font-size: 0.66rem;
+    padding: 2px 5px;
+  }
 }
 
 /* ==========================================
@@ -617,20 +563,15 @@
  * Only apply this to Test Draft and Deck Builder Grid View.
  */
 
-.campaign-test-draft-card-list-grid
-.campaign-test-draft-card-name {
-    padding-left: 4px;
-    padding-bottom: 5px;
+.campaign-test-draft-card-list-grid .campaign-test-draft-card-name {
+  padding-left: 4px;
+  padding-bottom: 5px;
 }
 
-
-.deckbuilder-grid-active
-.deckbuilder-card
-.campaign-test-draft-picked-name {
-    padding-left: 4px;
-    padding-bottom: 5px;
+.deckbuilder-grid-active .deckbuilder-card .campaign-test-draft-picked-name {
+  padding-left: 4px;
+  padding-bottom: 5px;
 }
-
 
 /* ==========================================
    Test Draft Selected Card
@@ -642,16 +583,14 @@
  * the entire selectable card area card-like corners.
  */
 
-.campaign-test-draft-card-list-grid
-.campaign-test-draft-card-selected {
-    border-radius: 13px;
-    outline: none;
+.campaign-test-draft-card-list-grid .campaign-test-draft-card-selected {
+  border-radius: 13px;
+  outline: none;
 
-    box-shadow:
-        0 0 0 3px rgba(66, 205, 111, 0.90),
-        0 0 18px rgba(66, 205, 111, 0.38);
+  box-shadow:
+    0 0 0 3px rgba(66, 205, 111, 0.9),
+    0 0 18px rgba(66, 205, 111, 0.38);
 }
-
 
 /* ==========================================
    Deck Builder Grid Selected Card
@@ -663,12 +602,11 @@
  * remains exactly as it is now.
  */
 
-.deckbuilder-grid-active
-.deckbuilder-card-selected {
-    border-radius: 13px;
-    outline: none;
+.deckbuilder-grid-active .deckbuilder-card-selected {
+  border-radius: 13px;
+  outline: none;
 
-    box-shadow:
-        0 0 0 3px rgba(59, 130, 246, 0.95),
-        0 0 18px rgba(59, 130, 246, 0.48);
+  box-shadow:
+    0 0 0 3px rgba(59, 130, 246, 0.95),
+    0 0 18px rgba(59, 130, 246, 0.48);
 }
