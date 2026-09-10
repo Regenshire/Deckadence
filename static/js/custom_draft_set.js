@@ -190,7 +190,7 @@
   let currentCardViewMode = "list";
 
   const deferredCardImagePlaceholder =
-    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+    "data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20width%3D%2263%22%20height%3D%2288%22%20viewBox%3D%220%200%2063%2088%22/%3E";
 
   const cardImageLoadQueue = [];
   const queuedCardImageElements = new WeakSet();
@@ -3245,6 +3245,22 @@
       );
     }
 
+    const gridCardsById = new Map();
+
+    if (currentCardGrid) {
+      currentCardGrid
+        .querySelectorAll(
+          ".custom-draft-current-grid-card[data-custom-set-card-id]",
+        )
+        .forEach(function (gridCard) {
+          const gridCardId = gridCard.dataset.customSetCardId || "";
+
+          if (gridCardId) {
+            gridCardsById.set(gridCardId, gridCard);
+          }
+        });
+    }
+
     getCurrentCardRows().forEach(function (row) {
       const checkbox = row.querySelector(".custom-draft-current-card-checkbox");
       const isSelected = Boolean(checkbox && checkbox.checked);
@@ -3255,25 +3271,20 @@
         isSelected,
       );
 
-      if (currentCardGrid && cardId) {
-        const gridCard = currentCardGrid.querySelector(
-          '.custom-draft-current-grid-card[data-custom-set-card-id="' +
-            CSS.escape(cardId) +
-            '"]',
+      const gridCard = cardId ? gridCardsById.get(cardId) : null;
+
+      if (gridCard) {
+        gridCard.classList.toggle(
+          "custom-draft-current-card-row-selected",
+          isSelected,
         );
 
-        if (gridCard) {
-          gridCard.classList.toggle(
-            "custom-draft-current-card-row-selected",
-            isSelected,
-          );
+        const gridCheckbox = gridCard.querySelector(
+          ".custom-draft-grid-card-checkbox",
+        );
 
-          const gridCheckbox = gridCard.querySelector(
-            ".custom-draft-grid-card-checkbox",
-          );
-          if (gridCheckbox) {
-            gridCheckbox.checked = isSelected;
-          }
+        if (gridCheckbox) {
+          gridCheckbox.checked = isSelected;
         }
       }
     });
@@ -3622,7 +3633,7 @@
     bindZoomableImages: bindZoomableImages,
 
     onPageSizeChange: function (pageSizeValue) {
-      setClientSetting(addCardsPageSizeStorageKey, pageSizeValue || "500");
+      setClientSetting(addCardsPageSizeStorageKey, pageSizeValue || "100");
     },
 
     getExistingCardLookup: getCurrentSetCardLookup,
@@ -4157,7 +4168,7 @@
   applySavedSelectValue(
     searchPageSizeSelect,
     addCardsPageSizeStorageKey,
-    "500",
+    "100",
   );
   applySavedSelectValue(
     currentCardPageSizeSelect,

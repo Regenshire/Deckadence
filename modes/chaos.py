@@ -301,29 +301,82 @@ def get_chaos_pack_art_relpath(set_code, booster_name, static_folder):
 
     return "img/pack_art/_fallback/booster_default.png"
 
-
-def get_chaos_pack_art_info(set_code, booster_name, static_folder):
+def get_chaos_pack_art_lookup():
     conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        SELECT display_name, image_path, is_fallback
+        SELECT
+            set_code,
+            booster_name,
+            display_name,
+            image_path,
+            is_fallback
         FROM chaos_pack_art
-        WHERE set_code = ?
-          AND booster_name = ?
-        """,
-        (
-            (set_code or "").strip().upper(),
-            (booster_name or "").strip().lower(),
-        ),
+        """
     )
 
-    row = cursor.fetchone()
+    rows = cursor.fetchall()
     conn.close()
 
-    default_display_name = build_default_chaos_pack_display_name(set_code, booster_name)
-    default_image_path = get_chaos_pack_art_relpath(set_code, booster_name, static_folder)
+    return {
+        (
+            (row["set_code"] or "").strip().upper(),
+            (row["booster_name"] or "").strip().lower(),
+        ): {
+            "display_name": row["display_name"],
+            "image_path": row["image_path"],
+            "is_fallback": row["is_fallback"],
+        }
+        for row in rows
+    }
+
+def get_chaos_pack_art_info(
+    set_code,
+    booster_name,
+    static_folder,
+    art_lookup=None,
+):
+    clean_set_code = (set_code or "").strip().upper()
+    clean_booster_name = (booster_name or "").strip().lower()
+
+    if art_lookup is None:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            """
+            SELECT display_name, image_path, is_fallback
+            FROM chaos_pack_art
+            WHERE set_code = ?
+              AND booster_name = ?
+            """,
+            (
+                clean_set_code,
+                clean_booster_name,
+            ),
+        )
+
+        row = cursor.fetchone()
+        conn.close()
+    else:
+        row = art_lookup.get(
+            (
+                clean_set_code,
+                clean_booster_name,
+            )
+        )
+
+    default_display_name = build_default_chaos_pack_display_name(
+        clean_set_code,
+        clean_booster_name,
+    )
+    default_image_path = get_chaos_pack_art_relpath(
+        clean_set_code,
+        clean_booster_name,
+        static_folder,
+    )
 
     if row:
         display_name = normalize_chaos_pack_display_name(
@@ -519,6 +572,7 @@ def get_chaos_pack_variants(set_code, booster_name):
 def get_eligible_chaos_packs(static_folder):
     config = get_config()
     selected_set_codes = get_selected_set_codes()
+    art_lookup = get_chaos_pack_art_lookup()
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -566,7 +620,12 @@ def get_eligible_chaos_packs(static_folder):
         if booster_type not in selected_chaos_pack_types:
             continue
 
-        art_info = get_chaos_pack_art_info(row["set_code"], booster_name_raw, static_folder)
+        art_info = get_chaos_pack_art_info(
+            row["set_code"],
+            booster_name_raw,
+            static_folder,
+            art_lookup=art_lookup,
+        )
 
         packs.append({
             "set_code": row["set_code"],
@@ -631,6 +690,7 @@ def get_eligible_chaos_packs(static_folder):
                     custom_set_code,
                     custom_booster_name,
                     static_folder,
+                    art_lookup=art_lookup,
                 )
 
                 packs.append({

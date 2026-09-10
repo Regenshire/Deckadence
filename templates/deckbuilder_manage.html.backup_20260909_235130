@@ -52,7 +52,13 @@ block content %}
           {% for format_option in deck_format_options %}
           <option
             value="{{ format_option }}"
-            {% if selected_deck_format == format_option %}selected{% endif %}
+            {%
+            if
+            selected_deck_format=""
+            ="format_option"
+            %}selected{%
+            endif
+            %}
           >
             {{ format_option }}
           </option>
@@ -69,42 +75,78 @@ block content %}
         >
           <option
             value="created_desc"
-            {% if selected_sort_option == "created_desc" %}selected{% endif %}
+            {%
+            if
+            selected_sort_option=""
+            ="created_desc"
+            %}selected{%
+            endif
+            %}
           >
             Create Date: Newest
           </option>
 
           <option
             value="created_asc"
-            {% if selected_sort_option == "created_asc" %}selected{% endif %}
+            {%
+            if
+            selected_sort_option=""
+            ="created_asc"
+            %}selected{%
+            endif
+            %}
           >
             Create Date: Oldest
           </option>
 
           <option
             value="name_asc"
-            {% if selected_sort_option == "name_asc" %}selected{% endif %}
+            {%
+            if
+            selected_sort_option=""
+            ="name_asc"
+            %}selected{%
+            endif
+            %}
           >
             Name: A to Z
           </option>
 
           <option
             value="name_desc"
-            {% if selected_sort_option == "name_desc" %}selected{% endif %}
+            {%
+            if
+            selected_sort_option=""
+            ="name_desc"
+            %}selected{%
+            endif
+            %}
           >
             Name: Z to A
           </option>
 
           <option
             value="format_asc"
-            {% if selected_sort_option == "format_asc" %}selected{% endif %}
+            {%
+            if
+            selected_sort_option=""
+            ="format_asc"
+            %}selected{%
+            endif
+            %}
           >
             Deck Type: A to Z
           </option>
 
           <option
             value="format_desc"
-            {% if selected_sort_option == "format_desc" %}selected{% endif %}
+            {%
+            if
+            selected_sort_option=""
+            ="format_desc"
+            %}selected{%
+            endif
+            %}
           >
             Deck Type: Z to A
           </option>
@@ -123,7 +165,126 @@ block content %}
           {% for page_size_option in [10, 20, 50, 100] %}
           <option
             value="{{ page_size_option }}"
-            {% if pagination.page_size == page_size_option %}selected{% endif %}
+            {%
+            if
+            pagination.page_size=""
+            ="page_size_option"
+            %}selected{%
+            endif
+            %}
+          >
+            {{ page_size_option }}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="deckbuilder-manage-filter-field">
+        <span>Sort</span>
+
+        <select
+          name="sort"
+          class="campaign-add-pack-custom-input deckbuilder-manage-select"
+        >
+          <option
+            value="created_desc"
+            {%
+            if
+            selected_sort_option=""
+            ="created_desc"
+            %}selected{%
+            endif
+            %}
+          >
+            Create Date: Newest
+          </option>
+
+          <option
+            value="created_asc"
+            {%
+            if
+            selected_sort_option=""
+            ="created_asc"
+            %}selected{%
+            endif
+            %}
+          >
+            Create Date: Oldest
+          </option>
+
+          <option
+            value="name_asc"
+            {%
+            if
+            selected_sort_option=""
+            ="name_asc"
+            %}selected{%
+            endif
+            %}
+          >
+            Name: A to Z
+          </option>
+
+          <option
+            value="name_desc"
+            {%
+            if
+            selected_sort_option=""
+            ="name_desc"
+            %}selected{%
+            endif
+            %}
+          >
+            Name: Z to A
+          </option>
+
+          <option
+            value="format_asc"
+            {%
+            if
+            selected_sort_option=""
+            ="format_asc"
+            %}selected{%
+            endif
+            %}
+          >
+            Deck Type: A to Z
+          </option>
+
+          <option
+            value="format_desc"
+            {%
+            if
+            selected_sort_option=""
+            ="format_desc"
+            %}selected{%
+            endif
+            %}
+          >
+            Deck Type: Z to A
+          </option>
+        </select>
+      </label>
+
+      <label
+        class="deckbuilder-manage-filter-field deckbuilder-manage-page-size-field"
+      >
+        <span>Per Page</span>
+
+        <select
+          name="page_size"
+          class="campaign-add-pack-custom-input deckbuilder-manage-select"
+        >
+          {% for page_size_option in [10, 20, 50, 100] %}
+          <option
+            value="{{ page_size_option }}"
+            {%
+            if
+            pagination.page_size=""
+            ="page_size_option"
+            %}selected{%
+            endif
+            %}
           >
             {{ page_size_option }}
           </option>

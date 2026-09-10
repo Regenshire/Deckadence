@@ -10716,18 +10716,57 @@ def alternate_image_api(function):
     return wrapped
 
 _isolation_maintenance_next = 0.0
+_isolation_maintenance_lock = threading.Lock()
+_isolation_maintenance_running = False
+
+
+def _run_isolation_maintenance():
+    global _isolation_maintenance_running
+
+    try:
+        result = IsolationStorage.collect(scan=False, wait=False)
+
+        if result.get("error"):
+            write_debug_log(
+                "ISOLATION CLEANUP | " + result["error"]
+            )
+    finally:
+        with _isolation_maintenance_lock:
+            _isolation_maintenance_running = False
 
 
 @app.before_request
 def maintain_isolated_images():
     global _isolation_maintenance_next
+    global _isolation_maintenance_running
+
     now = time.monotonic()
-    if now < _isolation_maintenance_next:
-        return
-    _isolation_maintenance_next = now + 60
-    result = IsolationStorage.collect(scan=False, wait=False)
-    if result.get("error"):
-        write_debug_log("ISOLATION CLEANUP | " + result["error"])
+
+    with _isolation_maintenance_lock:
+        if (
+            now < _isolation_maintenance_next
+            or _isolation_maintenance_running
+        ):
+            return
+
+        _isolation_maintenance_next = now + 60
+        _isolation_maintenance_running = True
+
+    maintenance_thread = threading.Thread(
+        target=_run_isolation_maintenance,
+        name="deckadence-isolation-maintenance",
+        daemon=True,
+    )
+
+    try:
+        maintenance_thread.start()
+    except Exception as exc:
+        with _isolation_maintenance_lock:
+            _isolation_maintenance_running = False
+
+        write_debug_log(
+            f"ISOLATION CLEANUP THREAD START FAILED | error={exc}"
+        )
 
 
 @app.cli.command("cleanup-isolated-images")
