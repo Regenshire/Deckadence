@@ -1161,10 +1161,18 @@
   }
 
   function formatCurrentCardPrice(rawValue) {
+    if (
+      rawValue === null ||
+      rawValue === undefined ||
+      (typeof rawValue === "string" && rawValue.trim() === "")
+    ) {
+      return "";
+    }
+
     const parsedValue = Number(rawValue);
 
     if (!Number.isFinite(parsedValue)) {
-      return "?";
+      return "";
     }
 
     return "$" + parsedValue.toFixed(2);
@@ -1375,6 +1383,8 @@
     row.dataset.edhrecSaltiness = edhrecSaltiness;
     row.dataset.sortPrice = sortPrice;
 
+    const formattedPrice = formatCurrentCardPrice(card.sort_price);
+
     row.innerHTML = [
       '<div class="custom-draft-current-card-image-wrap">',
       "<img",
@@ -1468,9 +1478,9 @@
       "<span>Salt " +
         escapeHtml(formatCurrentCardNumber(card.edhrec_saltiness, 2)) +
         "</span>",
-      "<span>Price " +
-        escapeHtml(formatCurrentCardPrice(card.sort_price)) +
-        "</span>",
+      formattedPrice
+        ? "<span>Price " + escapeHtml(formattedPrice) + "</span>"
+        : "",
       '<span class="custom-draft-color-identity" data-color-json="' +
         escapeHtml(colorIdentityJson) +
         '">Color Identity: ' +
@@ -1843,12 +1853,19 @@
             ? "?"
             : card.edhrec_rank),
         "Salt " + formatCurrentCardNumber(card.edhrec_saltiness, 2),
-        "Price " + formatCurrentCardPrice(card.sort_price),
       ].forEach(function (metaText) {
         const span = document.createElement("span");
         span.textContent = metaText;
         metaWrap.appendChild(span);
       });
+
+      const formattedPrice = formatCurrentCardPrice(card.sort_price);
+
+      if (formattedPrice) {
+        const priceSpan = document.createElement("span");
+        priceSpan.textContent = "Price " + formattedPrice;
+        metaWrap.appendChild(priceSpan);
+      }
 
       const colorSpan = document.createElement("span");
       colorSpan.className = "custom-draft-color-identity";
@@ -2013,6 +2030,7 @@
         }
       });
 
+      updateCurrentCardCountBadge();
       clearCurrentCardSelection();
       filterCurrentCards();
     } catch (error) {

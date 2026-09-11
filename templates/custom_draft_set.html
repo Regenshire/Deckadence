@@ -1,1078 +1,1410 @@
-{% extends "base.html" %}
-
-{% block title %}Deckadence - Custom Draft Set {{ custom_set.set_code }}{% endblock %}
-
-{% block page_styles %}
+{% extends "base.html" %} {% block title %}Deckadence - Custom Draft Set {{
+custom_set.set_code }}{% endblock %} {% block page_styles %}
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/image_compare.css') }}"
->
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/image_compare.css') }}"
+/>
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/upscale_batch.css') }}"
->
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/upscale_batch.css') }}"
+/>
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/card_views.css') }}"
->
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/card_views.css') }}"
+/>
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/custom_draft_set.css') }}"
->
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/custom_draft_set.css') }}"
+/>
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/card_back_selector.css') }}"
->
-{% endblock %}
-
-{% block content %}
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/card_back_selector.css') }}"
+/>
+{% endblock %} {% block content %}
 <div class="screen screen-wide">
+  <div class="page-panel">
+    <div class="chaos-pack-view-header-top">
+      <div class="chaos-pack-view-header-copy">
+        <h1 class="page-title">Manage Custom Draft Set</h1>
+        <p class="page-subtitle">
+          {{ custom_set.set_name }} • {{ custom_set.set_code }} • {{
+          custom_set.card_count }} card(s)
+        </p>
+      </div>
+
+      <div class="chaos-pack-view-header-actions">
+        <button
+          type="button"
+          id="customDraftOpenPrintExportButton"
+          class="action-button secondary-button custom-draft-export-set-button"
+        >
+          Print / Export
+        </button>
+
+        <a
+          class="action-button secondary-button chaos-pack-view-back-button"
+          href="{{ ui_navigation.back_fallback_url }}"
+          data-ui-navigation-action="{{ ui_navigation.back_action }}"
+          data-ui-navigation-fallback="{{ ui_navigation.back_fallback_url }}"
+        >
+          Back
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages() %} {% if messages %}
+  <div class="flash-message">{{ messages[0] }}</div>
+  {% endif %} {% endwith %}
+
+  <form
+    method="post"
+    action="{{ url_for('custom_draft_set_manage', set_code=custom_set.set_code) }}"
+    enctype="multipart/form-data"
+    class="config-form"
+    id="customDraftSetManageForm"
+    data-cards-search-url="{{ url_for('custom_draft_set_cards_search', set_code=custom_set.set_code) }}"
+    data-cards-add-all-results-url="{{ url_for('custom_draft_set_cards_add_all_results', set_code=custom_set.set_code) }}"
+    data-cards-import-list-url="{{ url_for('custom_draft_set_cards_import_list', set_code=custom_set.set_code) }}"
+    data-cards-import-add-most-recent-url="{{ url_for('custom_draft_set_cards_import_list_add_most_recent', set_code=custom_set.set_code) }}"
+    data-cards-bulk-category-url="{{ url_for('custom_draft_set_cards_bulk_update_category', set_code=custom_set.set_code) }}"
+    data-cards-bulk-delete-url="{{ url_for('custom_draft_set_cards_bulk_delete', set_code=custom_set.set_code) }}"
+    data-cards-add-url="{{ url_for('custom_draft_set_cards_add', set_code=custom_set.set_code) }}"
+    data-print-url="{{ url_for('custom_draft_set_print', set_code=custom_set.set_code) }}"
+    data-export-zip-url="{{ url_for('custom_draft_set_export_zip', set_code=custom_set.set_code) }}"
+  >
     <div class="page-panel">
-        <div class="chaos-pack-view-header-top">
-            <div class="chaos-pack-view-header-copy">
-                <h1 class="page-title">Manage Custom Draft Set</h1>
-                <p class="page-subtitle">
-                    {{ custom_set.set_name }} • {{ custom_set.set_code }} • {{ custom_set.card_count }} card(s)
-                </p>
-            </div>
+      <div class="custom-draft-set-details-header">
+        <h2>Set Details</h2>
 
-            <div class="chaos-pack-view-header-actions">
-                <button
-                    type="button"
-                    id="customDraftOpenPrintExportButton"
-                    class="action-button secondary-button custom-draft-export-set-button"
-                >
-                    Print / Export
-                </button>
+        <button
+          type="button"
+          id="customDraftSetCardBackButton"
+          class="custom-draft-header-icon-button"
+          data-card-back-selector-open
+          data-card-back-save-url="{{ url_for('custom_draft_set_card_back', set_code=custom_set.set_code) }}"
+          data-selected-card-back-key="{{ custom_set_card_back_key or '' }}"
+          title="Card Back"
+          aria-label="Choose Custom Set Card Back"
+        >
+          <i class="fa-solid fa-clone"></i>
+        </button>
+      </div>
 
-                <a
-                    class="action-button secondary-button chaos-pack-view-back-button"
-                    href="{{ ui_navigation.back_fallback_url }}"
-                    data-ui-navigation-action="{{ ui_navigation.back_action }}"
-                    data-ui-navigation-fallback="{{ ui_navigation.back_fallback_url }}"
-                >
-                    Back
-                </a>
-            </div>
-        </div>
+      <div class="custom-draft-set-form-grid">
+        <label class="campaign-add-pack-custom-field">
+          <span>Set Name</span>
+          <input
+            type="text"
+            name="set_name"
+            class="campaign-add-pack-custom-input"
+            value="{{ custom_set.set_name }}"
+            required
+            autocomplete="off"
+          />
+        </label>
+
+        <label class="campaign-add-pack-custom-field">
+          <span>Set Code</span>
+          <input
+            type="text"
+            class="campaign-add-pack-custom-input"
+            value="{{ custom_set.set_code }}"
+            readonly
+          />
+        </label>
+
+        <label class="campaign-add-pack-custom-field">
+          <span>Release Year</span>
+          <input
+            type="number"
+            name="release_year"
+            class="campaign-add-pack-custom-input"
+            min="1993"
+            max="2100"
+            value="{{ custom_set.release_date[:4] if custom_set.release_date else '2026' }}"
+            required
+          />
+        </label>
+
+        <label class="campaign-add-pack-custom-field">
+          <span>Replace Set Icon SVG</span>
+          <input
+            type="file"
+            name="set_icon_file"
+            class="campaign-player-file"
+            accept=".svg,image/svg+xml"
+          />
+        </label>
+      </div>
+
+      <label class="toggle-row custom-draft-set-active-row">
+        <span>Active</span>
+        <input
+          type="checkbox"
+          name="is_active"
+          {%
+          if
+          custom_set.is_active
+          %}checked{%
+          endif
+          %}
+        />
+      </label>
+      {% if image_isolation %}
+      <div class="toggle-row imomir-isolation-setting-row">
+        <span
+          id="customDraftImageIsolationTitle"
+          class="imomir-isolation-setting-title"
+          >Alternate Image Isolation</span
+        >
+
+        <button
+          type="button"
+          class="imomir-isolation-toggle"
+          role="switch"
+          aria-checked="{{ 'true' if image_isolation.enabled else 'false' }}"
+          aria-labelledby="customDraftImageIsolationTitle"
+          data-image-isolation-toggle
+          data-enable-url="{{ image_isolation.enable_url }}"
+          data-disable-url="{{ image_isolation.disable_url }}"
+          data-scope-token="{{ image_isolation.scope_token }}"
+          data-isolation-epoch="{{ image_isolation.epoch }}"
+        >
+          <span class="imomir-isolation-track" aria-hidden="true"></span>
+          <span data-isolation-label aria-hidden="true"
+            >Isolation {{ 'On' if image_isolation.enabled else 'Off' }}</span
+          >
+        </button>
+      </div>
+      {% endif %}
     </div>
 
-    {% with messages = get_flashed_messages() %}
-        {% if messages %}
-            <div class="flash-message">
-                {{ messages[0] }}
-            </div>
-        {% endif %}
-    {% endwith %}
+    <div class="page-panel">
+      <h2>Special Slot Categories</h2>
 
-    <form
-        method="post"
-        action="{{ url_for('custom_draft_set_manage', set_code=custom_set.set_code) }}"
-        enctype="multipart/form-data"
-        class="config-form"
-        id="customDraftSetManageForm"
-        data-cards-search-url="{{ url_for('custom_draft_set_cards_search', set_code=custom_set.set_code) }}"
-        data-cards-add-all-results-url="{{ url_for('custom_draft_set_cards_add_all_results', set_code=custom_set.set_code) }}"
-        data-cards-import-list-url="{{ url_for('custom_draft_set_cards_import_list', set_code=custom_set.set_code) }}"
-        data-cards-import-add-most-recent-url="{{ url_for('custom_draft_set_cards_import_list_add_most_recent', set_code=custom_set.set_code) }}"
-        data-cards-bulk-category-url="{{ url_for('custom_draft_set_cards_bulk_update_category', set_code=custom_set.set_code) }}"
-        data-cards-bulk-delete-url="{{ url_for('custom_draft_set_cards_bulk_delete', set_code=custom_set.set_code) }}"
-        data-cards-add-url="{{ url_for('custom_draft_set_cards_add', set_code=custom_set.set_code) }}"
-        data-print-url="{{ url_for('custom_draft_set_print', set_code=custom_set.set_code) }}"
-        data-export-zip-url="{{ url_for('custom_draft_set_export_zip', set_code=custom_set.set_code) }}"
+      <div class="custom-draft-set-form-grid">
+        <label class="campaign-add-pack-custom-field">
+          <span>Special Slot Category 1</span>
+          <input
+            type="text"
+            name="special_category_1_name"
+            class="campaign-add-pack-custom-input"
+            value="{{ custom_set.special_category_1_name or '' }}"
+            autocomplete="off"
+          />
+        </label>
+
+        <label class="campaign-add-pack-custom-field">
+          <span>Special Slot Category 2</span>
+          <input
+            type="text"
+            name="special_category_2_name"
+            class="campaign-add-pack-custom-input"
+            value="{{ custom_set.special_category_2_name or '' }}"
+            autocomplete="off"
+          />
+        </label>
+
+        <label class="campaign-add-pack-custom-field">
+          <span>Special Slot Category 3</span>
+          <input
+            type="text"
+            name="special_category_3_name"
+            class="campaign-add-pack-custom-input"
+            value="{{ custom_set.special_category_3_name or '' }}"
+            autocomplete="off"
+          />
+        </label>
+      </div>
+    </div>
+
+    <div class="page-panel">
+      <h2>Pack Types</h2>
+
+      <div
+        id="customDraftGenerateStatus"
+        class="custom-draft-generate-status hidden"
+      ></div>
+
+      <div
+        id="customDraftGeneratedPreview"
+        class="campaign-add-pack-preview hidden"
+      >
+        <div class="campaign-add-pack-preview-main">
+          <div
+            id="customDraftGeneratedPreviewTitle"
+            class="campaign-add-pack-preview-title"
+          ></div>
+          <div
+            id="customDraftGeneratedPreviewMeta"
+            class="campaign-add-pack-preview-meta"
+          ></div>
+        </div>
+
+        <div class="campaign-add-pack-preview-actions">
+          <a
+            id="customDraftGeneratedViewButton"
+            href="#"
+            target="_blank"
+            rel="noopener"
+            class="action-button secondary-button campaign-add-pack-preview-button"
+          >
+            View
+          </a>
+
+          <a
+            id="customDraftGeneratedPrintButton"
+            href="#"
+            target="_blank"
+            rel="noopener"
+            class="action-button secondary-button campaign-add-pack-preview-button"
+          >
+            Print
+          </a>
+
+          <button
+            type="button"
+            id="customDraftGeneratedSaveButton"
+            class="action-button campaign-add-pack-preview-button"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+
+      <div class="custom-draft-pack-layout-list">
+        {% for booster_name in ["mystery", "play", "collector"] %}
+        <div class="custom-draft-pack-layout-card">
+          <div class="custom-draft-pack-layout-header">
+            <div>
+              <div class="custom-draft-pack-layout-title">
+                {% if booster_name == "mystery" %} Mystery Booster {% elif
+                booster_name == "play" %} Play Booster {% elif booster_name ==
+                "collector" %} Collector Booster {% endif %}
+              </div>
+            </div>
+
+            <div class="custom-draft-pack-layout-actions">
+              <button
+                type="button"
+                class="custom-draft-pack-icon-button custom-draft-generate-pack-button"
+                data-generate-url="{{ url_for('custom_draft_set_generate_pack', set_code=custom_set.set_code, booster_name=booster_name) }}"
+                title="Generate Pack"
+                aria-label="Generate Pack"
+              >
+                <img
+                  src="{{ url_for('static', filename='img/packimage_silver.png') }}"
+                  alt=""
+                  class="custom-draft-pack-icon"
+                />
+              </button>
+
+              <a
+                href="{{ url_for('custom_draft_set_layout_edit', set_code=custom_set.set_code, booster_name=booster_name) }}"
+                class="action-button secondary-button campaign-row-action-button"
+              >
+                Edit Layout
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% include "_card_search_modal.html" %}
+
+    <div
+      id="customDraftSetCardListPanel"
+      class="page-panel custom-draft-set-card-list-panel"
     >
-        <div class="page-panel">
-            <div class="custom-draft-set-details-header">
-                <h2>Set Details</h2>
-
-                <button
-                    type="button"
-                    id="customDraftSetCardBackButton"
-                    class="custom-draft-header-icon-button"
-                    data-card-back-selector-open
-                    data-card-back-save-url="{{ url_for('custom_draft_set_card_back', set_code=custom_set.set_code) }}"
-                    data-selected-card-back-key="{{ custom_set_card_back_key or '' }}"
-                    title="Card Back"
-                    aria-label="Choose Custom Set Card Back"
-                >
-                    <i class="fa-solid fa-clone"></i>
-                </button>
-            </div>
-
-            <div class="custom-draft-set-form-grid">
-                <label class="campaign-add-pack-custom-field">
-                    <span>Set Name</span>
-                    <input
-                        type="text"
-                        name="set_name"
-                        class="campaign-add-pack-custom-input"
-                        value="{{ custom_set.set_name }}"
-                        required
-                        autocomplete="off"
-                    >
-                </label>
-
-                <label class="campaign-add-pack-custom-field">
-                    <span>Set Code</span>
-                    <input
-                        type="text"
-                        class="campaign-add-pack-custom-input"
-                        value="{{ custom_set.set_code }}"
-                        readonly
-                    >
-                </label>
-
-                <label class="campaign-add-pack-custom-field">
-                    <span>Release Year</span>
-                    <input
-                        type="number"
-                        name="release_year"
-                        class="campaign-add-pack-custom-input"
-                        min="1993"
-                        max="2100"
-                        value="{{ custom_set.release_date[:4] if custom_set.release_date else '2026' }}"
-                        required
-                    >
-                </label>
-
-                <label class="campaign-add-pack-custom-field">
-                    <span>Replace Set Icon SVG</span>
-                    <input
-                        type="file"
-                        name="set_icon_file"
-                        class="campaign-player-file"
-                        accept=".svg,image/svg+xml"
-                    >
-                </label>
-            </div>
-
-            <label class="toggle-row custom-draft-set-active-row">
-                <span>Active</span>
-                <input
-                    type="checkbox"
-                    name="is_active"
-                    {% if custom_set.is_active %}checked{% endif %}
-                >
-            </label>
-            {% if image_isolation %}
-            <div class="toggle-row imomir-isolation-setting-row">
-                <span
-                    id="customDraftImageIsolationTitle"
-                    class="imomir-isolation-setting-title"
-                >Alternate Image Isolation</span>
-
-                <button
-                    type="button"
-                    class="imomir-isolation-toggle"
-                    role="switch"
-                    aria-checked="{{ 'true' if image_isolation.enabled else 'false' }}"
-                    aria-labelledby="customDraftImageIsolationTitle"
-                    data-image-isolation-toggle
-                    data-enable-url="{{ image_isolation.enable_url }}"
-                    data-disable-url="{{ image_isolation.disable_url }}"
-                    data-scope-token="{{ image_isolation.scope_token }}"
-                    data-isolation-epoch="{{ image_isolation.epoch }}"
-                >
-                    <span class="imomir-isolation-track" aria-hidden="true"></span>
-                    <span data-isolation-label aria-hidden="true">Isolation {{ 'On' if image_isolation.enabled else 'Off' }}</span>
-                </button>
-            </div>
-            {% endif %}
+      <div class="custom-draft-card-list-header">
+        <div>
+          <h2>Set Card List</h2>
         </div>
 
-        <div class="page-panel">
-            <h2>Special Slot Categories</h2>
-
-            <div class="custom-draft-set-form-grid">
-                <label class="campaign-add-pack-custom-field">
-                    <span>Special Slot Category 1</span>
-                    <input
-                        type="text"
-                        name="special_category_1_name"
-                        class="campaign-add-pack-custom-input"
-                        value="{{ custom_set.special_category_1_name or '' }}"
-                        autocomplete="off"
-                    >
-                </label>
-
-                <label class="campaign-add-pack-custom-field">
-                    <span>Special Slot Category 2</span>
-                    <input
-                        type="text"
-                        name="special_category_2_name"
-                        class="campaign-add-pack-custom-input"
-                        value="{{ custom_set.special_category_2_name or '' }}"
-                        autocomplete="off"
-                    >
-                </label>
-
-                <label class="campaign-add-pack-custom-field">
-                    <span>Special Slot Category 3</span>
-                    <input
-                        type="text"
-                        name="special_category_3_name"
-                        class="campaign-add-pack-custom-input"
-                        value="{{ custom_set.special_category_3_name or '' }}"
-                        autocomplete="off"
-                    >
-                </label>
-            </div>
-        </div>
-
-        <div class="page-panel">
-            <h2>Pack Types</h2>
-
-            <div id="customDraftGenerateStatus" class="custom-draft-generate-status hidden"></div>
-
-            <div id="customDraftGeneratedPreview" class="campaign-add-pack-preview hidden">
-                <div class="campaign-add-pack-preview-main">
-                    <div id="customDraftGeneratedPreviewTitle" class="campaign-add-pack-preview-title"></div>
-                    <div id="customDraftGeneratedPreviewMeta" class="campaign-add-pack-preview-meta"></div>
-                </div>
-
-                <div class="campaign-add-pack-preview-actions">
-                    <a
-                        id="customDraftGeneratedViewButton"
-                        href="#"
-                        target="_blank"
-                        rel="noopener"
-                        class="action-button secondary-button campaign-add-pack-preview-button"
-                    >
-                        View
-                    </a>
-
-                    <a
-                        id="customDraftGeneratedPrintButton"
-                        href="#"
-                        target="_blank"
-                        rel="noopener"
-                        class="action-button secondary-button campaign-add-pack-preview-button"
-                    >
-                        Print
-                    </a>
-
-                    <button
-                        type="button"
-                        id="customDraftGeneratedSaveButton"
-                        class="action-button campaign-add-pack-preview-button"
-                    >
-                        Save
-                    </button>
-                </div>
-            </div>
-
-            <div class="custom-draft-pack-layout-list">
-                {% for booster_name in ["mystery", "play", "collector"] %}
-                    <div class="custom-draft-pack-layout-card">
-                        <div class="custom-draft-pack-layout-header">
-                            <div>
-                                <div class="custom-draft-pack-layout-title">
-                                    {% if booster_name == "mystery" %}
-                                        Mystery Booster
-                                    {% elif booster_name == "play" %}
-                                        Play Booster
-                                    {% elif booster_name == "collector" %}
-                                        Collector Booster
-                                    {% endif %}
-                                </div>
-                            </div>
-
-                            <div class="custom-draft-pack-layout-actions">
-                                <button
-                                    type="button"
-                                    class="custom-draft-pack-icon-button custom-draft-generate-pack-button"
-                                    data-generate-url="{{ url_for('custom_draft_set_generate_pack', set_code=custom_set.set_code, booster_name=booster_name) }}"
-                                    title="Generate Pack"
-                                    aria-label="Generate Pack"
-                                >
-                                    <img
-                                        src="{{ url_for('static', filename='img/packimage_silver.png') }}"
-                                        alt=""
-                                        class="custom-draft-pack-icon"
-                                    >
-                                </button>
-
-                                <a
-                                    href="{{ url_for('custom_draft_set_layout_edit', set_code=custom_set.set_code, booster_name=booster_name) }}"
-                                    class="action-button secondary-button campaign-row-action-button"
-                                >
-                                    Edit Layout
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                {% endfor %}
-            </div>
-        </div>
-
-        <div class="page-panel custom-draft-add-card-launch-panel">
-            <div class="custom-draft-card-list-header">
-                <div>
-                    <h2>Add Cards</h2>
-                    <p class="page-subtitle">
-                        Search and browse all Chaos Draft cards, then add them to this custom set pool.
-                    </p>
-                </div>
-
-                <button
-                    type="button"
-                    id="customDraftOpenAddCardsButton"
-                    class="action-button custom-draft-open-add-cards-button"
-                >
-                    Add Cards
-                </button>
-            </div>
-        </div>
-
-        {% include "_card_search_modal.html" %}
-
-        <div id="customDraftSetCardListPanel" class="page-panel custom-draft-set-card-list-panel">
-            <div class="custom-draft-card-list-header">
-                <div>
-                    <h2>Set Card List</h2>
-
-                </div>
-
-                <div class="custom-draft-card-list-header-actions">
-                    <div class="custom-draft-card-count">
-                        {{ custom_set_cards|length }} card(s)
-                    </div>
-
-                    <button
-                        type="button"
-                        id="customDraftSelectedPrintExportButton"
-                        class="custom-draft-header-icon-button"
-                        title="Print / Export Selected Cards"
-                        aria-label="Print / Export Selected Cards"
-                        disabled
-                    >
-                        <i class="fa-solid fa-file-export"></i>
-                    </button>
-
-                    <div class="custom-draft-copy-split">
-                        <button
-                            type="button"
-                            id="customDraftCopyVisibleCardsButton"
-                            class="action-button secondary-button custom-draft-copy-main-button"
-                            data-copy-format="simple"
-                        >
-                            Copy
-                        </button>
-
-                        <button
-                            type="button"
-                            id="customDraftCopyVisibleCardsMenuButton"
-                            class="action-button secondary-button custom-draft-copy-menu-button"
-                            aria-label="Choose copy format"
-                            title="Choose copy format"
-                        >
-                            ▾
-                        </button>
-
-                        <div id="customDraftCopyVisibleCardsMenu" class="custom-draft-copy-menu hidden">
-                            <button
-                                type="button"
-                                class="custom-draft-copy-menu-item custom-draft-copy-menu-item-active"
-                                data-copy-format="simple"
-                            >
-                                Simple
-                            </button>
-
-                            <button
-                                type="button"
-                                class="custom-draft-copy-menu-item"
-                                data-copy-format="detailed"
-                            >
-                                Detailed
-                            </button>
-                        </div>
-                    </div>
-
-                    <button
-                        type="button"
-                        id="customDraftStatsToggleButton"
-                        class="custom-draft-header-icon-button"
-                        title="Show Stats"
-                        aria-label="Show Stats"
-                        aria-pressed="false"
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" class="custom-draft-header-icon">
-                            <rect x="4" y="11" width="3.5" height="8" rx="1" fill="currentColor"></rect>
-                            <rect x="10.25" y="6" width="3.5" height="13" rx="1" fill="currentColor"></rect>
-                            <rect x="16.5" y="3" width="3.5" height="16" rx="1" fill="currentColor"></rect>
-                        </svg>
-                    </button>
-
-                    <div class="custom-draft-view-toggle" aria-label="Set Card List view mode">
-                        <button
-                            type="button"
-                            id="customDraftListViewButton"
-                            class="custom-draft-view-toggle-button custom-draft-view-toggle-button-active"
-                            data-view-mode="list"
-                            title="List View"
-                            aria-label="List View"
-                            aria-pressed="true"
-                        >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" class="custom-draft-header-icon">
-                                <rect x="4" y="6" width="3" height="3" rx="0.8" fill="currentColor"></rect>
-                                <rect x="9" y="6.5" width="11" height="2" rx="1" fill="currentColor"></rect>
-                                <rect x="4" y="11" width="3" height="3" rx="0.8" fill="currentColor"></rect>
-                                <rect x="9" y="11.5" width="11" height="2" rx="1" fill="currentColor"></rect>
-                                <rect x="4" y="16" width="3" height="3" rx="0.8" fill="currentColor"></rect>
-                                <rect x="9" y="16.5" width="11" height="2" rx="1" fill="currentColor"></rect>
-                            </svg>
-                        </button>
-
-                        <button
-                            type="button"
-                            id="customDraftGridViewButton"
-                            class="custom-draft-view-toggle-button"
-                            data-view-mode="grid"
-                            title="Grid View"
-                            aria-label="Grid View"
-                            aria-pressed="false"
-                        >
-                            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" class="custom-draft-header-icon">
-                                <rect x="4" y="4" width="6.5" height="6.5" rx="1.4" fill="currentColor"></rect>
-                                <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.4" fill="currentColor"></rect>
-                                <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.4" fill="currentColor"></rect>
-                                <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.4" fill="currentColor"></rect>
-                            </svg>
-                        </button>
-                    </div>
-
-                    <button
-                        type="button"
-                        id="customDraftMaximizeCardListButton"
-                        class="custom-draft-header-icon-button"
-                        title="Maximize"
-                        aria-label="Maximize"
-                        aria-pressed="false"
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" class="custom-draft-header-icon custom-draft-maximize-icon">
-                            <path d="M5 9V5h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                            <path d="M19 9V5h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                            <path d="M5 15v4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                            <path d="M19 15v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path>
-                        </svg>
-
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" class="custom-draft-header-icon custom-draft-restore-icon">
-                            <path d="M9 4h9v9" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
-                            <path d="M6 8h9v12H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            <div id="customDraftCurrentCardTools" class="custom-draft-current-card-tools">
-                <div class="custom-draft-current-filter-header">
-                    <div class="custom-draft-current-filter-title">Filters</div>
-
-                    <button
-                        type="button"
-                        id="customDraftCurrentFilterToggleButton"
-                        class="custom-draft-current-filter-toggle"
-                        title="Collapse Filters"
-                        aria-label="Collapse Filters"
-                        aria-expanded="true"
-                    >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" class="custom-draft-current-filter-toggle-icon">
-                            <path d="M7 14l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path>
-                        </svg>
-                    </button>
-                </div>
-
-                <div id="customDraftCurrentFilterBody" class="custom-draft-current-filter-body">
-                    <input
-                        type="text"
-                        id="customDraftCurrentCardFilterInput"
-                        class="campaign-add-pack-custom-input"
-                        placeholder="Filter current set cards..."
-                        autocomplete="off"
-                    >
-
-                    <div class="custom-draft-filter-grid">
-                    <div id="customDraftRarityFilter" class="custom-draft-filter-field custom-draft-multi-select" data-placeholder="Any">
-                        <span>Rarity</span>
-
-                        <button
-                            type="button"
-                            class="custom-draft-multi-select-button"
-                            aria-haspopup="true"
-                            aria-expanded="false"
-                        >
-                            <span class="custom-draft-multi-select-label">Any</span>
-                            <span class="custom-draft-multi-select-chevron">▾</span>
-                        </button>
-
-                        <div class="custom-draft-multi-select-menu hidden">
-                            <label>
-                                <input type="checkbox" value="common">
-                                <span>Common</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="uncommon">
-                                <span>Uncommon</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="rare">
-                                <span>Rare</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="mythic">
-                                <span>Mythic</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div id="customDraftColorFilter" class="custom-draft-filter-field custom-draft-multi-select" data-placeholder="Any" data-all-label="All colors">
-                        <span>Color Identity</span>
-
-                        <button
-                            type="button"
-                            class="custom-draft-multi-select-button"
-                            aria-haspopup="true"
-                            aria-expanded="false"
-                        >
-                            <span class="custom-draft-multi-select-label">Any</span>
-                            <span class="custom-draft-multi-select-chevron">▾</span>
-                        </button>
-
-                        <div class="custom-draft-multi-select-menu hidden">
-                            <label>
-                                <input type="checkbox" value="w">
-                                <span>White</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="u">
-                                <span>Blue</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="b">
-                                <span>Black</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="r">
-                                <span>Red</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="g">
-                                <span>Green</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="colorless">
-                                <span>Colorless</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="land">
-                                <span>Land</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="multi_selected">
-                                <span>Multi (Selected Colors Only)</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="multi_has_selected">
-                                <span>Multi (Has Selected)</span>
-                            </label>
-
-                            <label>
-                                <input type="checkbox" value="multi_any">
-                                <span>Multi (Any)</span>
-                            </label>
-                        </div>
-                    </div>
-
-                    <label class="custom-draft-filter-field">
-                        <span>Mana Value Rule</span>
-                        <select id="customDraftManaOperatorFilter" class="custom-draft-filter-input">
-                            <option value="">Any</option>
-                            <option value="=">=</option>
-                            <option value="<=">&lt;=</option>
-                            <option value=">=">&gt;=</option>
-                            <option value="<">&lt;</option>
-                            <option value=">">&gt;</option>
-                        </select>
-                    </label>
-
-                    <label class="custom-draft-filter-field">
-                        <span>Mana Value</span>
-                        <input
-                            type="number"
-                            id="customDraftManaValueFilter"
-                            class="custom-draft-filter-input"
-                            min="0"
-                            step="1"
-                            placeholder="Any"
-                        >
-                    </label>
-
-                    <label class="custom-draft-filter-field">
-                        <span>Spell Type</span>
-                        <select id="customDraftTypeFilter" class="custom-draft-filter-input">
-                            <option value="">Any</option>
-                            <option value="creature">Creature</option>
-                            <option value="artifact">Artifact</option>
-                            <option value="enchantment">Enchantment</option>
-                            <option value="instant">Instant</option>
-                            <option value="sorcery">Sorcery</option>
-                            <option value="planeswalker">Planeswalker</option>
-                            <option value="battle">Battle</option>
-                            <option value="land">Land</option>
-                        </select>
-                    </label>
-
-                    <label class="custom-draft-filter-field">
-                        <span>Duplicates</span>
-                        <select id="customDraftDuplicateFilter" class="custom-draft-filter-input">
-                            <option value="">Any</option>
-                            <option value="duplicates_only">Duplicates Only</option>
-                        </select>
-                    </label>
-
-                    <label class="custom-draft-filter-field">
-                        <span>Alternate Image</span>
-                        <select id="customDraftAlternateImageFilter" class="custom-draft-filter-input">
-                            <option value="">Any</option>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
-                            <option value="yes_remove_bleed">Yes - Remove Bleed</option>
-                            <option value="yes_no_bleed">Yes - No Bleed</option>
-                        </select>
-                    </label>
-
-                    <label class="custom-draft-filter-field">
-                        <span>Special Slot</span>
-                        <select id="customDraftSpecialSlotFilter" class="custom-draft-filter-input">
-                            <option value="">Any</option>
-                            {% for option in special_category_options %}
-                            <option value="{{ option.value }}">{{ option.label }}</option>
-                            {% endfor %}
-                        </select>
-                    </label>
-
-                    <label class="custom-draft-filter-field">
-                        <span>Set Code</span>
-                        <input
-                            type="text"
-                            id="customDraftCurrentSetCodeFilter"
-                            class="custom-draft-filter-input"
-                            maxlength="12"
-                            placeholder="Any"
-                            autocomplete="off"
-                        >
-                    </label>
-
-                    <label class="custom-draft-filter-field">
-                        <span>Digital Cards</span>
-                        <select id="customDraftDigitalFilter" class="custom-draft-filter-input">
-                            <option value="">Include Digital</option>
-                            <option value="exclude">Exclude MTGO/Arena</option>
-                            <option value="only">Digital Only</option>
-                        </select>
-                    </label>
-
-                    <label class="custom-draft-filter-field">
-                        <span>Per Page</span>
-                        <select id="customDraftCurrentPageSizeSelect" class="custom-draft-filter-input">
-                            <option value="50">50</option>
-                            <option value="100" selected>100</option>
-                            <option value="250">250</option>
-                            <option value="500">500</option>
-                            <option value="1000">1000</option>
-                        </select>
-                    </label>
-
-                    <label class="custom-draft-filter-field">
-                        <span>Sort By</span>
-                        <select id="customDraftCurrentSortSelect" class="custom-draft-filter-input">
-                            <option value="name_asc">Name A-Z</option>
-                            <option value="name_desc">Name Z-A</option>
-                            <option value="set_asc">Set Code A-Z</option>
-                            <option value="set_desc">Set Code Z-A</option>
-                            <option value="rarity_low_high">Rarity Common → Mythic</option>
-                            <option value="rarity_high_low">Rarity Mythic → Common</option>
-                            <option value="mv_low_high">Mana Value Low → High</option>
-                            <option value="mv_high_low">Mana Value High → Low</option>
-                            <option value="edhrec_rank_best">EDHREC Rank Best</option>
-                            <option value="edhrec_rank_worst">EDHREC Rank Worst</option>
-                            <option value="edhrec_salt_high">EDHREC Salt High</option>
-                            <option value="edhrec_salt_low">EDHREC Salt Low</option>
-                            <option value="price_high">Price High</option>
-                            <option value="price_low">Price Low</option>
-                        </select>
-                    </label>
-
-                    <button
-                        type="button"
-                        id="customDraftClearFiltersButton"
-                        class="action-button secondary-button custom-draft-clear-filters-button"
-                    >
-                        Clear Filters
-                    </button>
-                    </div>
-                </div>
-            </div>
-
-            {% if custom_set_cards %}
-                <div class="custom-draft-current-selection-toolbar">
-                    <div class="custom-draft-current-selection-links">
-                        <button
-                            type="button"
-                            id="customDraftSelectAllCurrentCardsButton"
-                            class="campaign-small-link-button"
-                        >
-                            Select All
-                        </button>
-
-                        <button
-                            type="button"
-                            id="customDraftClearCurrentCardSelectionButton"
-                            class="campaign-small-link-button"
-                        >
-                            Clear Selection
-                        </button>
-
-                        <span id="customDraftSelectedCardCountLabel" class="custom-draft-selected-count">
-                            0 selected
-                        </span>
-                    </div>
-
-                    <div class="custom-draft-current-bulk-actions">
-                        <select
-                            id="customDraftBulkSpecialSlotSelect"
-                            class="custom-draft-filter-input custom-draft-bulk-special-slot-select"
-                        >
-                            {% for option in special_category_options %}
-                            <option value="{{ option.value }}">{{ option.label }}</option>
-                            {% endfor %}
-                        </select>
-
-                        <button
-                            type="button"
-                            id="customDraftBulkApplySpecialSlotButton"
-                            class="action-button secondary-button custom-draft-bulk-button"
-                            disabled
-                        >
-                            Assign Special Slot
-                        </button>
-
-                        {% if global_card_upscaling_control_enabled %}
-                        <button
-                            type="button"
-                            id="customDraftBatchUpscaleSelectedButton"
-                            class="action-button secondary-button imomir-batch-upscale-icon-button"
-                            title="Batch Upscale Selected Cards"
-                            aria-label="Batch Upscale selected cards"
-                            disabled
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                class="imomir-batch-upscale-icon"
-                                aria-hidden="true"
-                                focusable="false"
-                            >
-                                <rect x="3" y="7" width="11" height="12" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
-                                <rect x="6" y="4" width="11" height="12" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.6"></rect>
-                                <path d="M19 12V5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"></path>
-                                <path d="M16.4 7.6L19 5l2.6 2.6" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path>
-                            </svg>
-                        </button>
-                        {% endif %}
-
-                        <button
-                            type="button"
-                            id="customDraftBulkRemoveCardsButton"
-                            class="action-button secondary-button campaign-danger-button custom-draft-bulk-button"
-                            disabled
-                        >
-                            Remove Selected
-                        </button>
-                    </div>
-                </div>
-
-                <div class="custom-draft-search-footer-bar custom-draft-current-pagination-footer">
-                    <div id="customDraftCurrentCardPagination" class="custom-draft-search-pagination">
-                        <button type="button" id="customDraftCurrentPrevButton" class="custom-draft-page-arrow" disabled aria-label="Previous Set Card List page">‹</button>
-                        <span class="custom-draft-page-label-prefix">Page</span>
-                        <input
-                            type="number"
-                            id="customDraftCurrentPageInput"
-                            class="custom-draft-page-input"
-                            value="1"
-                            min="1"
-                            step="1"
-                            aria-label="Current Set Card List page"
-                        >
-                        <span id="customDraftCurrentPageTotal" class="custom-draft-page-label-suffix">of —</span>
-                        <button type="button" id="customDraftCurrentNextButton" class="custom-draft-page-arrow" disabled aria-label="Next Set Card List page">›</button>
-                    </div>
-
-                    <div id="customDraftCurrentPaginationStatus" class="custom-draft-card-search-status"></div>
-                </div>
-
-                <div id="customDraftCurrentCardList" class="custom-draft-current-card-list">
-                    {% for card in custom_set_cards %}
-                    <div
-                        class="custom-draft-current-card-row hidden"
-                        data-custom-set-card-id="{{ card.custom_set_card_id }}"
-                        data-card-uuid="{{ card.card_uuid }}"
-                        data-card-search="{{ (card.card_name ~ ' ' ~ card.card_set_code ~ ' ' ~ (card.collector_number or '') ~ ' ' ~ (card.rarity or '') ~ ' ' ~ (card.type_line or '') ~ ' ' ~ (card.color_identity_json or '') ~ ' ' ~ (card.mana_value|string if card.mana_value is not none else ''))|lower }}"
-                        data-rarity="{{ (card.rarity or '')|lower }}"
-                        data-color-identity="{{ (card.color_identity_json or '[]')|lower }}"
-                        data-mana-value="{{ card.mana_value if card.mana_value is not none else '' }}"
-                        data-type-line="{{ (card.type_line or '')|lower }}"
-                        data-card-name="{{ (card.card_name or '')|lower }}"
-                        data-display-card-name="{{ card.card_name or '' }}"
-                        data-set-code="{{ (card.card_set_code or '')|upper }}"
-                        data-collector-number="{{ card.collector_number or '' }}"
-                        data-special-category="{{ card.special_category_index }}"
-                        data-has-alternate-source="{{ 1 if card.has_alternate_source else 0 }}"
-                        data-has-upscaled-image="{{ 1 if card.has_upscaled_image else 0 }}"
-                        data-alternate-remove-bleed="{{ 1 if card.alternate_remove_bleed else 0 }}"
-                        data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
-                        data-edhrec-rank="{{ card.edhrec_rank if card.edhrec_rank is not none else '' }}"
-                        data-edhrec-saltiness="{{ card.edhrec_saltiness if card.edhrec_saltiness is not none else '' }}"
-                        data-sort-price="{{ card.sort_price if card.sort_price is not none else '' }}"
-                    >
-                        <div class="custom-draft-current-card-image-wrap">
-                            <img
-                                src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
-                                alt="{{ card.card_name }}"
-                                class="custom-draft-current-card-image custom-draft-card-zoomable"
-                                role="button"
-                                tabindex="0"
-                                data-card-image-src="{{ url_for('chaos_card_image_preview', card_uuid=card.card_uuid) }}"
-                                data-card-image-state="idle"
-                                data-zoom-src="{{ url_for('chaos_card_image_preview', card_uuid=card.card_uuid) }}"
-                                data-zoom-alt="{{ card.card_name }}"
-                                loading="lazy"
-                                decoding="async"
-                                fetchpriority="low"
-                                aria-label="Zoom {{ card.card_name }}"
-                            >
-                        </div>
-
-                        <div class="custom-draft-current-card-main">
-                            <div class="custom-draft-current-card-title-row">
-                                <label class="custom-draft-current-card-select-wrap">
-                                    <input
-                                        type="checkbox"
-                                        class="custom-draft-current-card-checkbox"
-                                        value="{{ card.custom_set_card_id }}"
-                                        aria-label="Select {{ card.card_name }}"
-                                    >
-                                </label>
-
-                                <div class="custom-draft-current-card-title">
-                                    {{ card.card_name }}
-                                </div>
-
-                                <button
-                                    type="button"
-                                    class="alternate-image-gear custom-draft-change-printing-button"
-                                    data-card-name="{{ card.card_name }}"
-                                    data-current-card-uuid="{{ card.card_uuid }}"
-                                    data-update-url="{{ url_for('custom_draft_set_cards_update_printing', set_code=custom_set.set_code, custom_set_card_id=card.custom_set_card_id) }}"
-                                    title="Change printing"
-                                    aria-label="Change printing for {{ card.card_name }}"
-                                >
-                                    <svg
-                                        class="custom-draft-change-printing-icon"
-                                        viewBox="0 0 24 24"
-                                        aria-hidden="true"
-                                        focusable="false"
-                                    >
-                                        <rect x="7" y="5" width="10" height="14" rx="1.8" ry="1.8" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
-                                        <rect x="5" y="3" width="10" height="14" rx="1.8" ry="1.8" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
-                                        <line x1="8" y1="8" x2="12" y2="8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
-                                        <line x1="8" y1="11" x2="12" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
-                                        <line x1="8" y1="14" x2="11" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
-                                    </svg>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    class="alternate-image-gear alternate-image-button {% if card.has_alternate_source %}custom-draft-alternate-image-active{% endif %}"
-                                    data-card-uuid="{{ card.card_uuid }}"
-                                    data-card-name="{{ card.card_name }}"
-                                    data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
-                                    data-foil-update-url="{{ url_for('custom_draft_set_cards_update_foil', set_code=custom_set.set_code, custom_set_card_id=card.custom_set_card_id) }}"
-                                    title="Alternate image settings"
-                                    aria-label="Alternate image settings for {{ card.card_name }}"
-                                >
-                                    ⚙
-                                </button>
-
-                                {% if global_card_upscaling_control_enabled %}
-                                <button
-                                    type="button"
-                                    class="alternate-image-gear imomir-upscale-card-button {% if card.has_upscaled_image and not card.has_alternate_source %}imomir-upscale-card-active{% endif %}"
-                                    data-card-uuid="{{ card.card_uuid }}"
-                                    data-upscale-control-url="{{ url_for('chaos_card_upscale_control', card_uuid=card.card_uuid, face='front') }}"
-                                    title="Upscale Image"
-                                    aria-label="Upscale {{ card.card_name }}"
-                                >
-                                    <svg
-                                        viewBox="0 0 24 24"
-                                        class="imomir-upscale-icon"
-                                        aria-hidden="true"
-                                        focusable="false"
-                                    >
-                                        <rect
-                                            x="3.5"
-                                            y="6"
-                                            width="13"
-                                            height="13"
-                                            rx="2"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="1.8"
-                                        ></rect>
-
-                                        <circle
-                                            cx="8"
-                                            cy="10"
-                                            r="1.4"
-                                            fill="currentColor"
-                                        ></circle>
-
-                                        <path
-                                            d="M5.5 16l3.1-3.2 2.5 2.4 2.1-2.2 3.2 3.1"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="1.6"
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                        ></path>
-
-                                        <path
-                                            d="M18.5 11V4.5"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="1.9"
-                                            stroke-linecap="round"
-                                        ></path>
-
-                                        <path
-                                            d="M15.8 7.2l2.7-2.7 2.7 2.7"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="1.9"
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                        ></path>
-                                    </svg>
-                                </button>
-                                {% endif %}
-                            </div>
-
-                            <div class="custom-draft-current-card-meta">
-                                <span>{{ card.card_set_code }}</span>
-                                <span>#{{ card.collector_number or "?" }}</span>
-                                <span>{{ card.rarity or "unknown rarity" }}</span>
-                                <span>MV {{ "%.1f"|format(card.mana_value) if card.mana_value is not none else "?" }}</span>
-                                <span>EDHREC {{ card.edhrec_rank if card.edhrec_rank is not none else "?" }}</span>
-                                <span>Salt {{ "%.2f"|format(card.edhrec_saltiness) if card.edhrec_saltiness is not none else "?" }}</span>
-                                <span>Price {{ "$%.2f"|format(card.sort_price) if card.sort_price is not none else "?" }}</span>
-                                <span
-                                    class="custom-draft-color-identity"
-                                    data-color-json="{{ card.color_identity_json or '[]' }}"
-                                >
-                                    Color Identity: Loading
-                                </span>
-                                <span>{{ card.type_line or "unknown type" }}</span>
-
-                                {% if card.sheet_is_foil %}
-                                <span class="custom-draft-foil-meta-line">Foil</span>
-                                {% endif %}
-                                
-                                {% if card.has_alternate_source %}
-                                <span class="custom-draft-alternate-image-meta-line">
-                                    Alternate Image - {% if card.alternate_remove_bleed %}Remove Bleed{% else %}No Bleed{% endif %}
-                                </span>
-                                {% endif %}
-                            </div>
-                        </div>
-
-                        <label class="custom-draft-current-card-category">
-                            <span>Special Slot</span>
-                            <select
-                                class="custom-draft-card-category-select"
-                                data-update-url="{{ url_for('custom_draft_set_cards_update_category', set_code=custom_set.set_code, custom_set_card_id=card.custom_set_card_id) }}"
-                            >
-                                {% for option in special_category_options %}
-                                <option
-                                    value="{{ option.value }}"
-                                    {% if card.special_category_index == option.value %}selected{% endif %}
-                                >
-                                    {{ option.label }}
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </label>
-
-                        <div class="custom-draft-current-card-actions">
-                            <button
-                                type="button"
-                                class="action-button secondary-button campaign-danger-button custom-draft-card-remove-button"
-                                data-delete-url="{{ url_for('custom_draft_set_cards_delete', set_code=custom_set.set_code, custom_set_card_id=card.custom_set_card_id) }}"
-                                data-card-name="{{ card.card_name }}"
-                            >
-                                Remove
-                            </button>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-
-                <div id="customDraftCurrentCardGrid" class="chaos-pack-view-grid custom-draft-current-card-grid hidden"></div>
-            {% else %}
-                <div id="customDraftCurrentCardList" class="card-placeholder custom-draft-set-empty">
-                    No cards have been added to this custom draft set yet.
-                </div>
-            {% endif %}
-        </div>
-
-        <div class="custom-draft-set-save-row">
-            <button type="submit" class="action-button">
-                Save Custom Set
-            </button>
-        </div>
-    </form>
-    {% set print_export_subject_label = "custom draft set" %}
-    {% include "_print_export_modal.html" %}
-
-    {% include "_card_back_selector_modal.html" %}
-
-    {% set stats_modal_title = "Set Card Stats" %}
-    {% set stats_modal_subtitle = "Stats for the currently visible filtered cards." %}
-    {% include "_stats_modal.html" %}
-
-    {% include "_alternate_image_modal.html" %}
-
-    <div id="customDraftCardZoomOverlay" class="card-zoom-overlay hidden" aria-hidden="true">
-        <div id="customDraftCardZoomBackdrop" class="card-zoom-backdrop"></div>
-        <div class="card-zoom-content">
-            <img
-                id="customDraftCardZoomImage"
-                src=""
-                alt=""
-                class="card-zoom-image"
+        <div class="custom-draft-card-list-header-actions">
+          <div class="custom-draft-card-count">
+            {{ custom_set_cards|length }} card(s)
+          </div>
+
+          <button
+            type="button"
+            id="customDraftOpenAddCardsButton"
+            class="custom-draft-header-icon-button"
+            title="Add Cards"
+            aria-label="Add Cards"
+            aria-controls="customDraftCardSearchOverlay"
+          >
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+          </button>
+
+          <button
+            type="button"
+            id="customDraftSelectedPrintExportButton"
+            class="custom-draft-header-icon-button"
+            title="Print / Export Selected Cards"
+            aria-label="Print / Export Selected Cards"
+            disabled
+          >
+            <i class="fa-solid fa-file-export"></i>
+          </button>
+
+          <div class="custom-draft-copy-split">
+            <button
+              type="button"
+              id="customDraftCopyVisibleCardsButton"
+              class="action-button secondary-button custom-draft-copy-main-button"
+              data-copy-format="simple"
             >
+              Copy
+            </button>
+
+            <button
+              type="button"
+              id="customDraftCopyVisibleCardsMenuButton"
+              class="action-button secondary-button custom-draft-copy-menu-button"
+              aria-label="Choose copy format"
+              title="Choose copy format"
+            >
+              ▾
+            </button>
+
+            <div
+              id="customDraftCopyVisibleCardsMenu"
+              class="custom-draft-copy-menu hidden"
+            >
+              <button
+                type="button"
+                class="custom-draft-copy-menu-item custom-draft-copy-menu-item-active"
+                data-copy-format="simple"
+              >
+                Simple
+              </button>
+
+              <button
+                type="button"
+                class="custom-draft-copy-menu-item"
+                data-copy-format="detailed"
+              >
+                Detailed
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            id="customDraftStatsToggleButton"
+            class="custom-draft-header-icon-button"
+            title="Show Stats"
+            aria-label="Show Stats"
+            aria-pressed="false"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+              class="custom-draft-header-icon"
+            >
+              <rect
+                x="4"
+                y="11"
+                width="3.5"
+                height="8"
+                rx="1"
+                fill="currentColor"
+              ></rect>
+              <rect
+                x="10.25"
+                y="6"
+                width="3.5"
+                height="13"
+                rx="1"
+                fill="currentColor"
+              ></rect>
+              <rect
+                x="16.5"
+                y="3"
+                width="3.5"
+                height="16"
+                rx="1"
+                fill="currentColor"
+              ></rect>
+            </svg>
+          </button>
+
+          <div
+            class="custom-draft-view-toggle"
+            aria-label="Set Card List view mode"
+          >
+            <button
+              type="button"
+              id="customDraftListViewButton"
+              class="custom-draft-view-toggle-button custom-draft-view-toggle-button-active"
+              data-view-mode="list"
+              title="List View"
+              aria-label="List View"
+              aria-pressed="true"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+                class="custom-draft-header-icon"
+              >
+                <rect
+                  x="4"
+                  y="6"
+                  width="3"
+                  height="3"
+                  rx="0.8"
+                  fill="currentColor"
+                ></rect>
+                <rect
+                  x="9"
+                  y="6.5"
+                  width="11"
+                  height="2"
+                  rx="1"
+                  fill="currentColor"
+                ></rect>
+                <rect
+                  x="4"
+                  y="11"
+                  width="3"
+                  height="3"
+                  rx="0.8"
+                  fill="currentColor"
+                ></rect>
+                <rect
+                  x="9"
+                  y="11.5"
+                  width="11"
+                  height="2"
+                  rx="1"
+                  fill="currentColor"
+                ></rect>
+                <rect
+                  x="4"
+                  y="16"
+                  width="3"
+                  height="3"
+                  rx="0.8"
+                  fill="currentColor"
+                ></rect>
+                <rect
+                  x="9"
+                  y="16.5"
+                  width="11"
+                  height="2"
+                  rx="1"
+                  fill="currentColor"
+                ></rect>
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              id="customDraftGridViewButton"
+              class="custom-draft-view-toggle-button"
+              data-view-mode="grid"
+              title="Grid View"
+              aria-label="Grid View"
+              aria-pressed="false"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+                class="custom-draft-header-icon"
+              >
+                <rect
+                  x="4"
+                  y="4"
+                  width="6.5"
+                  height="6.5"
+                  rx="1.4"
+                  fill="currentColor"
+                ></rect>
+                <rect
+                  x="13.5"
+                  y="4"
+                  width="6.5"
+                  height="6.5"
+                  rx="1.4"
+                  fill="currentColor"
+                ></rect>
+                <rect
+                  x="4"
+                  y="13.5"
+                  width="6.5"
+                  height="6.5"
+                  rx="1.4"
+                  fill="currentColor"
+                ></rect>
+                <rect
+                  x="13.5"
+                  y="13.5"
+                  width="6.5"
+                  height="6.5"
+                  rx="1.4"
+                  fill="currentColor"
+                ></rect>
+              </svg>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            id="customDraftMaximizeCardListButton"
+            class="custom-draft-header-icon-button"
+            title="Maximize"
+            aria-label="Maximize"
+            aria-pressed="false"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+              class="custom-draft-header-icon custom-draft-maximize-icon"
+            >
+              <path
+                d="M5 9V5h4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+              <path
+                d="M19 9V5h-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+              <path
+                d="M5 15v4h4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+              <path
+                d="M19 15v4h-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+              class="custom-draft-header-icon custom-draft-restore-icon"
+            >
+              <path
+                d="M9 4h9v9"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              ></path>
+              <path
+                d="M6 8h9v12H6z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+          </button>
         </div>
+      </div>
+
+      <div
+        id="customDraftCurrentCardTools"
+        class="custom-draft-current-card-tools"
+      >
+        <div class="custom-draft-current-filter-header">
+          <div class="custom-draft-current-filter-title">Filters</div>
+
+          <button
+            type="button"
+            id="customDraftCurrentFilterToggleButton"
+            class="custom-draft-current-filter-toggle"
+            title="Collapse Filters"
+            aria-label="Collapse Filters"
+            aria-expanded="true"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+              class="custom-draft-current-filter-toggle-icon"
+            >
+              <path
+                d="M7 14l5-5 5 5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+          </button>
+        </div>
+
+        <div
+          id="customDraftCurrentFilterBody"
+          class="custom-draft-current-filter-body"
+        >
+          <input
+            type="text"
+            id="customDraftCurrentCardFilterInput"
+            class="campaign-add-pack-custom-input"
+            placeholder="Filter current set cards..."
+            autocomplete="off"
+          />
+
+          <div class="custom-draft-filter-grid">
+            <div
+              id="customDraftRarityFilter"
+              class="custom-draft-filter-field custom-draft-multi-select"
+              data-placeholder="Any"
+            >
+              <span>Rarity</span>
+
+              <button
+                type="button"
+                class="custom-draft-multi-select-button"
+                aria-haspopup="true"
+                aria-expanded="false"
+              >
+                <span class="custom-draft-multi-select-label">Any</span>
+                <span class="custom-draft-multi-select-chevron">▾</span>
+              </button>
+
+              <div class="custom-draft-multi-select-menu hidden">
+                <label>
+                  <input type="checkbox" value="common" />
+                  <span>Common</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="uncommon" />
+                  <span>Uncommon</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="rare" />
+                  <span>Rare</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="mythic" />
+                  <span>Mythic</span>
+                </label>
+              </div>
+            </div>
+
+            <div
+              id="customDraftColorFilter"
+              class="custom-draft-filter-field custom-draft-multi-select"
+              data-placeholder="Any"
+              data-all-label="All colors"
+            >
+              <span>Color Identity</span>
+
+              <button
+                type="button"
+                class="custom-draft-multi-select-button"
+                aria-haspopup="true"
+                aria-expanded="false"
+              >
+                <span class="custom-draft-multi-select-label">Any</span>
+                <span class="custom-draft-multi-select-chevron">▾</span>
+              </button>
+
+              <div class="custom-draft-multi-select-menu hidden">
+                <label>
+                  <input type="checkbox" value="w" />
+                  <span>White</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="u" />
+                  <span>Blue</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="b" />
+                  <span>Black</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="r" />
+                  <span>Red</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="g" />
+                  <span>Green</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="colorless" />
+                  <span>Colorless</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="land" />
+                  <span>Land</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="multi_selected" />
+                  <span>Multi (Selected Colors Only)</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="multi_has_selected" />
+                  <span>Multi (Has Selected)</span>
+                </label>
+
+                <label>
+                  <input type="checkbox" value="multi_any" />
+                  <span>Multi (Any)</span>
+                </label>
+              </div>
+            </div>
+
+            <label class="custom-draft-filter-field">
+              <span>Mana Value Rule</span>
+              <select
+                id="customDraftManaOperatorFilter"
+                class="custom-draft-filter-input"
+              >
+                <option value="">Any</option>
+                <option value="=">=</option>
+                <option value="<=">&lt;=</option>
+                <option value=">=">&gt;=</option>
+                <option value="<">&lt;</option>
+                <option value=">">&gt;</option>
+              </select>
+            </label>
+
+            <label class="custom-draft-filter-field">
+              <span>Mana Value</span>
+              <input
+                type="number"
+                id="customDraftManaValueFilter"
+                class="custom-draft-filter-input"
+                min="0"
+                step="1"
+                placeholder="Any"
+              />
+            </label>
+
+            <label class="custom-draft-filter-field">
+              <span>Spell Type</span>
+              <select
+                id="customDraftTypeFilter"
+                class="custom-draft-filter-input"
+              >
+                <option value="">Any</option>
+                <option value="creature">Creature</option>
+                <option value="artifact">Artifact</option>
+                <option value="enchantment">Enchantment</option>
+                <option value="instant">Instant</option>
+                <option value="sorcery">Sorcery</option>
+                <option value="planeswalker">Planeswalker</option>
+                <option value="battle">Battle</option>
+                <option value="land">Land</option>
+              </select>
+            </label>
+
+            <label class="custom-draft-filter-field">
+              <span>Duplicates</span>
+              <select
+                id="customDraftDuplicateFilter"
+                class="custom-draft-filter-input"
+              >
+                <option value="">Any</option>
+                <option value="duplicates_only">Duplicates Only</option>
+              </select>
+            </label>
+
+            <label class="custom-draft-filter-field">
+              <span>Alternate Image</span>
+              <select
+                id="customDraftAlternateImageFilter"
+                class="custom-draft-filter-input"
+              >
+                <option value="">Any</option>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+                <option value="yes_remove_bleed">Yes - Remove Bleed</option>
+                <option value="yes_no_bleed">Yes - No Bleed</option>
+              </select>
+            </label>
+
+            <label class="custom-draft-filter-field">
+              <span>Special Slot</span>
+              <select
+                id="customDraftSpecialSlotFilter"
+                class="custom-draft-filter-input"
+              >
+                <option value="">Any</option>
+                {% for option in special_category_options %}
+                <option value="{{ option.value }}">{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            </label>
+
+            <label class="custom-draft-filter-field">
+              <span>Set Code</span>
+              <input
+                type="text"
+                id="customDraftCurrentSetCodeFilter"
+                class="custom-draft-filter-input"
+                maxlength="12"
+                placeholder="Any"
+                autocomplete="off"
+              />
+            </label>
+
+            <label class="custom-draft-filter-field">
+              <span>Digital Cards</span>
+              <select
+                id="customDraftDigitalFilter"
+                class="custom-draft-filter-input"
+              >
+                <option value="">Include Digital</option>
+                <option value="exclude">Exclude MTGO/Arena</option>
+                <option value="only">Digital Only</option>
+              </select>
+            </label>
+
+            <label class="custom-draft-filter-field">
+              <span>Per Page</span>
+              <select
+                id="customDraftCurrentPageSizeSelect"
+                class="custom-draft-filter-input"
+              >
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="250">250</option>
+                <option value="500">500</option>
+                <option value="1000">1000</option>
+              </select>
+            </label>
+
+            <label class="custom-draft-filter-field">
+              <span>Sort By</span>
+              <select
+                id="customDraftCurrentSortSelect"
+                class="custom-draft-filter-input"
+              >
+                <option value="name_asc">Name A-Z</option>
+                <option value="name_desc">Name Z-A</option>
+                <option value="set_asc">Set Code A-Z</option>
+                <option value="set_desc">Set Code Z-A</option>
+                <option value="rarity_low_high">Rarity Common → Mythic</option>
+                <option value="rarity_high_low">Rarity Mythic → Common</option>
+                <option value="mv_low_high">Mana Value Low → High</option>
+                <option value="mv_high_low">Mana Value High → Low</option>
+                <option value="edhrec_rank_best">EDHREC Rank Best</option>
+                <option value="edhrec_rank_worst">EDHREC Rank Worst</option>
+                <option value="edhrec_salt_high">EDHREC Salt High</option>
+                <option value="edhrec_salt_low">EDHREC Salt Low</option>
+                <option value="price_high">Price High</option>
+                <option value="price_low">Price Low</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              id="customDraftClearFiltersButton"
+              class="action-button secondary-button custom-draft-clear-filters-button"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {% if custom_set_cards %}
+      <div class="custom-draft-current-selection-toolbar">
+        <div class="custom-draft-current-selection-links">
+          <button
+            type="button"
+            id="customDraftSelectAllCurrentCardsButton"
+            class="campaign-small-link-button"
+          >
+            Select All
+          </button>
+
+          <button
+            type="button"
+            id="customDraftClearCurrentCardSelectionButton"
+            class="campaign-small-link-button"
+          >
+            Clear Selection
+          </button>
+
+          <span
+            id="customDraftSelectedCardCountLabel"
+            class="custom-draft-selected-count"
+          >
+            0 selected
+          </span>
+        </div>
+
+        <div class="custom-draft-current-bulk-actions">
+          <select
+            id="customDraftBulkSpecialSlotSelect"
+            class="custom-draft-filter-input custom-draft-bulk-special-slot-select"
+          >
+            {% for option in special_category_options %}
+            <option value="{{ option.value }}">{{ option.label }}</option>
+            {% endfor %}
+          </select>
+
+          <button
+            type="button"
+            id="customDraftBulkApplySpecialSlotButton"
+            class="action-button secondary-button custom-draft-bulk-button"
+            disabled
+          >
+            Assign Special Slot
+          </button>
+
+          {% if global_card_upscaling_control_enabled %}
+          <button
+            type="button"
+            id="customDraftBatchUpscaleSelectedButton"
+            class="action-button secondary-button imomir-batch-upscale-icon-button"
+            title="Batch Upscale Selected Cards"
+            aria-label="Batch Upscale selected cards"
+            disabled
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="imomir-batch-upscale-icon"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect
+                x="3"
+                y="7"
+                width="11"
+                height="12"
+                rx="1.8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></rect>
+              <rect
+                x="6"
+                y="4"
+                width="11"
+                height="12"
+                rx="1.8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></rect>
+              <path
+                d="M19 12V5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+              ></path>
+              <path
+                d="M16.4 7.6L19 5l2.6 2.6"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+          </button>
+          {% endif %}
+
+          <button
+            type="button"
+            id="customDraftBulkRemoveCardsButton"
+            class="action-button secondary-button campaign-danger-button custom-draft-bulk-button"
+            disabled
+          >
+            Remove Selected
+          </button>
+        </div>
+      </div>
+
+      <div
+        class="custom-draft-search-footer-bar custom-draft-current-pagination-footer"
+      >
+        <div
+          id="customDraftCurrentCardPagination"
+          class="custom-draft-search-pagination"
+        >
+          <button
+            type="button"
+            id="customDraftCurrentPrevButton"
+            class="custom-draft-page-arrow"
+            disabled
+            aria-label="Previous Set Card List page"
+          >
+            ‹
+          </button>
+          <span class="custom-draft-page-label-prefix">Page</span>
+          <input
+            type="number"
+            id="customDraftCurrentPageInput"
+            class="custom-draft-page-input"
+            value="1"
+            min="1"
+            step="1"
+            aria-label="Current Set Card List page"
+          />
+          <span
+            id="customDraftCurrentPageTotal"
+            class="custom-draft-page-label-suffix"
+            >of —</span
+          >
+          <button
+            type="button"
+            id="customDraftCurrentNextButton"
+            class="custom-draft-page-arrow"
+            disabled
+            aria-label="Next Set Card List page"
+          >
+            ›
+          </button>
+        </div>
+
+        <div
+          id="customDraftCurrentPaginationStatus"
+          class="custom-draft-card-search-status"
+        ></div>
+      </div>
+
+      <div
+        id="customDraftCurrentCardList"
+        class="custom-draft-current-card-list"
+      >
+        {% for card in custom_set_cards %}
+        <div
+          class="custom-draft-current-card-row hidden"
+          data-custom-set-card-id="{{ card.custom_set_card_id }}"
+          data-card-uuid="{{ card.card_uuid }}"
+          data-card-search="{{ (card.card_name ~ ' ' ~ card.card_set_code ~ ' ' ~ (card.collector_number or '') ~ ' ' ~ (card.rarity or '') ~ ' ' ~ (card.type_line or '') ~ ' ' ~ (card.color_identity_json or '') ~ ' ' ~ (card.mana_value|string if card.mana_value is not none else ''))|lower }}"
+          data-rarity="{{ (card.rarity or '')|lower }}"
+          data-color-identity="{{ (card.color_identity_json or '[]')|lower }}"
+          data-mana-value="{{ card.mana_value if card.mana_value is not none else '' }}"
+          data-type-line="{{ (card.type_line or '')|lower }}"
+          data-card-name="{{ (card.card_name or '')|lower }}"
+          data-display-card-name="{{ card.card_name or '' }}"
+          data-set-code="{{ (card.card_set_code or '')|upper }}"
+          data-collector-number="{{ card.collector_number or '' }}"
+          data-special-category="{{ card.special_category_index }}"
+          data-has-alternate-source="{{ 1 if card.has_alternate_source else 0 }}"
+          data-has-upscaled-image="{{ 1 if card.has_upscaled_image else 0 }}"
+          data-alternate-remove-bleed="{{ 1 if card.alternate_remove_bleed else 0 }}"
+          data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
+          data-edhrec-rank="{{ card.edhrec_rank if card.edhrec_rank is not none else '' }}"
+          data-edhrec-saltiness="{{ card.edhrec_saltiness if card.edhrec_saltiness is not none else '' }}"
+          data-sort-price="{{ card.sort_price if card.sort_price is not none else '' }}"
+        >
+          <div class="custom-draft-current-card-image-wrap">
+            <img
+              src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+              alt="{{ card.card_name }}"
+              class="custom-draft-current-card-image custom-draft-card-zoomable"
+              role="button"
+              tabindex="0"
+              data-card-image-src="{{ url_for('chaos_card_image_preview', card_uuid=card.card_uuid) }}"
+              data-card-image-state="idle"
+              data-zoom-src="{{ url_for('chaos_card_image_preview', card_uuid=card.card_uuid) }}"
+              data-zoom-alt="{{ card.card_name }}"
+              loading="lazy"
+              decoding="async"
+              fetchpriority="low"
+              aria-label="Zoom {{ card.card_name }}"
+            />
+          </div>
+
+          <div class="custom-draft-current-card-main">
+            <div class="custom-draft-current-card-title-row">
+              <label class="custom-draft-current-card-select-wrap">
+                <input
+                  type="checkbox"
+                  class="custom-draft-current-card-checkbox"
+                  value="{{ card.custom_set_card_id }}"
+                  aria-label="Select {{ card.card_name }}"
+                />
+              </label>
+
+              <div class="custom-draft-current-card-title">
+                {{ card.card_name }}
+              </div>
+
+              <button
+                type="button"
+                class="alternate-image-gear custom-draft-change-printing-button"
+                data-card-name="{{ card.card_name }}"
+                data-current-card-uuid="{{ card.card_uuid }}"
+                data-update-url="{{ url_for('custom_draft_set_cards_update_printing', set_code=custom_set.set_code, custom_set_card_id=card.custom_set_card_id) }}"
+                title="Change printing"
+                aria-label="Change printing for {{ card.card_name }}"
+              >
+                <svg
+                  class="custom-draft-change-printing-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <rect
+                    x="7"
+                    y="5"
+                    width="10"
+                    height="14"
+                    rx="1.8"
+                    ry="1.8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  ></rect>
+                  <rect
+                    x="5"
+                    y="3"
+                    width="10"
+                    height="14"
+                    rx="1.8"
+                    ry="1.8"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  ></rect>
+                  <line
+                    x1="8"
+                    y1="8"
+                    x2="12"
+                    y2="8"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                  ></line>
+                  <line
+                    x1="8"
+                    y1="11"
+                    x2="12"
+                    y2="11"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                  ></line>
+                  <line
+                    x1="8"
+                    y1="14"
+                    x2="11"
+                    y2="14"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                  ></line>
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                class="alternate-image-gear alternate-image-button {% if card.has_alternate_source %}custom-draft-alternate-image-active{% endif %}"
+                data-card-uuid="{{ card.card_uuid }}"
+                data-card-name="{{ card.card_name }}"
+                data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
+                data-foil-update-url="{{ url_for('custom_draft_set_cards_update_foil', set_code=custom_set.set_code, custom_set_card_id=card.custom_set_card_id) }}"
+                title="Alternate image settings"
+                aria-label="Alternate image settings for {{ card.card_name }}"
+              >
+                ⚙
+              </button>
+
+              {% if global_card_upscaling_control_enabled %}
+              <button
+                type="button"
+                class="alternate-image-gear imomir-upscale-card-button {% if card.has_upscaled_image and not card.has_alternate_source %}imomir-upscale-card-active{% endif %}"
+                data-card-uuid="{{ card.card_uuid }}"
+                data-upscale-control-url="{{ url_for('chaos_card_upscale_control', card_uuid=card.card_uuid, face='front') }}"
+                title="Upscale Image"
+                aria-label="Upscale {{ card.card_name }}"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="imomir-upscale-icon"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <rect
+                    x="3.5"
+                    y="6"
+                    width="13"
+                    height="13"
+                    rx="2"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  ></rect>
+
+                  <circle cx="8" cy="10" r="1.4" fill="currentColor"></circle>
+
+                  <path
+                    d="M5.5 16l3.1-3.2 2.5 2.4 2.1-2.2 3.2 3.1"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  ></path>
+
+                  <path
+                    d="M18.5 11V4.5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.9"
+                    stroke-linecap="round"
+                  ></path>
+
+                  <path
+                    d="M15.8 7.2l2.7-2.7 2.7 2.7"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.9"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  ></path>
+                </svg>
+              </button>
+              {% endif %}
+            </div>
+
+            <div class="custom-draft-current-card-meta">
+              <span>{{ card.card_set_code }}</span>
+              <span>#{{ card.collector_number or "?" }}</span>
+              <span>{{ card.rarity or "unknown rarity" }}</span>
+              <span
+                >MV {{ "%.1f"|format(card.mana_value) if card.mana_value is not
+                none else "?" }}</span
+              >
+              <span
+                >EDHREC {{ card.edhrec_rank if card.edhrec_rank is not none else
+                "?" }}</span
+              >
+              <span
+                >Salt {{ "%.2f"|format(card.edhrec_saltiness) if
+                card.edhrec_saltiness is not none else "?" }}</span
+              >
+              {% if card.sort_price is not none %}
+              <span>Price {{ "$%.2f"|format(card.sort_price) }}</span>
+              {% endif %}
+              <span
+                class="custom-draft-color-identity"
+                data-color-json="{{ card.color_identity_json or '[]' }}"
+              >
+                Color Identity: Loading
+              </span>
+              <span>{{ card.type_line or "unknown type" }}</span>
+
+              {% if card.sheet_is_foil %}
+              <span class="custom-draft-foil-meta-line">Foil</span>
+              {% endif %} {% if card.has_alternate_source %}
+              <span class="custom-draft-alternate-image-meta-line">
+                Alternate Image - {% if card.alternate_remove_bleed %}Remove
+                Bleed{% else %}No Bleed{% endif %}
+              </span>
+              {% endif %}
+            </div>
+          </div>
+
+          <label class="custom-draft-current-card-category">
+            <span>Special Slot</span>
+            <select
+              class="custom-draft-card-category-select"
+              data-update-url="{{ url_for('custom_draft_set_cards_update_category', set_code=custom_set.set_code, custom_set_card_id=card.custom_set_card_id) }}"
+            >
+              {% for option in special_category_options %} {% if
+              card.special_category_index == option.value %}
+              <option value="{{ option.value }}" selected>
+                {{ option.label }}
+              </option>
+              {% else %}
+              <option value="{{ option.value }}">{{ option.label }}</option>
+              {% endif %} {% endfor %}
+            </select>
+          </label>
+
+          <div class="custom-draft-current-card-actions">
+            <button
+              type="button"
+              class="action-button secondary-button campaign-danger-button custom-draft-card-remove-button"
+              data-delete-url="{{ url_for('custom_draft_set_cards_delete', set_code=custom_set.set_code, custom_set_card_id=card.custom_set_card_id) }}"
+              data-card-name="{{ card.card_name }}"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div
+        id="customDraftCurrentCardGrid"
+        class="chaos-pack-view-grid custom-draft-current-card-grid hidden"
+      ></div>
+      {% else %}
+      <div
+        id="customDraftCurrentCardList"
+        class="card-placeholder custom-draft-set-empty"
+      >
+        No cards have been added to this custom draft set yet.
+      </div>
+      {% endif %}
     </div>
+
+    <div class="custom-draft-set-save-row">
+      <button type="submit" class="action-button">Save Custom Set</button>
+    </div>
+  </form>
+  {% set print_export_subject_label = "custom draft set" %} {% include
+  "_print_export_modal.html" %} {% include "_card_back_selector_modal.html" %}
+  {% set stats_modal_title = "Set Card Stats" %} {% set stats_modal_subtitle =
+  "Stats for the currently visible filtered cards." %} {% include
+  "_stats_modal.html" %} {% include "_alternate_image_modal.html" %}
+
+  <div
+    id="customDraftCardZoomOverlay"
+    class="card-zoom-overlay hidden"
+    aria-hidden="true"
+  >
+    <div id="customDraftCardZoomBackdrop" class="card-zoom-backdrop"></div>
+    <div class="card-zoom-content">
+      <img
+        id="customDraftCardZoomImage"
+        src=""
+        alt=""
+        class="card-zoom-image"
+      />
+    </div>
+  </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
@@ -1082,9 +1414,7 @@
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js') }}"></script>
 <script src="{{ url_for('static', filename='js/custom_draft_set.js') }}"></script>
-{% endblock %}
-
-{% block page_scripts_after_app %}
+{% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
 {% endblock %}
