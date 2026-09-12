@@ -1,0 +1,10 @@
+--extra-index-url https://stable.repo.amd.com/rocm/whl-next/
+
+rocm[libraries,device-all]==10.0.0
+
+torch[device-all]==2.11.0+rocm10.0.0
+torchvision[device-all]==0.26.0+rocm10.0.0
+
+spandrel==0.4.2
+safetensors==0.8.0
+einops==0.8.2

@@ -20,7 +20,7 @@ PLUGIN_CATALOG = {
         ),
 
         "github_owner": "Regenshire",
-        "github_repo": "iMomir",
+        "github_repo": "Deckadence",
 
         "release_tag_prefix": (
             "plugin-upscaler-nvidia-v"
@@ -51,7 +51,7 @@ PLUGIN_CATALOG = {
         ),
 
         "github_owner": "Regenshire",
-        "github_repo": "iMomir",
+        "github_repo": "Deckadence",
 
         "release_tag_prefix": (
             "plugin-upscaler-cpu-v"
@@ -59,6 +59,37 @@ PLUGIN_CATALOG = {
 
         "release_asset_name": (
             "deckadence-upscaler-cpu.zip"
+        ),
+    },
+
+    "upscaler-amd-rocm": {
+        "plugin_id": (
+            "upscaler-amd-rocm"
+        ),
+        "name": (
+            "AMD ROCm Upscaler"
+        ),
+        "plugin_type": "upscaler",
+        "type_label": "Upscaler",
+        "description": (
+            "AI image upscaling for supported "
+            "AMD Radeon GPUs using ROCm/HIP."
+        ),
+        "requirements": (
+            "Windows 11 25H2; supported AMD "
+            "Radeon RX 7000 or RX 9000 GPU; "
+            "Python 3.12 (64-bit)"
+        ),
+
+        "github_owner": "Regenshire",
+        "github_repo": "Deckadence",
+
+        "release_tag_prefix": (
+            "plugin-upscaler-amd-rocm-v"
+        ),
+
+        "release_asset_name": (
+            "deckadence-upscaler-amd-rocm.zip"
         ),
     },
 }

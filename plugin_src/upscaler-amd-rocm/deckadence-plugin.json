@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "protocol_version": 1,
+  "plugin_id": "upscaler-amd-rocm",
+  "plugin_type": "upscaler",
+  "name": "AMD ROCm Upscaler",
+  "version": "0.1.0",
+  "entrypoint": "plugin.py",
+  "requirements_file": "requirements.txt"
+}

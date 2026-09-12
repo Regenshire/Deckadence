@@ -2,7 +2,7 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "========================================"
-Write-Host " Deckadence CPU Plugin Package Builder"
+Write-Host " Deckadence AMD ROCm Plugin Package Builder"
 Write-Host "========================================"
 Write-Host ""
 
@@ -12,7 +12,7 @@ $RepoRoot = Split-Path -Parent $PluginSrcRoot
 
 $PluginSource = Join-Path `
     $PluginSrcRoot `
-    "upscaler-cpu"
+    "upscaler-amd-rocm"
 
 $ManifestPath = Join-Path `
     $PluginSource `
@@ -20,7 +20,7 @@ $ManifestPath = Join-Path `
 
 $BuildRoot = Join-Path `
     $RepoRoot `
-    "build\upscaler-cpu"
+    "build\upscaler-amd-rocm"
 
 $DistRoot = Join-Path `
     $RepoRoot `
@@ -28,7 +28,7 @@ $DistRoot = Join-Path `
 
 $OutputZip = Join-Path `
     $DistRoot `
-    "deckadence-upscaler-cpu.zip"
+    "deckadence-upscaler-amd-rocm.zip"
 
 
 Write-Host "[1/7] Checking plugin source..."
@@ -216,10 +216,10 @@ Write-Host "Plugin version:"
 Write-Host "  $Version"
 Write-Host ""
 Write-Host "GitHub release tag:"
-Write-Host "  plugin-upscaler-cpu-v$Version"
+Write-Host "  plugin-upscaler-amd-rocm-v$Version"
 Write-Host ""
 Write-Host "GitHub asset name:"
-Write-Host "  deckadence-upscaler-cpu.zip"
+Write-Host "  deckadence-upscaler-amd-rocm.zip"
 Write-Host ""
 Write-Host "========================================"
 Write-Host " Build completed successfully"
