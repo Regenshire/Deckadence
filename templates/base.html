@@ -18,6 +18,11 @@
       href="{{ url_for('static', filename='css/print_template_selector.css') }}"
     />
 
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/help.css') }}"
+    />
+
     {% block page_styles %}{% endblock %}
   </head>
   <body>
@@ -54,6 +59,16 @@
           </div>
 
           <div class="app-tabs-nav app-menu-expandable">
+            <div
+              class="app-nav-menu app-nav-home-menu {% if request.endpoint == 'index' %}app-nav-menu-active{% endif %}"
+            >
+              <div class="app-nav-main-control">
+                <a class="app-nav-primary-link" href="{{ url_for('index') }}">
+                  Home
+                </a>
+              </div>
+            </div>
+
             <div
               class="app-nav-menu {% if request.endpoint in ['play_draft', 'play_momir', 'result', 'campaign_chaos_test_draft'] %}app-nav-menu-active{% endif %}"
             >
@@ -197,6 +212,7 @@
                 type="button"
                 id="appSettingsButton"
                 class="app-nav-square-button app-gear-button {% if global_reminder_state and global_reminder_state.has_reminders %}app-gear-button-has-reminders{% endif %}"
+                data-help-id="navigation-settings"
                 data-app-menu-toggle
                 aria-label="Open Settings menu{% if global_reminder_state and global_reminder_state.has_reminders %} - {{ global_reminder_state.count }} reminder{% if global_reminder_state.count != 1 %}s{% endif %}{% endif %}"
                 aria-expanded="false"
@@ -369,6 +385,17 @@
 
             <button
               type="button"
+              id="appHelpToggleButton"
+              class="app-nav-square-button app-help-toggle-button"
+              aria-label="Toggle Context Help"
+              aria-pressed="false"
+              title="Context Help"
+            >
+              <i class="fa-solid fa-circle-question"></i>
+            </button>
+
+            <button
+              type="button"
               id="appQrButton"
               class="app-nav-square-button app-qr-nav-button"
               aria-label="Open Deckadence QR code"
@@ -390,7 +417,8 @@
       </div>
     </div>
 
-    {% include "_print_template_selector_modal.html" %}
+    {% include "_print_template_selector_modal.html" %} {% include
+    "_help_layer.html" %}
 
     <div
       id="appQrModal"
@@ -437,6 +465,12 @@
     <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
 
     <script src="{{ url_for('static', filename='js/print_template_selector.js') }}"></script>
+
+    <script src="{{ url_for('static', filename='js/help/help_engine.js') }}"></script>
+
+    <script src="{{ url_for('static', filename='js/help/tour_engine.js') }}"></script>
+
+    <script src="{{ url_for('static', filename='js/help/tours/settings.js') }}"></script>
 
     {% block page_scripts_before_app %}{% endblock %}
 

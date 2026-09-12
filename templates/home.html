@@ -1,0 +1,276 @@
+{% extends "base.html" %} {% block title %}Home - Deckadence{% endblock %} {%
+block page_styles %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/home.css') }}"
+/>
+{% endblock %} {% block content %}
+<main class="home-screen">
+  <div class="home-background" aria-hidden="true">
+    <div class="home-background-glow home-background-glow-one"></div>
+    <div class="home-background-glow home-background-glow-two"></div>
+    <div class="home-background-grid"></div>
+  </div>
+
+  <section class="home-welcome-panel">
+    <header class="home-hero">
+      <img
+        src="{{ url_for('static', filename='img/Logos/deckadence.svg') }}"
+        alt="Deckadence"
+        class="home-logo"
+      />
+
+      <div class="home-product-description">
+        Custom Set Creation &amp; Playtesting Tool
+      </div>
+
+      <div class="home-product-flow">
+        <span>Design</span>
+        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        <span>Proxy</span>
+        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        <span>Playtest</span>
+      </div>
+    </header>
+    <section class="home-primary-section" aria-label="Deckadence shortcuts">
+      {% if not card_database_ready %}
+      <a
+        class="home-primary-card home-primary-card-setup"
+        href="{{ url_for('config') }}?open=card_database&scroll=card_database"
+      >
+        <div class="home-card-icon home-card-icon-setup">
+          <i class="fa-solid fa-database" aria-hidden="true"></i>
+        </div>
+
+        <div class="home-card-copy">
+          <div class="home-card-eyebrow">Required First Step</div>
+
+          <h2>Initial Setup</h2>
+
+          <p>Configure Deckadence's card and set data before you begin.</p>
+        </div>
+
+        <div class="home-card-action">
+          Configure Data Sources
+          <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        </div>
+      </a>
+
+      <div
+        class="home-primary-card home-primary-card-disabled"
+        aria-disabled="true"
+      >
+        <div class="home-card-icon">
+          <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
+        </div>
+
+        <div class="home-card-copy">
+          <h2>Chaos Draft</h2>
+          <p>Draft from Magic sets, custom packs, and campaigns.</p>
+        </div>
+
+        <div class="home-card-lock">
+          <i class="fa-solid fa-lock" aria-hidden="true"></i>
+          Setup Required
+        </div>
+      </div>
+
+      <div
+        class="home-primary-card home-primary-card-disabled"
+        aria-disabled="true"
+      >
+        <div class="home-card-icon">
+          <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+        </div>
+
+        <div class="home-card-copy">
+          <h2>Momir</h2>
+          <p>
+            Play the Momir format of magic! Tap for mana and discard a land to
+            play a random token of any creature in Magic equal to the cost
+            played! Fun for the entire pod!
+          </p>
+        </div>
+
+        <div class="home-card-lock">
+          <i class="fa-solid fa-lock" aria-hidden="true"></i>
+          Setup Required
+        </div>
+      </div>
+
+      <div
+        class="home-primary-card home-primary-card-disabled"
+        aria-disabled="true"
+      >
+        <div class="home-card-icon">
+          <i class="fa-solid fa-clone" aria-hidden="true"></i>
+        </div>
+
+        <div class="home-card-copy">
+          <h2>Sets</h2>
+          <p>Create, manage, and test custom draft environments.</p>
+        </div>
+
+        <div class="home-card-lock">
+          <i class="fa-solid fa-lock" aria-hidden="true"></i>
+          Setup Required
+        </div>
+      </div>
+
+      {% else %}
+
+      <a class="home-primary-card" href="{{ url_for('play_draft') }}">
+        <div class="home-card-icon">
+          <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
+        </div>
+
+        <div class="home-card-copy">
+          <h2>Chaos Draft</h2>
+          <p>
+            Draft from any set in history, or from your own custom packs and
+            sets. Setup a Draft Campaign to play with friends.
+          </p>
+        </div>
+
+        <div class="home-card-action">
+          Its time to Draft!
+          <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        </div>
+      </a>
+
+      <a class="home-primary-card" href="{{ url_for('play_momir') }}">
+        <div class="home-card-icon">
+          <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+        </div>
+
+        <div class="home-card-copy">
+          <h2>Momir</h2>
+          <p>
+            Play the Momir format of magic! Tap for mana and discard a land to
+            play a random token of any creature in Magic equal to the cost
+            played! Fun for the entire pod!
+          </p>
+        </div>
+
+        <div class="home-card-action">
+          I am feeling lucky!
+          <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        </div>
+      </a>
+
+      <a class="home-primary-card" href="{{ url_for('sets') }}">
+        <div class="home-card-icon">
+          <i class="fa-solid fa-clone" aria-hidden="true"></i>
+        </div>
+
+        <div class="home-card-copy">
+          <h2>Sets</h2>
+          <p>Create, manage, and test custom draft environments.</p>
+        </div>
+
+        <div class="home-card-action">
+          Create your own set
+          <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+        </div>
+      </a>
+      {% endif %}
+    </section>
+    <section class="home-guides-section">
+      <div class="home-section-heading">
+        <div>
+          <div class="home-section-eyebrow">Help &amp; Guided Learning</div>
+
+          <h2>Enlightened Tutor</h2>
+        </div>
+
+        <p>Learn Deckadence by working directly with the real tools.</p>
+      </div>
+
+      <div class="home-guide-grid">
+        <div
+          class="home-guide-card"
+          data-help-tour-start="settings_and_tribulations"
+          role="button"
+          tabindex="0"
+          aria-label="Start Settings and Tribulations guided tour"
+        >
+          <div class="home-guide-number">01</div>
+
+          <div class="home-guide-icon">
+            <i class="fa-solid fa-sliders" aria-hidden="true"></i>
+          </div>
+
+          <h3>Settings and Tribulations</h3>
+
+          <p>What do all these settings do?</p>
+
+          <div class="home-guide-action">
+            Start Guided Tour
+            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          </div>
+        </div>
+
+        <div class="home-guide-card">
+          <div class="home-guide-number">02</div>
+
+          <div class="home-guide-icon">
+            <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
+          </div>
+
+          <h3>Chaos in the Making!</h3>
+
+          <p>Create your first Chaos Draft Campaign.</p>
+        </div>
+
+        <div class="home-guide-card">
+          <div class="home-guide-number">03</div>
+
+          <div class="home-guide-icon">
+            <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+          </div>
+
+          <h3>How to Play Momir</h3>
+
+          <p>Set up your printer and play Momir with friends.</p>
+        </div>
+
+        <div class="home-guide-card">
+          <div class="home-guide-number">04</div>
+
+          <div class="home-guide-icon">
+            <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+          </div>
+
+          <h3>Design a Custom Draft Set</h3>
+
+          <p>Learn pack art, card backs, layouts, and card management.</p>
+        </div>
+
+        <div class="home-guide-card">
+          <div class="home-guide-number">05</div>
+
+          <div class="home-guide-icon">
+            <i class="fa-solid fa-flask" aria-hidden="true"></i>
+          </div>
+
+          <h3>How to Do a Test Draft</h3>
+
+          <p>Test your packs and draft environment before game night.</p>
+        </div>
+
+        <div class="home-guide-card">
+          <div class="home-guide-number">06</div>
+
+          <div class="home-guide-icon">
+            <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+          </div>
+
+          <h3>How to Build a Deck</h3>
+
+          <p>Turn drafted cards into a playable deck.</p>
+        </div>
+      </div>
+    </section>
+  </section>
+</main>
+{% endblock %}

@@ -299,6 +299,12 @@ input {
   transition: color 0.15s ease;
 }
 
+.app-nav-home-menu .app-nav-primary-link {
+  padding-left: 13px;
+  padding-right: 13px;
+  border-radius: 11px;
+}
+
 .app-nav-menu-active .app-nav-primary-link,
 .app-nav-main-control:hover .app-nav-primary-link,
 .app-nav-menu.is-open .app-nav-primary-link {

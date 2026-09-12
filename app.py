@@ -241,6 +241,11 @@ from db.database import (
 
 from db.draftdb import ensure_draft_testing_schema
 
+from db.helpdb import (
+    HelpProgressRepository,
+    ensure_help_schema,
+)
+
 from db.upscalyingdb import (
     accept_upscaled_candidate,
     accept_upscaled_candidates,
@@ -16559,9 +16564,107 @@ def run_refresh_job(force_download=False):
             ),
         )
 
+@app.route(
+    "/api/help/bootstrap",
+    methods=["GET"],
+)
+def help_bootstrap():
+    repository = (
+        HelpProgressRepository()
+    )
+
+    return jsonify({
+        "ok": True,
+        "active_tour": (
+            repository.get_active()
+        ),
+    })
+
+
+@app.route(
+    "/api/help/progress",
+    methods=["POST"],
+)
+def help_save_progress():
+    payload = (
+        request.get_json(
+            silent=True
+        )
+        or {}
+    )
+
+    repository = (
+        HelpProgressRepository()
+    )
+
+    try:
+        progress = repository.save(
+            payload.get(
+                "tour_id"
+            ),
+            tour_version=payload.get(
+                "tour_version",
+                1,
+            ),
+            current_step_id=payload.get(
+                "current_step_id",
+                "",
+            ),
+            status=payload.get(
+                "status",
+                "active",
+            ),
+            context=payload.get(
+                "context",
+                {},
+            ),
+        )
+
+    except ValueError as exc:
+        return jsonify({
+            "ok": False,
+            "message": str(exc),
+        }), 400
+
+    return jsonify({
+        "ok": True,
+        "progress": progress,
+    })
+
+
+@app.route(
+    "/api/help/progress/<tour_id>",
+    methods=["GET"],
+)
+def help_get_progress(
+    tour_id,
+):
+    repository = (
+        HelpProgressRepository()
+    )
+
+    try:
+        progress = repository.get(
+            tour_id
+        )
+
+    except ValueError as exc:
+        return jsonify({
+            "ok": False,
+            "message": str(exc),
+        }), 400
+
+    return jsonify({
+        "ok": True,
+        "progress": progress,
+    })
+
 @app.route("/")
 def index():
-    return redirect(url_for("play_draft"))
+    return render_template(
+        "home.html",
+        card_database_ready=is_card_database_ready(),
+    )
 
 
 @app.route("/play/draft")
@@ -31360,6 +31463,7 @@ if __name__ == "__main__":
     ensure_draft_testing_schema()
     ensure_deck_schema()
     ensure_upscaling_schema()
+    ensure_help_schema()
     set_runtime_debug_log_enabled_from_config()
 
     flask_debug_enabled = (
