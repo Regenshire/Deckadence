@@ -5,6 +5,44 @@ block page_styles %}
   href="{{ url_for('static', filename='css/home.css') }}"
 />
 {% endblock %} {% block content %}
+{% macro render_home_primary_card(title, icon_class, href, action_label, enabled) %}
+  {% if enabled %}
+  <a class="home-primary-card" href="{{ href }}">
+  {% else %}
+  <div
+    class="home-primary-card home-primary-card-disabled"
+    aria-disabled="true"
+  >
+  {% endif %}
+    <div class="home-card-icon">
+      <i class="fa-solid {{ icon_class }}" aria-hidden="true"></i>
+    </div>
+
+    <div class="home-card-copy">
+      <h2>{{ title }}</h2>
+      <p>
+        {{ caller() }}
+      </p>
+    </div>
+
+    {% if enabled %}
+    <div class="home-card-action">
+      {{ action_label }}
+      <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+    </div>
+    {% else %}
+    <div class="home-card-lock">
+      <i class="fa-solid fa-lock" aria-hidden="true"></i>
+      Setup Required
+    </div>
+    {% endif %}
+  {% if enabled %}
+  </a>
+  {% else %}
+  </div>
+  {% endif %}
+{% endmacro %}
+
 <main class="home-screen">
   <div class="home-background" aria-hidden="true">
     <div class="home-background-glow home-background-glow-one"></div>
@@ -33,6 +71,7 @@ block page_styles %}
       </div>
     </header>
     <section class="home-primary-section" aria-label="Deckadence shortcuts">
+      {% if not card_database_ready %}
       <a
         class="home-primary-card home-primary-card-setup"
         href="{{ url_for('config') }}?open=card_database&scroll=card_database"
@@ -58,126 +97,43 @@ block page_styles %}
           <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
         </div>
       </a>
-
-      {% if not card_database_ready %}
-      <div
-        class="home-primary-card home-primary-card-disabled"
-        aria-disabled="true"
-      >
-        <div class="home-card-icon">
-          <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
-        </div>
-
-        <div class="home-card-copy">
-          <h2>Chaos Draft</h2>
-          <p>Draft from Magic sets, custom packs, and campaigns.</p>
-        </div>
-
-        <div class="home-card-lock">
-          <i class="fa-solid fa-lock" aria-hidden="true"></i>
-          Setup Required
-        </div>
-      </div>
-
-      <div
-        class="home-primary-card home-primary-card-disabled"
-        aria-disabled="true"
-      >
-        <div class="home-card-icon">
-          <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
-        </div>
-
-        <div class="home-card-copy">
-          <h2>Momir</h2>
-          <p>
-            Play the Momir format of magic! Tap for mana and discard a land to
-            play a random token of any creature in Magic equal to the cost
-            played! Fun for the entire pod!
-          </p>
-        </div>
-
-        <div class="home-card-lock">
-          <i class="fa-solid fa-lock" aria-hidden="true"></i>
-          Setup Required
-        </div>
-      </div>
-
-      <div
-        class="home-primary-card home-primary-card-disabled"
-        aria-disabled="true"
-      >
-        <div class="home-card-icon">
-          <i class="fa-solid fa-clone" aria-hidden="true"></i>
-        </div>
-
-        <div class="home-card-copy">
-          <h2>Sets</h2>
-          <p>Create, manage, and test custom draft environments.</p>
-        </div>
-
-        <div class="home-card-lock">
-          <i class="fa-solid fa-lock" aria-hidden="true"></i>
-          Setup Required
-        </div>
-      </div>
-
-      {% else %}
-
-      <a class="home-primary-card" href="{{ url_for('play_draft') }}">
-        <div class="home-card-icon">
-          <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
-        </div>
-
-        <div class="home-card-copy">
-          <h2>Chaos Draft</h2>
-          <p>
-            Draft from any set in history, or from your own custom packs and
-            sets. Setup a Draft Campaign to play with friends.
-          </p>
-        </div>
-
-        <div class="home-card-action">
-          Its time to Draft!
-          <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
-        </div>
-      </a>
-
-      <a class="home-primary-card" href="{{ url_for('play_momir') }}">
-        <div class="home-card-icon">
-          <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
-        </div>
-
-        <div class="home-card-copy">
-          <h2>Momir</h2>
-          <p>
-            Play the Momir format of magic! Tap for mana and discard a land to
-            play a random token of any creature in Magic equal to the cost
-            played! Fun for the entire pod!
-          </p>
-        </div>
-
-        <div class="home-card-action">
-          I am feeling lucky!
-          <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
-        </div>
-      </a>
-
-      <a class="home-primary-card" href="{{ url_for('sets') }}">
-        <div class="home-card-icon">
-          <i class="fa-solid fa-clone" aria-hidden="true"></i>
-        </div>
-
-        <div class="home-card-copy">
-          <h2>Sets</h2>
-          <p>Create, manage, and test custom draft environments.</p>
-        </div>
-
-        <div class="home-card-action">
-          Create your own set
-          <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
-        </div>
-      </a>
       {% endif %}
+
+      {% call render_home_primary_card(
+        "Chaos Draft",
+        "fa-shuffle",
+        url_for("play_draft"),
+        "Its time to Draft!",
+        card_database_ready
+      ) %}
+        Draft from any set in history, or from your own custom packs and sets.
+        Setup a Draft Campaign to play with friends. Or enemies. Or complete strangers.  Really, draft with whoever you want.
+      {% endcall %}
+
+      {% call render_home_primary_card(
+        "Momir",
+        "fa-wand-magic-sparkles",
+        url_for("play_momir"),
+        "I am feeling lucky!",
+        card_database_ready
+      ) %}
+        Play the Momir format of magic! Tap for mana and discard a land to play
+        a random token of any creature in Magic equal to the cost played! Fun
+        for the entire pod!
+      {% endcall %}
+
+      {% call render_home_primary_card(
+        "Sets",
+        "fa-clone",
+        url_for("sets"),
+        "Create your own set",
+        card_database_ready
+      ) %}
+        Create, manage, and test custom sets! Do you want to create a set for
+        Cube? Maybe to include in a Chaos Draft? Or maybe you just want to
+        create a set that is full of custom artwork. Well, this is the place to
+        do it!
+      {% endcall %}
     </section>
     <section class="home-guides-section">
       <div class="home-section-heading">
@@ -186,8 +142,6 @@ block page_styles %}
 
           <h2>Enlightened Tutor</h2>
         </div>
-
-        <p>Learn Deckadence by working directly with the real tools.</p>
       </div>
 
       <div class="home-guide-grid">
