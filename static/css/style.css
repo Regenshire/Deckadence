@@ -12281,6 +12281,10 @@ body:has(
   padding-right: 8px;
 }
 
+.addCustomDraft {
+  max-width: 300px;
+}
+
 @media (max-width: 900px) {
   .custom-draft-set-stats-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));

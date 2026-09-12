@@ -21,6 +21,10 @@
       .href,
     chaos_in_the_making: new URL("tours/chaos_campaign.js", loaderScriptUrl)
       .href,
+    design_custom_draft_set: new URL(
+      "tours/custom_draft_set.js",
+      loaderScriptUrl,
+    ).href,
     initial_setup: new URL("tours/initial_setup.js", loaderScriptUrl).href,
   };
 
