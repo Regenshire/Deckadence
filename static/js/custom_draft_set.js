@@ -63,6 +63,21 @@
   const currentCardPaginationStatus = document.getElementById(
     "customDraftCurrentPaginationStatus",
   );
+  const currentCardPrevButtonBottom = document.getElementById(
+    "customDraftCurrentPrevButtonBottom",
+  );
+  const currentCardNextButtonBottom = document.getElementById(
+    "customDraftCurrentNextButtonBottom",
+  );
+  const currentCardPageInputBottom = document.getElementById(
+    "customDraftCurrentPageInputBottom",
+  );
+  const currentCardPageTotalBottom = document.getElementById(
+    "customDraftCurrentPageTotalBottom",
+  );
+  const currentCardPaginationStatusBottom = document.getElementById(
+    "customDraftCurrentPaginationStatusBottom",
+  );
   const clearFiltersButton = document.getElementById(
     "customDraftClearFiltersButton",
   );
@@ -2780,30 +2795,6 @@
     return currentVisibleCardRowsCache;
   }
 
-  function getCurrentCardMetaText(row, prefixText) {
-    if (!row) {
-      return "";
-    }
-
-    const cleanPrefix = String(prefixText || "")
-      .trim()
-      .toLowerCase();
-
-    const metaSpans = Array.from(
-      row.querySelectorAll(".custom-draft-current-card-meta span"),
-    );
-
-    for (const span of metaSpans) {
-      const textValue = String(span.textContent || "").trim();
-
-      if (textValue.toLowerCase().indexOf(cleanPrefix) === 0) {
-        return textValue;
-      }
-    }
-
-    return "";
-  }
-
   function createCurrentCardGridCard(row) {
     const cardUuid = row.dataset.cardUuid || "";
     const cardName =
@@ -2826,7 +2817,7 @@
     const zoomSrc = imageElement
       ? imageElement.getAttribute("data-zoom-src") || imageSrc
       : imageSrc;
-    const priceText = getCurrentCardMetaText(row, "Price");
+    const priceText = formatCurrentCardPrice(row.dataset.sortPrice || "");
     const isFoil = row.dataset.isFoil === "1";
     const hasAlternateSource = row.dataset.hasAlternateSource === "1";
 
@@ -3337,35 +3328,51 @@
       currentCardPage = 1;
     }
 
-    if (currentCardPageInput) {
-      currentCardPageInput.value = currentCardPage;
-      currentCardPageInput.max = currentCardTotalPages;
+    [currentCardPageInput, currentCardPageInputBottom]
+      .filter(Boolean)
+      .forEach(function (pageInput) {
+        pageInput.value = currentCardPage;
+        pageInput.max = currentCardTotalPages;
+      });
+
+    [currentCardPageTotal, currentCardPageTotalBottom]
+      .filter(Boolean)
+      .forEach(function (pageTotal) {
+        pageTotal.textContent = "of " + currentCardTotalPages;
+      });
+
+    [currentCardPrevButton, currentCardPrevButtonBottom]
+      .filter(Boolean)
+      .forEach(function (previousButton) {
+        previousButton.disabled = currentCardPage <= 1;
+      });
+
+    [currentCardNextButton, currentCardNextButtonBottom]
+      .filter(Boolean)
+      .forEach(function (nextButton) {
+        nextButton.disabled = currentCardPage >= currentCardTotalPages;
+      });
+
+    const paginationStatuses = [
+      currentCardPaginationStatus,
+      currentCardPaginationStatusBottom,
+    ].filter(Boolean);
+
+    if (!filteredCount) {
+      paginationStatuses.forEach(function (paginationStatus) {
+        paginationStatus.textContent = "No visible cards.";
+      });
+      return;
     }
 
-    if (currentCardPageTotal) {
-      currentCardPageTotal.textContent = "of " + currentCardTotalPages;
-    }
+    const start = (currentCardPage - 1) * pageSize + 1;
+    const end = Math.min(currentCardPage * pageSize, filteredCount);
+    const paginationText =
+      "Showing " + start + "–" + end + " of " + filteredCount + " card(s).";
 
-    if (currentCardPrevButton) {
-      currentCardPrevButton.disabled = currentCardPage <= 1;
-    }
-
-    if (currentCardNextButton) {
-      currentCardNextButton.disabled = currentCardPage >= currentCardTotalPages;
-    }
-
-    if (currentCardPaginationStatus) {
-      if (!filteredCount) {
-        currentCardPaginationStatus.textContent = "No visible cards.";
-        return;
-      }
-
-      const start = (currentCardPage - 1) * pageSize + 1;
-      const end = Math.min(currentCardPage * pageSize, filteredCount);
-
-      currentCardPaginationStatus.textContent =
-        "Showing " + start + "–" + end + " of " + filteredCount + " card(s).";
-    }
+    paginationStatuses.forEach(function (paginationStatus) {
+      paginationStatus.textContent = paginationText;
+    });
   }
 
   function applyCurrentCardPagination() {
@@ -3383,7 +3390,7 @@
     updateCurrentCardViewContainers();
   }
 
-  function goToCurrentCardPage(pageNumber) {
+  function goToCurrentCardPage(pageNumber, scrollToPageStart) {
     const parsedPageNumber = Number(pageNumber);
 
     if (!Number.isFinite(parsedPageNumber)) {
@@ -3397,6 +3404,15 @@
     applyCurrentCardPagination();
     updateCurrentSelectionState();
     updateSetStatsRollout();
+
+    if (scrollToPageStart && currentCardPaginationBar) {
+      window.requestAnimationFrame(function () {
+        currentCardPaginationBar.scrollIntoView({
+          behavior: "auto",
+          block: "start",
+        });
+      });
+    }
   }
 
   function getSelectedCustomSetCardIds() {
@@ -3958,7 +3974,6 @@
       }
 
       filterCurrentCards();
-      bindZoomableImages();
 
       if (context && typeof context.setStatus === "function") {
         context.setStatus(
@@ -3992,8 +4007,6 @@
 
       context.close();
       filterCurrentCards();
-      updateSetStatsRollout();
-      bindZoomableImages();
       showUiMessage(payload.message || "Printing updated.", false);
     },
   });
@@ -4069,30 +4082,45 @@
     });
   }
 
-  if (currentCardPrevButton) {
-    currentCardPrevButton.addEventListener("click", function () {
-      goToCurrentCardPage(currentCardPage - 1);
-    });
-  }
-
-  if (currentCardNextButton) {
-    currentCardNextButton.addEventListener("click", function () {
-      goToCurrentCardPage(currentCardPage + 1);
-    });
-  }
-
-  if (currentCardPageInput) {
-    currentCardPageInput.addEventListener("change", function () {
-      goToCurrentCardPage(currentCardPageInput.value);
+  [currentCardPrevButton, currentCardPrevButtonBottom]
+    .filter(Boolean)
+    .forEach(function (previousButton) {
+      previousButton.addEventListener("click", function () {
+        goToCurrentCardPage(
+          currentCardPage - 1,
+          previousButton === currentCardPrevButtonBottom,
+        );
+      });
     });
 
-    currentCardPageInput.addEventListener("keydown", function (event) {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        currentCardPageInput.blur();
-      }
+  [currentCardNextButton, currentCardNextButtonBottom]
+    .filter(Boolean)
+    .forEach(function (nextButton) {
+      nextButton.addEventListener("click", function () {
+        goToCurrentCardPage(
+          currentCardPage + 1,
+          nextButton === currentCardNextButtonBottom,
+        );
+      });
     });
-  }
+
+  [currentCardPageInput, currentCardPageInputBottom]
+    .filter(Boolean)
+    .forEach(function (pageInput) {
+      pageInput.addEventListener("change", function () {
+        goToCurrentCardPage(
+          pageInput.value,
+          pageInput === currentCardPageInputBottom,
+        );
+      });
+
+      pageInput.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          pageInput.blur();
+        }
+      });
+    });
 
   if (selectedPrintExportButton) {
     selectedPrintExportButton.addEventListener(
@@ -4298,33 +4326,15 @@
   });
 
   function findCurrentCardRowsByCardUuid(cardUuid) {
-    if (!cardUuid) {
+    const cleanCardUuid = String(cardUuid || "").trim();
+
+    if (!cleanCardUuid) {
       return [];
     }
 
-    const directRows = Array.from(
-      document.querySelectorAll(
-        '.custom-draft-current-card-row[data-card-uuid="' +
-          CSS.escape(cardUuid) +
-          '"]',
-      ),
-    );
-
-    if (directRows.length) {
-      return directRows;
-    }
-
-    return Array.from(
-      document.querySelectorAll(
-        '.alternate-image-button[data-card-uuid="' +
-          CSS.escape(cardUuid) +
-          '"]',
-      ),
-    )
-      .map(function (button) {
-        return button.closest(".custom-draft-current-card-row");
-      })
-      .filter(Boolean);
+    return getCurrentCardRows().filter(function (row) {
+      return String(row.dataset.cardUuid || "").trim() === cleanCardUuid;
+    });
   }
 
   function updateCustomDraftAlternateImageRowState(cardUuid, detail) {
@@ -4408,12 +4418,15 @@
         alternateMetaLine.remove();
       }
     });
+
+    return matchingRows;
   }
 
-  function refreshCurrentCardImages(cardUuid) {
+  function refreshCurrentCardImages(cardUuid, matchingRows) {
     const cacheVersion = String(Date.now());
+    const rows = matchingRows || findCurrentCardRowsByCardUuid(cardUuid);
 
-    findCurrentCardRowsByCardUuid(cardUuid).forEach(function (row) {
+    rows.forEach(function (row) {
       const imageElement = row.querySelector(
         ".custom-draft-current-card-image",
       );
@@ -4452,8 +4465,6 @@
         // The existing pagination/visibility code queues it later.
         imageElement.dataset.cardImageState = "idle";
       }
-
-      invalidateCurrentCardGridCard(row);
     });
   }
 
@@ -4465,10 +4476,13 @@
       return;
     }
 
-    updateCustomDraftAlternateImageRowState(cardUuid, detail);
+    const matchingRows = updateCustomDraftAlternateImageRowState(
+      cardUuid,
+      detail,
+    );
 
     if (detail.imageChanged || detail.imageUrl) {
-      refreshCurrentCardImages(cardUuid);
+      refreshCurrentCardImages(cardUuid, matchingRows);
     }
 
     if (detail.imageChanged) {
@@ -4478,10 +4492,10 @@
       filterCurrentCards();
     }
 
-    bindZoomableImages();
-
     if (window.iMomirCardFlip) {
-      window.iMomirCardFlip.enhance(currentCardList);
+      matchingRows.forEach(function (row) {
+        window.iMomirCardFlip.enhance(row);
+      });
     }
   });
 

@@ -1375,6 +1375,51 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
         id="customDraftCurrentCardGrid"
         class="chaos-pack-view-grid custom-draft-current-card-grid hidden"
       ></div>
+
+      <div
+        class="custom-draft-search-footer-bar custom-draft-current-pagination-footer"
+      >
+        <div class="custom-draft-search-pagination">
+          <button
+            type="button"
+            id="customDraftCurrentPrevButtonBottom"
+            class="custom-draft-page-arrow"
+            disabled
+            aria-label="Previous Set Card List page"
+          >
+            ‹
+          </button>
+          <span class="custom-draft-page-label-prefix">Page</span>
+          <input
+            type="number"
+            id="customDraftCurrentPageInputBottom"
+            class="custom-draft-page-input"
+            value="1"
+            min="1"
+            step="1"
+            aria-label="Current Set Card List page"
+          />
+          <span
+            id="customDraftCurrentPageTotalBottom"
+            class="custom-draft-page-label-suffix"
+            >of —</span
+          >
+          <button
+            type="button"
+            id="customDraftCurrentNextButtonBottom"
+            class="custom-draft-page-arrow"
+            disabled
+            aria-label="Next Set Card List page"
+          >
+            ›
+          </button>
+        </div>
+
+        <div
+          id="customDraftCurrentPaginationStatusBottom"
+          class="custom-draft-card-search-status"
+        ></div>
+      </div>
       {% else %}
       <div
         id="customDraftCurrentCardList"
