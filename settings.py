@@ -459,7 +459,7 @@ GAME_MODE_OPTIONS = [
     },
     {
         "value": "chaos_draft",
-        "label": "Chaos Draft",
+        "label": "Chaos Draft - Basic Mode",
         "description": "Chaos Draft selects a random booster pack from the currently enabled sets. One of the funnest ways to play Magic the Gathering.",
         "image_filename": "img/token_mode_chaos_draft.jpg",
     },

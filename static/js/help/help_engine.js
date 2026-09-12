@@ -7,12 +7,9 @@
 
   const contextTips = new Map();
 
-  const tours = new Map();
-
   const state = {
     contextEnabled: false,
     contextTarget: null,
-    activeTourProgress: null,
   };
 
   let layer;
@@ -283,72 +280,6 @@
     }
   }
 
-  function registerTour(rawTour) {
-    const tour = rawTour || {};
-
-    const tourId = normalizeKey(tour.id);
-
-    if (!tourId || !Array.isArray(tour.steps) || tour.steps.length === 0) {
-      throw new Error("A help tour requires an id and at least one step.");
-    }
-
-    tours.set(tourId, {
-      ...tour,
-      id: tourId,
-      version: Math.max(1, Number(tour.version) || 1),
-    });
-  }
-
-  async function saveTourProgress(progress) {
-    const response = await fetch("/api/help/progress", {
-      method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      body: JSON.stringify(progress || {}),
-    });
-
-    const payload = await response.json();
-
-    if (!response.ok || !payload.ok) {
-      throw new Error(payload.message || "Unable to save help progress.");
-    }
-
-    state.activeTourProgress = payload.progress;
-
-    return payload.progress;
-  }
-
-  async function loadBootstrap() {
-    try {
-      const response = await fetch("/api/help/bootstrap", {
-        cache: "no-store",
-      });
-
-      const payload = await response.json();
-
-      if (response.ok && payload.ok) {
-        state.activeTourProgress = payload.active_tour || null;
-      }
-    } catch (error) {
-      console.warn("Unable to load Deckadence help state:", error);
-    }
-  }
-
-  function emit(eventName, detail) {
-    document.dispatchEvent(
-      new CustomEvent("deckadence:help-event", {
-        detail: {
-          name: String(eventName || ""),
-
-          payload: detail || {},
-        },
-      }),
-    );
-  }
-
   function initialize() {
     layer = document.getElementById("deckHelpLayer");
 
@@ -412,27 +343,15 @@
     );
 
     setContextEnabled(state.contextEnabled);
-
-    loadBootstrap();
   }
 
   window.DeckadenceHelp = {
     registerContextTips: registerContextTips,
 
-    registerTour: registerTour,
-
-    saveTourProgress: saveTourProgress,
-
-    emit: emit,
-
     setContextHelpEnabled: setContextEnabled,
 
     isContextHelpEnabled: function () {
       return state.contextEnabled;
-    },
-
-    getActiveTourProgress: function () {
-      return state.activeTourProgress;
     },
   };
 
@@ -443,5 +362,11 @@
     },
   });
 
-  document.addEventListener("DOMContentLoaded", initialize);
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initialize, {
+      once: true,
+    });
+  } else {
+    initialize();
+  }
 })();

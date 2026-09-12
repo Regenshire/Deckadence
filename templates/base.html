@@ -18,11 +18,6 @@
       href="{{ url_for('static', filename='css/print_template_selector.css') }}"
     />
 
-    <link
-      rel="stylesheet"
-      href="{{ url_for('static', filename='css/help.css') }}"
-    />
-
     {% block page_styles %}{% endblock %}
   </head>
   <body>
@@ -466,16 +461,16 @@
 
     <script src="{{ url_for('static', filename='js/print_template_selector.js') }}"></script>
 
-    <script src="{{ url_for('static', filename='js/help/help_engine.js') }}"></script>
-
-    <script src="{{ url_for('static', filename='js/help/tour_engine.js') }}"></script>
-
-    <script src="{{ url_for('static', filename='js/help/tours/settings.js') }}"></script>
-
     {% block page_scripts_before_app %}{% endblock %}
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 
     {% block page_scripts_after_app %}{% endblock %}
+
+    <script
+      defer
+      src="{{ url_for('static', filename='js/help/help_loader.js') }}"
+    ></script>
+  </body>
   </body>
 </html>

@@ -1,52 +1,58 @@
 <div class="page-panel setup-panel setup-guide-panel">
-    <div class="setup-guide-header">
-        <div>
-            <h2 class="setup-panel-title">
-                {{ setup_title | default("Initial Setup Required") }}
-            </h2>
+  <div class="setup-guide-header">
+    <div>
+      <h2 class="setup-panel-title">
+        {{ setup_title | default("Initial Setup Required") }}
+      </h2>
 
-            <p class="setup-panel-text">
-                {{ setup_message | default("Card database data is required before this mode can be used.") }}
-            </p>
-        </div>
-
-        <div class="setup-guide-badge">
-            Setup
-        </div>
+      <p class="setup-panel-text">
+        {{ setup_message | default("Card database data is required before this
+        mode can be used.") }}
+      </p>
     </div>
 
-    <div class="setup-guide-steps">
-        <div class="setup-guide-step">
-            <div class="setup-guide-step-number">1</div>
-            <div class="setup-guide-step-copy">
-                <strong>Open Config</strong>
-                <span>Go to the Card Database tools.</span>
-            </div>
-        </div>
+    <div class="setup-guide-badge">Setup</div>
+  </div>
 
-        <div class="setup-guide-step">
-            <div class="setup-guide-step-number">2</div>
-            <div class="setup-guide-step-copy">
-                <strong>Download Card Database</strong>
-                <span>This loads card data, sets, images, Chaos Draft pack data, and prices.</span>
-            </div>
-        </div>
-
-        <div class="setup-guide-step">
-            <div class="setup-guide-step-number">3</div>
-            <div class="setup-guide-step-copy">
-                <strong>Return to Deckadence</strong>
-                <span>Once setup is complete, this page will unlock automatically after refresh.</span>
-            </div>
-        </div>
+  <div class="setup-guide-steps">
+    <div class="setup-guide-step">
+      <div class="setup-guide-step-number">1</div>
+      <div class="setup-guide-step-copy">
+        <strong>Open Settings</strong>
+        <span>Go to the Card Database tools.</span>
+      </div>
     </div>
 
-    <div class="setup-guide-actions">
-        <a
-            class="action-button"
-            href="{{ url_for('config') }}?open=reminders,card_database&scroll=card_database"
+    <div class="setup-guide-step">
+      <div class="setup-guide-step-number">2</div>
+      <div class="setup-guide-step-copy">
+        <strong>Download Card Database</strong>
+        <span
+          >This loads card data, sets, images, Chaos Draft pack data, and
+          prices.</span
         >
-            Open Setup
-        </a>
+      </div>
     </div>
+
+    <div class="setup-guide-step">
+      <div class="setup-guide-step-number">3</div>
+      <div class="setup-guide-step-copy">
+        <strong>Return to Deckadence</strong>
+        <span
+          >Once setup is complete, this page will unlock automatically after
+          refresh.</span
+        >
+      </div>
+    </div>
+  </div>
+
+  <div class="setup-guide-actions">
+    <a
+      class="action-button"
+      href="{{ url_for('config') }}?open=reminders,card_database&scroll=card_database"
+      data-help-tour-start="initial_setup"
+    >
+      Begin Setup
+    </a>
+  </div>
 </div>

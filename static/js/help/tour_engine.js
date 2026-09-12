@@ -3,6 +3,9 @@
     return;
   }
 
+  const ACTIVE_TOUR_STORAGE_KEY = "deckadence.activeTourId";
+  const CONTEXT_STORAGE_KEY = "deckadence.contextHelpEnabled";
+
   class GuidedTourEngine {
     constructor() {
       this.tours = new Map();
@@ -10,6 +13,7 @@
       this.stepIndex = -1;
       this.target = null;
       this.routeMismatch = false;
+      this.context = {};
 
       this.layer = null;
       this.exitButton = null;
@@ -41,12 +45,146 @@
       return this.normalizePath(window.location.pathname);
     }
 
+    setActiveTourSession(tourId) {
+      try {
+        sessionStorage.setItem(
+          ACTIVE_TOUR_STORAGE_KEY,
+          this.normalizeKey(tourId),
+        );
+      } catch (error) {
+        // Tour still works on the current page if storage is unavailable.
+      }
+    }
+
+    clearActiveTourSession() {
+      try {
+        sessionStorage.removeItem(ACTIVE_TOUR_STORAGE_KEY);
+      } catch (error) {
+        // Nothing else is required.
+      }
+    }
+
+    disableContextHelp() {
+      try {
+        sessionStorage.setItem(CONTEXT_STORAGE_KEY, "0");
+      } catch (error) {
+        // Context Help can still be disabled in memory below.
+      }
+
+      if (
+        window.DeckadenceHelp &&
+        typeof window.DeckadenceHelp.setContextHelpEnabled === "function"
+      ) {
+        window.DeckadenceHelp.setContextHelpEnabled(false);
+      }
+    }
+
     getCurrentStep() {
       if (!this.activeTour) {
         return null;
       }
 
       return this.activeTour.steps[this.stepIndex] || null;
+    }
+
+    isWaitingForEvent(eventName) {
+      const step = this.getCurrentStep();
+      const cleanEventName = this.normalizeKey(eventName);
+
+      return Boolean(
+        step &&
+        cleanEventName &&
+        step.advanceOnEvent &&
+        this.normalizeKey(step.advanceOnEvent) === cleanEventName,
+      );
+    }
+
+    resolveStepTarget(step) {
+      if (!step || !step.target) {
+        return "";
+      }
+
+      if (typeof step.target === "function") {
+        return String(step.target({ ...this.context }) || "").trim();
+      }
+
+      return String(step.target || "").trim();
+    }
+
+    async handleHelpEvent(detail) {
+      const step = this.getCurrentStep();
+      const eventName = this.normalizeKey(detail && detail.name);
+
+      if (
+        !step ||
+        !step.advanceOnEvent ||
+        this.normalizeKey(step.advanceOnEvent) !== eventName
+      ) {
+        return false;
+      }
+
+      const payload = detail && detail.payload;
+
+      if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+        this.context = {
+          ...this.context,
+          ...payload,
+        };
+      }
+
+      await this.next();
+
+      return true;
+    }
+
+    readPageEvent() {
+      const url = new URL(window.location.href);
+      const eventName = this.normalizeKey(url.searchParams.get("help_event"));
+
+      if (!eventName) {
+        return null;
+      }
+
+      const payload = {};
+      const eventKeys = ["help_event"];
+
+      for (const [key, value] of url.searchParams.entries()) {
+        if (!key.startsWith("help_event_")) {
+          continue;
+        }
+
+        eventKeys.push(key);
+
+        const rawPayloadKey = key.slice("help_event_".length);
+
+        if (!rawPayloadKey) {
+          continue;
+        }
+
+        const payloadKey = rawPayloadKey.replace(
+          /_([a-z0-9])/g,
+          function (_match, character) {
+            return character.toUpperCase();
+          },
+        );
+
+        payload[payloadKey] = value;
+      }
+
+      eventKeys.forEach(function (key) {
+        url.searchParams.delete(key);
+      });
+
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${url.pathname}${url.search}${url.hash}`,
+      );
+
+      return {
+        name: eventName,
+        payload: payload,
+      };
     }
 
     register(rawTour) {
@@ -75,10 +213,6 @@
       };
 
       this.tours.set(tourId, normalizedTour);
-
-      if (window.DeckadenceHelp && window.DeckadenceHelp.registerTour) {
-        window.DeckadenceHelp.registerTour(normalizedTour);
-      }
     }
 
     clearTarget() {
@@ -226,6 +360,10 @@
 
       this.backButton.hidden = this.stepIndex <= 0;
 
+      // Guided tours are informational. Never require a user action
+      // before allowing them to continue.
+      this.nextButton.hidden = false;
+
       this.nextButton.textContent =
         this.stepIndex >= this.activeTour.steps.length - 1
           ? step.nextLabel || "Finish"
@@ -236,25 +374,20 @@
       this.routeMismatch = stepRoute !== this.currentPath();
 
       if (this.routeMismatch) {
-        this.body.textContent =
-          step.routeMessage ||
-          "This part of the guide continues on another page. " +
-            "You can return to the tour when you are ready.";
-
-        this.nextButton.textContent = step.returnLabel || "Return to Tour";
-
         this.positionPanel(null);
 
         return;
       }
 
-      if (!step.target) {
+      const targetSelector = this.resolveStepTarget(step);
+
+      if (!targetSelector) {
         this.positionPanel(null);
 
         return;
       }
 
-      const target = document.querySelector(step.target);
+      const target = document.querySelector(targetSelector);
 
       if (!target) {
         this.body.textContent =
@@ -310,22 +443,38 @@
     async saveProgress(status) {
       const step = this.getCurrentStep();
 
-      if (!this.activeTour || !step || !window.DeckadenceHelp) {
+      if (!this.activeTour || !step) {
         return null;
       }
 
       try {
-        return await window.DeckadenceHelp.saveTourProgress({
-          tour_id: this.activeTour.id,
+        const response = await fetch("/api/help/progress", {
+          method: "POST",
 
-          tour_version: this.activeTour.version,
+          headers: {
+            "Content-Type": "application/json",
+          },
 
-          current_step_id: step.id,
+          body: JSON.stringify({
+            tour_id: this.activeTour.id,
 
-          status: status || "active",
+            tour_version: this.activeTour.version,
 
-          context: {},
+            current_step_id: step.id,
+
+            status: status || "active",
+
+            context: this.context,
+          }),
         });
+
+        const payload = await response.json();
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.message || "Unable to save help progress.");
+        }
+
+        return payload.progress || null;
       } catch (error) {
         console.warn("Unable to save guided tour progress:", error);
 
@@ -351,6 +500,7 @@
         : await this.loadProgress(cleanTourId);
 
       let stepIndex = 0;
+      let resumeProgress = false;
 
       if (
         progress &&
@@ -361,16 +511,25 @@
 
         if (savedIndex >= 0) {
           stepIndex = savedIndex;
+          resumeProgress = true;
         }
       }
 
-      if (window.DeckadenceHelp) {
-        window.DeckadenceHelp.setContextHelpEnabled(false);
-      }
+      this.context =
+        resumeProgress &&
+        progress.context &&
+        typeof progress.context === "object" &&
+        !Array.isArray(progress.context)
+          ? { ...progress.context }
+          : {};
+
+      this.disableContextHelp();
 
       this.activeTour = tour;
 
       this.stepIndex = stepIndex;
+
+      this.setActiveTourSession(cleanTourId);
 
       await this.saveProgress("active");
 
@@ -383,6 +542,8 @@
       }
 
       await this.saveProgress("dismissed");
+
+      this.clearActiveTourSession();
 
       this.activeTour = null;
 
@@ -399,6 +560,8 @@
       }
 
       await this.saveProgress("completed");
+
+      this.clearActiveTourSession();
 
       this.activeTour = null;
 
@@ -440,14 +603,6 @@
         return;
       }
 
-      const step = this.getCurrentStep();
-
-      if (this.routeMismatch && step && step.route) {
-        window.location.href = this.normalizePath(step.route);
-
-        return;
-      }
-
       if (this.stepIndex >= this.activeTour.steps.length - 1) {
         await this.complete();
         return;
@@ -475,49 +630,63 @@
         const saved = response.ok && payload.ok ? payload.active_tour : null;
 
         if (!saved) {
-          return;
+          this.clearActiveTourSession();
+          return false;
         }
 
         const tour = this.tours.get(this.normalizeKey(saved.tour_id));
 
         if (!tour || Number(saved.tour_version) !== tour.version) {
-          return;
+          this.clearActiveTourSession();
+          return false;
         }
 
         const stepIndex = this.findStepIndex(tour, saved.current_step_id);
 
         if (stepIndex < 0) {
-          return;
+          this.clearActiveTourSession();
+          return false;
         }
 
-        if (window.DeckadenceHelp) {
-          window.DeckadenceHelp.setContextHelpEnabled(false);
-        }
+        this.disableContextHelp();
 
         this.activeTour = tour;
 
         this.stepIndex = stepIndex;
 
+        this.context =
+          saved.context &&
+          typeof saved.context === "object" &&
+          !Array.isArray(saved.context)
+            ? { ...saved.context }
+            : {};
+
+        this.setActiveTourSession(tour.id);
+
         this.renderCurrentStep();
+
+        return true;
       } catch (error) {
         console.warn("Unable to restore active guided tour:", error);
+
+        return false;
       }
     }
 
-    handleTourStart(event) {
-      if (!event.target || typeof event.target.closest !== "function") {
-        return;
+    async restoreFromPage() {
+      const restored = await this.restoreActiveTour();
+
+      if (!restored) {
+        return false;
       }
 
-      const trigger = event.target.closest("[data-help-tour-start]");
+      const pageEvent = this.readPageEvent();
 
-      if (!trigger) {
-        return;
+      if (pageEvent) {
+        await this.handleHelpEvent(pageEvent);
       }
 
-      event.preventDefault();
-
-      this.start(trigger.dataset.helpTourStart);
+      return true;
     }
 
     initialize() {
@@ -541,15 +710,7 @@
         return;
       }
 
-      document.addEventListener("click", (event) => {
-        this.handleTourStart(event);
-      });
-
       document.addEventListener("keydown", (event) => {
-        if (["Enter", " "].includes(event.key)) {
-          this.handleTourStart(event);
-        }
-
         if (event.key === "Escape" && this.activeTour) {
           this.reset();
         }
@@ -585,23 +746,13 @@
           event.preventDefault();
           event.stopImmediatePropagation();
 
-          this.pause();
+          this.reset();
         },
         true,
       );
 
       document.addEventListener("deckadence:help-event", (event) => {
-        const step = this.getCurrentStep();
-
-        const eventName = this.normalizeKey(event.detail && event.detail.name);
-
-        if (
-          step &&
-          step.advanceOnEvent &&
-          this.normalizeKey(step.advanceOnEvent) === eventName
-        ) {
-          this.next();
-        }
+        this.handleHelpEvent(event.detail);
       });
 
       window.addEventListener("resize", () => {
@@ -619,8 +770,6 @@
         },
         true,
       );
-
-      this.restoreActiveTour();
     }
 
     isActive() {
@@ -632,7 +781,17 @@
 
   window.DeckadenceTours = engine;
 
-  document.addEventListener("DOMContentLoaded", () => {
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      () => {
+        engine.initialize();
+      },
+      {
+        once: true,
+      },
+    );
+  } else {
     engine.initialize();
-  });
+  }
 })();

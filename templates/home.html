@@ -33,29 +33,33 @@ block page_styles %}
       </div>
     </header>
     <section class="home-primary-section" aria-label="Deckadence shortcuts">
-      {% if not card_database_ready %}
       <a
         class="home-primary-card home-primary-card-setup"
         href="{{ url_for('config') }}?open=card_database&scroll=card_database"
+        data-help-tour-start="initial_setup"
       >
         <div class="home-card-icon home-card-icon-setup">
           <i class="fa-solid fa-database" aria-hidden="true"></i>
         </div>
 
         <div class="home-card-copy">
-          <div class="home-card-eyebrow">Required First Step</div>
+          <div class="home-card-eyebrow">Guided Setup</div>
 
           <h2>Initial Setup</h2>
 
-          <p>Configure Deckadence's card and set data before you begin.</p>
+          <p>
+            Download the card and set data that must be installed to use
+            Deckadence.
+          </p>
         </div>
 
         <div class="home-card-action">
-          Configure Data Sources
+          Start Initial Setup
           <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
         </div>
       </a>
 
+      {% if not card_database_ready %}
       <div
         class="home-primary-card home-primary-card-disabled"
         aria-disabled="true"
@@ -210,7 +214,13 @@ block page_styles %}
           </div>
         </div>
 
-        <div class="home-guide-card">
+        <div
+          class="home-guide-card"
+          data-help-tour-start="chaos_in_the_making"
+          role="button"
+          tabindex="0"
+          aria-label="Start Chaos in the Making guided tour"
+        >
           <div class="home-guide-number">02</div>
 
           <div class="home-guide-icon">
@@ -220,6 +230,11 @@ block page_styles %}
           <h3>Chaos in the Making!</h3>
 
           <p>Create your first Chaos Draft Campaign.</p>
+
+          <div class="home-guide-action">
+            Start Guided Tour
+            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          </div>
         </div>
 
         <div class="home-guide-card">

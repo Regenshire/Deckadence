@@ -19594,22 +19594,108 @@ def campaign_chaos_campaigns_delete(campaign_id):
     return redirect(url_for("campaign_chaos_campaigns"))
 
 
-@app.route("/campaign-chaos/select-campaign", methods=["POST"])
-def campaign_chaos_select_campaign():
-    payload = request.get_json(silent=True) or {}
-    campaign_id = payload.get("campaign_id")
-
+def select_chaos_campaign_context(campaign_id):
     result = set_selected_chaos_campaign_id(campaign_id)
 
     if not result.get("ok"):
-        return jsonify(result), 400
+        return result
 
     clear_chaos_session_state("selected_campaign_player_id")
     clear_chaos_session_state("selected_chaos_draft_game_id")
     clear_chaos_session_state("pending_spin_result")
     clear_chaos_session_state("pending_opened_pack")
     clear_chaos_session_state("pending_campaign_pack_opening_recorded")
+
+    return result
+
+
+@app.route("/campaign-chaos/select-campaign", methods=["POST"])
+def campaign_chaos_select_campaign():
+    payload = request.get_json(silent=True) or {}
+    campaign_id = payload.get("campaign_id")
+
+    result = select_chaos_campaign_context(campaign_id)
+
+    if not result.get("ok"):
+        return jsonify(result), 400
+
     return jsonify(result)
+
+
+@app.route(
+    "/campaign-chaos/campaigns/<int:campaign_id>/open",
+    methods=["POST"],
+)
+def campaign_chaos_campaign_open(campaign_id):
+    destination = (
+        request.form.get("destination")
+        or ""
+    ).strip().lower()
+
+    valid_destinations = {
+        "players",
+        "packs",
+        "history",
+        "draft",
+    }
+
+    if destination not in valid_destinations:
+        flash("Unknown campaign shortcut.")
+        return redirect(url_for("campaign_chaos_campaigns"))
+
+    campaign = get_chaos_campaign_by_id(campaign_id)
+
+    if not campaign:
+        flash("Campaign was not found.")
+        return redirect(url_for("campaign_chaos_campaigns"))
+
+    if destination == "history":
+        return redirect(
+            url_for(
+                "campaign_chaos_history",
+                campaign_id=campaign_id,
+            )
+        )
+
+    selection_result = select_chaos_campaign_context(campaign_id)
+
+    if not selection_result.get("ok"):
+        flash(
+            selection_result.get("message")
+            or "Could not select campaign."
+        )
+        return redirect(url_for("campaign_chaos_campaigns"))
+
+    if destination == "players":
+        return redirect(url_for("campaign_chaos_players"))
+
+    if destination == "packs":
+        previous_management_campaign_id = (
+            get_pack_management_campaign_id()
+        )
+
+        management_result = set_pack_management_campaign_id(
+            campaign_id
+        )
+
+        if not management_result.get("ok"):
+            flash(
+                management_result.get("message")
+                or "Could not open Pack Management."
+            )
+            return redirect(url_for("campaign_chaos_campaigns"))
+
+        if previous_management_campaign_id != campaign_id:
+            clear_chaos_session_state("pending_manage_pack_preview")
+
+        return redirect(url_for("campaign_chaos_packs"))
+
+    set_config_value(
+        "chaos_draft_mode",
+        "chaos_draft_campaign",
+    )
+
+    return redirect(url_for("play_draft"))
 
 @app.route("/campaign-chaos/players", methods=["GET"])
 def campaign_chaos_players():

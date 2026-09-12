@@ -9871,9 +9871,30 @@ body:has(
 
 .campaign-save-edit-form {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto auto;
+  grid-template-columns: minmax(260px, 1fr) auto auto auto;
   gap: 12px;
   align-items: end;
+}
+
+.campaign-save-shortcuts {
+  min-height: 46px;
+}
+
+.campaign-save-shortcuts .campaign-icon-button {
+  flex: 0 0 auto;
+  padding: 0;
+  cursor: pointer;
+}
+
+.campaign-save-shortcuts .campaign-icon-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.campaign-save-shortcuts .campaign-icon-button:disabled:hover {
+  border-color: var(--border);
+  background: var(--button);
+  color: var(--muted);
 }
 
 .campaign-save-row-actions {
