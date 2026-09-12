@@ -1105,7 +1105,8 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
       >
         {% for card in custom_set_cards %}
         <div
-          class="custom-draft-current-card-row hidden"
+          class="custom-draft-current-card-row"
+          hidden
           data-custom-set-card-id="{{ card.custom_set_card_id }}"
           data-card-uuid="{{ card.card_uuid }}"
           data-card-search="{{ (card.card_name ~ ' ' ~ card.card_set_code ~ ' ' ~ (card.collector_number or '') ~ ' ' ~ (card.rarity or '') ~ ' ' ~ (card.type_line or '') ~ ' ' ~ (card.color_identity_json or '') ~ ' ' ~ (card.mana_value|string if card.mana_value is not none else ''))|lower }}"

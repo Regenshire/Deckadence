@@ -194,6 +194,15 @@
 }
 
 /* ==========================================
+   Set Card List Visibility
+   ========================================== */
+
+#customDraftCurrentCardList > .custom-draft-current-card-row[hidden],
+#customDraftCurrentCardGrid > .custom-draft-current-grid-card[hidden] {
+  display: none !important;
+}
+
+/* ==========================================
    Set Card List / Grid Rendering Performance
    ========================================== */
 

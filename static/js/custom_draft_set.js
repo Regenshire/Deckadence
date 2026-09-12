@@ -190,6 +190,23 @@
   let currentCardViewMode = "list";
   let currentCardGridNeedsRender = true;
 
+  let currentCardRowsCache = null;
+  let currentFilteredCardRowsCache = null;
+  let currentVisibleCardRowsCache = [];
+  let currentRenderedListRows = [];
+  let currentCardSortValue = null;
+  let currentCardSortDirty = true;
+
+  const currentCardGridCardCache = new WeakMap();
+  let currentVisibleGridCards = [];
+  let currentCardGridRenderVersion = 0;
+
+  const currentCardGridRenderBatchSize = 32;
+  const currentCardGridRenderBudgetMs = 8;
+
+  let currentCardImageScheduleFrame = null;
+  let currentCardImageScheduleTimer = null;
+
   const deferredCardImagePlaceholder =
     "data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20width%3D%2263%22%20height%3D%2288%22%20viewBox%3D%220%200%2063%2088%22/%3E";
 
@@ -235,7 +252,7 @@
         return false;
       }
 
-      if (listRow.classList.contains("hidden")) {
+      if (listRow.hidden) {
         return false;
       }
     }
@@ -243,7 +260,7 @@
     const gridCard = imageElement.closest(".custom-draft-current-grid-card");
 
     if (gridCard) {
-      if (currentCardViewMode !== "grid") {
+      if (currentCardViewMode !== "grid" || gridCard.hidden) {
         return false;
       }
 
@@ -450,13 +467,11 @@
 
     const imageElements =
       currentCardViewMode === "grid"
-        ? currentCardGrid
-          ? Array.from(
-              currentCardGrid.querySelectorAll(
-                ".custom-draft-card-zoomable[data-card-image-src]",
-              ),
-            )
-          : []
+        ? currentVisibleGridCards.map(function (gridCard) {
+            return gridCard.querySelector(
+              ".custom-draft-card-zoomable[data-card-image-src]",
+            );
+          })
         : getVisibleCurrentCardRows().map(function (row) {
             return row.querySelector(
               ".custom-draft-current-card-image[data-card-image-src]",
@@ -476,18 +491,34 @@
     });
   }
 
+  function deferVisibleCurrentCardImages() {
+    if (currentCardImageScheduleFrame !== null) {
+      window.cancelAnimationFrame(currentCardImageScheduleFrame);
+      currentCardImageScheduleFrame = null;
+    }
+
+    if (currentCardImageScheduleTimer !== null) {
+      window.clearTimeout(currentCardImageScheduleTimer);
+      currentCardImageScheduleTimer = null;
+    }
+
+    currentCardImageScheduleFrame = window.requestAnimationFrame(function () {
+      currentCardImageScheduleFrame = null;
+
+      currentCardImageScheduleTimer = window.setTimeout(function () {
+        currentCardImageScheduleTimer = null;
+        scheduleVisibleCurrentCardImages();
+      }, 0);
+    });
+  }
+
   function enableDeferredCardImageLoading() {
     if (cardImageLoadingEnabled) {
       return;
     }
 
     cardImageLoadingEnabled = true;
-
-    window.requestAnimationFrame(function () {
-      window.requestAnimationFrame(function () {
-        window.setTimeout(scheduleVisibleCurrentCardImages, 50);
-      });
-    });
+    deferVisibleCurrentCardImages();
   }
 
   function getClientSetting(settingKey, fallbackValue) {
@@ -1404,6 +1435,7 @@
     const row = document.createElement("div");
 
     row.className = "custom-draft-current-card-row";
+    row.hidden = true;
     row.dataset.customSetCardId = customSetCardId;
     row.dataset.cardUuid = cardUuid;
     row.dataset.cardSearch = buildCurrentCardSearchTextFromCard(card);
@@ -1601,6 +1633,7 @@
     }
 
     currentCardList.appendChild(newRow);
+    invalidateCurrentCardRowsCache();
     bindCurrentCardRowControls(newRow);
     updateCurrentCardCountBadge();
 
@@ -1733,6 +1766,7 @@
           }
 
           row.remove();
+          invalidateCurrentCardRowsCache();
           updateCurrentCardCountBadge();
           filterCurrentCards();
           showUiMessage(payload.message || "Card removed.", false);
@@ -1933,6 +1967,9 @@
       }
     }
 
+    invalidateCurrentCardRowsCache();
+    invalidateCurrentCardGridCard(row);
+
     return row;
   }
 
@@ -2068,6 +2105,7 @@
         }
       });
 
+      invalidateCurrentCardRowsCache();
       updateCurrentCardCountBadge();
       clearCurrentCardSelection();
       filterCurrentCards();
@@ -2291,40 +2329,16 @@
     return compareText(rowA.dataset.cardName, rowB.dataset.cardName);
   }
 
-  function sortRowsInContainer(containerElement, rowSelector, sortValue) {
-    if (!containerElement) {
-      return;
-    }
-
-    const rows = Array.from(containerElement.querySelectorAll(rowSelector));
-
-    const sortedRows = rows.slice().sort(function (rowA, rowB) {
+  function sortCardRows(rows, sortValue) {
+    return (rows || []).slice().sort(function (rowA, rowB) {
       return compareCardRows(rowA, rowB, sortValue);
-    });
-
-    const orderChanged = sortedRows.some(function (row, rowIndex) {
-      return row !== rows[rowIndex];
-    });
-
-    if (!orderChanged) {
-      return;
-    }
-
-    sortedRows.forEach(function (row) {
-      containerElement.appendChild(row);
     });
   }
 
-  function getCurrentCardNameCounts() {
+  function getCurrentCardNameCounts(rows) {
     const nameCounts = {};
 
-    if (!currentCardList) {
-      return nameCounts;
-    }
-
-    Array.from(
-      currentCardList.querySelectorAll(".custom-draft-current-card-row"),
-    ).forEach(function (row) {
+    (rows || getCurrentCardRows()).forEach(function (row) {
       const cardName = row.dataset.cardName || "";
 
       if (!cardName) {
@@ -2742,20 +2756,28 @@
       String(getCurrentCardRows().length) + " card(s)";
   }
 
+  function invalidateCurrentCardRowsCache() {
+    currentCardRowsCache = null;
+    currentFilteredCardRowsCache = null;
+    currentCardSortDirty = true;
+  }
+
   function getCurrentCardRows() {
     if (!currentCardList) {
       return [];
     }
 
-    return Array.from(
-      currentCardList.querySelectorAll(".custom-draft-current-card-row"),
-    );
+    if (currentCardRowsCache === null) {
+      currentCardRowsCache = Array.from(
+        currentCardList.querySelectorAll(".custom-draft-current-card-row"),
+      );
+    }
+
+    return currentCardRowsCache;
   }
 
   function getVisibleCurrentCardRows() {
-    return getCurrentCardRows().filter(function (row) {
-      return !row.classList.contains("hidden");
-    });
+    return currentVisibleCardRowsCache;
   }
 
   function getCurrentCardMetaText(row, prefixText) {
@@ -2986,25 +3008,177 @@
     return cardElement;
   }
 
+  function invalidateCurrentCardGridCard(row) {
+    if (!row) {
+      return;
+    }
+
+    const gridCard = currentCardGridCardCache.get(row);
+
+    if (gridCard) {
+      abandonDeferredCardImageLoadsInContainer(gridCard);
+      gridCard.remove();
+
+      currentVisibleGridCards = currentVisibleGridCards.filter(
+        function (visibleGridCard) {
+          return visibleGridCard !== gridCard;
+        },
+      );
+    }
+
+    currentCardGridCardCache.delete(row);
+    currentCardGridNeedsRender = true;
+  }
+
+  function syncCurrentCardGridCardSelection(row, gridCard) {
+    if (!row || !gridCard) {
+      return;
+    }
+
+    const sourceCheckbox = row.querySelector(
+      ".custom-draft-current-card-checkbox",
+    );
+    const isSelected = Boolean(sourceCheckbox && sourceCheckbox.checked);
+
+    gridCard.classList.toggle(
+      "custom-draft-current-card-row-selected",
+      isSelected,
+    );
+
+    const gridCheckbox = gridCard.querySelector(
+      ".custom-draft-grid-card-checkbox",
+    );
+
+    if (gridCheckbox) {
+      gridCheckbox.checked = isSelected;
+    }
+  }
+
+  function getOrCreateCurrentCardGridCard(row) {
+    let gridCard = currentCardGridCardCache.get(row);
+
+    if (!gridCard) {
+      gridCard = createCurrentCardGridCard(row);
+      gridCard.hidden = true;
+      currentCardGridCardCache.set(row, gridCard);
+    }
+
+    syncCurrentCardGridCardSelection(row, gridCard);
+
+    return gridCard;
+  }
+
   function renderCurrentCardGridView() {
     if (!currentCardGrid || !currentCardGridNeedsRender) {
       return;
     }
 
-    // Rebuild only after data, filters, sorting, or pagination changes.
-    // A List/Grid toggle keeps the existing cards and loaded images.
-    abandonDeferredCardImageLoadsInContainer(currentCardGrid);
-
-    const gridFragment = document.createDocumentFragment();
-
-    getVisibleCurrentCardRows().forEach(function (row) {
-      gridFragment.appendChild(createCurrentCardGridCard(row));
-    });
-
-    currentCardGrid.replaceChildren(gridFragment);
     currentCardGridNeedsRender = false;
 
-    bindZoomableImages();
+    const renderVersion = ++currentCardGridRenderVersion;
+    const visibleRows = getVisibleCurrentCardRows();
+    const cachedVisibleCards = [];
+    const cachedVisibleCardSet = new Set();
+    const missingRows = [];
+
+    visibleRows.forEach(function (row, rowIndex) {
+      const cachedGridCard = currentCardGridCardCache.get(row);
+
+      if (!cachedGridCard) {
+        missingRows.push({
+          row: row,
+          rowIndex: rowIndex,
+        });
+        return;
+      }
+
+      syncCurrentCardGridCardSelection(row, cachedGridCard);
+      cachedGridCard.style.order = String(rowIndex);
+      cachedGridCard.hidden = false;
+
+      cachedVisibleCards.push(cachedGridCard);
+      cachedVisibleCardSet.add(cachedGridCard);
+    });
+
+    currentVisibleGridCards.forEach(function (gridCard) {
+      if (!cachedVisibleCardSet.has(gridCard)) {
+        gridCard.hidden = true;
+      }
+    });
+
+    currentVisibleGridCards = cachedVisibleCards;
+
+    if (!missingRows.length) {
+      deferVisibleCurrentCardImages();
+      return;
+    }
+
+    let missingIndex = 0;
+
+    function renderNextGridBatch() {
+      if (renderVersion !== currentCardGridRenderVersion) {
+        return;
+      }
+
+      if (currentCardViewMode !== "grid") {
+        currentCardGridNeedsRender = true;
+        return;
+      }
+
+      const batchStartedAt = performance.now();
+      let batchCount = 0;
+      const batchFragment = document.createDocumentFragment();
+
+      while (
+        missingIndex < missingRows.length &&
+        batchCount < currentCardGridRenderBatchSize &&
+        performance.now() - batchStartedAt < currentCardGridRenderBudgetMs
+      ) {
+        const missingItem = missingRows[missingIndex];
+        const gridCard = getOrCreateCurrentCardGridCard(missingItem.row);
+
+        gridCard.style.order = String(missingItem.rowIndex);
+        gridCard.hidden = false;
+
+        batchFragment.appendChild(gridCard);
+        currentVisibleGridCards.push(gridCard);
+
+        missingIndex += 1;
+        batchCount += 1;
+      }
+
+      if (batchFragment.childNodes.length) {
+        bindZoomableImages(batchFragment);
+        currentCardGrid.appendChild(batchFragment);
+      }
+
+      if (missingIndex < missingRows.length) {
+        window.requestAnimationFrame(renderNextGridBatch);
+        return;
+      }
+
+      deferVisibleCurrentCardImages();
+    }
+
+    window.requestAnimationFrame(renderNextGridBatch);
+  }
+
+  function renderCurrentCardListView() {
+    const nextVisibleRows = getVisibleCurrentCardRows();
+    const nextVisibleRowSet = new Set(nextVisibleRows);
+
+    currentRenderedListRows.forEach(function (row) {
+      if (row.isConnected && !nextVisibleRowSet.has(row)) {
+        row.hidden = true;
+      }
+    });
+
+    nextVisibleRows.forEach(function (row, rowIndex) {
+      row.style.order = String(rowIndex);
+      row.hidden = false;
+    });
+
+    currentRenderedListRows = nextVisibleRows.slice();
   }
 
   function updateCurrentCardViewContainers() {
@@ -3045,9 +3219,11 @@
 
     if (useGridView) {
       renderCurrentCardGridView();
+    } else {
+      renderCurrentCardListView();
     }
 
-    scheduleVisibleCurrentCardImages();
+    deferVisibleCurrentCardImages();
   }
 
   let currentCardViewSwitchPending = false;
@@ -3126,9 +3302,15 @@
   }
 
   function getCurrentFilteredCardRows() {
-    return getCurrentCardRows().filter(function (row) {
-      return row.dataset.currentFilterVisible === "1";
-    });
+    if (currentFilteredCardRowsCache === null) {
+      currentFilteredCardRowsCache = getCurrentCardRows().filter(
+        function (row) {
+          return row.dataset.currentFilterVisible === "1";
+        },
+      );
+    }
+
+    return currentFilteredCardRowsCache;
   }
 
   function getCurrentCardPageSize() {
@@ -3192,18 +3374,9 @@
     updateCurrentCardPaginationControls(filteredRows.length, pageSize);
 
     const startIndex = (currentCardPage - 1) * pageSize;
-
     const endIndex = startIndex + pageSize;
 
-    const allRows = getCurrentCardRows();
-
-    allRows.forEach(function (row) {
-      row.classList.add("hidden");
-    });
-
-    filteredRows.slice(startIndex, endIndex).forEach(function (row) {
-      row.classList.remove("hidden");
-    });
+    currentVisibleCardRowsCache = filteredRows.slice(startIndex, endIndex);
 
     currentCardGridNeedsRender = true;
     updateCurrentCardViewContainers();
@@ -3432,12 +3605,23 @@
   }
 
   let currentCardFilterTimer = null;
+  let currentCardFilterAnimationFrame = null;
   const currentCardFilterDebounceMs = 300;
 
-  function scheduleCurrentCardFilter(preserveTextFilterPosition) {
+  function cancelPendingCurrentCardFilter() {
     if (currentCardFilterTimer !== null) {
       window.clearTimeout(currentCardFilterTimer);
+      currentCardFilterTimer = null;
     }
+
+    if (currentCardFilterAnimationFrame !== null) {
+      window.cancelAnimationFrame(currentCardFilterAnimationFrame);
+      currentCardFilterAnimationFrame = null;
+    }
+  }
+
+  function scheduleCurrentCardFilter(preserveTextFilterPosition) {
+    cancelPendingCurrentCardFilter();
 
     const textFilterViewportTop =
       preserveTextFilterPosition && currentFilterInput
@@ -3463,20 +3647,21 @@
     }, currentCardFilterDebounceMs);
   }
 
-  function runCurrentCardFilterImmediately() {
-    if (currentCardFilterTimer !== null) {
-      window.clearTimeout(currentCardFilterTimer);
-      currentCardFilterTimer = null;
-    }
+  function scheduleCurrentCardFilterAfterPaint() {
+    cancelPendingCurrentCardFilter();
 
-    filterCurrentCards();
+    currentCardFilterAnimationFrame = window.requestAnimationFrame(function () {
+      currentCardFilterAnimationFrame = window.requestAnimationFrame(
+        function () {
+          currentCardFilterAnimationFrame = null;
+          filterCurrentCards();
+        },
+      );
+    });
   }
 
   function filterCurrentCards() {
-    if (currentCardFilterTimer !== null) {
-      window.clearTimeout(currentCardFilterTimer);
-      currentCardFilterTimer = null;
-    }
+    cancelPendingCurrentCardFilter();
 
     if (!currentCardList) {
       return;
@@ -3511,9 +3696,25 @@
     const digitalValue = digitalFilter
       ? (digitalFilter.value || "").trim().toLowerCase()
       : "";
-    const duplicateCardNameCounts = getCurrentCardNameCounts();
+    const sortValue = currentSortSelect
+      ? currentSortSelect.value || "name_asc"
+      : "name_asc";
 
-    const rows = getCurrentCardRows();
+    let rows = getCurrentCardRows();
+
+    if (currentCardSortDirty || currentCardSortValue !== sortValue) {
+      rows = sortCardRows(rows, sortValue);
+      currentCardRowsCache = rows;
+      currentCardSortValue = sortValue;
+      currentCardSortDirty = false;
+    }
+
+    const duplicateCardNameCounts =
+      duplicateValue === "duplicates_only"
+        ? getCurrentCardNameCounts(rows)
+        : null;
+
+    const filteredRows = [];
 
     rows.forEach(function (row) {
       const haystack = row.dataset.cardSearch || "";
@@ -3567,18 +3768,16 @@
         digitalMatches;
 
       row.dataset.currentFilterVisible = isFilterVisible ? "1" : "0";
+
+      if (isFilterVisible) {
+        filteredRows.push(row);
+      }
     });
 
-    sortRowsInContainer(
-      currentCardList,
-      ".custom-draft-current-card-row",
-      currentSortSelect ? currentSortSelect.value : "name_asc",
-    );
-
+    currentFilteredCardRowsCache = filteredRows;
     currentCardPage = 1;
-    applyCurrentCardPagination();
 
-    updateCurrentSelectionState();
+    applyCurrentCardPagination();
     updateSetStatsRollout();
   }
 
@@ -3627,10 +3826,15 @@
     zoomImage.alt = "";
   }
 
-  function bindZoomableImages() {
+  function bindZoomableImages(rootElement) {
+    const root = rootElement || document;
     const zoomableImages = Array.from(
-      document.querySelectorAll(".custom-draft-card-zoomable"),
+      root.querySelectorAll(".custom-draft-card-zoomable"),
     );
+
+    if (root.matches && root.matches(".custom-draft-card-zoomable")) {
+      zoomableImages.push(root);
+    }
 
     zoomableImages.forEach(function (imageElement) {
       if (imageElement.dataset.zoomBound === "1") {
@@ -3837,12 +4041,15 @@
     currentSortSelect,
   ].forEach(function (filterElement) {
     if (filterElement) {
-      filterElement.addEventListener("change", runCurrentCardFilterImmediately);
+      filterElement.addEventListener(
+        "change",
+        scheduleCurrentCardFilterAfterPaint,
+      );
     }
   });
 
-  bindRarityCheckboxGroup(rarityFilter, runCurrentCardFilterImmediately);
-  bindColorCheckboxGroup(colorFilter, runCurrentCardFilterImmediately);
+  bindRarityCheckboxGroup(rarityFilter, scheduleCurrentCardFilterAfterPaint);
+  bindColorCheckboxGroup(colorFilter, scheduleCurrentCardFilterAfterPaint);
 
   if (currentCardPageSizeSelect) {
     currentCardPageSizeSelect.addEventListener("change", function () {
@@ -3851,7 +4058,7 @@
         currentCardPageSizeSelect.value || "100",
       );
       currentCardPage = 1;
-      filterCurrentCards();
+      scheduleCurrentCardFilterAfterPaint();
     });
   }
 
@@ -4036,7 +4243,7 @@
         currentSortSelect.value = "name_asc";
       }
 
-      filterCurrentCards();
+      scheduleCurrentCardFilterAfterPaint();
     });
   }
 
@@ -4165,6 +4372,8 @@
         );
       }
 
+      invalidateCurrentCardGridCard(row);
+
       const metaWrap = row.querySelector(".custom-draft-current-card-meta");
       if (!metaWrap) {
         return;
@@ -4254,6 +4463,8 @@
         // The existing pagination/visibility code queues it later.
         imageElement.dataset.cardImageState = "idle";
       }
+
+      invalidateCurrentCardGridCard(row);
     });
   }
 
