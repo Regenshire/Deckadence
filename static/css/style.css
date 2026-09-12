@@ -7270,10 +7270,9 @@ body:has(
 
 .deckbuilder-sideboard-filter-grid {
   display: grid;
-  grid-template-columns: minmax(170px, 1.4fr) minmax(110px, 0.8fr) minmax(
-      130px,
-      0.9fr
-    ) minmax(150px, 0.9fr) minmax(130px, 0.9fr) auto;
+  grid-template-columns:
+    minmax(170px, 1.4fr) minmax(110px, 0.8fr) minmax(130px, 0.9fr)
+    minmax(150px, 0.9fr) minmax(130px, 0.9fr) auto;
   gap: 8px;
   align-items: end;
 }
@@ -7894,10 +7893,9 @@ body:has(
 
 .campaign-test-draft-virtual-controls {
   display: grid;
-  grid-template-columns: auto minmax(300px, 480px) auto minmax(
-      220px,
-      360px
-    ) minmax(0, 1fr) auto;
+  grid-template-columns:
+    auto minmax(300px, 480px) auto minmax(220px, 360px)
+    minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
   margin: 14px 0 12px 0;
@@ -10281,7 +10279,7 @@ body:has(
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 760px;
+  max-height: 1460px;
   overflow-y: auto;
   padding-right: 4px;
 }

@@ -313,6 +313,10 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
       </div>
     </div>
 
+    <div class="custom-draft-set-save-row">
+      <button type="submit" class="action-button">Save Custom Set</button>
+    </div>
+
     {% include "_card_search_modal.html" %}
 
     <div
@@ -1379,10 +1383,6 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
         No cards have been added to this custom draft set yet.
       </div>
       {% endif %}
-    </div>
-
-    <div class="custom-draft-set-save-row">
-      <button type="submit" class="action-button">Save Custom Set</button>
     </div>
   </form>
   {% set print_export_subject_label = "custom draft set" %} {% include

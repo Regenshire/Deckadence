@@ -2126,12 +2126,6 @@
   }
 
   function bindCurrentCardControls() {
-    Array.from(
-      document.querySelectorAll(".custom-draft-current-card-row"),
-    ).forEach(function (row) {
-      bindCurrentCardRowControls(row);
-    });
-
     if (
       selectAllCurrentCardsButton &&
       selectAllCurrentCardsButton.dataset.bound !== "1"
@@ -3177,6 +3171,10 @@
     });
 
     nextVisibleRows.forEach(function (row, rowIndex) {
+      bindCurrentCardRowControls(row);
+      renderCurrentCardColorIdentityLabel(row);
+      bindZoomableImages(row);
+
       row.style.order = String(rowIndex);
       row.hidden = false;
     });
@@ -3767,18 +3765,23 @@
     updateSetStatsRollout();
   }
 
-  function renderExistingColorIdentityLabels() {
-    const colorIdentityElements = Array.from(
-      document.querySelectorAll(".custom-draft-color-identity"),
-    );
+  function renderCurrentCardColorIdentityLabel(row) {
+    if (!row) {
+      return;
+    }
 
-    colorIdentityElements.forEach(function (element) {
-      const row = element.closest(".custom-draft-current-card-row");
-      const typeLine = row ? row.dataset.typeLine || "" : "";
-      element.textContent =
-        "Color Identity: " +
-        getColorIdentityLabel(element.dataset.colorJson || "[]", typeLine);
-    });
+    const element = row.querySelector(".custom-draft-color-identity");
+
+    if (!element || element.dataset.rendered === "1") {
+      return;
+    }
+
+    const typeLine = row.dataset.typeLine || "";
+
+    element.textContent =
+      "Color Identity: " +
+      getColorIdentityLabel(element.dataset.colorJson || "[]", typeLine);
+    element.dataset.rendered = "1";
   }
 
   function openZoom(imageElement) {
@@ -4497,11 +4500,9 @@
       ? "grid"
       : "list";
 
-  renderExistingColorIdentityLabels();
   bindCurrentCardControls();
   updateCurrentSelectionState();
   filterCurrentCards();
-  bindZoomableImages();
 
   if (document.readyState === "complete") {
     enableDeferredCardImageLoading();
