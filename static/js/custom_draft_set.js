@@ -196,6 +196,7 @@
   let currentRenderedListRows = [];
   let currentCardSortValue = null;
   let currentCardSortDirty = true;
+  const selectedCurrentCardRows = new Map();
 
   const currentCardGridCardCache = new WeakMap();
   let currentVisibleGridCards = [];
@@ -1657,7 +1658,10 @@
 
     if (checkbox && checkbox.dataset.bound !== "1") {
       checkbox.dataset.bound = "1";
-      checkbox.addEventListener("change", updateCurrentSelectionState);
+      checkbox.addEventListener("change", function () {
+        setCurrentCardRowSelection(row, checkbox.checked);
+        updateCurrentSelectionState();
+      });
     }
 
     if (categorySelect && categorySelect.dataset.bound !== "1") {
@@ -1765,6 +1769,8 @@
             throw new Error(payload.message || "Failed to remove card.");
           }
 
+          setCurrentCardRowSelection(row, false);
+          updateCurrentSelectionState();
           row.remove();
           invalidateCurrentCardRowsCache();
           updateCurrentCardCountBadge();
@@ -2883,10 +2889,7 @@
     gridCheckbox.setAttribute("aria-label", "Select " + cardName);
 
     gridCheckbox.addEventListener("change", function () {
-      if (sourceCheckbox) {
-        sourceCheckbox.checked = gridCheckbox.checked;
-      }
-
+      setCurrentCardRowSelection(row, gridCheckbox.checked);
       updateCurrentSelectionState();
     });
 
@@ -3398,32 +3401,14 @@
     updateSetStatsRollout();
   }
 
-  function getSelectedCurrentCardCheckboxes() {
-    if (!currentCardList) {
-      return [];
-    }
-
-    return Array.from(
-      currentCardList.querySelectorAll(
-        ".custom-draft-current-card-checkbox:checked",
-      ),
-    );
-  }
-
   function getSelectedCustomSetCardIds() {
-    return getSelectedCurrentCardCheckboxes()
-      .map(function (checkbox) {
-        return checkbox.value || "";
-      })
-      .filter(Boolean);
+    return Array.from(selectedCurrentCardRows.keys());
   }
 
   function getSelectedCustomSetCardUuids() {
-    return getSelectedCurrentCardCheckboxes()
-      .map(function (checkbox) {
-        const row = checkbox.closest(".custom-draft-current-card-row");
-
-        return row ? String(row.dataset.cardUuid || "").trim() : "";
+    return Array.from(selectedCurrentCardRows.values())
+      .map(function (row) {
+        return String(row.dataset.cardUuid || "").trim();
       })
       .filter(Boolean);
   }
@@ -3488,8 +3473,57 @@
     }
   }
 
+  function setCurrentCardRowSelection(row, isSelected) {
+    if (!row) {
+      return;
+    }
+
+    const cardId = String(row.dataset.customSetCardId || "").trim();
+
+    if (!cardId) {
+      return;
+    }
+
+    const selected = Boolean(isSelected);
+
+    if (selected) {
+      selectedCurrentCardRows.set(cardId, row);
+    } else {
+      selectedCurrentCardRows.delete(cardId);
+    }
+
+    const sourceCheckbox = row.querySelector(
+      ".custom-draft-current-card-checkbox",
+    );
+
+    if (sourceCheckbox && sourceCheckbox.checked !== selected) {
+      sourceCheckbox.checked = selected;
+    }
+
+    row.classList.toggle("custom-draft-current-card-row-selected", selected);
+
+    const gridCard = currentCardGridCardCache.get(row);
+
+    if (!gridCard) {
+      return;
+    }
+
+    gridCard.classList.toggle(
+      "custom-draft-current-card-row-selected",
+      selected,
+    );
+
+    const gridCheckbox = gridCard.querySelector(
+      ".custom-draft-grid-card-checkbox",
+    );
+
+    if (gridCheckbox && gridCheckbox.checked !== selected) {
+      gridCheckbox.checked = selected;
+    }
+  }
+
   function updateCurrentSelectionState() {
-    const selectedCount = getSelectedCustomSetCardIds().length;
+    const selectedCount = selectedCurrentCardRows.size;
 
     if (selectedCardCountLabel) {
       selectedCardCountLabel.textContent = selectedCount + " selected";
@@ -3538,55 +3572,11 @@
           : "Print / Export Selected Cards",
       );
     }
-
-    const gridCardsById = new Map();
-
-    if (currentCardGrid) {
-      currentCardGrid
-        .querySelectorAll(
-          ".custom-draft-current-grid-card[data-custom-set-card-id]",
-        )
-        .forEach(function (gridCard) {
-          const gridCardId = gridCard.dataset.customSetCardId || "";
-
-          if (gridCardId) {
-            gridCardsById.set(gridCardId, gridCard);
-          }
-        });
-    }
-
-    getCurrentCardRows().forEach(function (row) {
-      const checkbox = row.querySelector(".custom-draft-current-card-checkbox");
-      const isSelected = Boolean(checkbox && checkbox.checked);
-      const cardId = row.dataset.customSetCardId || "";
-
-      row.classList.toggle(
-        "custom-draft-current-card-row-selected",
-        isSelected,
-      );
-
-      const gridCard = cardId ? gridCardsById.get(cardId) : null;
-
-      if (gridCard) {
-        gridCard.classList.toggle(
-          "custom-draft-current-card-row-selected",
-          isSelected,
-        );
-
-        const gridCheckbox = gridCard.querySelector(
-          ".custom-draft-grid-card-checkbox",
-        );
-
-        if (gridCheckbox) {
-          gridCheckbox.checked = isSelected;
-        }
-      }
-    });
   }
 
   function clearCurrentCardSelection() {
-    getSelectedCurrentCardCheckboxes().forEach(function (checkbox) {
-      checkbox.checked = false;
+    Array.from(selectedCurrentCardRows.values()).forEach(function (row) {
+      setCurrentCardRowSelection(row, false);
     });
 
     updateCurrentSelectionState();
@@ -3594,11 +3584,7 @@
 
   function selectAllVisibleCurrentCards() {
     getVisibleCurrentCardRows().forEach(function (row) {
-      const checkbox = row.querySelector(".custom-draft-current-card-checkbox");
-
-      if (checkbox) {
-        checkbox.checked = true;
-      }
+      setCurrentCardRowSelection(row, true);
     });
 
     updateCurrentSelectionState();
