@@ -188,6 +188,7 @@
     "iMomir.customDraftSet.currentCards.viewMode";
 
   let currentCardViewMode = "list";
+  let currentCardGridNeedsRender = true;
 
   const deferredCardImagePlaceholder =
     "data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20width%3D%2263%22%20height%3D%2288%22%20viewBox%3D%220%200%2063%2088%22/%3E";
@@ -199,9 +200,31 @@
   const maxConcurrentCardImageLoads = 4;
 
   let cardImageLoadingEnabled = false;
+  let nearViewportCardImageElements = new WeakSet();
+
+  const cardImageObserver =
+    typeof window.IntersectionObserver === "function"
+      ? new IntersectionObserver(
+          function (entries) {
+            entries.forEach(function (entry) {
+              if (entry.isIntersecting) {
+                nearViewportCardImageElements.add(entry.target);
+                queueDeferredCardImage(entry.target);
+              } else {
+                nearViewportCardImageElements.delete(entry.target);
+              }
+            });
+          },
+          { rootMargin: "300px 0px" },
+        )
+      : null;
 
   function isCardImageElementEligible(imageElement) {
     if (!imageElement || !imageElement.isConnected) {
+      return false;
+    }
+
+    if (cardImageObserver && !nearViewportCardImageElements.has(imageElement)) {
       return false;
     }
 
@@ -414,24 +437,42 @@
       return;
     }
 
-    if (currentCardViewMode === "grid") {
-      if (!currentCardGrid || currentCardGrid.classList.contains("hidden")) {
+    // Rebuild pending work for the active view, not for the entire set.
+    cardImageLoadQueue.forEach(function (imageElement) {
+      queuedCardImageElements.delete(imageElement);
+    });
+    cardImageLoadQueue.length = 0;
+
+    if (cardImageObserver) {
+      cardImageObserver.disconnect();
+      nearViewportCardImageElements = new WeakSet();
+    }
+
+    const imageElements =
+      currentCardViewMode === "grid"
+        ? currentCardGrid
+          ? Array.from(
+              currentCardGrid.querySelectorAll(
+                ".custom-draft-card-zoomable[data-card-image-src]",
+              ),
+            )
+          : []
+        : getVisibleCurrentCardRows().map(function (row) {
+            return row.querySelector(
+              ".custom-draft-current-card-image[data-card-image-src]",
+            );
+          });
+
+    imageElements.forEach(function (imageElement) {
+      if (!imageElement || imageElement.dataset.cardImageState === "loaded") {
         return;
       }
 
-      currentCardGrid
-        .querySelectorAll(".custom-draft-card-zoomable[data-card-image-src]")
-        .forEach(queueDeferredCardImage);
-
-      return;
-    }
-
-    getVisibleCurrentCardRows().forEach(function (row) {
-      const imageElement = row.querySelector(
-        ".custom-draft-current-card-image[data-card-image-src]",
-      );
-
-      queueDeferredCardImage(imageElement);
+      if (cardImageObserver) {
+        cardImageObserver.observe(imageElement);
+      } else {
+        queueDeferredCardImage(imageElement);
+      }
     });
   }
 
@@ -1562,11 +1603,8 @@
     currentCardList.appendChild(newRow);
     bindCurrentCardRowControls(newRow);
     updateCurrentCardCountBadge();
-    filterCurrentCards();
-    updateCurrentSelectionState();
-    updateSetStatsRollout();
-    bindZoomableImages();
 
+    // The onAddSuccess callback refreshes the views after insertion.
     return newRow;
   }
 
@@ -2949,14 +2987,12 @@
   }
 
   function renderCurrentCardGridView() {
-    if (!currentCardGrid) {
+    if (!currentCardGrid || !currentCardGridNeedsRender) {
       return;
     }
 
-    /*
-     * Filtering destroys and recreates all Grid View card elements.
-     * Release their queued/active loader slots before removing them.
-     */
+    // Rebuild only after data, filters, sorting, or pagination changes.
+    // A List/Grid toggle keeps the existing cards and loaded images.
     abandonDeferredCardImageLoadsInContainer(currentCardGrid);
 
     const gridFragment = document.createDocumentFragment();
@@ -2966,9 +3002,9 @@
     });
 
     currentCardGrid.replaceChildren(gridFragment);
+    currentCardGridNeedsRender = false;
 
     bindZoomableImages();
-    scheduleVisibleCurrentCardImages();
   }
 
   function updateCurrentCardViewContainers() {
@@ -3010,16 +3046,83 @@
     if (useGridView) {
       renderCurrentCardGridView();
     }
+
+    scheduleVisibleCurrentCardImages();
   }
 
-  function setCurrentCardViewMode(viewMode) {
-    const cleanViewMode = String(viewMode || "")
-      .trim()
-      .toLowerCase();
+  let currentCardViewSwitchPending = false;
 
-    currentCardViewMode = cleanViewMode === "grid" ? "grid" : "list";
-    setClientSetting(currentCardsViewModeStorageKey, currentCardViewMode);
-    updateCurrentCardViewContainers();
+  async function setCurrentCardViewMode(viewMode) {
+    const nextViewMode =
+      String(viewMode || "")
+        .trim()
+        .toLowerCase() === "grid"
+        ? "grid"
+        : "list";
+
+    if (currentCardViewSwitchPending || nextViewMode === currentCardViewMode) {
+      return;
+    }
+
+    const previousViewMode = currentCardViewMode;
+    const previousStatus = currentCardPaginationStatus
+      ? currentCardPaginationStatus.textContent
+      : "";
+    const switchingMessage =
+      "Switching to " +
+      (nextViewMode === "grid" ? "Grid" : "List") +
+      " view...";
+    const viewButtons = [listViewButton, gridViewButton].filter(Boolean);
+
+    currentCardViewSwitchPending = true;
+    viewButtons.forEach(function (button) {
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+    });
+
+    if (currentCardPaginationStatus) {
+      currentCardPaginationStatus.textContent = switchingMessage;
+    }
+
+    try {
+      // Let the switching message paint before changing the card layout.
+      await new Promise(function (resolve) {
+        window.requestAnimationFrame(function () {
+          window.requestAnimationFrame(resolve);
+        });
+      });
+
+      currentCardViewMode = nextViewMode;
+      updateCurrentCardViewContainers();
+      setClientSetting(currentCardsViewModeStorageKey, currentCardViewMode);
+    } catch (error) {
+      console.error("Could not switch card view:", error);
+      currentCardViewMode = previousViewMode;
+
+      try {
+        updateCurrentCardViewContainers();
+      } catch (restoreError) {
+        console.error("Could not restore card view:", restoreError);
+      }
+
+      showUiMessage(
+        "Could not switch card view. Please reload the page.",
+        true,
+      );
+    } finally {
+      if (
+        currentCardPaginationStatus &&
+        currentCardPaginationStatus.textContent === switchingMessage
+      ) {
+        currentCardPaginationStatus.textContent = previousStatus;
+      }
+
+      viewButtons.forEach(function (button) {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+      });
+      currentCardViewSwitchPending = false;
+    }
   }
 
   function getCurrentFilteredCardRows() {
@@ -3102,8 +3205,8 @@
       row.classList.remove("hidden");
     });
 
+    currentCardGridNeedsRender = true;
     updateCurrentCardViewContainers();
-    scheduleVisibleCurrentCardImages();
   }
 
   function goToCurrentCardPage(pageNumber) {
@@ -3662,7 +3765,6 @@
       }
 
       filterCurrentCards();
-      updateSetStatsRollout();
       bindZoomableImages();
 
       if (context && typeof context.setStatus === "function") {
