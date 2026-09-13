@@ -98,11 +98,22 @@
 
         route: "/campaign-chaos/packs",
 
-        target: "#campaignAddPackButton",
+        target: function () {
+          const modal = document.getElementById("campaignAddPackModal");
+          const addPackButton = document.getElementById(
+            "campaignAddPackButton",
+          );
+
+          if (modal && modal.classList.contains("hidden") && addPackButton) {
+            addPackButton.click();
+          }
+
+          return ".campaign-add-pack-options";
+        },
 
         title: "Four Ways to Add Packs",
 
-        body: "Click Add Pack to open the pack builder. You can add a completely random eligible pack, search for a specific set or booster, build a custom pack from a decklist, or import saved packs from another campaign.",
+        body: "The Add Pack window gives you four ways to build the campaign pack pool. You can add a completely random eligible pack, search for a specific set or booster, build a custom pack from a decklist, or import saved packs from another campaign.",
 
         nextLabel: "Review the Options",
       },

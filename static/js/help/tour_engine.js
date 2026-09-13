@@ -111,6 +111,23 @@
       return String(step.target || "").trim();
     }
 
+    expandTargetSections(target) {
+      if (!target || typeof target.closest !== "function") {
+        return;
+      }
+
+      let panel = target.closest(".collapsible-panel");
+
+      while (panel) {
+        panel.classList.add("is-open");
+
+        const parentElement = panel.parentElement;
+        panel = parentElement
+          ? parentElement.closest(".collapsible-panel")
+          : null;
+      }
+    }
+
     async handleHelpEvent(detail) {
       const step = this.getCurrentStep();
       const eventName = this.normalizeKey(detail && detail.name);
@@ -402,12 +419,18 @@
 
       this.target = target;
 
+      this.expandTargetSections(target);
       target.classList.add("deck-help-tour-target");
 
       if (step.scroll !== false) {
+        const targetRect = target.getBoundingClientRect();
+        const targetIsLarge =
+          target.classList.contains("collapsible-panel") ||
+          targetRect.height > window.innerHeight * 0.6;
+
         target.scrollIntoView({
           behavior: "smooth",
-          block: "center",
+          block: targetIsLarge ? "start" : "center",
           inline: "nearest",
         });
       }
