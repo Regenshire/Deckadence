@@ -402,6 +402,25 @@ from modes.chaos import (
     sort_opened_chaos_pack_cards,
 )
 
+from external_decks.core import (
+    ExternalDeckError,
+    ExternalDeckSearchFilters,
+    ExternalDeckSelectionError,
+    ExternalDeckSelectionOptions,
+)
+
+from external_decks.importer import (
+    ExternalDeckImporter,
+)
+
+from external_decks.moxfield import (
+    MoxfieldDeckProvider,
+)
+
+from external_decks.roulette import (
+    ExternalDeckRouletteService,
+)
+
 app = Flask(
     __name__,
     template_folder=get_template_dir(),
@@ -22391,6 +22410,420 @@ def build_deckbuilder_image_export_rows(
         })
 
     return export_rows
+
+def normalize_deck_roulette_bracket(
+    value,
+):
+    clean_value = str(
+        value
+        or ""
+    ).strip()
+
+    if not clean_value:
+        return None
+
+    try:
+        parsed_value = int(
+            clean_value
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return None
+
+    if parsed_value < 1:
+        return None
+
+    if parsed_value > 5:
+        return None
+
+    return parsed_value
+
+
+def serialize_deck_roulette_candidate(
+    candidate,
+):
+    candidate_data = (
+        candidate.to_dict()
+    )
+
+    candidate_data[
+        "image_src"
+    ] = (
+        build_scryfall_image_url(
+            candidate.commander_scryfall_id,
+            image_quality="normal",
+        )
+        or ""
+    )
+
+    return candidate_data
+
+
+@app.route(
+    "/deck-roulette",
+    methods=["GET"],
+)
+def deck_roulette():
+    return render_template(
+        "deck_roulette.html",
+
+        card_database_ready=(
+            is_card_database_ready()
+        ),
+    )
+
+
+@app.route(
+    "/deck-roulette/spin",
+    methods=["POST"],
+)
+def deck_roulette_spin():
+    payload = (
+        request.get_json(
+            silent=True
+        )
+        or {}
+    )
+
+    if not isinstance(
+        payload,
+        dict,
+    ):
+        payload = {}
+
+    commander_name = str(
+        payload.get(
+            "commander_name"
+        )
+        or ""
+    ).strip()
+
+    min_bracket = (
+        normalize_deck_roulette_bracket(
+            payload.get(
+                "min_bracket"
+            )
+        )
+    )
+
+    max_bracket = (
+        normalize_deck_roulette_bracket(
+            payload.get(
+                "max_bracket"
+            )
+        )
+    )
+
+    if (
+        min_bracket is not None
+        and max_bracket is not None
+        and min_bracket > max_bracket
+    ):
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Minimum bracket cannot "
+                "be greater than maximum "
+                "bracket."
+            ),
+        }), 400
+
+    try:
+        wheel_size = int(
+            payload.get(
+                "wheel_size"
+            )
+            or 8
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        wheel_size = 8
+
+    if wheel_size not in {
+        6,
+        8,
+        10,
+        12,
+    }:
+        wheel_size = 8
+
+    provider = (
+        MoxfieldDeckProvider()
+    )
+
+    roulette_service = (
+        ExternalDeckRouletteService(
+            provider
+        )
+    )
+
+    try:
+        spin_result = (
+            roulette_service.build_spin(
+                filters=(
+                    ExternalDeckSearchFilters(
+                        format="commander",
+
+                        commander_name=(
+                            commander_name
+                        ),
+
+                        min_bracket=(
+                            min_bracket
+                        ),
+
+                        max_bracket=(
+                            max_bracket
+                        ),
+
+                        sort_type="updated",
+
+                        sort_direction=(
+                            "descending"
+                        ),
+
+                        sfw=True,
+                    )
+                ),
+
+                options=(
+                    ExternalDeckSelectionOptions(
+                        selection_count=(
+                            wheel_size
+                        ),
+
+                        candidate_pool_size=80,
+
+                        max_search_pages=6,
+
+                        require_legal=True,
+
+                        required_playable_card_count=100,
+                    )
+                ),
+
+                wheel_size=wheel_size,
+            )
+        )
+
+    except ExternalDeckSelectionError as exc:
+        return jsonify({
+            "ok": False,
+            "message": str(exc),
+        }), 404
+
+    except ExternalDeckError as exc:
+        return jsonify({
+            "ok": False,
+            "message": str(exc),
+        }), 502
+
+    except Exception as exc:
+        write_error_log(
+            "DECK ROULETTE SPIN FAILED",
+            exc=exc,
+        )
+
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Deck Roulette could not "
+                "load Moxfield decks."
+            ),
+        }), 500
+
+    serialized_candidates = [
+        serialize_deck_roulette_candidate(
+            candidate
+        )
+        for candidate
+        in spin_result.candidates
+    ]
+
+    winning_deck = (
+        serialize_deck_roulette_candidate(
+            spin_result.winner
+        )
+    )
+
+    return jsonify({
+        "ok": True,
+
+        "spin_result": {
+            "display_decks": (
+                serialized_candidates
+            ),
+
+            "winning_deck": (
+                winning_deck
+            ),
+
+            "winning_stop_index": (
+                spin_result
+                .winning_stop_index
+            ),
+
+            "total_results": (
+                spin_result
+                .total_results
+            ),
+
+            "candidate_count": (
+                spin_result
+                .candidate_count
+            ),
+
+            "pages_sampled": list(
+                spin_result
+                .pages_sampled
+            ),
+        },
+    })
+
+
+@app.route(
+    "/deck-roulette/open",
+    methods=["POST"],
+)
+def deck_roulette_open():
+    if not is_card_database_ready():
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Download the card database "
+                "before importing a deck."
+            ),
+        }), 400
+
+    payload = (
+        request.get_json(
+            silent=True
+        )
+        or {}
+    )
+
+    external_id = str(
+        payload.get(
+            "external_id"
+        )
+        or ""
+    ).strip()
+
+    if not external_id:
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Moxfield deck ID is required."
+            ),
+        }), 400
+
+    provider = (
+        MoxfieldDeckProvider()
+    )
+
+    roulette_service = (
+        ExternalDeckRouletteService(
+            provider
+        )
+    )
+
+    try:
+        external_deck = (
+            provider.get_deck(
+                external_id
+            )
+        )
+
+        candidate = (
+            roulette_service.build_candidate(
+                external_deck,
+
+                required_playable_card_count=100,
+            )
+        )
+
+    except ExternalDeckError as exc:
+        return jsonify({
+            "ok": False,
+            "message": str(exc),
+        }), 502
+
+    except Exception as exc:
+        write_error_log(
+            "DECK ROULETTE OPEN FAILED",
+            exc=exc,
+        )
+
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Deckadence could not load "
+                "the selected Moxfield deck."
+            ),
+        }), 500
+
+    if candidate is None:
+        return jsonify({
+            "ok": False,
+            "message": (
+                "The selected Moxfield deck "
+                "is no longer a complete "
+                "100-card Commander deck."
+            ),
+        }), 400
+
+    importer = (
+        ExternalDeckImporter()
+    )
+
+    import_result = (
+        importer.import_deck(
+            external_deck
+        )
+    )
+
+    if not import_result.get(
+        "ok"
+    ):
+        return jsonify({
+            "ok": False,
+
+            "message": (
+                import_result.get(
+                    "message"
+                )
+                or
+                "Could not import the "
+                "selected deck."
+            ),
+
+            "unresolved_cards": (
+                import_result.get(
+                    "unresolved_cards"
+                )
+                or []
+            ),
+        }), 400
+
+    deck_id = int(
+        import_result["deck_id"]
+    )
+
+    return jsonify({
+        "ok": True,
+        "deck_id": deck_id,
+
+        "open_url": url_for(
+            "deckbuilder_open",
+            deck_id=deck_id,
+        ),
+    })
 
 @app.route("/deck-builder", methods=["GET"])
 def deckbuilder_index():

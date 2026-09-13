@@ -1,0 +1,209 @@
+{% extends "base.html" %} {% block title %}Deckadence - Deck Roulette{% endblock
+%} {% block page_styles %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/deck_roulette.css') }}"
+/>
+{% endblock %} {% block content %}
+<div
+  class="screen screen-wide"
+  id="deckRouletteScreen"
+  data-spin-url="{{ url_for('deck_roulette_spin') }}"
+  data-open-url="{{ url_for('deck_roulette_open') }}"
+  data-fallback-image="{{ url_for('static', filename='img/Logos/deckadence_d.svg') }}"
+>
+  {% if not card_database_ready %} {% set setup_title = "Deck Roulette Setup
+  Required" %} {% set setup_message = "Download the card database before
+  importing Moxfield decks into Deck Builder." %} {% include
+  "_setup_required_panel.html" %} {% endif %}
+
+  <div class="page-panel deck-roulette-header-panel">
+    <div class="deck-roulette-header-layout">
+      <div>
+        <h1 class="page-title">Deck Roulette</h1>
+
+        <p class="page-subtitle">
+          Find complete Commander decks on Moxfield, spin the wheel, and open
+          the winner directly in Deck Builder.
+        </p>
+      </div>
+
+      <div class="deck-roulette-source-badge">
+        <i class="fa-solid fa-shuffle"></i>
+        Moxfield
+      </div>
+    </div>
+  </div>
+
+  <div class="page-panel deck-roulette-filter-panel">
+    <div class="deck-roulette-filter-grid">
+      <label class="deck-roulette-field">
+        <span>Commander</span>
+
+        <input
+          type="text"
+          id="deckRouletteCommander"
+          placeholder="Any Commander"
+          autocomplete="off"
+        />
+      </label>
+
+      <label class="deck-roulette-field">
+        <span>Minimum Bracket</span>
+
+        <select id="deckRouletteMinBracket">
+          <option value="">Any</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </label>
+
+      <label class="deck-roulette-field">
+        <span>Maximum Bracket</span>
+
+        <select id="deckRouletteMaxBracket">
+          <option value="">Any</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+        </select>
+      </label>
+
+      <label class="deck-roulette-field">
+        <span>Wheel Size</span>
+
+        <select id="deckRouletteWheelSize">
+          <option value="6">6 Decks</option>
+          <option value="8" selected>8 Decks</option>
+          <option value="10">10 Decks</option>
+          <option value="12">12 Decks</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="deck-roulette-filter-note">
+      Roulette only accepts legal Commander decks with exactly 100 playable
+      cards. Maybeboard and token cards do not count.
+    </div>
+  </div>
+
+  <div id="deckRouletteMessage" class="card-placeholder">
+    Choose any filters you want, then spin.
+  </div>
+
+  <div id="deckRouletteSpinner" class="chaos-draft-spinner-shell">
+    <div class="chaos-draft-spinner-window">
+      <div id="deckRoulettePointer" class="chaos-draft-pointer hidden">
+        <img
+          src="{{ url_for('static', filename='img/packpointer_gold.png') }}"
+          alt="Roulette Pointer"
+        />
+      </div>
+
+      <div id="deckRouletteIdleCta" class="chaos-draft-idle-cta">
+        <button
+          type="button"
+          id="deckRouletteSpinButton"
+          class="chaos-draft-spin-cta"
+          aria-label="Spin Deck Roulette"
+          {%
+          if
+          not
+          card_database_ready
+          %}disabled{%
+          endif
+          %}
+        >
+          <span class="chaos-draft-spin-logo" aria-hidden="true">
+            <img
+              src="{{ url_for('static', filename='img/Logos/spinlogo_D.svg') }}"
+              alt=""
+              class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-base"
+            />
+
+            <img
+              src="{{ url_for('static', filename='img/Logos/spinlogo_spinning.svg') }}"
+              alt=""
+              class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-rotor"
+            />
+          </span>
+        </button>
+      </div>
+
+      <div
+        id="deckRouletteSpinnerTrack"
+        class="chaos-draft-spinner-track hidden"
+      ></div>
+    </div>
+  </div>
+
+  <div
+    id="deckRouletteWinnerPanel"
+    class="page-panel deck-roulette-winner-panel hidden"
+  >
+    <div class="deck-roulette-winner-copy">
+      <div class="deck-roulette-winner-label">Selected Deck</div>
+
+      <h2 id="deckRouletteWinnerName" class="deck-roulette-winner-name"></h2>
+
+      <div
+        id="deckRouletteWinnerCommander"
+        class="deck-roulette-winner-commander"
+      ></div>
+
+      <div id="deckRouletteWinnerMeta" class="deck-roulette-winner-meta"></div>
+    </div>
+
+    <div class="deck-roulette-winner-actions">
+      <a
+        id="deckRouletteMoxfieldLink"
+        class="action-button secondary-button"
+        href="#"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        View on Moxfield
+      </a>
+
+      <button
+        type="button"
+        id="deckRouletteSpinAgainButton"
+        class="action-button secondary-button"
+      >
+        Spin Again
+      </button>
+
+      <button type="button" id="deckRouletteOpenButton" class="action-button">
+        Open Deck
+      </button>
+    </div>
+  </div>
+
+  <div
+    id="deckRouletteBusyOverlay"
+    class="chaos-draft-busy-overlay hidden"
+    aria-hidden="true"
+  >
+    <div class="chaos-draft-busy-backdrop"></div>
+
+    <div class="chaos-draft-busy-card">
+      <div class="chaos-draft-busy-spinner"></div>
+
+      <div id="deckRouletteBusyTitle" class="chaos-draft-busy-title">
+        Finding Decks
+      </div>
+
+      <div id="deckRouletteBusyText" class="chaos-draft-busy-text">
+        Searching Moxfield for complete Commander decks...
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block page_scripts_after_app %}
+<script src="{{ url_for('static', filename='js/deck_roulette.js') }}"></script>
+{% endblock %}

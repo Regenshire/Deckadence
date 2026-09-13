@@ -120,7 +120,7 @@
             </div>
 
             <div
-              class="app-nav-menu {% if request.endpoint in ['deckbuilder_index', 'deckbuilder_open', 'deckbuilder_new', 'campaign_chaos_test_draft_deck_builder', 'sets', 'campaign_chaos_packs_manage', 'campaign_chaos_packs', 'campaign_chaos_pack_detail'] %}app-nav-menu-active{% endif %}"
+              class="app-nav-menu {% if request.endpoint in ['deckbuilder_index', 'deckbuilder_open', 'deckbuilder_new', 'deck_roulette', 'campaign_chaos_test_draft_deck_builder', 'sets', 'campaign_chaos_packs_manage', 'campaign_chaos_packs', 'campaign_chaos_pack_detail'] %}app-nav-menu-active{% endif %}"
             >
               <div
                 class="app-nav-main-control"
@@ -181,12 +181,14 @@
                     Manage
                   </a>
 
-                  <span
-                    class="app-nav-dropdown-item app-nav-dropdown-item-indented app-nav-dropdown-item-disabled"
-                    aria-disabled="true" data-help-id="menu_set_roulette"
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented {% if request.endpoint == 'deck_roulette' %}app-nav-dropdown-item-active{% endif %}"
+                    href="{{ url_for('deck_roulette') }}"
+                    role="menuitem"
+                    data-help-id="menu_set_roulette"
                   >
                     Roulette
-                  </span>
+                  </a>
                 </div>
 
                 <div class="app-nav-dropdown-group">
