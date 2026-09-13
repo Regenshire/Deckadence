@@ -2796,6 +2796,8 @@
   }
 
   function createCurrentCardGridCard(row) {
+    bindCurrentCardRowControls(row);
+
     const cardUuid = row.dataset.cardUuid || "";
     const cardName =
       row.dataset.displayCardName || row.dataset.cardName || "Unknown Card";

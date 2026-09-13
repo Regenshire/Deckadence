@@ -1,50 +1,63 @@
-{% extends "base.html" %} {% block title %}Deckadence - Home{% endblock %} {% block
-content %}
+{% extends "base.html" %} {% block title %}Deckadence - Home{% endblock %} {%
+block content %}
 <div class="screen screen-home screen-medium">
-  {% if not card_database_ready %}
-    {% set setup_title = "Initial Setup Required" %}
-    {% set setup_message = "Download the card database before drawing cards or using game modes." %}
-    {% include "_setup_required_panel.html" %}
-  {% endif %}
+  {% if not card_database_ready %} {% set setup_title = "Initial Setup Required"
+  %} {% set setup_message = "Download the card database before drawing cards or
+  using game modes." %} {% include "_setup_required_panel.html" %} {% endif %}
 
-  <div class="mana-panel">
+  <div class="mana-panel" data-help-id="momir-panel">
     {% if current_game_mode == "tower_of_power" %}
     <div class="mana-label">Tower of Power</div>
 
     {% if use_pdf_print %}
     <form method="get" action="{{ url_for('print_tower_of_power_batch_pdf') }}">
-      <div class="tower-draw-row">
-        <button type="submit" class="enter-button tower-draw-button">Draw</button>
+      <div class="tower-draw-row" data-help-id="momir-tower-draw">
+        <button type="submit" class="enter-button tower-draw-button">
+          Draw
+        </button>
 
-        <select name="draw_count" class="tower-draw-count-select" aria-label="Number of cards to draw into PDF">
-          {% for draw_count_option in range(1, 101) %}
-            <option value="{{ draw_count_option }}" {% if tower_pdf_draw_count == draw_count_option %}selected{% endif %}>
-              {{ draw_count_option }}
-            </option>
-          {% endfor %}
+        <select
+          name="draw_count"
+          class="tower-draw-count-select"
+          aria-label="Number of cards to draw into PDF"
+        >
+          {% for draw_count_option in range(1, 101) %} {% if
+          tower_pdf_draw_count == draw_count_option %}
+          <option value="{{ draw_count_option }}" selected>
+            {{ draw_count_option }}
+          </option>
+          {% else %}
+          <option value="{{ draw_count_option }}">
+            {{ draw_count_option }}
+          </option>
+          {% endif %} {% endfor %}
         </select>
       </div>
     </form>
     {% else %}
     <form method="get" action="{{ url_for('result') }}">
-      <div class="action-row">
+      <div class="action-row" data-help-id="momir-tower-draw">
         <button type="submit" class="enter-button">Draw</button>
       </div>
     </form>
-    {% endif %}
-    {% else %}
+    {% endif %} {% else %}
     <div class="mana-label">Mana Value</div>
 
     <form id="manaForm" method="get" action="{{ url_for('result') }}">
       {% if current_game_mode == "momir_select" and enabled_type_options %}
-      <label class="momir-select-card">
+      <label class="momir-select-card" data-help-id="momir-card-type">
         <span class="momir-select-label">Card Type</span>
         <select name="selected_type" class="momir-select-dropdown">
-          {% for type_option in enabled_type_options %}
-            <option value="{{ type_option.value }}" {% if selected_type_value == type_option.value %}selected{% endif %}>
-              {{ type_option.label }}
-            </option>
-          {% endfor %}
+          {% for type_option in enabled_type_options %} {% if
+          selected_type_value == type_option.value %}
+          <option value="{{ type_option.value }}" selected>
+            {{ type_option.label }}
+          </option>
+          {% else %}
+          <option value="{{ type_option.value }}">
+            {{ type_option.label }}
+          </option>
+          {% endif %} {% endfor %}
         </select>
       </label>
       {% endif %}
@@ -52,6 +65,7 @@ content %}
       <input
         id="manaValue"
         name="mana_value"
+        data-help-id="momir-mana-value"
         type="text"
         inputmode="numeric"
         pattern="[0-9]*"
@@ -61,7 +75,7 @@ content %}
         value=""
       />
 
-      <div class="keypad">
+      <div class="keypad" data-help-id="momir-keypad">
         <button type="button" class="keypad-btn" data-key="1">1</button>
         <button type="button" class="keypad-btn" data-key="2">2</button>
         <button type="button" class="keypad-btn" data-key="3">3</button>
@@ -88,16 +102,15 @@ content %}
       </div>
 
       <div class="action-row">
-        <button type="submit" class="enter-button">
-          {% if current_game_mode == "tower_of_power" %}Draw{% else %}Enter{% endif %}
+        <button type="submit" class="enter-button" data-help-id="momir-draw">
+          {% if current_game_mode == "tower_of_power" %}Draw{% else %}Enter{%
+          endif %}
         </button>
       </div>
     </form>
     {% endif %}
   </div>
 </div>
-{% endblock %}
-
-{% block page_scripts_before_app %}
+{% endblock %} {% block page_scripts_before_app %}
 <script src="{{ url_for('static', filename='js/momir.js') }}"></script>
 {% endblock %}

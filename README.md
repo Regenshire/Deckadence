@@ -66,6 +66,8 @@ From another device on the same network, open Deckadence using the host computer
 http://192.168.1.50:5000
 ```
 
+Keep the command prompt style window running while you are using the website. If this window is closed then the Flask webserver that is hosting the app will shut down.
+
 The QR code in Deckadence can also be used to open the application from a phone or tablet.
 
 ## First-Time Setup

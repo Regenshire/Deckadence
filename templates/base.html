@@ -29,6 +29,7 @@
               type="button"
               id="appMenuToggleButton"
               class="app-logo-link app-menu-toggle-button"
+              data-help-id="navigation-toggle"
               aria-label="Minimize navigation"
               aria-expanded="true"
               title="Minimize Navigation"
@@ -58,7 +59,11 @@
               class="app-nav-menu app-nav-home-menu {% if request.endpoint == 'index' %}app-nav-menu-active{% endif %}"
             >
               <div class="app-nav-main-control">
-                <a class="app-nav-primary-link" href="{{ url_for('index') }}">
+                <a
+                  class="app-nav-primary-link"
+                  data-help-id="navigation-home"
+                  href="{{ url_for('index') }}"
+                >
                   Home
                 </a>
               </div>
@@ -67,7 +72,10 @@
             <div
               class="app-nav-menu {% if request.endpoint in ['play_draft', 'play_momir', 'result', 'campaign_chaos_test_draft'] %}app-nav-menu-active{% endif %}"
             >
-              <div class="app-nav-main-control">
+              <div
+                class="app-nav-main-control"
+                data-help-id="navigation-play"
+              >
                 <a
                   class="app-nav-primary-link"
                   href="{{ url_for('play_draft') }}"
@@ -90,18 +98,18 @@
                 <a
                   class="app-nav-dropdown-item {% if request.endpoint == 'play_draft' %}app-nav-dropdown-item-active{% endif %}"
                   href="{{ url_for('play_draft') }}"
-                  role="menuitem"
+                  role="menuitem" data-help-id="menu_chaos_draft"
                 >
                   <span class="app-nav-item-icon">
                     <i class="fa-solid fa-shuffle"></i>
                   </span>
-                  <span>Draft</span>
+                  <span>Chaos Draft</span>
                 </a>
 
                 <a
                   class="app-nav-dropdown-item {% if request.endpoint in ['play_momir', 'result'] %}app-nav-dropdown-item-active{% endif %}"
                   href="{{ url_for('play_momir') }}"
-                  role="menuitem"
+                  role="menuitem" data-help-id="menu_momir"
                 >
                   <span class="app-nav-item-icon">
                     <i class="fa-solid fa-wand-magic-sparkles"></i>
@@ -114,7 +122,10 @@
             <div
               class="app-nav-menu {% if request.endpoint in ['deckbuilder_index', 'deckbuilder_open', 'deckbuilder_new', 'campaign_chaos_test_draft_deck_builder', 'sets', 'campaign_chaos_packs_manage', 'campaign_chaos_packs', 'campaign_chaos_pack_detail'] %}app-nav-menu-active{% endif %}"
             >
-              <div class="app-nav-main-control">
+              <div
+                class="app-nav-main-control"
+                data-help-id="navigation-cards"
+              >
                 <a class="app-nav-primary-link" href="{{ url_for('sets') }}">
                   Cards
                 </a>
@@ -144,7 +155,7 @@
 
                   <a
                     class="app-nav-dropdown-item app-nav-dropdown-item-indented"
-                    href="{{ url_for('sets') }}"
+                    href="{{ url_for('sets') }}" data-help-id="menu_manage_sets"
                     role="menuitem"
                   >
                     Manage
@@ -165,14 +176,14 @@
                   <a
                     class="app-nav-dropdown-item app-nav-dropdown-item-indented"
                     href="{{ url_for('deckbuilder_index') }}"
-                    role="menuitem"
+                    role="menuitem" data-help-id="menu_manage_decks"
                   >
                     Manage
                   </a>
 
                   <span
                     class="app-nav-dropdown-item app-nav-dropdown-item-indented app-nav-dropdown-item-disabled"
-                    aria-disabled="true"
+                    aria-disabled="true" data-help-id="menu_set_roulette"
                   >
                     Roulette
                   </span>
@@ -192,7 +203,7 @@
                   <a
                     class="app-nav-dropdown-item app-nav-dropdown-item-indented"
                     href="{{ url_for('campaign_chaos_packs_manage') }}"
-                    role="menuitem"
+                    role="menuitem" data-help-id="menu_manage_packs"
                   >
                     Manage
                   </a>
@@ -382,6 +393,7 @@
               type="button"
               id="appHelpToggleButton"
               class="app-nav-square-button app-help-toggle-button"
+              data-help-id="navigation-help"
               aria-label="Toggle Context Help"
               aria-pressed="false"
               title="Context Help"
@@ -393,6 +405,7 @@
               type="button"
               id="appQrButton"
               class="app-nav-square-button app-qr-nav-button"
+              data-help-id="navigation-qr"
               aria-label="Open Deckadence QR code"
               title="Open Deckadence on another device"
             >
@@ -445,7 +458,10 @@
           </button>
         </div>
 
-        <div class="app-qr-modal-body">
+        <div
+          class="app-qr-modal-body"
+          data-help-id="navigation-qr-panel"
+        >
           <img
             src="{{ global_qr_image_url }}"
             alt="QR code for {{ global_qr_access_url }}"

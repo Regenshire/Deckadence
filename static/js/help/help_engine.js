@@ -356,9 +356,84 @@
   };
 
   registerContextTips({
+    "navigation-home": {
+      title: "Home",
+      body: "Return to the Home Screen.",
+    },
+
+    "navigation-play": {
+      title: "Play",
+      body: "Play Momir or Chaos Draft.",
+    },
+
+    "navigation-cards": {
+      title: "Cards",
+      body: "Manage custom sets, decks, and saved packs.",
+    },
+
     "navigation-settings": {
       title: "Settings",
-      body: "Configure Deckadence, update card data sources, customize game modes, control proxy printing options, and access plugins and advanced settings",
+      body: "Open Deckadence settings, database tools, print options, plugins, backups, and advanced tools.",
+    },
+
+    "navigation-qr": {
+      title: "Open on Another Device",
+      body: "Show a QR code so a phone or tablet on the same network can open Deckadence.",
+    },
+
+    "navigation-qr-panel": {
+      title: "Open Deckadence",
+      body: "Scan this QR code with another device, or enter the displayed address manually. The device must be on the same local network as the Deckadence host.",
+    },
+
+    "momir-card-type": {
+      title: "Card Type",
+      body: "In Momir Select mode, choose which enabled card type the next draw must use.",
+    },
+
+    "momir-mana-value": {
+      title: "Mana Value",
+      body: "This is the mana value that will be used for the next draw.",
+    },
+
+    "momir-keypad": {
+      title: "Mana Value Keypad",
+      body: "Enter the mana value for the next draw. Clear resets the value, and backspace removes the last digit.",
+    },
+
+    "momir-draw": {
+      title: "Draw Card",
+      body: "Draw a random card using the selected mana value and your current Momir settings.",
+    },
+
+    "momir-tower-draw": {
+      title: "Tower of Power",
+      body: "Draw cards for Tower of Power. When PDF printing is enabled, choose how many cards to draw before starting.",
+    },
+
+    menu_chaos_draft: {
+      title: "Chaos Draft",
+      body: "Spin on a chaos draft wheel for various packs to run in a Chaos Draft.",
+    },
+
+    menu_momir: {
+      title: "Momir",
+      body: "This highly randomized format pits players against each other while they draw from a Momir generator.  A highly random and addictive game mode.",
+    },
+
+    menu_manage_sets: {
+      title: "Manage",
+      body: "Create and Manage custom sets, and select which sets you want to use for Chaos Draft and Momir play modes.",
+    },
+
+    menu_chaos_decks: {
+      title: "Manage Decks",
+      body: "Create and manage custom decks.",
+    },
+
+    menu_chaos_packs: {
+      title: "Manage Packs",
+      body: "Manage your packs and run test drafts.",
     },
   });
 
