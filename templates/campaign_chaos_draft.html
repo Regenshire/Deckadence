@@ -76,6 +76,7 @@
                 href="{{ url_for('campaign_chaos_campaigns') }}"
                 title="Manage Campaigns"
                 aria-label="Manage Campaigns"
+                data-help-id="chaos_manage_campaigns"
             >
                 <i class="fa-solid fa-flag"></i>
             </a>
@@ -85,6 +86,7 @@
                 id="campaignNewDraftButton"
                 class="action-button secondary-button campaign-new-draft-title-button"
                 title="Start New Draft"
+                data-help-id="chaos_new_draft"
             >
                 New Draft
             </button>
@@ -123,19 +125,19 @@
 
             <div class="campaign-chaos-controls-wrap">
                 <div class="chaos-draft-top-actions campaign-top-actions campaign-top-actions-row">
-                    <select id="campaignPlayerSelect" class="campaign-player-select campaign-player-select-compact">
-                    <option value="" data-player-name="" data-portrait="">No Player</option>
-                    {% for player in campaign_players %}
-                    <option
-                        value="{{ player.player_id }}"
-                        data-player-name="{{ player.player_name }}"
-                        data-portrait="{{ url_for('campaign_chaos_player_portrait', filename=player.portrait_image_path) if player.portrait_image_path else '' }}"
-                        {% if selected_campaign_player_id == player.player_id %}selected{% endif %}
-                    >
-                        {{ player.player_name }}
-                    </option>
-                    {% endfor %}
-                </select>
+                    <select id="campaignPlayerSelect" class="campaign-player-select campaign-player-select-compact" data-help-id="chaos_select_player">
+                        <option value="" data-player-name="" data-portrait="">No Player</option>
+                        {% for player in campaign_players %}
+                        <option
+                            value="{{ player.player_id }}"
+                            data-player-name="{{ player.player_name }}"
+                            data-portrait="{{ url_for('campaign_chaos_player_portrait', filename=player.portrait_image_path) if player.portrait_image_path else '' }}"
+                            {% if selected_campaign_player_id == player.player_id %}selected{% endif %}
+                        >
+                            {{ player.player_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
 
                 <div class="campaign-icon-actions" aria-label="Campaign tools">
                     <a
@@ -143,6 +145,7 @@
                         href="{{ url_for('campaign_chaos_players') }}"
                         title="Edit Players"
                         aria-label="Edit Players"
+                        data-help-id="chaos_edit_players"
                     >
                         <i class="fa-solid fa-users"></i>
                     </a>
@@ -152,6 +155,7 @@
                         href="{{ url_for('campaign_chaos_packs_current_campaign') }}"
                         title="Manage Packs"
                         aria-label="Manage Packs"
+                        data-help-id="chaos_manage_packs"
                     >
                         <i class="fa-solid fa-box-archive"></i>
                     </a>
@@ -161,12 +165,13 @@
                         href="{{ url_for('campaign_chaos_history') }}"
                         title="History"
                         aria-label="History"
+                        data-help-id="chaos_history"
                     >
                         <i class="fa-solid fa-clock-rotate-left"></i>
                     </a>
                 </div>
 
-                <button type="button" id="chaosNextButton" class="chaos-draft-next-button" disabled>
+                <button type="button" id="chaosNextButton" class="chaos-draft-next-button" data-help-id="chaos_next" disabled>
                     <span class="chaos-draft-next-button-label">Next Pack</span>
                     <span class="chaos-draft-next-button-arrow">▷</span>
                 </button>
@@ -191,6 +196,7 @@
                     id="chaosSpinButton"
                     class="chaos-draft-spin-cta"
                     aria-label="Spin Chaos Draft"
+                    data-help-id="chaos_spin" 
                     {% if not card_database_ready %}disabled{% endif %}
                 >
                     <span class="chaos-draft-spin-logo" aria-hidden="true">
@@ -214,16 +220,16 @@
 
     <div id="chaosDraftOpenRow" class="chaos-draft-open-row">
         <div class="chaos-draft-open-actions campaign-chaos-open-actions">
-            <button type="button" id="chaosViewButton" class="action-button secondary-button chaos-draft-view-button" disabled>
+            <button type="button" id="chaosViewButton" class="action-button secondary-button chaos-draft-view-button" data-help-id="chaos_view" disabled>
                 View
             </button>
-            <button type="button" id="chaosOpenButton" class="action-button chaos-draft-open-button" disabled>
+            <button type="button" id="chaosOpenButton" class="action-button chaos-draft-open-button" data-help-id="chaos_print" disabled>
                 Print / Export
             </button>
 
             {% if chaos_draft_export_format in ["archidekt", "moxfield"] %}
             <div class="chaos-export-split" id="chaosExportSplit">
-                <button type="button" id="chaosExportMainButton" class="action-button secondary-button chaos-export-main-button" disabled>
+                <button type="button" id="chaosExportMainButton" class="action-button secondary-button chaos-export-main-button" data-help-id="chaos_copy_list" disabled>
                     Export
                 </button>
                 <button type="button" id="chaosExportMenuButton" class="action-button secondary-button chaos-export-menu-button" disabled aria-expanded="false" aria-haspopup="true">
@@ -260,6 +266,7 @@
                 class="silhouette-template-library-open-button"
                 data-silhouette-template-library-open
                 data-active-print-template="{{ active_print_template }}"
+                 data-help-id="chaos_silhouette_template"
             >
                 <i class="fa-solid fa-download"></i>
                 Silhouette Templates
