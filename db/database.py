@@ -1292,6 +1292,23 @@ def initialize_database():
 
     cursor.execute(
         """
+        CREATE INDEX IF NOT EXISTS idx_chaos_cards_scryfall_id
+        ON chaos_cards (scryfall_id COLLATE NOCASE)
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_chaos_cards_set_collector
+        ON chaos_cards (
+            set_code COLLATE NOCASE,
+            collector_number COLLATE NOCASE
+        )
+        """
+    )
+
+    cursor.execute(
+        """
         CREATE INDEX IF NOT EXISTS idx_chaos_cards_edhrec_rank
         ON chaos_cards (edhrec_rank)
         """
