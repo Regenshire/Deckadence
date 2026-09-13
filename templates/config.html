@@ -538,11 +538,20 @@
 
                 <div class="config-section-divider"></div>
 
-                <h3 class="cleanup-subsection-title">Chaos Draft Output</h3>
+                <h3 class="cleanup-subsection-title">Other Chaos Draft Options</h3>
 
                 <div class="settings-grid">
+                    <label class="toggle-row settings-field">
+                        <span>Replace Basic Lands</span>
+                        <input
+                            type="checkbox"
+                            name="chaos_replace_basic_lands"
+                            {% if config.get("chaos_replace_basic_lands", "0") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
                     <label class="toggle-row" for="chaos_draft_export_format">
-                        <span>Chaos Draft Export</span>
+                        <span>Chaos Draft List Export Type</span>
                         <select id="chaos_draft_export_format" name="chaos_draft_export_format">
                             {% for value, label in chaos_draft_export_format_options %}
                                 <option value="{{ value }}" {% if config.get("chaos_draft_export_format", "archidekt") == value %}selected{% endif %}>
@@ -572,14 +581,6 @@
                         >
                     </label>
 
-                    <label class="toggle-row settings-field">
-                        <span>Replace Basic Lands</span>
-                        <input
-                            type="checkbox"
-                            name="chaos_replace_basic_lands"
-                            {% if config.get("chaos_replace_basic_lands", "0") == "1" %}checked{% endif %}
-                        >
-                    </label>
 
                     <label class="toggle-row settings-field">
                         <span>Enable Chaos Draft Card Image Export</span>

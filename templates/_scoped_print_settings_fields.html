@@ -42,11 +42,58 @@
     </label>
     {% endif %}
 
+    <label class="toggle-row settings-field">
+        <span>PDF Cutting Guides</span>
+        <input
+            type="checkbox"
+            name="{{ scope }}_pdf_cutting_guides"
+            {% if values.get("pdf_cutting_guides", "1") == "1" %}checked{% endif %}
+        >
+    </label>
+
     {% if include_chaos_options %}
     {% set selected_no_waste_set_rule = (values.get("no_wasted_space_set_rules") or "current_set").split(",")[0] %}
     {% set selected_no_waste_card_type = (values.get("no_wasted_space_card_types") or "any").split(",")[0] %}
     {% set selected_no_waste_label_option = values.get("no_wasted_space_label_option") or "use_label_setting" %}
     {% set no_waste_enabled = values.get("no_wasted_space_enabled", "0") == "1" %}
+
+    {% if include_chaos_options %}
+    <label class="toggle-row settings-field">
+        <span>Print Card Backs</span>
+        <input
+            type="checkbox"
+            name="{{ scope }}_print_card_backs"
+            {% if values.get("print_card_backs", "0") == "1" %}checked{% endif %}
+        >
+    </label>
+
+    <div class="toggle-row settings-field">
+        <span>Default Card Back</span>
+
+        <div class="card-back-setting-control">
+            <input
+                type="hidden"
+                id="{{ scope }}DefaultCardBackInput"
+                name="{{ scope }}_default_card_back"
+                value="{{ values.get('default_card_back', '') }}"
+            >
+
+            <button
+                type="button"
+                class="card-back-selector-open-button"
+                data-card-back-selector-open
+                data-card-back-target-input="{{ scope }}DefaultCardBackInput"
+                data-selected-card-back-key="{{ values.get('default_card_back', '') }}"
+                title="Choose Default Card Back"
+                aria-label="Choose Default Card Back"
+                name="{{ scope }}_default_card_back_button"
+            >
+                <i class="fa-solid fa-clone"></i>
+                <span>Choose Card Back</span>
+            </button>
+        </div>
+    </div>
+    {% endif %}
 
     <section
         class="no-waste-surprise-section{% if no_waste_enabled %} no-waste-surprise-section-active{% endif %}"
@@ -142,7 +189,7 @@
     </label>
 
     <label class="toggle-row settings-field">
-        <span>PDF Width (mm)</span>
+        <span>Card Width (mm)</span>
         <input
             type="number"
             name="{{ scope }}_pdf_width_mm"
@@ -153,7 +200,7 @@
     </label>
 
     <label class="toggle-row settings-field">
-        <span>PDF Height (mm)</span>
+        <span>Card Height (mm)</span>
         <input
             type="number"
             name="{{ scope }}_pdf_height_mm"
@@ -181,15 +228,6 @@
             type="checkbox"
             name="{{ scope }}_pdf_crop_border"
             {% if values.get("pdf_crop_border", "1") == "1" %}checked{% endif %}
-        >
-    </label>
-
-    <label class="toggle-row settings-field">
-        <span>PDF Cutting Guides</span>
-        <input
-            type="checkbox"
-            name="{{ scope }}_pdf_cutting_guides"
-            {% if values.get("pdf_cutting_guides", "1") == "1" %}checked{% endif %}
         >
     </label>
 
@@ -259,42 +297,18 @@
         >
     </label>
 
-    {% if include_chaos_options %}
     <label class="toggle-row settings-field">
-        <span>Print Card Backs</span>
+        <span>Open Print in New Tab</span>
         <input
             type="checkbox"
-            name="{{ scope }}_print_card_backs"
-            {% if values.get("print_card_backs", "0") == "1" %}checked{% endif %}
+            name="{{ scope }}_open_print_in_new_tab"
+            {% if values.get("open_print_in_new_tab", "1") == "1" %}checked{% endif %}
         >
     </label>
 
-    <div class="toggle-row settings-field">
-        <span>Default Card Back</span>
+    <div class="config-section-divider"></div>
 
-        <div class="card-back-setting-control">
-            <input
-                type="hidden"
-                id="{{ scope }}DefaultCardBackInput"
-                name="{{ scope }}_default_card_back"
-                value="{{ values.get('default_card_back', '') }}"
-            >
-
-            <button
-                type="button"
-                class="card-back-selector-open-button"
-                data-card-back-selector-open
-                data-card-back-target-input="{{ scope }}DefaultCardBackInput"
-                data-selected-card-back-key="{{ values.get('default_card_back', '') }}"
-                title="Choose Default Card Back"
-                aria-label="Choose Default Card Back"
-            >
-                <i class="fa-solid fa-clone"></i>
-                <span>Choose Card Back</span>
-            </button>
-        </div>
-    </div>
-    {% endif %}
+    <h3 class="cleanup-subsection-title">Label Options</h3>
 
     <label class="toggle-row settings-field">
         <span>Enable Print/Export Labels</span>
@@ -336,13 +350,6 @@
     </label>
     {% endif %}
 
-    <label class="toggle-row settings-field">
-        <span>Open Print in New Tab</span>
-        <input
-            type="checkbox"
-            name="{{ scope }}_open_print_in_new_tab"
-            {% if values.get("open_print_in_new_tab", "1") == "1" %}checked{% endif %}
-        >
-    </label>
+
 </div>
 {% endmacro %}

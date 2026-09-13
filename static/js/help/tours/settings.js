@@ -46,7 +46,7 @@
 
         title: "Deckadence Release Status",
 
-        body: "Deckadence check the git repository to see if there is a new version of the software available.  If you see a new version, feel free to update to it. But only if you want. Its your choice!",
+        body: "Deckadence checks the git repository to see if there is a new version of the software available.  If you see a new version, feel free to update to it.\n\nBut only if you want. Its your choice!",
       },
 
       {
@@ -58,7 +58,7 @@
 
         title: "Draft Modes",
 
-        body: "Choose how you want to play Chaos Draft.  You can choose between a curated Campaign mode, or a more classic and simple Basic Chaos Draft mode.\n\nThe Campaign Mode allows you to create a curated experience.  In this mode you configure and setup Campaigns where selecting the type of packs to add.  You can add packs from any that exist in the history of magic the gathering, or if you want, you can create custom packs, or use packs from custom sets you have created.\n\nBasic Chaos Draft mode on the other hand is simple and doesn't require any configuration or setup. It just randomly opens packs.  You can control what sets and pack types are available via the Sets page and the Momir Settings you can find here on the Settings page.",
+        body: "Choose how you want to play Chaos Draft.  You can choose between a curated Campaign mode, or a more classic and simple Basic Chaos Draft mode.\n\nThe Campaign Mode allows you to create a curated experience.  In this mode you configure and setup Campaigns where selecting the type of packs to add.  You can add packs from any that exist in the history of magic the gathering, or if you want, you can create custom packs, or use packs from custom sets you have created.\n\nBasic Chaos Draft mode on the other hand is simple and doesn't require any configuration or setup. It just randomly opens packs.  You can control what sets and pack types are available via the Sets page and the Chaos Draft Settings you can find here on the Settings page.",
       },
 
       {
@@ -98,6 +98,42 @@
       },
 
       {
+        id: "print_settings_4",
+
+        route: "/config",
+
+        target: '[name="chaos_pdf_cutting_guides"]',
+
+        title: "Chaos Draft - PDF Cutting  Guides",
+
+        body: "This option enables or disables Cutting Guides on the PDF.  If you manually cut your cards, guides are pretty essential.  This turns cutting guides on.",
+      },
+
+      {
+        id: "print_settings_5",
+
+        route: "/config",
+
+        target: '[name="chaos_print_card_backs"]',
+
+        title: "Chaos Draft - Print Card Backs",
+
+        body: "This option enables or disables card backs for the PDFs you generate.  If this is turned off, then no default card back will be added to the PDF files.",
+      },
+
+      {
+        id: "print_settings_6",
+
+        route: "/config",
+
+        target: '[name="chaos_default_card_back_button"]',
+
+        title: "Choose Card Backs",
+
+        body: "I bet you want to be able to set what your card back looks like, right?\n\nWell, your in luck, you can set it right here.  Select from the included card backs or upload your own.",
+      },
+
+      {
         id: "print_settings_3",
 
         route: "/config",
@@ -106,19 +142,43 @@
 
         title: "No Wasted Space!",
 
-        body: "What exactly is this?  Glad you asked! This is a fun one!\n\nDon't you hate it when you generate a sheet of proxy cards but you have a couple extra blank spaces at the end of the PDF?  Its annoying right?  Vexing?  Wastefull?  Yes to all of that.\n\nYou don't want to waste your precious printer paper sourced from a specialty supplier, now do you?  Of course not!\n\nAnd that is why this setting exists. To save you from waisting printer paper.  With this option enabled, Deckadence will automatically add random cards to the end of your PDF so that you are using every precious card slot on that paper.\n\nNo more wasted space!",
+        body: "What exactly is this?  Glad you asked! This is a fun one!\n\nDon't you hate it when you generate a sheet of proxy cards but you have a couple extra blank spaces at the end of the PDF?  Its annoying right?  Vexing?  Wastefull?  Yes to all of that.\n\nYou don't want to waste your precious printer paper sourced from a specialty supplier, now do you?  Of course not!\n\nAnd that is why this setting exists. To save you from wasting printer paper.  With this option enabled, Deckadence will automatically add random cards to the end of your PDF so that you are using every precious card slot on that paper.\n\nNo more wasted space!",
       },
 
       {
-        id: "print_settings_4",
+        id: "print_settings_7",
 
         route: "/config",
 
-        target: '[name="chaos_silhouette_registration_marks"]',
+        target: '[name="chaos_print_labels_enabled"]',
 
-        title: "Chaos Draft - Silhouette Registration Marks",
+        title: "Pack Labels",
 
-        body: "This option enables or disables Silhouette Registration Marks when printing to PDF for the selected Print Template.  When enabled, this adds Silhouette Cameo compatible registration marks to the PDF image. A Silhouette Cameo is a type of cutting machine commonly used by the proxy community to cut out cards using templates.",
+        body: "This option enables or disables card labels when printing or exporting cards.  A Card label replaces the text in the lower left with a label, such as a Pack Tracking Code. Turn this off if you do not want custom labels generated for each card.\n\nCustom Labels are a great feature for Chaos Draft, but they can occasionally result in visual odities at the bottom of the card.",
+      },
+
+      {
+        id: "print_settings_8",
+
+        route: "/config",
+
+        target: '[name="chaos_print_label_tracking_code"]',
+
+        title: "Tracking Code on Labels",
+
+        body: "This option controls whether the pack tracking code is included on printed card labels. Tracking codes make it easier to identify and match printed cards with the rest of the cards in their pack.\n\nThis feature is great if you want to be able reseal a pack of cards for use in multiple drafts.",
+      },
+
+      {
+        id: "chaos_settings_replace_basic_lands",
+
+        route: "/config",
+
+        target: '[name="chaos_replace_basic_lands"]',
+
+        title: "Replace Basic Lands",
+
+        body: "When enabled, Basic Lands in normal Chaos Draft packs are replaced with a random Common card from the same set. This gives the pack another draftable card instead of a Basic Land.\n\nThe basic land replacement occurs when the pack is generated, not when it is opened.",
       },
 
       {
