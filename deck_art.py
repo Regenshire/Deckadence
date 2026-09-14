@@ -8,6 +8,7 @@ import logging
 import os
 import re
 import threading
+import unicodedata
 
 import requests
 
@@ -35,7 +36,7 @@ class DeckArtSpec:
     scryfall_id: str = ""
 
 class DeckArtRenderer:
-    CACHE_VERSION = 2
+    CACHE_VERSION = 3
 
     CANVAS_SIZE = (
         477,
@@ -373,6 +374,49 @@ class DeckArtRenderer:
 
         return image
 
+    @staticmethod
+    def _sanitize_render_text(
+        value,
+    ):
+        text = unicodedata.normalize(
+            "NFC",
+            str(value or ""),
+        )
+
+        cleaned_characters = []
+
+        for character in text:
+            if character.isascii():
+                if character.isprintable():
+                    cleaned_characters.append(
+                        character
+                    )
+                continue
+
+            category = unicodedata.category(
+                character
+            )
+
+            if category[:1] in {
+                "L",
+                "N",
+                "P",
+                "Z",
+            }:
+                cleaned_characters.append(
+                    character
+                )
+
+        cleaned_text = "".join(
+            cleaned_characters
+        )
+
+        return re.sub(
+            r"\s+",
+            " ",
+            cleaned_text,
+        ).strip()
+
     def _normalize_spec(
         self,
         spec,
@@ -387,23 +431,22 @@ class DeckArtRenderer:
             )
 
         deck_name = (
-            str(
+            self._sanitize_render_text(
                 spec.deck_name
-                or ""
-            ).strip()
+            )
             or "Untitled Deck"
         )
 
-        author = str(
-            spec.author
-            or ""
-        ).strip()
+        author = (
+            self._sanitize_render_text(
+                spec.author
+            )
+        )
 
         format_label = (
-            str(
+            self._sanitize_render_text(
                 spec.format_label
-                or ""
-            ).strip()
+            )
             or "Deck"
         )
 

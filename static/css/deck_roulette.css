@@ -250,8 +250,16 @@
   }
 }
 
-.deck-roulette-winner-panel {
+.deck-roulette-winner-browser {
   margin-top: 18px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  gap: 0px;
+  align-items: stretch;
+}
+
+.deck-roulette-winner-panel {
+  margin-top: 0;
   display: grid;
   grid-template-columns:
     minmax(0, 1fr)
@@ -298,6 +306,84 @@
   white-space: nowrap;
 }
 
+.deck-roulette-browse-button {
+  width: 30px;
+  min-width: 30px;
+  height: 100%;
+  min-height: 88px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #f0c62f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4rem;
+  cursor: pointer;
+  z-index: 50;
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease,
+    filter 0.15s ease;
+}
+
+.deck-roulette-browse-button:hover:not(:disabled) {
+  color: #ffe36b;
+  filter: brightness(1.08);
+}
+
+.deck-roulette-browse-button-previous:hover:not(:disabled) {
+  transform: translateX(-3px) scale(1.06);
+}
+
+.deck-roulette-browse-button-next:hover:not(:disabled) {
+  transform: translateX(3px) scale(1.06);
+}
+
+.deck-roulette-browse-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.deck-roulette-new-wheel-button {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  min-height: 48px;
+  flex: 0 0 48px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--button);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.deck-roulette-new-wheel-button:hover:not(:disabled) {
+  background: var(--button-hover);
+  border-color: rgba(110, 156, 255, 0.55);
+  color: var(--text);
+  transform: rotate(18deg);
+}
+
+.deck-roulette-new-wheel-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.deck-roulette-new-wheel-button i {
+  line-height: 1;
+}
+
 @media (max-width: 1100px) {
   .deck-roulette-filter-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -305,6 +391,17 @@
 }
 
 @media (max-width: 850px) {
+  .deck-roulette-winner-browser {
+    grid-template-columns: 42px minmax(0, 1fr) 42px;
+    gap: 8px;
+  }
+
+  .deck-roulette-browse-button {
+    width: 42px;
+    min-width: 42px;
+    font-size: 1.8rem;
+  }
+
   .deck-roulette-winner-panel {
     grid-template-columns: 1fr;
   }
@@ -312,6 +409,10 @@
   .deck-roulette-winner-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .deck-roulette-new-wheel-button {
+    justify-self: center;
   }
 }
 

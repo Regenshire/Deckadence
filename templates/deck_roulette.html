@@ -227,46 +227,78 @@
     </div>
   </div>
 
-  <div
-    id="deckRouletteWinnerPanel"
-    class="page-panel deck-roulette-winner-panel hidden"
-  >
-    <div class="deck-roulette-winner-copy">
-      <div class="deck-roulette-winner-label">Selected Deck</div>
+  <div id="deckRouletteWinnerPanel" class="deck-roulette-winner-browser hidden">
+    <button
+      type="button"
+      id="deckRoulettePreviousDeckButton"
+      class="deck-roulette-browse-button deck-roulette-browse-button-previous"
+      title="Previous Deck"
+      aria-label="Browse to previous deck"
+    >
+      <i class="fa-solid fa-caret-left" aria-hidden="true"></i>
+    </button>
 
-      <h2 id="deckRouletteWinnerName" class="deck-roulette-winner-name"></h2>
+    <div class="page-panel deck-roulette-winner-panel">
+      <div class="deck-roulette-winner-copy">
+        <div class="deck-roulette-winner-label">Selected Deck</div>
 
-      <div
-        id="deckRouletteWinnerCommander"
-        class="deck-roulette-winner-commander"
-      ></div>
+        <h2 id="deckRouletteWinnerName" class="deck-roulette-winner-name"></h2>
 
-      <div id="deckRouletteWinnerMeta" class="deck-roulette-winner-meta"></div>
+        <div
+          id="deckRouletteWinnerCommander"
+          class="deck-roulette-winner-commander"
+        ></div>
+
+        <div
+          id="deckRouletteWinnerMeta"
+          class="deck-roulette-winner-meta"
+        ></div>
+      </div>
+
+      <div class="deck-roulette-winner-actions">
+        <a
+          id="deckRouletteMoxfieldLink"
+          class="action-button secondary-button"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          View on Moxfield
+        </a>
+
+        <button
+          type="button"
+          id="deckRouletteSpinAgainButton"
+          class="action-button secondary-button"
+        >
+          Spin Again
+        </button>
+
+        <button
+          type="button"
+          id="deckRouletteNewWheelButton"
+          class="deck-roulette-new-wheel-button"
+          title="New Wheel"
+          aria-label="Build and spin a new wheel"
+        >
+          <i class="fa-solid fa-dharmachakra" aria-hidden="true"></i>
+        </button>
+
+        <button type="button" id="deckRouletteOpenButton" class="action-button">
+          Open Deck
+        </button>
+      </div>
     </div>
 
-    <div class="deck-roulette-winner-actions">
-      <a
-        id="deckRouletteMoxfieldLink"
-        class="action-button secondary-button"
-        href="#"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        View on Moxfield
-      </a>
-
-      <button
-        type="button"
-        id="deckRouletteSpinAgainButton"
-        class="action-button secondary-button"
-      >
-        Spin Again
-      </button>
-
-      <button type="button" id="deckRouletteOpenButton" class="action-button">
-        Open Deck
-      </button>
-    </div>
+    <button
+      type="button"
+      id="deckRouletteNextDeckButton"
+      class="deck-roulette-browse-button deck-roulette-browse-button-next"
+      title="Next Deck"
+      aria-label="Browse to next deck"
+    >
+      <i class="fa-solid fa-caret-right" aria-hidden="true"></i>
+    </button>
   </div>
 
   <div

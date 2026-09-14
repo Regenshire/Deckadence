@@ -26,6 +26,8 @@ class DeckRouletteController {
       "deckRouletteSpinAgainButton",
     );
 
+    this.newWheelButton = document.getElementById("deckRouletteNewWheelButton");
+
     this.openButton = document.getElementById("deckRouletteOpenButton");
 
     this.pointer = document.getElementById("deckRoulettePointer");
@@ -39,6 +41,12 @@ class DeckRouletteController {
     this.message = document.getElementById("deckRouletteMessage");
 
     this.winnerPanel = document.getElementById("deckRouletteWinnerPanel");
+
+    this.previousDeckButton = document.getElementById(
+      "deckRoulettePreviousDeckButton",
+    );
+
+    this.nextDeckButton = document.getElementById("deckRouletteNextDeckButton");
 
     this.winnerName = document.getElementById("deckRouletteWinnerName");
 
@@ -91,7 +99,11 @@ class DeckRouletteController {
     this.busyText = document.getElementById("deckRouletteBusyText");
 
     this.currentWinner = null;
+    this.currentWheelDecks = [];
+    this.currentWinnerIndex = -1;
+    this.currentWheelAbsoluteIndex = -1;
     this.animationInProgress = false;
+    this.browseInProgress = false;
     this.openInProgress = false;
     this.filterControlsLocked = false;
     this.settingsStorageKey = "deckRouletteRetainedFiltersV1";
@@ -105,7 +117,25 @@ class DeckRouletteController {
     }
 
     if (this.spinAgainButton) {
-      this.spinAgainButton.addEventListener("click", () => this.spin());
+      this.spinAgainButton.addEventListener("click", () =>
+        this.spinCurrentWheel(),
+      );
+    }
+
+    if (this.newWheelButton) {
+      this.newWheelButton.addEventListener("click", () => this.spin());
+    }
+
+    if (this.previousDeckButton) {
+      this.previousDeckButton.addEventListener("click", () =>
+        this.browseCurrentWheel(-1),
+      );
+    }
+
+    if (this.nextDeckButton) {
+      this.nextDeckButton.addEventListener("click", () =>
+        this.browseCurrentWheel(1),
+      );
     }
 
     if (this.openButton) {
@@ -454,6 +484,10 @@ class DeckRouletteController {
       this.spinAgainButton.disabled = true;
     }
 
+    if (this.newWheelButton) {
+      this.newWheelButton.disabled = true;
+    }
+
     this.setBusy(true, "Finding Decks", "Rummaging through decks...");
 
     try {
@@ -512,7 +546,65 @@ class DeckRouletteController {
       if (this.spinAgainButton) {
         this.spinAgainButton.disabled = false;
       }
+
+      if (this.newWheelButton) {
+        this.newWheelButton.disabled = false;
+      }
     }
+  }
+
+  spinCurrentWheel() {
+    if (this.animationInProgress || this.openInProgress) {
+      return;
+    }
+
+    const hasReusableWheel =
+      Array.isArray(this.currentWheelDecks) &&
+      this.currentWheelDecks.length >= 2;
+
+    if (!hasReusableWheel) {
+      this.spin();
+      return;
+    }
+
+    const availableWinnerIndexes = [];
+
+    for (let index = 0; index < this.currentWheelDecks.length; index += 1) {
+      if (index !== this.currentWinnerIndex) {
+        availableWinnerIndexes.push(index);
+      }
+    }
+
+    if (!availableWinnerIndexes.length) {
+      return;
+    }
+
+    const randomIndex = Math.floor(
+      Math.random() * availableWinnerIndexes.length,
+    );
+
+    const nextWinnerIndex = availableWinnerIndexes[randomIndex];
+    const nextWinner = this.currentWheelDecks[nextWinnerIndex];
+
+    this.setFilterControlsDisabled(true);
+
+    if (this.spinAgainButton) {
+      this.spinAgainButton.disabled = true;
+    }
+
+    if (this.newWheelButton) {
+      this.newWheelButton.disabled = true;
+    }
+
+    if (this.openButton) {
+      this.openButton.disabled = true;
+    }
+
+    this.runSpinAnimation({
+      display_decks: this.currentWheelDecks,
+      winning_deck: nextWinner,
+      winning_stop_index: nextWinnerIndex,
+    });
   }
 
   buildRepeatedSequence(displayDecks, repeatCount) {
@@ -700,6 +792,10 @@ class DeckRouletteController {
           this.spinAgainButton.disabled = false;
         }
 
+        if (this.newWheelButton) {
+          this.newWheelButton.disabled = false;
+        }
+
         this.showWinner();
       }, 190);
     };
@@ -739,6 +835,8 @@ class DeckRouletteController {
 
     const winningStopIndex = Number(spinResult.winning_stop_index || 0);
 
+    this.currentWheelDecks = displayDecks.slice();
+    this.currentWinnerIndex = winningStopIndex;
     this.currentWinner = spinResult.winning_deck;
 
     this.animationInProgress = true;
@@ -772,15 +870,151 @@ class DeckRouletteController {
       finalAbsoluteIndex >= sequence.length
     ) {
       this.animationInProgress = false;
+      this.setFilterControlsDisabled(false);
+
+      if (this.spinAgainButton) {
+        this.spinAgainButton.disabled = false;
+      }
+
+      if (this.newWheelButton) {
+        this.newWheelButton.disabled = false;
+      }
 
       this.showError("Deck Roulette produced an invalid stopping position.");
 
       return;
     }
 
+    this.currentWheelAbsoluteIndex = finalAbsoluteIndex;
+    this.browseInProgress = false;
+
     window.requestAnimationFrame(() => {
       this.animateToWinner(finalAbsoluteIndex, displayDecks.length);
     });
+  }
+
+  browseCurrentWheel(direction) {
+    if (
+      this.animationInProgress ||
+      this.browseInProgress ||
+      this.openInProgress
+    ) {
+      return;
+    }
+
+    if (
+      !Array.isArray(this.currentWheelDecks) ||
+      !this.currentWheelDecks.length
+    ) {
+      return;
+    }
+
+    const deckCount = this.currentWheelDecks.length;
+    const browseDirection = direction < 0 ? -1 : 1;
+    const nextIndex =
+      (this.currentWinnerIndex + browseDirection + deckCount) % deckCount;
+
+    const renderedCards = this.track.querySelectorAll(".deck-roulette-card");
+
+    if (!renderedCards.length) {
+      return;
+    }
+
+    const repeatCount = 7;
+    const middleRepeatIndex = Math.floor(repeatCount / 2);
+    const middleAbsoluteIndex =
+      middleRepeatIndex * deckCount + this.currentWinnerIndex;
+
+    let currentAbsoluteIndex = this.currentWheelAbsoluteIndex;
+
+    if (
+      !Number.isInteger(currentAbsoluteIndex) ||
+      currentAbsoluteIndex < 0 ||
+      currentAbsoluteIndex >= renderedCards.length
+    ) {
+      currentAbsoluteIndex = middleAbsoluteIndex;
+    }
+
+    let nextAbsoluteIndex = currentAbsoluteIndex + browseDirection;
+
+    const minimumSafeIndex = deckCount;
+    const maximumSafeIndex = renderedCards.length - deckCount - 1;
+
+    if (
+      nextAbsoluteIndex < minimumSafeIndex ||
+      nextAbsoluteIndex > maximumSafeIndex
+    ) {
+      const currentCard = this.track.querySelector(
+        `[data-roulette-index="${middleAbsoluteIndex}"]`,
+      );
+
+      if (currentCard) {
+        const currentTranslate = this.getCenteredTranslate(currentCard);
+
+        this.track.style.transition = "none";
+        this.track.style.transform = `translateX(${currentTranslate}px)`;
+
+        void this.track.offsetWidth;
+      }
+
+      currentAbsoluteIndex = middleAbsoluteIndex;
+      nextAbsoluteIndex = currentAbsoluteIndex + browseDirection;
+    }
+
+    const selectedCard = this.track.querySelector(
+      `[data-roulette-index="${nextAbsoluteIndex}"]`,
+    );
+
+    if (!selectedCard) {
+      return;
+    }
+
+    this.browseInProgress = true;
+
+    if (this.previousDeckButton) {
+      this.previousDeckButton.disabled = true;
+    }
+
+    if (this.nextDeckButton) {
+      this.nextDeckButton.disabled = true;
+    }
+
+    this.currentWinnerIndex = nextIndex;
+    this.currentWinner = this.currentWheelDecks[nextIndex];
+    this.currentWheelAbsoluteIndex = nextAbsoluteIndex;
+
+    for (const cardElement of renderedCards) {
+      cardElement.classList.remove(
+        "chaos-pack-card-winning",
+        "chaos-pack-card-winning-normal",
+        "chaos-pack-card-winning-jackpot",
+        "chaos-pack-card-winning-badpack",
+      );
+    }
+
+    const finalTranslate = this.getCenteredTranslate(selectedCard);
+
+    this.track.style.transition = "transform 220ms ease-out";
+    this.track.style.transform = `translateX(${finalTranslate}px)`;
+
+    selectedCard.classList.add(
+      "chaos-pack-card-winning",
+      "chaos-pack-card-winning-normal",
+    );
+
+    this.showWinner();
+
+    window.setTimeout(() => {
+      this.browseInProgress = false;
+
+      if (this.previousDeckButton) {
+        this.previousDeckButton.disabled = false;
+      }
+
+      if (this.nextDeckButton) {
+        this.nextDeckButton.disabled = false;
+      }
+    }, 230);
   }
 
   showWinner() {
@@ -829,13 +1063,31 @@ class DeckRouletteController {
     if (
       !this.currentWinner ||
       this.openInProgress ||
-      this.animationInProgress
+      this.animationInProgress ||
+      this.browseInProgress
     ) {
       return;
     }
 
-    this.openInProgress = true;
+    const deckWindow = window.open("about:blank", "_blank");
 
+    if (!deckWindow) {
+      this.showError(
+        "The browser blocked the new Deck Builder tab. Allow pop-ups for Deckadence and try again.",
+      );
+      return;
+    }
+
+    deckWindow.opener = null;
+
+    try {
+      deckWindow.document.title = "Opening Deck - Deckadence";
+      deckWindow.document.body.textContent = "Opening deck in Deckadence...";
+    } catch (error) {
+      // The placeholder tab can still be navigated normally.
+    }
+
+    this.openInProgress = true;
     this.openButton.disabled = true;
 
     this.setBusy(
@@ -873,12 +1125,18 @@ class DeckRouletteController {
         );
       }
 
-      window.location.assign(payload.open_url);
-    } catch (error) {
+      deckWindow.location.replace(payload.open_url);
+
       this.openInProgress = false;
-
       this.openButton.disabled = false;
+      this.setBusy(false);
+    } catch (error) {
+      if (!deckWindow.closed) {
+        deckWindow.close();
+      }
 
+      this.openInProgress = false;
+      this.openButton.disabled = false;
       this.setBusy(false);
 
       this.showError(error.message || "Could not open the selected deck.");
