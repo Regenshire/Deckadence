@@ -77,6 +77,7 @@ class ExternalDeckSearchFilters:
     author_usernames: tuple[str, ...] = ()
     commander_name: str = ""
     commander_card_id: str = ""
+    card_name: str = ""
     card_id: str = ""
     partner_card_id: str = ""
     companion_card_id: str = ""

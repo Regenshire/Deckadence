@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 from db.database import (
+    ensure_column_exists,
     get_db_connection,
     isolation_operation,
 )
@@ -34,11 +35,27 @@ def ensure_external_deck_schema():
             provider TEXT NOT NULL,
             external_id TEXT NOT NULL,
             external_url TEXT,
+            author TEXT,
+            external_format TEXT,
             imported_at_utc TEXT NOT NULL,
             UNIQUE(deck_id, provider),
             FOREIGN KEY (deck_id) REFERENCES decks (deck_id)
         )
         """
+    )
+
+    ensure_column_exists(
+        cursor,
+        "deck_external_sources",
+        "author",
+        "TEXT",
+    )
+
+    ensure_column_exists(
+        cursor,
+        "deck_external_sources",
+        "external_format",
+        "TEXT",
     )
 
     cursor.execute(
@@ -54,6 +71,65 @@ def ensure_external_deck_schema():
     conn.commit()
     conn.close()
 
+
+def get_external_deck_source(deck_id, provider=None):
+    ensure_external_deck_schema()
+
+    try:
+        parsed_deck_id = int(deck_id)
+    except (TypeError, ValueError):
+        return None
+
+    clean_provider = str(provider or "").strip().lower()
+
+    conn = get_db_connection()
+
+    try:
+        if clean_provider:
+            row = conn.execute(
+                """
+                SELECT
+                    deck_external_source_id,
+                    deck_id,
+                    provider,
+                    external_id,
+                    external_url,
+                    author,
+                    external_format,
+                    imported_at_utc
+                FROM deck_external_sources
+                WHERE deck_id = ?
+                  AND provider = ?
+                ORDER BY deck_external_source_id DESC
+                LIMIT 1
+                """,
+                (parsed_deck_id, clean_provider),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """
+                SELECT
+                    deck_external_source_id,
+                    deck_id,
+                    provider,
+                    external_id,
+                    external_url,
+                    author,
+                    external_format,
+                    imported_at_utc
+                FROM deck_external_sources
+                WHERE deck_id = ?
+                ORDER BY deck_external_source_id DESC
+                LIMIT 1
+                """,
+                (parsed_deck_id,),
+            ).fetchone()
+
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
 @isolation_operation
 def create_external_import_deck(
     provider,
@@ -62,6 +138,8 @@ def create_external_import_deck(
     deck_name,
     deck_format,
     cards,
+    author="",
+    external_format="",
 ):
     ensure_external_deck_schema()
 
@@ -77,6 +155,16 @@ def create_external_import_deck(
 
     clean_external_url = str(
         external_url
+        or ""
+    ).strip()
+
+    clean_author = str(
+        author
+        or ""
+    ).strip()
+
+    clean_external_format = str(
+        external_format
         or ""
     ).strip()
 
@@ -263,15 +351,19 @@ def create_external_import_deck(
                 provider,
                 external_id,
                 external_url,
+                author,
+                external_format,
                 imported_at_utc
             )
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 deck_id,
                 clean_provider,
                 clean_external_id,
                 clean_external_url,
+                clean_author,
+                clean_external_format,
                 now_utc,
             ),
         )

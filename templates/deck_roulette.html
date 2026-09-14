@@ -71,7 +71,7 @@
         class="deck-roulette-field deck-roulette-field-wide"
         id="deckRouletteCommanderField"
       >
-        <span>Commander</span>
+        <span id="deckRouletteCommanderLabel">Commander</span>
 
         <input
           type="text"
@@ -99,8 +99,7 @@
                 class="deck-roulette-bracket-input"
                 value="{{ bracket_value }}"
               />
-
-              <span> {{ bracket_label }} </span>
+              <span>{{ bracket_label }}</span>
             </label>
             {% endfor %}
           </div>

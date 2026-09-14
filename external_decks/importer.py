@@ -373,6 +373,13 @@ class ExternalDeckImporter:
                     summary.format
                     or "Commander"
                 ),
+                author=(
+                    summary.author
+                ),
+
+                external_format=(
+                    summary.format
+                ),
                 cards=(
                     plan["resolved_cards"]
                 ),

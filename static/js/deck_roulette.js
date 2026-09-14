@@ -56,6 +56,8 @@ class DeckRouletteController {
 
     this.commanderField = document.getElementById("deckRouletteCommanderField");
 
+    this.commanderLabel = document.getElementById("deckRouletteCommanderLabel");
+
     this.commanderInput = document.getElementById("deckRouletteCommander");
 
     this.bracketField = document.getElementById("deckRouletteBracketField");
@@ -92,9 +94,12 @@ class DeckRouletteController {
     this.animationInProgress = false;
     this.openInProgress = false;
     this.filterControlsLocked = false;
+    this.settingsStorageKey = "deckRouletteRetainedFiltersV1";
   }
 
   initialize() {
+    this.loadRetainedSettings();
+
     if (this.spinButton) {
       this.spinButton.addEventListener("click", () => this.spin());
     }
@@ -108,9 +113,10 @@ class DeckRouletteController {
     }
 
     if (this.formatInput) {
-      this.formatInput.addEventListener("change", () =>
-        this.updateFormatControls(),
-      );
+      this.formatInput.addEventListener("change", () => {
+        this.updateFormatControls();
+        this.saveRetainedSettings();
+      });
     }
 
     this.colorInputs.forEach((input) => {
@@ -122,8 +128,27 @@ class DeckRouletteController {
     this.bracketInputs.forEach((input) => {
       input.addEventListener("change", () => {
         this.updateBracketSummary();
+        this.saveRetainedSettings();
       });
     });
+
+    if (this.wheelSizeInput) {
+      this.wheelSizeInput.addEventListener("change", () => {
+        this.saveRetainedSettings();
+      });
+    }
+
+    if (this.sortInput) {
+      this.sortInput.addEventListener("change", () => {
+        this.saveRetainedSettings();
+      });
+    }
+
+    if (this.topLimitInput) {
+      this.topLimitInput.addEventListener("change", () => {
+        this.saveRetainedSettings();
+      });
+    }
 
     this.updateBracketSummary();
     this.updateFormatControls();
@@ -133,6 +158,85 @@ class DeckRouletteController {
     return ["commander", "commanderPrecons", "pauperEdh"].includes(
       this.formatInput?.value || "commander",
     );
+  }
+
+  loadRetainedSettings() {
+    let savedSettings = null;
+
+    try {
+      const rawSettings = window.localStorage.getItem(this.settingsStorageKey);
+
+      if (!rawSettings) {
+        return;
+      }
+
+      savedSettings = JSON.parse(rawSettings);
+    } catch (error) {
+      return;
+    }
+
+    if (!savedSettings || typeof savedSettings !== "object") {
+      return;
+    }
+
+    this.setSelectValueIfAvailable(this.formatInput, savedSettings.format);
+
+    this.setSelectValueIfAvailable(
+      this.wheelSizeInput,
+      savedSettings.wheel_size,
+    );
+
+    this.setSelectValueIfAvailable(this.sortInput, savedSettings.sort);
+
+    this.setSelectValueIfAvailable(this.topLimitInput, savedSettings.top_limit);
+
+    let savedBrackets = [];
+
+    if (Array.isArray(savedSettings.brackets)) {
+      savedBrackets = savedSettings.brackets.map((value) => String(value));
+    }
+
+    for (const input of this.bracketInputs) {
+      input.checked = savedBrackets.includes(input.value);
+    }
+  }
+
+  saveRetainedSettings() {
+    const settings = {
+      format: this.formatInput ? this.formatInput.value : "commander",
+      brackets: this.getSelectedBrackets(),
+      wheel_size: this.wheelSizeInput ? this.wheelSizeInput.value : "12",
+      sort: this.sortInput ? this.sortInput.value : "updated",
+      top_limit: this.topLimitInput ? this.topLimitInput.value : "100",
+    };
+
+    try {
+      window.localStorage.setItem(
+        this.settingsStorageKey,
+        JSON.stringify(settings),
+      );
+    } catch (error) {
+      return;
+    }
+  }
+
+  setSelectValueIfAvailable(selectElement, value) {
+    if (!selectElement) {
+      return;
+    }
+
+    if (value === undefined || value === null) {
+      return;
+    }
+
+    const requestedValue = String(value);
+
+    for (const option of selectElement.options) {
+      if (option.value === requestedValue) {
+        selectElement.value = requestedValue;
+        return;
+      }
+    }
   }
 
   handleColorSelection(changedInput) {
@@ -192,74 +296,105 @@ class DeckRouletteController {
 
   updateFormatControls() {
     const leaderFiltersEnabled = this.isCommanderFormat();
-    const disableLeaderFilters =
+    const disableBracketFilters =
       this.filterControlsLocked || !leaderFiltersEnabled;
 
-    [this.commanderInput, ...this.bracketInputs].forEach((control) => {
-      if (control) {
-        control.disabled = disableLeaderFilters;
+    if (this.commanderLabel) {
+      if (leaderFiltersEnabled) {
+        this.commanderLabel.textContent = "Commander";
+      } else {
+        this.commanderLabel.textContent = "Card Name";
       }
-    });
+    }
 
-    [this.commanderField, this.bracketField].forEach((field) => {
-      field?.classList.toggle(
-        "deck-roulette-field-disabled",
-        !leaderFiltersEnabled,
-      );
-    });
+    if (this.commanderInput) {
+      this.commanderInput.disabled = this.filterControlsLocked;
 
-    this.bracketDropdown?.classList.toggle(
-      "deck-roulette-multiselect-disabled",
-      disableLeaderFilters,
-    );
+      if (leaderFiltersEnabled) {
+        this.commanderInput.placeholder = "Any Commander";
+      } else {
+        this.commanderInput.placeholder = "Any Card";
+      }
+    }
 
-    if (disableLeaderFilters) {
-      this.bracketDropdown?.removeAttribute("open");
+    for (const input of this.bracketInputs) {
+      input.disabled = disableBracketFilters;
+    }
+
+    if (this.bracketField) {
+      if (leaderFiltersEnabled) {
+        this.bracketField.classList.remove("deck-roulette-field-disabled");
+      } else {
+        this.bracketField.classList.add("deck-roulette-field-disabled");
+      }
+    }
+
+    if (this.bracketDropdown) {
+      if (disableBracketFilters) {
+        this.bracketDropdown.classList.add(
+          "deck-roulette-multiselect-disabled",
+        );
+        this.bracketDropdown.removeAttribute("open");
+      } else {
+        this.bracketDropdown.classList.remove(
+          "deck-roulette-multiselect-disabled",
+        );
+      }
     }
   }
 
   getFilters() {
     const leaderFiltersEnabled = this.isCommanderFormat();
+    const cardSearchValue = this.commanderInput
+      ? this.commanderInput.value.trim()
+      : "";
 
     return {
-      format: this.formatInput?.value || "commander",
-
-      title_search: (this.titleSearchInput?.value || "").trim(),
-
-      commander_name: leaderFiltersEnabled
-        ? (this.commanderInput?.value || "").trim()
+      format: this.formatInput ? this.formatInput.value : "commander",
+      title_search: this.titleSearchInput
+        ? this.titleSearchInput.value.trim()
         : "",
-
+      commander_name: leaderFiltersEnabled ? cardSearchValue : "",
+      card_name: leaderFiltersEnabled ? "" : cardSearchValue,
       brackets: leaderFiltersEnabled ? this.getSelectedBrackets() : [],
-
       colors: this.getSelectedColors(),
-
-      color_match: this.colorMatchInput?.value || "exact",
-
-      sort: this.sortInput?.value || "updated",
-
-      top_limit: Number(this.topLimitInput?.value || 100),
-
-      wheel_size: Number(this.wheelSizeInput?.value || 12),
+      color_match: this.colorMatchInput ? this.colorMatchInput.value : "exact",
+      sort: this.sortInput ? this.sortInput.value : "updated",
+      top_limit: Number(this.topLimitInput ? this.topLimitInput.value : 100),
+      wheel_size: Number(this.wheelSizeInput ? this.wheelSizeInput.value : 12),
     };
   }
 
   setFilterControlsDisabled(disabled) {
     this.filterControlsLocked = Boolean(disabled);
 
-    [
-      this.formatInput,
-      this.titleSearchInput,
-      this.colorMatchInput,
-      this.sortInput,
-      this.topLimitInput,
-      this.wheelSizeInput,
-      ...this.colorInputs,
-    ].forEach((control) => {
-      if (control) {
-        control.disabled = this.filterControlsLocked;
-      }
-    });
+    if (this.formatInput) {
+      this.formatInput.disabled = this.filterControlsLocked;
+    }
+
+    if (this.titleSearchInput) {
+      this.titleSearchInput.disabled = this.filterControlsLocked;
+    }
+
+    if (this.colorMatchInput) {
+      this.colorMatchInput.disabled = this.filterControlsLocked;
+    }
+
+    if (this.sortInput) {
+      this.sortInput.disabled = this.filterControlsLocked;
+    }
+
+    if (this.topLimitInput) {
+      this.topLimitInput.disabled = this.filterControlsLocked;
+    }
+
+    if (this.wheelSizeInput) {
+      this.wheelSizeInput.disabled = this.filterControlsLocked;
+    }
+
+    for (const input of this.colorInputs) {
+      input.disabled = this.filterControlsLocked;
+    }
 
     this.updateFormatControls();
   }
@@ -350,6 +485,14 @@ class DeckRouletteController {
         throw new Error("Deck Roulette returned an incomplete spin result.");
       }
 
+      this.setBusy(
+        true,
+        "Building Deck Art",
+        "Preparing the decks for the wheel...",
+      );
+
+      await this.preloadDeckArt(spinResult.display_decks);
+
       this.setBusy(false);
 
       this.runSpinAnimation(spinResult);
@@ -388,6 +531,44 @@ class DeckRouletteController {
     return sequence;
   }
 
+  async preloadDeckArt(displayDecks) {
+    const imageUrls = Array.from(
+      new Set(
+        (displayDecks || [])
+          .map((deck) => String(deck.image_src || "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    await Promise.allSettled(
+      imageUrls.map(
+        (imageUrl) =>
+          new Promise((resolve) => {
+            const image = new Image();
+
+            let completed = false;
+
+            const finish = () => {
+              if (completed) {
+                return;
+              }
+
+              completed = true;
+              resolve();
+            };
+
+            image.onload = finish;
+
+            image.onerror = finish;
+
+            image.src = imageUrl;
+
+            window.setTimeout(finish, 15000);
+          }),
+      ),
+    );
+  }
+
   renderSpinnerCards(displayDecks, repeatCount) {
     this.track.innerHTML = "";
 
@@ -424,29 +605,9 @@ class DeckRouletteController {
 
       imageWrap.appendChild(image);
 
-      const title = document.createElement("div");
-
-      title.className = "chaos-pack-card-title";
-
-      title.textContent = deck.deck_name || "Untitled Deck";
-
-      const cardMeta = document.createElement("div");
-
-      cardMeta.className = "deck-roulette-card-commander";
-
-      if (deck.commander_name) {
-        cardMeta.textContent = deck.commander_name;
-      } else if (deck.display_card_name) {
-        cardMeta.textContent = `Featured: ${deck.display_card_name}`;
-      } else {
-        cardMeta.textContent = deck.format_label || "";
-      }
+      card.title = deck.deck_name || "Untitled Deck";
 
       card.appendChild(imageWrap);
-
-      card.appendChild(title);
-
-      card.appendChild(cardMeta);
 
       this.track.appendChild(card);
     });

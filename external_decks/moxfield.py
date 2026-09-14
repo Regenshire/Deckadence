@@ -134,17 +134,26 @@ class MoxfieldDeckProvider(ExternalDeckProvider):
                     f"{filters.commander_name!r}."
                 )
 
-            commander_card_id = (
-                commander.provider_card_id
-            )
+            commander_card_id = commander.provider_card_id
+
+        card_id = str(filters.card_id or "").strip()
+
+        if not card_id and str(filters.card_name or "").strip():
+            card = self.find_card_by_name(filters.card_name)
+
+            if card is None:
+                raise ExternalDeckNotFoundError(
+                    f"Moxfield could not resolve card {filters.card_name!r}."
+                )
+
+            card_id = card.provider_card_id
 
         params = self._build_search_params(
             filters,
             page_number=page_number,
             page_size=page_size,
-            commander_card_id=(
-                commander_card_id
-            ),
+            commander_card_id=commander_card_id,
+            card_id=card_id,
         )
 
         search_path = (
@@ -339,6 +348,7 @@ class MoxfieldDeckProvider(ExternalDeckProvider):
         page_number,
         page_size,
         commander_card_id="",
+        card_id="",
     ):
         sort_direction = str(
             filters.sort_direction
@@ -380,10 +390,7 @@ class MoxfieldDeckProvider(ExternalDeckProvider):
                 or ""
             ).strip(),
 
-            "cardId": str(
-                filters.card_id
-                or ""
-            ).strip(),
+            "cardId": str(card_id or "").strip(),
 
             "partnerCardId": str(
                 filters.partner_card_id

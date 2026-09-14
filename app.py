@@ -52,6 +52,7 @@ from paths import (
     CHAOS_TEMP_CACHE_DIR,
     CUSTOM_SET_ICON_DIR,
     CAMPAIGN_PLAYER_PORTRAIT_DIR,
+    DECK_ART_CACHE_DIR,
     EXPORT_ROOT_DIR,
     DATA_DOWNLOAD_DIR,
     IMAGE_CACHE_DIR,
@@ -291,6 +292,10 @@ from db.deckdb import (
     ensure_deck_schema,
 )
 
+from db.externaldeckdb import (
+    get_external_deck_source,
+)
+
 from modes.draft import (
     create_draft_test_from_pack_pool,
     get_draft_test_detail_state,
@@ -421,12 +426,22 @@ from external_decks.roulette import (
     ExternalDeckRouletteService,
 )
 
+from deck_art import (
+    DeckArtRenderer,
+    DeckArtSpec,
+)
+
 app = Flask(
     __name__,
     template_folder=get_template_dir(),
     static_folder=get_static_dir(),
 )
 app.secret_key = APP_SECRET_KEY
+
+DECK_ART_RENDERER = DeckArtRenderer(
+    static_root=app.static_folder,
+    cache_root=DECK_ART_CACHE_DIR,
+)
 
 register_ui_navigation(app)
 
@@ -22411,6 +22426,380 @@ def build_deckbuilder_image_export_rows(
 
     return export_rows
 
+def normalize_deck_art_color_identity(
+    raw_value,
+):
+    raw_value = str(
+        raw_value
+        or ""
+    ).strip().upper()
+
+    return tuple(
+        color
+        for color
+        in (
+            "W",
+            "U",
+            "B",
+            "R",
+            "G",
+            "C",
+        )
+        if color
+        in raw_value
+    )
+
+
+@app.route(
+    "/deck-art/external.png",
+    methods=["GET"],
+)
+def deck_art_external():
+    spec = DeckArtSpec(
+        deck_name=(
+            request.args.get(
+                "deck_name"
+            )
+            or "Untitled Deck"
+        ),
+
+        author=(
+            request.args.get(
+                "author"
+            )
+            or ""
+        ),
+
+        format_label=(
+            request.args.get(
+                "format_label"
+            )
+            or "Deck"
+        ),
+
+        color_identity=(
+            normalize_deck_art_color_identity(
+                request.args.get(
+                    "colors"
+                )
+            )
+        ),
+
+        scryfall_id=(
+            request.args.get(
+                "scryfall_id"
+            )
+            or ""
+        ),
+    )
+
+    image_path = (
+        DECK_ART_RENDERER.render_cached(
+            spec
+        )
+    )
+
+    response = send_file(
+        image_path,
+        mimetype="image/png",
+        conditional=True,
+    )
+
+    response.cache_control.public = True
+    response.cache_control.max_age = 86400
+
+    return response
+
+def build_deck_art_spec_for_deck(
+    deck_id,
+):
+    conn = get_db_connection()
+
+    try:
+        deck_row = conn.execute(
+            """
+            SELECT
+                deck_id,
+                deck_name,
+                deck_format
+            FROM decks
+            WHERE deck_id = ?
+            """,
+            (
+                int(deck_id),
+            ),
+        ).fetchone()
+
+        if not deck_row:
+            return None
+
+        external_author = ""
+        external_format = ""
+
+        try:
+            external_source = (
+                conn.execute(
+                    """
+                    SELECT
+                        author,
+                        external_format
+                    FROM deck_external_sources
+                    WHERE deck_id = ?
+                    ORDER BY
+                        deck_external_source_id
+                        DESC
+                    LIMIT 1
+                    """,
+                    (
+                        int(deck_id),
+                    ),
+                ).fetchone()
+            )
+
+        except Exception:
+            external_source = None
+
+        if external_source:
+            external_author = str(
+                external_source[
+                    "author"
+                ]
+                or ""
+            ).strip()
+
+            external_format = str(
+                external_source[
+                    "external_format"
+                ]
+                or ""
+            ).strip()
+
+        card_rows = conn.execute(
+            """
+            SELECT
+                dc.deck_zone,
+                dc.deck_role,
+                dc.display_order,
+                dc.deck_card_id,
+
+                cc.scryfall_id,
+                cc.color_identity_json
+
+            FROM deck_cards dc
+
+            LEFT JOIN chaos_cards cc
+                ON cc.card_uuid =
+                   dc.card_uuid
+
+            WHERE dc.deck_id = ?
+              AND dc.quantity > 0
+
+            ORDER BY
+                CASE
+                    WHEN dc.deck_role =
+                         'commander'
+                    THEN 0
+
+                    WHEN dc.deck_role =
+                         'partner'
+                    THEN 1
+
+                    WHEN dc.deck_zone =
+                         'deck'
+                    THEN 2
+
+                    ELSE 3
+                END,
+
+                dc.display_order ASC,
+                dc.deck_card_id ASC
+            """,
+            (
+                int(deck_id),
+            ),
+        ).fetchall()
+
+    finally:
+        conn.close()
+
+    art_scryfall_id = ""
+    leader_scryfall_id = ""
+
+    leader_colors = set()
+    deck_colors = set()
+
+    for row in card_rows:
+        scryfall_id = str(
+            row["scryfall_id"]
+            or ""
+        ).strip()
+
+        deck_role = str(
+            row["deck_role"]
+            or ""
+        ).strip().lower()
+
+        deck_zone = str(
+            row["deck_zone"]
+            or ""
+        ).strip().lower()
+
+        try:
+            color_identity = json.loads(
+                row[
+                    "color_identity_json"
+                ]
+                or "[]"
+            )
+
+        except Exception:
+            color_identity = []
+
+        normalized_colors = {
+            str(
+                color
+                or ""
+            ).strip().upper()
+
+            for color
+            in color_identity
+
+            if str(
+                color
+                or ""
+            ).strip()
+        }
+
+        if deck_role in {
+            "commander",
+            "partner",
+        }:
+            leader_colors.update(
+                normalized_colors
+            )
+
+            if (
+                not leader_scryfall_id
+                and scryfall_id
+            ):
+                leader_scryfall_id = (
+                    scryfall_id
+                )
+
+        if deck_zone == "deck":
+            deck_colors.update(
+                normalized_colors
+            )
+
+        if (
+            not art_scryfall_id
+            and scryfall_id
+        ):
+            art_scryfall_id = (
+                scryfall_id
+            )
+
+    if leader_scryfall_id:
+        art_scryfall_id = (
+            leader_scryfall_id
+        )
+
+    effective_colors = (
+        leader_colors
+        if leader_colors
+        else deck_colors
+    )
+
+    format_label = str(
+        deck_row["deck_format"]
+        or "Deck"
+    ).strip()
+
+    if external_format:
+        format_rule = (
+            ExternalDeckRouletteService
+            .get_format_rule(
+                external_format
+            )
+        )
+
+        if format_rule:
+            format_label = (
+                format_rule["label"]
+            )
+
+        else:
+            format_label = (
+                external_format
+            )
+
+    return DeckArtSpec(
+        deck_name=(
+            deck_row["deck_name"]
+            or "Untitled Deck"
+        ),
+
+        author=external_author,
+
+        format_label=format_label,
+
+        color_identity=tuple(
+            color
+            for color
+            in (
+                "W",
+                "U",
+                "B",
+                "R",
+                "G",
+            )
+            if color
+            in effective_colors
+        ),
+
+        scryfall_id=(
+            art_scryfall_id
+        ),
+    )
+
+@app.route(
+    "/deck-art/deck/<int:deck_id>.png",
+    methods=["GET"],
+)
+def deck_art_image(
+    deck_id,
+):
+    spec = (
+        build_deck_art_spec_for_deck(
+            deck_id
+        )
+    )
+
+    if spec is None:
+        return Response(
+            status=404
+        )
+
+    image_path = (
+        DECK_ART_RENDERER.render_cached(
+            spec
+        )
+    )
+
+    response = send_file(
+        image_path,
+        mimetype="image/png",
+        conditional=True,
+    )
+
+    # The renderer itself is cached by the
+    # actual deck-art inputs. Revalidate this
+    # URL so renaming/changing a deck can
+    # select the new cached composition.
+    response.cache_control.no_cache = True
+
+    return response
+
 DECK_ROULETTE_BRACKET_OPTIONS = (
     (
         1,
@@ -22592,14 +22981,51 @@ def serialize_deck_roulette_candidate(
         candidate.to_dict()
     )
 
+    color_identity = tuple(
+        getattr(
+            candidate,
+            "color_identity",
+            (),
+        )
+        or ()
+    )
+
     candidate_data[
         "image_src"
-    ] = (
-        build_scryfall_image_url(
-            candidate.display_card_scryfall_id,
-            image_quality="normal",
-        )
-        or ""
+    ] = url_for(
+        "deck_art_external",
+
+        deck_name=(
+            candidate.deck_name
+        ),
+
+        author=(
+            candidate.author
+        ),
+
+        format_label=(
+            getattr(
+                candidate,
+                "format_label",
+                "",
+            )
+            or candidate.format
+            or "Deck"
+        ),
+
+        colors="".join(
+            color_identity
+        ),
+
+        scryfall_id=(
+            candidate
+            .display_card_scryfall_id
+        ),
+
+        art_version=(
+            DECK_ART_RENDERER
+            .CACHE_VERSION
+        ),
     )
 
     return candidate_data
@@ -22685,12 +23111,8 @@ def deck_roulette_spin():
         or ""
     ).strip()
 
-    commander_name = str(
-        payload.get(
-            "commander_name"
-        )
-        or ""
-    ).strip()
+    commander_name = str(payload.get("commander_name") or "").strip()
+    card_name = str(payload.get("card_name") or "").strip()
 
     selected_brackets = (
         normalize_deck_roulette_brackets(
@@ -22700,21 +23122,10 @@ def deck_roulette_spin():
         )
     )
 
-    if format_rule[
-        "requires_leader"
-    ]:
-        min_bracket = (
-            min(selected_brackets)
-            if selected_brackets
-            else None
-        )
-
-        max_bracket = (
-            max(selected_brackets)
-            if selected_brackets
-            else None
-        )
-
+    if format_rule["requires_leader"]:
+        card_name = ""
+        min_bracket = min(selected_brackets) if selected_brackets else None
+        max_bracket = max(selected_brackets) if selected_brackets else None
     else:
         commander_name = ""
         selected_brackets = ()
@@ -22784,9 +23195,8 @@ def deck_roulette_spin():
                             title_search
                         ),
 
-                        commander_name=(
-                            commander_name
-                        ),
+                        commander_name=commander_name,
+                        card_name=card_name,
 
                         min_bracket=(
                             min_bracket
@@ -23140,7 +23550,14 @@ def deckbuilder_index():
             "source_type": source_type,
             "source_label": source_label,
             "source_id": deck_row["source_id"],
-            "preview_image_url": deck_row["preview_image_url"] or "",
+            "preview_image_url": url_for(
+                "deck_art_image",
+                deck_id=(
+                    deck_row[
+                        "deck_id"
+                    ]
+                ),
+            ),
             "total_card_count": int(deck_row["total_card_count"] or 0),
             "created_at_utc": deck_row["created_at_utc"] or "",
             "updated_at_utc": (
@@ -23269,6 +23686,11 @@ def deckbuilder_open(deck_id):
     attach_deckbuilder_common_context(
         deckbuilder_context,
         back_url=back_url,
+    )
+
+    deckbuilder_context["external_source"] = get_external_deck_source(
+        deck_id,
+        provider="moxfield",
     )
 
     if source_type == "draft_test" and source_id:
