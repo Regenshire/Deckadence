@@ -91,7 +91,13 @@ def normalize_deck_format(value, fallback=DECK_FORMAT_STANDARD):
     if clean_value == "standard":
         return DECK_FORMAT_STANDARD
 
-    if clean_value in {"commander", "edh"}:
+    if clean_value in {
+        "commander",
+        "edh",
+        "commanderprecons",
+        "pauperedh",
+        "pauper edh",
+    }:
         return DECK_FORMAT_COMMANDER
 
     if clean_value == "modern":
@@ -100,7 +106,13 @@ def normalize_deck_format(value, fallback=DECK_FORMAT_STANDARD):
     if clean_value == "pioneer":
         return DECK_FORMAT_PIONEER
 
-    if clean_value in {"eternal", "legacy", "vintage"}:
+    if clean_value in {
+        "eternal",
+        "legacy",
+        "vintage",
+        "historic",
+        "timeless",
+    }:
         return DECK_FORMAT_ETERNAL
 
     if clean_value == "pauper":

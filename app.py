@@ -22411,33 +22411,176 @@ def build_deckbuilder_image_export_rows(
 
     return export_rows
 
-def normalize_deck_roulette_bracket(
+DECK_ROULETTE_BRACKET_OPTIONS = (
+    (
+        1,
+        "1 - Bracket 1 (Exhibition)",
+    ),
+    (
+        2,
+        "2 - Bracket 2 (Core)",
+    ),
+    (
+        3,
+        "3 - Bracket 3 (Upgraded)",
+    ),
+    (
+        4,
+        "4 - Bracket 4 (Optimized)",
+    ),
+    (
+        5,
+        "5 - Bracket 5 (cEDH)",
+    ),
+)
+
+DECK_ROULETTE_BRACKET_VALUES = tuple(
+    value
+    for value, _label
+    in DECK_ROULETTE_BRACKET_OPTIONS
+)
+
+DECK_ROULETTE_COLOR_OPTIONS = (
+    ("W", "White"),
+    ("U", "Blue"),
+    ("B", "Black"),
+    ("R", "Red"),
+    ("G", "Green"),
+    ("C", "Colorless"),
+)
+
+DECK_ROULETTE_SORT_OPTIONS = (
+    ("views", "Most Views"),
+    ("likes", "Most Likes"),
+    ("updated", "Recently Updated"),
+    ("created", "Recently Created"),
+)
+
+DECK_ROULETTE_SORT_TYPES = {
+    value
+    for value, _label
+    in DECK_ROULETTE_SORT_OPTIONS
+}
+
+DECK_ROULETTE_TOP_LIMIT_OPTIONS = tuple(
+    range(20, 201, 20)
+)
+
+DECK_ROULETTE_WHEEL_SIZE_OPTIONS = tuple(
+    range(6, 19)
+)
+
+
+def normalize_deck_roulette_brackets(
+    values,
+):
+    if not isinstance(
+        values,
+        (
+            list,
+            tuple,
+            set,
+        ),
+    ):
+        values = []
+
+    selected_lookup = set()
+
+    for value in values:
+        try:
+            parsed_value = int(
+                value
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            continue
+
+        if (
+            parsed_value
+            in DECK_ROULETTE_BRACKET_VALUES
+        ):
+            selected_lookup.add(
+                parsed_value
+            )
+
+    return tuple(
+        bracket_value
+        for bracket_value
+        in DECK_ROULETTE_BRACKET_VALUES
+        if bracket_value
+        in selected_lookup
+    )
+
+
+def normalize_deck_roulette_colors(
+    values,
+):
+    if not isinstance(
+        values,
+        (list, tuple, set),
+    ):
+        values = []
+
+    selected_lookup = {
+        str(value or "")
+        .strip()
+        .upper()
+        for value in values
+    }
+
+    if "C" in selected_lookup:
+        return ("C",)
+
+    return tuple(
+        color_value
+        for color_value, _label
+        in DECK_ROULETTE_COLOR_OPTIONS
+        if (
+            color_value != "C"
+            and color_value
+            in selected_lookup
+        )
+    )
+
+
+def normalize_deck_roulette_color_match(
     value,
 ):
     clean_value = str(
         value
-        or ""
-    ).strip()
+        or "exact"
+    ).strip().lower()
 
-    if not clean_value:
-        return None
+    if clean_value not in {
+        "exact",
+        "including",
+    }:
+        clean_value = "exact"
 
+    return clean_value
+
+
+def normalize_deck_roulette_choice(
+    value,
+    allowed_values,
+    default_value,
+):
     try:
         parsed_value = int(
-            clean_value
+            value
         )
 
     except (
         TypeError,
         ValueError,
     ):
-        return None
+        return default_value
 
-    if parsed_value < 1:
-        return None
-
-    if parsed_value > 5:
-        return None
+    if parsed_value not in allowed_values:
+        return default_value
 
     return parsed_value
 
@@ -22453,7 +22596,7 @@ def serialize_deck_roulette_candidate(
         "image_src"
     ] = (
         build_scryfall_image_url(
-            candidate.commander_scryfall_id,
+            candidate.display_card_scryfall_id,
             image_quality="normal",
         )
         or ""
@@ -22472,6 +22615,31 @@ def deck_roulette():
 
         card_database_ready=(
             is_card_database_ready()
+        ),
+
+        deck_roulette_format_groups=(
+            ExternalDeckRouletteService
+            .get_format_groups()
+        ),
+
+        deck_roulette_bracket_options=(
+            DECK_ROULETTE_BRACKET_OPTIONS
+        ),
+
+        deck_roulette_color_options=(
+            DECK_ROULETTE_COLOR_OPTIONS
+        ),
+
+        deck_roulette_sort_options=(
+            DECK_ROULETTE_SORT_OPTIONS
+        ),
+
+        deck_roulette_top_limit_options=(
+            DECK_ROULETTE_TOP_LIMIT_OPTIONS
+        ),
+
+        deck_roulette_wheel_size_options=(
+            DECK_ROULETTE_WHEEL_SIZE_OPTIONS
         ),
     )
 
@@ -22494,6 +22662,29 @@ def deck_roulette_spin():
     ):
         payload = {}
 
+    format_rule = (
+        ExternalDeckRouletteService
+        .get_format_rule(
+            payload.get("format")
+            or "commander"
+        )
+    )
+
+    if format_rule is None:
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Unsupported Deck Roulette format."
+            ),
+        }), 400
+
+    title_search = str(
+        payload.get(
+            "title_search"
+        )
+        or ""
+    ).strip()
+
     commander_name = str(
         payload.get(
             "commander_name"
@@ -22501,57 +22692,72 @@ def deck_roulette_spin():
         or ""
     ).strip()
 
-    min_bracket = (
-        normalize_deck_roulette_bracket(
+    selected_brackets = (
+        normalize_deck_roulette_brackets(
             payload.get(
-                "min_bracket"
+                "brackets"
             )
         )
     )
 
-    max_bracket = (
-        normalize_deck_roulette_bracket(
-            payload.get(
-                "max_bracket"
-            )
+    if format_rule[
+        "requires_leader"
+    ]:
+        min_bracket = (
+            min(selected_brackets)
+            if selected_brackets
+            else None
+        )
+
+        max_bracket = (
+            max(selected_brackets)
+            if selected_brackets
+            else None
+        )
+
+    else:
+        commander_name = ""
+        selected_brackets = ()
+        min_bracket = None
+        max_bracket = None
+
+    selected_colors = (
+        normalize_deck_roulette_colors(
+            payload.get("colors")
         )
     )
 
-    if (
-        min_bracket is not None
-        and max_bracket is not None
-        and min_bracket > max_bracket
-    ):
-        return jsonify({
-            "ok": False,
-            "message": (
-                "Minimum bracket cannot "
-                "be greater than maximum "
-                "bracket."
-            ),
-        }), 400
-
-    try:
-        wheel_size = int(
-            payload.get(
-                "wheel_size"
-            )
-            or 8
+    color_match_mode = (
+        normalize_deck_roulette_color_match(
+            payload.get("color_match")
         )
+    )
 
-    except (
-        TypeError,
-        ValueError,
+    sort_type = str(
+        payload.get("sort")
+        or "updated"
+    ).strip().lower()
+
+    if sort_type not in (
+        DECK_ROULETTE_SORT_TYPES
     ):
-        wheel_size = 8
+        sort_type = "updated"
 
-    if wheel_size not in {
-        6,
-        8,
-        10,
-        12,
-    }:
-        wheel_size = 8
+    top_result_limit = (
+        normalize_deck_roulette_choice(
+            payload.get("top_limit"),
+            DECK_ROULETTE_TOP_LIMIT_OPTIONS,
+            100,
+        )
+    )
+
+    wheel_size = (
+        normalize_deck_roulette_choice(
+            payload.get("wheel_size"),
+            DECK_ROULETTE_WHEEL_SIZE_OPTIONS,
+            12,
+        )
+    )
 
     provider = (
         MoxfieldDeckProvider()
@@ -22568,7 +22774,15 @@ def deck_roulette_spin():
             roulette_service.build_spin(
                 filters=(
                     ExternalDeckSearchFilters(
-                        format="commander",
+                        format=(
+                            format_rule[
+                                "provider_format"
+                            ]
+                        ),
+
+                        deck_name=(
+                            title_search
+                        ),
 
                         commander_name=(
                             commander_name
@@ -22582,7 +22796,9 @@ def deck_roulette_spin():
                             max_bracket
                         ),
 
-                        sort_type="updated",
+                        sort_type=(
+                            sort_type
+                        ),
 
                         sort_direction=(
                             "descending"
@@ -22595,17 +22811,37 @@ def deck_roulette_spin():
                 options=(
                     ExternalDeckSelectionOptions(
                         selection_count=(
-                            wheel_size
+                            top_result_limit
                         ),
 
-                        candidate_pool_size=80,
+                        candidate_pool_size=(
+                            top_result_limit
+                        ),
 
-                        max_search_pages=6,
+                        max_search_pages=20,
 
                         require_legal=True,
 
-                        required_playable_card_count=100,
+                        color_identity=(
+                            selected_colors
+                        ),
+
+                        color_match_mode=(
+                            color_match_mode
+                        ),
+
+                        allowed_brackets=(
+                            selected_brackets
+                        ),
+
+                        top_result_limit=(
+                            top_result_limit
+                        ),
                     )
+                ),
+
+                format_key=(
+                    format_rule["key"]
                 ),
 
                 wheel_size=wheel_size,
@@ -22723,6 +22959,22 @@ def deck_roulette_open():
             ),
         }), 400
 
+    format_rule = (
+        ExternalDeckRouletteService
+        .get_format_rule(
+            payload.get("format")
+            or "commander"
+        )
+    )
+
+    if format_rule is None:
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Unsupported Deck Roulette format."
+            ),
+        }), 400
+
     provider = (
         MoxfieldDeckProvider()
     )
@@ -22743,8 +22995,9 @@ def deck_roulette_open():
         candidate = (
             roulette_service.build_candidate(
                 external_deck,
-
-                required_playable_card_count=100,
+                format_key=(
+                    format_rule["key"]
+                ),
             )
         )
 
@@ -22773,8 +23026,9 @@ def deck_roulette_open():
             "ok": False,
             "message": (
                 "The selected Moxfield deck "
-                "is no longer a complete "
-                "100-card Commander deck."
+                "no longer satisfies the "
+                "selected format's deck-size "
+                "requirements."
             ),
         }), 400
 

@@ -861,6 +861,12 @@ class MoxfieldDeckProvider(ExternalDeckProvider):
                 commanders
             ),
 
+            main_card=(
+                self._card_reference_from_payload(
+                    payload.get("main")
+                )
+            ),
+
             color_identity=tuple(
                 str(value)
                 for value in (

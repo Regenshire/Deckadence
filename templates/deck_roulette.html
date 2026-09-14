@@ -23,8 +23,8 @@
         <h1 class="page-title">Deck Roulette</h1>
 
         <p class="page-subtitle">
-          Find complete Commander decks on Moxfield, spin the wheel, and open
-          the winner directly in Deck Builder.
+          Spin the Roulette wheel for a chance to try a deck, any deck, from
+          Moxfield!
         </p>
       </div>
 
@@ -38,6 +38,39 @@
   <div class="page-panel deck-roulette-filter-panel">
     <div class="deck-roulette-filter-grid">
       <label class="deck-roulette-field">
+        <span>Format</span>
+
+        <select id="deckRouletteFormat">
+          {% for group in deck_roulette_format_groups %}
+          <optgroup label="{{ group.label }}">
+            {% for option in group.options %} {% if option.value == "commander"
+            %}
+            <option value="{{ option.value }}" selected>
+              {{ option.label }}
+            </option>
+            {% else %}
+            <option value="{{ option.value }}">{{ option.label }}</option>
+            {% endif %} {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="deck-roulette-field deck-roulette-field-wide">
+        <span>Title Search</span>
+
+        <input
+          type="text"
+          id="deckRouletteTitleSearch"
+          placeholder="Search part of a deck title"
+          autocomplete="off"
+        />
+      </label>
+
+      <label
+        class="deck-roulette-field deck-roulette-field-wide"
+        id="deckRouletteCommanderField"
+      >
         <span>Commander</span>
 
         <input
@@ -48,53 +81,106 @@
         />
       </label>
 
-      <label class="deck-roulette-field">
-        <span>Minimum Bracket</span>
+      <div class="deck-roulette-field" id="deckRouletteBracketField">
+        <span>Commander Bracket</span>
 
-        <select id="deckRouletteMinBracket">
-          <option value="">Any</option>
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-          <option value="5">5</option>
-        </select>
-      </label>
+        <details
+          class="deck-roulette-multiselect"
+          id="deckRouletteBracketDropdown"
+        >
+          <summary id="deckRouletteBracketSummary">Any</summary>
 
-      <label class="deck-roulette-field">
-        <span>Maximum Bracket</span>
+          <div class="deck-roulette-multiselect-menu">
+            {% for bracket_value, bracket_label in deck_roulette_bracket_options
+            %}
+            <label class="deck-roulette-multiselect-option">
+              <input
+                type="checkbox"
+                class="deck-roulette-bracket-input"
+                value="{{ bracket_value }}"
+              />
 
-        <select id="deckRouletteMaxBracket">
-          <option value="">Any</option>
-          <option value="1">1</option>
-          <option value="2">2</option>
-          <option value="3">3</option>
-          <option value="4">4</option>
-          <option value="5">5</option>
-        </select>
-      </label>
+              <span> {{ bracket_label }} </span>
+            </label>
+            {% endfor %}
+          </div>
+        </details>
+      </div>
 
       <label class="deck-roulette-field">
         <span>Wheel Size</span>
 
         <select id="deckRouletteWheelSize">
-          <option value="6">6 Decks</option>
-          <option value="8" selected>8 Decks</option>
-          <option value="10">10 Decks</option>
-          <option value="12">12 Decks</option>
+          {% for wheel_size in deck_roulette_wheel_size_options %} {% if
+          wheel_size == 12 %}
+          <option value="{{ wheel_size }}" selected>
+            {{ wheel_size }} Decks
+          </option>
+          {% else %}
+          <option value="{{ wheel_size }}">{{ wheel_size }} Decks</option>
+          {% endif %} {% endfor %}
+        </select>
+      </label>
+
+      <div class="deck-roulette-field deck-roulette-field-wide">
+        <span>Color Identity</span>
+
+        <div class="deck-roulette-color-options" id="deckRouletteColorIdentity">
+          {% for color_value, color_label in deck_roulette_color_options %}
+          <label class="deck-roulette-color-option" title="{{ color_label }}">
+            <input
+              type="checkbox"
+              class="deck-roulette-color-input"
+              value="{{ color_value }}"
+            />
+            <span class="deck-roulette-color-chip"> {{ color_value }} </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <label class="deck-roulette-field">
+        <span>Color Match</span>
+
+        <select id="deckRouletteColorMatch">
+          <option value="exact" selected>Exactly These Colors</option>
+          <option value="including">Including These Colors</option>
+        </select>
+      </label>
+
+      <label class="deck-roulette-field">
+        <span>Sort</span>
+
+        <select id="deckRouletteSort">
+          {% for sort_value, sort_label in deck_roulette_sort_options %} {% if
+          sort_value == "updated" %}
+          <option value="{{ sort_value }}" selected>{{ sort_label }}</option>
+          {% else %}
+          <option value="{{ sort_value }}">{{ sort_label }}</option>
+          {% endif %} {% endfor %}
+        </select>
+      </label>
+
+      <label class="deck-roulette-field">
+        <span>Out of Top</span>
+
+        <select id="deckRouletteTopLimit">
+          {% for top_limit in deck_roulette_top_limit_options %} {% if top_limit
+          == 100 %}
+          <option value="{{ top_limit }}" selected>{{ top_limit }}</option>
+          {% else %}
+          <option value="{{ top_limit }}">{{ top_limit }}</option>
+          {% endif %} {% endfor %}
         </select>
       </label>
     </div>
-
-    <div class="deck-roulette-filter-note">
-      Roulette only accepts legal Commander decks with exactly 100 playable
-      cards. Maybeboard and token cards do not count.
-    </div>
   </div>
 
-  <div id="deckRouletteMessage" class="card-placeholder">
-    Choose any filters you want, then spin.
-  </div>
+  <div
+    id="deckRouletteMessage"
+    class="deck-roulette-message hidden"
+    role="alert"
+  ></div>
 
   <div id="deckRouletteSpinner" class="chaos-draft-spinner-shell">
     <div class="chaos-draft-spinner-window">
@@ -199,7 +285,7 @@
       </div>
 
       <div id="deckRouletteBusyText" class="chaos-draft-busy-text">
-        Searching Moxfield for complete Commander decks...
+        Searching for matching decks...
       </div>
     </div>
   </div>

@@ -13,6 +13,15 @@ from .core import (
 
 
 class ExternalDeckRandomizer:
+    COLOR_ORDER = (
+        "W",
+        "U",
+        "B",
+        "R",
+        "G",
+        "C",
+    )
+
     def __init__(
         self,
         provider: ExternalDeckProvider,
@@ -44,7 +53,7 @@ class ExternalDeckRandomizer:
             self._bounded_int(
                 options.selection_count,
                 minimum=1,
-                maximum=50,
+                maximum=200,
             )
         )
 
@@ -86,46 +95,6 @@ class ExternalDeckRandomizer:
                 "the requested filters."
             )
 
-        pages_to_fetch = min(
-            max_search_pages,
-            candidate_pool_size,
-        )
-
-        page_size = min(
-            100,
-            max(
-                selection_count,
-                math.ceil(
-                    candidate_pool_size
-                    / pages_to_fetch
-                ),
-            ),
-        )
-
-        total_pages = max(
-            1,
-            math.ceil(
-                total_results
-                / page_size
-            ),
-        )
-
-        pages_to_fetch = min(
-            pages_to_fetch,
-            total_pages,
-            math.ceil(
-                candidate_pool_size
-                / page_size
-            ),
-        )
-
-        page_numbers = (
-            self._sample_page_numbers(
-                total_pages,
-                pages_to_fetch,
-            )
-        )
-
         excluded_ids = {
             str(value or "").strip()
             for value
@@ -149,35 +118,119 @@ class ExternalDeckRandomizer:
             ),
         )
 
-        required_playable_card_count = None
+        required_playable_card_count = (
+            self._normalize_optional_positive_int(
+                options.required_playable_card_count
+            )
+        )
 
-        if (
-            options.required_playable_card_count
-            not in {
-                None,
-                "",
-            }
-        ):
-            try:
-                required_playable_card_count = int(
-                    options.required_playable_card_count
+        selected_colors = (
+            self._normalize_color_identity(
+                options.color_identity
+            )
+        )
+
+        color_match_mode = str(
+            options.color_match_mode
+            or "exact"
+        ).strip().lower()
+
+        if color_match_mode not in {
+            "exact",
+            "including",
+        }:
+            color_match_mode = "exact"
+
+        allowed_brackets = (
+            self._normalize_brackets(
+                options.allowed_brackets
+            )
+        )
+
+        top_result_limit = (
+            self._normalize_optional_positive_int(
+                options.top_result_limit
+            )
+        )
+
+        if top_result_limit is not None:
+            top_result_limit = min(
+                1000,
+                top_result_limit,
+            )
+
+            target_pool_size = min(
+                candidate_pool_size,
+                top_result_limit,
+            )
+
+            page_size = 100
+
+            total_pages = max(
+                1,
+                math.ceil(
+                    total_results
+                    / page_size
+                ),
+            )
+
+            page_numbers = list(
+                range(
+                    1,
+                    min(
+                        total_pages,
+                        max_search_pages,
+                    ) + 1,
                 )
+            )
 
-            except (
-                TypeError,
-                ValueError,
-            ):
-                required_playable_card_count = None
+        else:
+            target_pool_size = (
+                candidate_pool_size
+            )
 
-            if (
-                required_playable_card_count
-                is not None
-                and required_playable_card_count
-                < 1
-            ):
-                required_playable_card_count = None
+            pages_to_fetch = min(
+                max_search_pages,
+                candidate_pool_size,
+            )
+
+            page_size = min(
+                100,
+                max(
+                    selection_count,
+                    math.ceil(
+                        candidate_pool_size
+                        / pages_to_fetch
+                    ),
+                ),
+            )
+
+            total_pages = max(
+                1,
+                math.ceil(
+                    total_results
+                    / page_size
+                ),
+            )
+
+            pages_to_fetch = min(
+                pages_to_fetch,
+                total_pages,
+                math.ceil(
+                    candidate_pool_size
+                    / page_size
+                ),
+            )
+
+            page_numbers = (
+                self._sample_page_numbers(
+                    total_pages,
+                    pages_to_fetch,
+                )
+            )
 
         candidates_by_id = {}
+        pages_sampled = []
 
         for page_number in page_numbers:
             page = (
@@ -188,6 +241,10 @@ class ExternalDeckRandomizer:
                 )
             )
 
+            pages_sampled.append(
+                page_number
+            )
+
             for deck in page.decks:
                 if not self._is_allowed(
                     deck,
@@ -196,6 +253,9 @@ class ExternalDeckRandomizer:
                     minimum_likes,
                     minimum_views,
                     required_playable_card_count,
+                    selected_colors,
+                    color_match_mode,
+                    allowed_brackets,
                 ):
                     continue
 
@@ -205,7 +265,7 @@ class ExternalDeckRandomizer:
 
                 if (
                     len(candidates_by_id)
-                    >= candidate_pool_size
+                    >= target_pool_size
                 ):
                     break
 
@@ -250,7 +310,7 @@ class ExternalDeckRandomizer:
             ),
 
             pages_sampled=tuple(
-                page_numbers
+                pages_sampled
             ),
         )
 
@@ -293,6 +353,9 @@ class ExternalDeckRandomizer:
         minimum_likes,
         minimum_views,
         required_playable_card_count,
+        selected_colors,
+        color_match_mode,
+        allowed_brackets,
     ):
         if (
             deck.external_id
@@ -326,7 +389,156 @@ class ExternalDeckRandomizer:
         ):
             return False
 
+        if allowed_brackets:
+            effective_bracket = (
+                deck.bracket
+                if deck.bracket is not None
+                else deck.auto_bracket
+            )
+
+            try:
+                effective_bracket = int(
+                    effective_bracket
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+                return False
+
+            if (
+                effective_bracket
+                not in allowed_brackets
+            ):
+                return False
+
+        if not self._matches_color_identity(
+            deck.color_identity,
+            selected_colors,
+            color_match_mode,
+        ):
+            return False
+
         return True
+
+    @staticmethod
+    def _normalize_brackets(
+        values,
+    ):
+        normalized = []
+
+        for value in values or ():
+            try:
+                parsed_value = int(
+                    value
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+                continue
+
+            if (
+                1 <= parsed_value <= 5
+                and parsed_value
+                not in normalized
+            ):
+                normalized.append(
+                    parsed_value
+                )
+
+        return tuple(
+            sorted(normalized)
+        )
+
+    def _normalize_color_identity(
+        self,
+        values,
+    ):
+        requested = {
+            str(value or "")
+            .strip()
+            .upper()
+            for value in (
+                values
+                or ()
+            )
+        }
+
+        return tuple(
+            color
+            for color
+            in self.COLOR_ORDER
+            if color in requested
+        )
+
+
+    def _matches_color_identity(
+        self,
+        deck_colors,
+        selected_colors,
+        color_match_mode,
+    ):
+        if not selected_colors:
+            return True
+
+        normalized_deck_colors = {
+            str(value or "")
+            .strip()
+            .upper()
+            for value in (
+                deck_colors
+                or ()
+            )
+            if str(value or "").strip()
+        }
+
+        selected_color_set = set(
+            selected_colors
+        )
+
+        if "C" in selected_color_set:
+            return not normalized_deck_colors
+
+        if color_match_mode == "including":
+            return (
+                selected_color_set
+                <= normalized_deck_colors
+            )
+
+        return (
+            normalized_deck_colors
+            == selected_color_set
+        )
+
+
+    @staticmethod
+    def _normalize_optional_positive_int(
+        value,
+    ):
+        if value in {
+            None,
+            "",
+        }:
+            return None
+
+        try:
+            parsed_value = int(
+                value
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return None
+
+        if parsed_value < 1:
+            return None
+
+        return parsed_value
 
 
     @staticmethod

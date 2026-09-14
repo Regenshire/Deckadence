@@ -32,22 +32,20 @@
   font-weight: 700;
   white-space: nowrap;
 }
+
 .deck-roulette-filter-panel {
   padding: 16px 18px;
 }
 
 .deck-roulette-filter-grid {
   display: grid;
-  grid-template-columns:
-    minmax(220px, 1.8fr)
-    minmax(130px, 0.7fr)
-    minmax(130px, 0.7fr)
-    minmax(130px, 0.7fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
   align-items: end;
 }
 
 .deck-roulette-field {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -56,7 +54,11 @@
   font-weight: 700;
 }
 
-.deck-roulette-field input,
+.deck-roulette-field-wide {
+  grid-column: span 2;
+}
+
+.deck-roulette-field input:not([type="checkbox"]),
 .deck-roulette-field select {
   width: 100%;
   min-height: 42px;
@@ -68,16 +70,150 @@
   outline: none;
 }
 
-.deck-roulette-field input:focus,
+.deck-roulette-field input:not([type="checkbox"]):focus,
 .deck-roulette-field select:focus {
   border-color: var(--accent);
 }
 
-.deck-roulette-filter-note {
-  margin-top: 10px;
+.deck-roulette-field-disabled {
+  opacity: 0.45;
+}
+
+.deck-roulette-multiselect {
+  position: relative;
+}
+
+.deck-roulette-multiselect summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 9px 11px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.deck-roulette-multiselect summary::-webkit-details-marker {
+  display: none;
+}
+
+.deck-roulette-multiselect summary::after {
+  content: "▾";
   color: var(--muted);
-  font-size: 0.84rem;
-  line-height: 1.4;
+  font-size: 0.9rem;
+  transition: transform 0.14s ease;
+}
+
+.deck-roulette-multiselect[open] summary {
+  border-color: var(--accent);
+}
+
+.deck-roulette-multiselect[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.deck-roulette-multiselect-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 280px;
+  padding: 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.32);
+}
+
+.deck-roulette-multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.deck-roulette-multiselect-option:hover {
+  background: var(--button);
+}
+
+.deck-roulette-multiselect-option input {
+  margin: 0;
+}
+
+.deck-roulette-multiselect-disabled {
+  pointer-events: none;
+}
+
+.deck-roulette-color-options {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+}
+
+.deck-roulette-color-option {
+  position: relative;
+  display: inline-flex;
+}
+
+.deck-roulette-color-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.deck-roulette-color-chip {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(169, 176, 190, 0.38);
+  border-radius: 999px;
+  background: var(--button);
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.14s ease;
+}
+
+.deck-roulette-color-option:hover .deck-roulette-color-chip {
+  transform: translateY(-1px);
+  color: var(--text);
+}
+
+.deck-roulette-color-option input:checked + .deck-roulette-color-chip {
+  border-color: var(--accent);
+  background: rgba(58, 122, 254, 0.22);
+  color: #ffffff;
+}
+
+.deck-roulette-message {
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 120, 120, 0.5);
+  border-radius: 12px;
+  background: rgba(120, 40, 40, 0.22);
+  color: #ffd0d0;
+  font-weight: 700;
 }
 
 .deck-roulette-card {
@@ -165,11 +301,13 @@
   white-space: nowrap;
 }
 
-@media (max-width: 850px) {
+@media (max-width: 1100px) {
   .deck-roulette-filter-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
 
+@media (max-width: 850px) {
   .deck-roulette-winner-panel {
     grid-template-columns: 1fr;
   }
@@ -177,6 +315,12 @@
   .deck-roulette-winner-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .deck-roulette-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -188,6 +332,10 @@
 
   .deck-roulette-filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .deck-roulette-field-wide {
+    grid-column: span 1;
   }
 
   .deck-roulette-card {

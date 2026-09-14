@@ -50,11 +50,35 @@ class DeckRouletteController {
 
     this.moxfieldLink = document.getElementById("deckRouletteMoxfieldLink");
 
+    this.formatInput = document.getElementById("deckRouletteFormat");
+
+    this.titleSearchInput = document.getElementById("deckRouletteTitleSearch");
+
+    this.commanderField = document.getElementById("deckRouletteCommanderField");
+
     this.commanderInput = document.getElementById("deckRouletteCommander");
 
-    this.minBracketInput = document.getElementById("deckRouletteMinBracket");
+    this.bracketField = document.getElementById("deckRouletteBracketField");
 
-    this.maxBracketInput = document.getElementById("deckRouletteMaxBracket");
+    this.bracketDropdown = document.getElementById(
+      "deckRouletteBracketDropdown",
+    );
+
+    this.bracketSummary = document.getElementById("deckRouletteBracketSummary");
+
+    this.bracketInputs = Array.from(
+      document.querySelectorAll(".deck-roulette-bracket-input"),
+    );
+
+    this.colorInputs = Array.from(
+      document.querySelectorAll(".deck-roulette-color-input"),
+    );
+
+    this.colorMatchInput = document.getElementById("deckRouletteColorMatch");
+
+    this.sortInput = document.getElementById("deckRouletteSort");
+
+    this.topLimitInput = document.getElementById("deckRouletteTopLimit");
 
     this.wheelSizeInput = document.getElementById("deckRouletteWheelSize");
 
@@ -67,6 +91,7 @@ class DeckRouletteController {
     this.currentWinner = null;
     this.animationInProgress = false;
     this.openInProgress = false;
+    this.filterControlsLocked = false;
   }
 
   initialize() {
@@ -81,31 +106,162 @@ class DeckRouletteController {
     if (this.openButton) {
       this.openButton.addEventListener("click", () => this.openWinner());
     }
+
+    if (this.formatInput) {
+      this.formatInput.addEventListener("change", () =>
+        this.updateFormatControls(),
+      );
+    }
+
+    this.colorInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        this.handleColorSelection(input);
+      });
+    });
+
+    this.bracketInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        this.updateBracketSummary();
+      });
+    });
+
+    this.updateBracketSummary();
+    this.updateFormatControls();
+  }
+
+  isCommanderFormat() {
+    return ["commander", "commanderPrecons", "pauperEdh"].includes(
+      this.formatInput?.value || "commander",
+    );
+  }
+
+  handleColorSelection(changedInput) {
+    if (!changedInput?.checked) {
+      return;
+    }
+
+    if (changedInput.value === "C") {
+      this.colorInputs.forEach((input) => {
+        if (input !== changedInput) {
+          input.checked = false;
+        }
+      });
+
+      return;
+    }
+
+    const colorlessInput = this.colorInputs.find(
+      (input) => input.value === "C",
+    );
+
+    if (colorlessInput) {
+      colorlessInput.checked = false;
+    }
+  }
+
+  getSelectedColors() {
+    return this.colorInputs
+      .filter((input) => input.checked)
+      .map((input) => input.value);
+  }
+
+  getSelectedBrackets() {
+    return this.bracketInputs
+      .filter((input) => input.checked)
+      .map((input) => Number(input.value))
+      .filter((value) => Number.isInteger(value));
+  }
+
+  updateBracketSummary() {
+    if (!this.bracketSummary) {
+      return;
+    }
+
+    const selectedBrackets = this.getSelectedBrackets();
+
+    if (!selectedBrackets.length) {
+      this.bracketSummary.textContent = "Any";
+
+      return;
+    }
+
+    this.bracketSummary.textContent = selectedBrackets
+      .map((value) => `Bracket ${value}`)
+      .join(", ");
+  }
+
+  updateFormatControls() {
+    const leaderFiltersEnabled = this.isCommanderFormat();
+    const disableLeaderFilters =
+      this.filterControlsLocked || !leaderFiltersEnabled;
+
+    [this.commanderInput, ...this.bracketInputs].forEach((control) => {
+      if (control) {
+        control.disabled = disableLeaderFilters;
+      }
+    });
+
+    [this.commanderField, this.bracketField].forEach((field) => {
+      field?.classList.toggle(
+        "deck-roulette-field-disabled",
+        !leaderFiltersEnabled,
+      );
+    });
+
+    this.bracketDropdown?.classList.toggle(
+      "deck-roulette-multiselect-disabled",
+      disableLeaderFilters,
+    );
+
+    if (disableLeaderFilters) {
+      this.bracketDropdown?.removeAttribute("open");
+    }
   }
 
   getFilters() {
+    const leaderFiltersEnabled = this.isCommanderFormat();
+
     return {
-      commander_name: (this.commanderInput?.value || "").trim(),
+      format: this.formatInput?.value || "commander",
 
-      min_bracket: this.minBracketInput?.value || "",
+      title_search: (this.titleSearchInput?.value || "").trim(),
 
-      max_bracket: this.maxBracketInput?.value || "",
+      commander_name: leaderFiltersEnabled
+        ? (this.commanderInput?.value || "").trim()
+        : "",
 
-      wheel_size: Number(this.wheelSizeInput?.value || 8),
+      brackets: leaderFiltersEnabled ? this.getSelectedBrackets() : [],
+
+      colors: this.getSelectedColors(),
+
+      color_match: this.colorMatchInput?.value || "exact",
+
+      sort: this.sortInput?.value || "updated",
+
+      top_limit: Number(this.topLimitInput?.value || 100),
+
+      wheel_size: Number(this.wheelSizeInput?.value || 12),
     };
   }
 
   setFilterControlsDisabled(disabled) {
+    this.filterControlsLocked = Boolean(disabled);
+
     [
-      this.commanderInput,
-      this.minBracketInput,
-      this.maxBracketInput,
+      this.formatInput,
+      this.titleSearchInput,
+      this.colorMatchInput,
+      this.sortInput,
+      this.topLimitInput,
       this.wheelSizeInput,
-    ].forEach(function (control) {
+      ...this.colorInputs,
+    ].forEach((control) => {
       if (control) {
-        control.disabled = Boolean(disabled);
+        control.disabled = this.filterControlsLocked;
       }
     });
+
+    this.updateFormatControls();
   }
 
   setBusy(isBusy, title, text) {
@@ -151,6 +307,8 @@ class DeckRouletteController {
 
     this.resetWinner();
 
+    this.message?.classList.add("hidden");
+
     this.setFilterControlsDisabled(true);
 
     if (this.spinButton) {
@@ -161,11 +319,7 @@ class DeckRouletteController {
       this.spinAgainButton.disabled = true;
     }
 
-    this.setBusy(
-      true,
-      "Finding Decks",
-      "Searching Moxfield for complete Commander decks...",
-    );
+    this.setBusy(true, "Finding Decks", "Rummaging through decks...");
 
     try {
       const response = await fetch(this.spinUrl, {
@@ -256,7 +410,11 @@ class DeckRouletteController {
 
       image.src = deck.image_src || this.fallbackImage;
 
-      image.alt = deck.commander_name || deck.deck_name || "Commander";
+      image.alt =
+        deck.display_card_name ||
+        deck.commander_name ||
+        deck.deck_name ||
+        "Deck";
 
       image.addEventListener("error", () => {
         if (this.fallbackImage && image.src !== this.fallbackImage) {
@@ -272,17 +430,23 @@ class DeckRouletteController {
 
       title.textContent = deck.deck_name || "Untitled Deck";
 
-      const commander = document.createElement("div");
+      const cardMeta = document.createElement("div");
 
-      commander.className = "deck-roulette-card-commander";
+      cardMeta.className = "deck-roulette-card-commander";
 
-      commander.textContent = deck.commander_name || "";
+      if (deck.commander_name) {
+        cardMeta.textContent = deck.commander_name;
+      } else if (deck.display_card_name) {
+        cardMeta.textContent = `Featured: ${deck.display_card_name}`;
+      } else {
+        cardMeta.textContent = deck.format_label || "";
+      }
 
       card.appendChild(imageWrap);
 
       card.appendChild(title);
 
-      card.appendChild(commander);
+      card.appendChild(cardMeta);
 
       this.track.appendChild(card);
     });
@@ -467,15 +631,25 @@ class DeckRouletteController {
 
     this.winnerName.textContent = winner.deck_name || "Untitled Deck";
 
-    this.winnerCommander.textContent = winner.commander_name || "";
+    if (winner.commander_name) {
+      this.winnerCommander.textContent = `Commander: ${winner.commander_name}`;
+    } else if (winner.display_card_name) {
+      this.winnerCommander.textContent = `Featured card: ${winner.display_card_name}`;
+    } else {
+      this.winnerCommander.textContent = "";
+    }
 
     const meta = [];
+
+    if (winner.format_label) {
+      meta.push(winner.format_label);
+    }
 
     if (winner.author) {
       meta.push(`by ${winner.author}`);
     }
 
-    if (winner.bracket) {
+    if (winner.bracket && winner.commander_name) {
       meta.push(`Bracket ${winner.bracket}`);
     }
 
@@ -520,6 +694,7 @@ class DeckRouletteController {
 
         body: JSON.stringify({
           external_id: this.currentWinner.external_id,
+          format: this.currentWinner.format_key || "commander",
         }),
       });
 

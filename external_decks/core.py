@@ -36,6 +36,7 @@ class ExternalDeckSummary:
     format: str
     author: str = ""
     commanders: tuple[ExternalCardReference, ...] = ()
+    main_card: ExternalCardReference | None = None
     color_identity: tuple[str, ...] = ()
     bracket: int | None = None
     auto_bracket: int | None = None
@@ -103,6 +104,10 @@ class ExternalDeckSelectionOptions:
     minimum_likes: int = 0
     minimum_views: int = 0
     required_playable_card_count: int | None = None
+    color_identity: tuple[str, ...] = ()
+    color_match_mode: str = "exact"
+    allowed_brackets: tuple[int, ...] = ()
+    top_result_limit: int | None = None
     exclude_external_ids: tuple[str, ...] = ()
 
 

@@ -32,8 +32,13 @@ class ExternalDeckRouletteCandidate:
     deck_name: str
     author: str
     format: str
+    format_key: str
+    format_label: str
     commander_name: str
     commander_scryfall_id: str
+    display_card_name: str
+    display_card_scryfall_id: str
+    color_identity: tuple[str, ...]
     playable_card_count: int
     bracket: int | None
     likes: int
@@ -47,9 +52,20 @@ class ExternalDeckRouletteCandidate:
             "deck_name": self.deck_name,
             "author": self.author,
             "format": self.format,
+            "format_key": self.format_key,
+            "format_label": self.format_label,
             "commander_name": self.commander_name,
             "commander_scryfall_id": (
                 self.commander_scryfall_id
+            ),
+            "display_card_name": (
+                self.display_card_name
+            ),
+            "display_card_scryfall_id": (
+                self.display_card_scryfall_id
+            ),
+            "color_identity": list(
+                self.color_identity
             ),
             "playable_card_count": (
                 self.playable_card_count
@@ -75,11 +91,101 @@ class ExternalDeckRouletteSpin:
     pages_sampled: tuple[int, ...]
 
 class ExternalDeckRouletteService:
-    PLAYABLE_BOARDS = {
-        "mainboard",
-        "commanders",
-        "partners",
+    FORMAT_RULES = {
+        "commander": {
+            "label": "Commander (100 card deck)",
+            "group": "Commander",
+            "provider_format": "commander",
+            "deck_size_mode": "exact",
+            "deck_size": 100,
+            "requires_leader": True,
+        },
+        "commanderPrecons": {
+            "label": "Commander Precons (100 card deck)",
+            "group": "Commander",
+            "provider_format": "commanderPrecons",
+            "deck_size_mode": "exact",
+            "deck_size": 100,
+            "requires_leader": True,
+        },
+        "pauperEdh": {
+            "label": "Pauper EDH (100 card deck)",
+            "group": "Commander",
+            "provider_format": "pauperEdh",
+            "deck_size_mode": "exact",
+            "deck_size": 100,
+            "requires_leader": True,
+        },
+        "standard": {
+            "label": "Standard (60+ cards)",
+            "group": "Constructed",
+            "provider_format": "standard",
+            "deck_size_mode": "minimum",
+            "deck_size": 60,
+            "requires_leader": False,
+        },
+        "modern": {
+            "label": "Modern (60+ cards)",
+            "group": "Constructed",
+            "provider_format": "modern",
+            "deck_size_mode": "minimum",
+            "deck_size": 60,
+            "requires_leader": False,
+        },
+        "pauper": {
+            "label": "Pauper (60+ cards)",
+            "group": "Constructed",
+            "provider_format": "pauper",
+            "deck_size_mode": "minimum",
+            "deck_size": 60,
+            "requires_leader": False,
+        },
+        "legacy": {
+            "label": "Legacy (60+ cards)",
+            "group": "Constructed",
+            "provider_format": "legacy",
+            "deck_size_mode": "minimum",
+            "deck_size": 60,
+            "requires_leader": False,
+        },
+        "historic": {
+            "label": "Historic (60+ cards)",
+            "group": "Constructed",
+            "provider_format": "historic",
+            "deck_size_mode": "minimum",
+            "deck_size": 60,
+            "requires_leader": False,
+        },
+        "pioneer": {
+            "label": "Pioneer (60+ cards)",
+            "group": "Constructed",
+            "provider_format": "pioneer",
+            "deck_size_mode": "minimum",
+            "deck_size": 60,
+            "requires_leader": False,
+        },
+        "timeless": {
+            "label": "Timeless (60+ cards)",
+            "group": "Constructed",
+            "provider_format": "timeless",
+            "deck_size_mode": "minimum",
+            "deck_size": 60,
+            "requires_leader": False,
+        },
+        "vintage": {
+            "label": "Vintage (60+ cards)",
+            "group": "Constructed",
+            "provider_format": "vintage",
+            "deck_size_mode": "minimum",
+            "deck_size": 60,
+            "requires_leader": False,
+        },
     }
+
+    FORMAT_GROUP_ORDER = (
+        "Commander",
+        "Constructed",
+    )
 
     LEADER_BOARDS = {
         "commanders",
@@ -128,17 +234,85 @@ class ExternalDeckRouletteService:
             ),
         )
 
+    @classmethod
+    def get_format_rule(
+        cls,
+        format_key,
+    ):
+        clean_key = str(
+            format_key
+            or "commander"
+        ).strip()
+
+        for canonical_key, rule in (
+            cls.FORMAT_RULES.items()
+        ):
+            if (
+                clean_key.casefold()
+                == canonical_key.casefold()
+            ):
+                return {
+                    "key": canonical_key,
+                    **rule,
+                }
+
+        return None
+
+
+    @classmethod
+    def get_format_groups(cls):
+        groups = []
+
+        for group_label in (
+            cls.FORMAT_GROUP_ORDER
+        ):
+            options = []
+
+            for format_key, rule in (
+                cls.FORMAT_RULES.items()
+            ):
+                if (
+                    rule["group"]
+                    != group_label
+                ):
+                    continue
+
+                options.append({
+                    "value": format_key,
+                    "label": rule["label"],
+                })
+
+            groups.append({
+                "label": group_label,
+                "options": options,
+            })
+
+        return groups
+
     def build_spin(
         self,
         filters=None,
         options=None,
-        wheel_size=8,
+        format_key="commander",
+        wheel_size=12,
     ):
-        filters = (
-            filters
-            or ExternalDeckSearchFilters(
-                format="commander"
+        format_rule = self.get_format_rule(
+            format_key
+        )
+
+        if format_rule is None:
+            raise ExternalDeckSelectionError(
+                "Unsupported Deck Roulette format."
             )
+
+        filters = replace(
+            (
+                filters
+                or ExternalDeckSearchFilters()
+            ),
+            format=format_rule[
+                "provider_format"
+            ],
         )
 
         options = (
@@ -148,54 +322,43 @@ class ExternalDeckRouletteService:
 
         wheel_size = self._bounded_int(
             wheel_size,
-            minimum=2,
-            maximum=12,
-            fallback=8,
-        )
-
-        discovery_count = min(
-            20,
-            wheel_size + 4,
+            minimum=6,
+            maximum=18,
+            fallback=12,
         )
 
         try:
-            configured_pool_size = int(
-                options.candidate_pool_size
-                or 60
+            top_result_limit = int(
+                options.top_result_limit
+                or 100
             )
 
         except (
             TypeError,
             ValueError,
         ):
-            configured_pool_size = 60
+            top_result_limit = 100
 
-        discovery_replacements = {
-            "selection_count": (
-                discovery_count
+        top_result_limit = max(
+            wheel_size,
+            min(
+                200,
+                top_result_limit,
             ),
-
-            "candidate_pool_size": max(
-                configured_pool_size,
-                discovery_count * 4,
-            ),
-        }
-
-        # Search-result Commander information is not
-        # reliable enough to make this the final
-        # completeness test. The downloaded full deck
-        # is validated below instead.
-        if hasattr(
-            options,
-            "required_playable_card_count",
-        ):
-            discovery_replacements[
-                "required_playable_card_count"
-            ] = None
+        )
 
         discovery_options = replace(
             options,
-            **discovery_replacements,
+            selection_count=(
+                top_result_limit
+            ),
+            candidate_pool_size=(
+                top_result_limit
+            ),
+            required_playable_card_count=None,
+            top_result_limit=(
+                top_result_limit
+            ),
         )
 
         selection = (
@@ -205,32 +368,24 @@ class ExternalDeckRouletteService:
             )
         )
 
-        required_card_count = getattr(
-            options,
-            "required_playable_card_count",
-            None,
-        )
-
         candidates = (
-            self._load_candidates(
+            self._load_candidates_until_full(
                 selection.selected,
-                required_playable_card_count=(
-                    required_card_count
-                ),
+                format_rule=format_rule,
+                wheel_size=wheel_size,
             )
         )
 
-        if len(candidates) < 2:
+        if len(candidates) < wheel_size:
             raise ExternalDeckSelectionError(
-                "Deck Roulette could not find "
-                "enough complete Commander decks "
-                "for these filters."
+                "Deck Roulette found only "
+                f"{len(candidates)} complete "
+                "deck(s) within the selected "
+                "top-result range and filters."
             )
 
         candidates = tuple(
-            candidates[
-                :wheel_size
-            ]
+            candidates[:wheel_size]
         )
 
         winning_stop_index = (
@@ -266,20 +421,68 @@ class ExternalDeckRouletteService:
     def build_candidate(
         self,
         external_deck,
-        required_playable_card_count=None,
+        format_key="commander",
     ):
+        format_rule = self.get_format_rule(
+            format_key
+        )
+
+        if format_rule is None:
+            return None
+
         return self._candidate_from_deck(
             external_deck,
-            required_playable_card_count=(
-                required_playable_card_count
+            format_rule=format_rule,
+        )
+
+    def _load_candidates_until_full(
+        self,
+        deck_summaries,
+        format_rule,
+        wheel_size,
+    ):
+        summaries = list(
+            deck_summaries
+            or []
+        )
+
+        if not summaries:
+            return []
+
+        candidates = []
+
+        batch_size = max(
+            12,
+            min(
+                24,
+                wheel_size + 6,
             ),
         )
 
+        for start_index in range(
+            0,
+            len(summaries),
+            batch_size,
+        ):
+            candidates.extend(
+                self._load_candidates(
+                    summaries[
+                        start_index:
+                        start_index + batch_size
+                    ],
+                    format_rule=format_rule,
+                )
+            )
+
+            if len(candidates) >= wheel_size:
+                break
+
+        return candidates
 
     def _load_candidates(
         self,
         deck_summaries,
-        required_playable_card_count=None,
+        format_rule,
     ):
         summaries = list(
             deck_summaries
@@ -328,9 +531,8 @@ class ExternalDeckRouletteService:
                 candidate = (
                     self._candidate_from_deck(
                         external_deck,
-
-                        required_playable_card_count=(
-                            required_playable_card_count
+                        format_rule=(
+                            format_rule
                         ),
                     )
                 )
@@ -353,7 +555,7 @@ class ExternalDeckRouletteService:
     def _candidate_from_deck(
         self,
         external_deck,
-        required_playable_card_count=None,
+        format_rule,
     ):
         if not isinstance(
             external_deck,
@@ -361,19 +563,10 @@ class ExternalDeckRouletteService:
         ):
             return None
 
-        clean_format = str(
-            external_deck.summary.format
-            or ""
-        ).strip().lower()
-
-        if clean_format not in {
-            "commander",
-            "edh",
-        }:
-            return None
-
-        playable_card_count = 0
+        mainboard_card_count = 0
+        leader_card_count = 0
         leader_cards = []
+        mainboard_cards = []
 
         for card in external_deck.cards:
             board = str(
@@ -396,40 +589,48 @@ class ExternalDeckRouletteService:
             ):
                 quantity = 1
 
-            if board in self.PLAYABLE_BOARDS:
-                playable_card_count += quantity
+            if board == "mainboard":
+                mainboard_card_count += quantity
+                mainboard_cards.append(card)
 
             if board in self.LEADER_BOARDS:
-                leader_cards.append(
-                    card
-                )
+                leader_card_count += quantity
+                leader_cards.append(card)
+
+        if format_rule["requires_leader"]:
+            playable_card_count = (
+                mainboard_card_count
+                + leader_card_count
+            )
+        else:
+            playable_card_count = (
+                mainboard_card_count
+            )
+
+        required_deck_size = int(
+            format_rule["deck_size"]
+        )
 
         if (
-            required_playable_card_count
-            not in {
-                None,
-                "",
-            }
+            format_rule["deck_size_mode"]
+            == "exact"
         ):
-            try:
-                required_count = int(
-                    required_playable_card_count
-                )
-
-            except (
-                TypeError,
-                ValueError,
-            ):
-                required_count = None
-
             if (
-                required_count is not None
-                and playable_card_count
-                != required_count
+                playable_card_count
+                != required_deck_size
             ):
                 return None
 
-        if not leader_cards:
+        elif (
+            playable_card_count
+            < required_deck_size
+        ):
+            return None
+
+        if (
+            format_rule["requires_leader"]
+            and not leader_cards
+        ):
             return None
 
         unique_leader_names = []
@@ -460,22 +661,80 @@ class ExternalDeckRouletteService:
                 leader_name
             )
 
-        if not unique_leader_names:
-            return None
-
-        primary_leader = (
-            leader_cards[0]
+        commander_name = " + ".join(
+            unique_leader_names
         )
 
-        commander_scryfall_id = str(
-            primary_leader.scryfall_id
-            or ""
-        ).strip()
+        commander_scryfall_id = ""
+        display_card_name = ""
+        display_card_scryfall_id = ""
 
-        # The wheel is explicitly Commander-card
-        # driven, so skip candidates for which we
-        # cannot produce the card image.
-        if not commander_scryfall_id:
+        if leader_cards:
+            primary_leader = (
+                leader_cards[0]
+            )
+
+            commander_scryfall_id = str(
+                primary_leader.scryfall_id
+                or ""
+            ).strip()
+
+            if format_rule["requires_leader"]:
+                display_card_name = str(
+                    primary_leader.name
+                    or ""
+                ).strip()
+
+                display_card_scryfall_id = (
+                    commander_scryfall_id
+                )
+
+        if not display_card_scryfall_id:
+            main_card = (
+                external_deck.summary.main_card
+            )
+
+            if (
+                main_card is not None
+                and str(
+                    main_card.scryfall_id
+                    or ""
+                ).strip()
+            ):
+                display_card_name = str(
+                    main_card.name
+                    or ""
+                ).strip()
+
+                display_card_scryfall_id = str(
+                    main_card.scryfall_id
+                    or ""
+                ).strip()
+
+        if not display_card_scryfall_id:
+            for mainboard_card in (
+                mainboard_cards
+            ):
+                scryfall_id = str(
+                    mainboard_card.scryfall_id
+                    or ""
+                ).strip()
+
+                if not scryfall_id:
+                    continue
+
+                display_card_name = str(
+                    mainboard_card.name
+                    or ""
+                ).strip()
+
+                display_card_scryfall_id = (
+                    scryfall_id
+                )
+
+                break
+
+        if not display_card_scryfall_id:
             return None
 
         bracket = (
@@ -525,14 +784,40 @@ class ExternalDeckRouletteService:
                 external_deck
                 .summary
                 .format
+                or format_rule[
+                    "provider_format"
+                ]
             ),
 
-            commander_name=" + ".join(
-                unique_leader_names
+            format_key=(
+                format_rule["key"]
+            ),
+
+            format_label=(
+                format_rule["label"]
+            ),
+
+            commander_name=(
+                commander_name
             ),
 
             commander_scryfall_id=(
                 commander_scryfall_id
+            ),
+
+            display_card_name=(
+                display_card_name
+            ),
+
+            display_card_scryfall_id=(
+                display_card_scryfall_id
+            ),
+
+            color_identity=tuple(
+                external_deck
+                .summary
+                .color_identity
+                or ()
             ),
 
             playable_card_count=(
@@ -555,7 +840,6 @@ class ExternalDeckRouletteService:
                 or 0
             ),
         )
-
 
     @staticmethod
     def _bounded_int(
