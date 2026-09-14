@@ -12381,6 +12381,7 @@ def build_chaos_pack_pdf(
     pack_label_states=None,
     print_labels_enabled_override=None,
     default_card_back_key=None,
+    pack_label_image_path_override=None,
 ):
     pdf_settings = resolve_pdf_print_settings(
         print_labels_enabled_override=print_labels_enabled_override,
@@ -12478,6 +12479,13 @@ def build_chaos_pack_pdf(
 
     pack_label_card_already_included = False
 
+    pack_label_image_path = str(
+        pack_label_image_path_override
+        or ""
+    ).strip()
+
+    custom_pack_label_card_included = False
+
     try:
         # Used by combined-pack print jobs to build a PDF made only of pack labels.
         # This must use the normal PDF layout system, and it must support multiple labels.
@@ -12526,11 +12534,41 @@ def build_chaos_pack_pdf(
             buffer.seek(0)
             return buffer
 
+        if (
+            include_pack_label_card
+            and pack_label_image_path
+            and os.path.isfile(
+                pack_label_image_path
+            )
+        ):
+            rendered_image_entries.append({
+                "temp_path": pack_label_image_path,
+                "page_kind": "title",
+                "card_uuid": "",
+                "card_row": None,
+                "is_dual_faced": 0,
+                "is_persistent_cache_file": True,
+                "is_template_rendered": False,
+            })
+
+            custom_pack_label_card_included = True
+            pack_label_card_already_included = True
+
+            if print_card_backs:
+                card_back_rendered_entries.append(
+                    build_chaos_pdf_card_back_rendered_entry(
+                        None,
+                        card_uuid="",
+                        default_card_back_key=effective_default_card_back_key,
+                    )
+                )
+
         # Normal single-card/page pack label behavior for non-Silhouette layouts.
         # Do not create the label card when Include Pack Label Cards is disabled.
         if (
             not is_silhouette_layout
             and include_pack_label_card
+            and not custom_pack_label_card_included
         ):
             title_card_bytes = build_chaos_pack_title_card_image_bytes(
                 pack_display_name,
@@ -12566,6 +12604,7 @@ def build_chaos_pack_pdf(
                 pdf_template_layout["print_template"]
             )
             and include_pack_label_card
+            and not custom_pack_label_card_included
         ):
             try:
                 config = get_request_config()
@@ -12884,6 +12923,7 @@ def build_chaos_pack_pdf(
         if (
             include_pack_labels
             and include_pack_label_card
+            and not custom_pack_label_card_included
             and not is_silhouette_template(pdf_template_layout["print_template"])
         ):
             try:
@@ -14208,7 +14248,12 @@ def build_custom_draft_set_image_export_rows(set_code, selected_card_ids=None):
     return export_rows
 
 @isolation_operation
-def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, separate_special_slots=False):
+def build_chaos_card_image_export_zip(
+    tracked_pack_ids=None,
+    export_rows=None,
+    separate_special_slots=False,
+    pack_label_image_path_override=None,
+):
     if export_rows is None:
         export_rows = get_tracked_pack_card_export_rows(tracked_pack_ids or [])
 
@@ -14216,6 +14261,12 @@ def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, s
         raise ValueError("No selected pack cards were available for image export.")
 
     separate_special_slots = bool(separate_special_slots)
+
+    pack_label_image_path = str(
+        pack_label_image_path_override
+        or ""
+    ).strip()
+
     export_add_bleed = get_configured_export_add_bleed()
     export_info = get_next_image_export_folder()
     export_folder = export_info["folder_path"]
@@ -14534,18 +14585,52 @@ def build_chaos_card_image_export_zip(tracked_pack_ids=None, export_rows=None, s
                 get_request_config() if has_request_context() else get_config()
             )
 
-            save_chaos_pack_label_image_file(
-                pack_label_output_path,
-                pack_label["pack_display_name"],
-                set_code=pack_label["set_code"],
-                booster_name=pack_label["booster_name"],
-                pack_tracking_code=get_effective_pack_tracking_code(
-                    pack_label["pack_tracking_code"],
-                    label_settings=label_settings,
-                ),
-                card_width_mm=CARD_PRINT_WIDTH_MM,
-                card_height_mm=CARD_PRINT_HEIGHT_MM,
-            )
+            if (
+                pack_label_image_path
+                and os.path.isfile(
+                    pack_label_image_path
+                )
+                and len(pack_label_lookup) == 1
+            ):
+                with Image.open(
+                    pack_label_image_path
+                ) as source_image:
+                    rgba_image = source_image.convert(
+                        "RGBA"
+                    )
+
+                    flat_image = Image.new(
+                        "RGB",
+                        rgba_image.size,
+                        (255, 255, 255),
+                    )
+
+                    flat_image.paste(
+                        rgba_image,
+                        mask=rgba_image.getchannel(
+                            "A"
+                        ),
+                    )
+
+                    flat_image.save(
+                        pack_label_output_path,
+                        format="JPEG",
+                        quality=95,
+                        optimize=True,
+                    )
+            else:
+                save_chaos_pack_label_image_file(
+                    pack_label_output_path,
+                    pack_label["pack_display_name"],
+                    set_code=pack_label["set_code"],
+                    booster_name=pack_label["booster_name"],
+                    pack_tracking_code=get_effective_pack_tracking_code(
+                        pack_label["pack_tracking_code"],
+                        label_settings=label_settings,
+                    ),
+                    card_width_mm=CARD_PRINT_WIDTH_MM,
+                    card_height_mm=CARD_PRINT_HEIGHT_MM,
+                )
 
             write_debug_log(
                 f"IMAGE EXPORT PACK LABEL | tracked_pack_id={pack_label['tracked_pack_id']} | "
@@ -22081,6 +22166,21 @@ def get_deckbuilder_print_cards(deck_id, deck_zone="deck"):
         if (card.get("card_uuid") or "").strip()
     ]
 
+def get_deckbuilder_sideboard_print_cards(deck_id):
+    cards = get_saved_deckbuilder_cards_for_deck(
+        deck_id,
+        deck_zone="sideboard",
+        include_basic_lands=False,
+    )
+
+    return [
+        card
+        for card in cards
+        if (card.get("card_uuid") or "").strip()
+    ]
+
+
+
 def get_deckbuilder_selected_print_cards(
     deck_id,
     deck_zone,
@@ -22208,25 +22308,43 @@ def get_deckbuilder_print_request_cards(deck_id):
         or ""
     ).strip() == "1"
 
-    if not selection_only:
-        return get_deckbuilder_print_cards(
-            deck_id
+    if selection_only:
+        selection_zone = (
+            request.form.get("print_selection_zone")
+            or ""
+        ).strip().lower()
+
+        selection_tokens = request.form.getlist(
+            "selected_card_tokens"
         )
 
-    selection_zone = (
-        request.form.get("print_selection_zone")
-        or ""
-    ).strip().lower()
+        return get_deckbuilder_selected_print_cards(
+            deck_id,
+            selection_zone,
+            selection_tokens,
+        )
 
-    selection_tokens = request.form.getlist(
-        "selected_card_tokens"
+    cards = list(
+        get_deckbuilder_print_cards(
+            deck_id
+        )
     )
 
-    return get_deckbuilder_selected_print_cards(
-        deck_id,
-        selection_zone,
-        selection_tokens,
+    include_sideboard = parse_print_export_override_bool(
+        request.form.getlist(
+            "include_sideboard"
+        ),
+        default_value=False,
     )
+
+    if include_sideboard:
+        cards.extend(
+            get_deckbuilder_sideboard_print_cards(
+                deck_id
+            )
+        )
+
+    return cards
 
 
 def get_deckbuilder_routes(deckbuilder_context, back_url=None):
@@ -22799,6 +22917,30 @@ def deck_art_image(
     response.cache_control.no_cache = True
 
     return response
+
+
+def get_deckbuilder_deck_art_path(
+    deck_id,
+):
+    spec = build_deck_art_spec_for_deck(
+        deck_id
+    )
+
+    if spec is None:
+        return ""
+
+    try:
+        return DECK_ART_RENDERER.render_cached(
+            spec
+        )
+    except Exception as exc:
+        write_debug_log(
+            "DECK BUILDER DECK ART ERROR | "
+            f"deck_id={deck_id} | error={str(exc)}"
+        )
+
+        return ""
+
 
 DECK_ROULETTE_BRACKET_OPTIONS = (
     (
@@ -23788,6 +23930,11 @@ def deckbuilder_print(deck_id):
                 deck_row["card_back_key"]
                 or None
             ),
+            pack_label_image_path_override=(
+                get_deckbuilder_deck_art_path(
+                    deck_id
+                )
+            ),
         )
     except Exception as exc:
         write_debug_log(
@@ -23844,6 +23991,11 @@ def deckbuilder_export_zip(deck_id):
         export_result = build_chaos_card_image_export_zip(
             export_rows=export_rows,
             separate_special_slots=False,
+            pack_label_image_path_override=(
+                get_deckbuilder_deck_art_path(
+                    deck_id
+                )
+            ),
         )
     except Exception as exc:
         write_debug_log(

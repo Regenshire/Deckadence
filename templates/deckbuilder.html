@@ -1192,7 +1192,10 @@
 
   {% set stats_modal_title = "Deck Stats" %} {% set stats_modal_subtitle =
   "Stats for the current main deck only." %} {% include "_stats_modal.html" %}
-  {% set print_export_defaults = deckbuilder.print_export_defaults %} {% include
+  {% set print_export_defaults = deckbuilder.print_export_defaults %} {% set
+  print_export_subject_label = "deck" %} {% set
+  print_export_include_sideboard_option = true %} {% set
+  print_export_pack_label_card_label = "Include Deck Box Card" %} {% include
   "_print_export_modal.html" %} {% include "_card_back_selector_modal.html" %}
   {% include "_card_search_modal.html" %}
 

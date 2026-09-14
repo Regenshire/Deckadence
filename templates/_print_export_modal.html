@@ -1,324 +1,431 @@
 <div
-    id="printExportModal"
-    class="campaign-add-pack-modal hidden"
-    aria-hidden="true"
+  id="printExportModal"
+  class="campaign-add-pack-modal hidden"
+  aria-hidden="true"
 >
-    <div id="printExportBackdrop" class="campaign-add-pack-backdrop"></div>
+  <div id="printExportBackdrop" class="campaign-add-pack-backdrop"></div>
 
-    <div class="campaign-add-pack-dialog print-export-dialog" role="dialog" aria-modal="true" aria-labelledby="printExportTitle">
-        <div class="campaign-add-pack-header">
-            <div>
-                <h2 id="printExportTitle" class="campaign-add-pack-title">Print / Export</h2>
-                <p class="campaign-add-pack-subtitle">
-                    Print this {{ print_export_subject_label|default("deck") }} to PDF or export card images and XML for proxy printing.
-                </p>
-            </div>
+  <div
+    class="campaign-add-pack-dialog print-export-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="printExportTitle"
+  >
+    <div class="campaign-add-pack-header">
+      <div>
+        <h2 id="printExportTitle" class="campaign-add-pack-title">
+          Print / Export
+        </h2>
+        <p class="campaign-add-pack-subtitle">
+          Print this {{ print_export_subject_label|default("deck") }} to PDF or
+          export card images and XML for proxy printing.
+        </p>
+      </div>
 
-            <button
+      <button
+        type="button"
+        id="printExportCloseButton"
+        class="campaign-add-pack-close-button"
+        aria-label="Close Print / Export"
+      >
+        ×
+      </button>
+    </div>
+
+    <form id="printExportForm" method="post" class="print-export-form">
+      <input
+        type="hidden"
+        id="printExportActionInput"
+        name="print_export_action"
+        value="print"
+      />
+
+      {% for pack_id in print_export_pack_ids|default([]) %}
+      <input type="hidden" name="pack_ids" value="{{ pack_id }}" />
+      {% endfor %}
+
+      <div class="print-export-main-actions">
+        <button
+          type="button"
+          id="printExportPrintButton"
+          class="action-button print-export-primary-button"
+        >
+          Print to PDF
+        </button>
+
+        <button
+          type="button"
+          id="printExportExportZipButton"
+          class="action-button secondary-button print-export-secondary-button"
+          {%
+          if
+          print_export_defaults
+          and
+          not
+          print_export_defaults.export_enabled
+          %}disabled{%
+          endif
+          %}
+        >
+          Export to Zip
+        </button>
+      </div>
+
+      {% if print_export_defaults and not print_export_defaults.export_enabled
+      %}
+      <div class="print-export-warning">
+        Chaos Draft Card Image Export is disabled in Settings.
+      </div>
+      {% endif %}
+
+      <button
+        type="button"
+        id="printExportSettingsToggle"
+        class="campaign-small-link-button print-export-settings-toggle"
+        aria-expanded="false"
+      >
+        <i class="fa-solid fa-gear"></i>
+        Settings
+      </button>
+
+      <div
+        id="printExportSettingsPanel"
+        class="print-export-settings-panel hidden"
+        aria-hidden="true"
+      >
+        {% if print_export_include_sideboard_option | default(false) %}
+        <label class="toggle-row">
+          <span>Include Sideboard</span>
+          <input type="hidden" name="include_sideboard" value="0" />
+          <input type="checkbox" name="include_sideboard" value="1" />
+        </label>
+        {% endif %}
+
+        <label class="toggle-row">
+          <span>Show Print/Export Labels</span>
+          <input type="hidden" name="show_print_export_labels" value="0" />
+          <input
+            type="checkbox"
+            name="show_print_export_labels"
+            value="1"
+            {%
+            if
+            not
+            print_export_defaults
+            or
+            print_export_defaults.show_print_export_labels
+            %}checked{%
+            endif
+            %}
+          />
+        </label>
+
+        <label class="settings-field print-export-radio-group">
+          <span>Label Text</span>
+
+          <div class="print-export-radio-options">
+            <label>
+              {% if not print_export_defaults or
+              print_export_defaults.label_text_mode != "proxy" %}
+              <input
+                type="radio"
+                name="label_text_mode"
+                value="pack_code"
+                checked
+              />
+              {% else %}
+              <input type="radio" name="label_text_mode" value="pack_code" />
+              {% endif %}
+
+              <span>Show Pack Code / Deck Name</span>
+            </label>
+
+            <label>
+              {% if print_export_defaults and
+              print_export_defaults.label_text_mode == "proxy" %}
+              <input
+                type="radio"
+                name="label_text_mode"
+                value="proxy"
+                checked
+              />
+              {% else %}
+              <input type="radio" name="label_text_mode" value="proxy" />
+              {% endif %}
+
+              <span>Show Proxy Label</span>
+            </label>
+          </div>
+        </label>
+
+        <div class="print-export-settings-section">
+          <div class="print-export-settings-section-title">PDF Printing</div>
+
+          <div class="toggle-row">
+            <span>Print Template / Paper</span>
+
+            <div class="print-template-setting-control">
+              <select id="printExportPrintTemplate" name="print_template">
+                {% for value, label in global_print_template_options %} {% if
+                print_export_defaults and print_export_defaults.print_template
+                == value %}
+                <option value="{{ value }}" selected>{{ label }}</option>
+                {% else %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endif %} {% endfor %}
+              </select>
+
+              <button
                 type="button"
-                id="printExportCloseButton"
-                class="campaign-add-pack-close-button"
-                aria-label="Close Print / Export"
+                class="print-template-browse-button"
+                data-print-template-selector-open
+                data-print-template-target="printExportPrintTemplate"
+                data-print-template-scope="chaos"
+              >
+                <i class="fa-solid fa-table-cells-large"></i>
+                Browse Print Templates
+              </button>
+            </div>
+          </div>
+          <label class="toggle-row">
+            <span>Silhouette Registration Marks</span>
+            <input
+              type="hidden"
+              name="silhouette_registration_marks"
+              value="0"
+            />
+            <input
+              type="checkbox"
+              name="silhouette_registration_marks"
+              value="1"
+              {%
+              if
+              not
+              print_export_defaults
+              or
+              print_export_defaults.silhouette_registration_marks
+              %}checked{%
+              endif
+              %}
+            />
+          </label>
+          <label class="toggle-row">
+            <span>PDF Cutting Guides</span>
+            <input type="hidden" name="pdf_cutting_guides" value="0" />
+            <input
+              type="checkbox"
+              name="pdf_cutting_guides"
+              value="1"
+              {%
+              if
+              not
+              print_export_defaults
+              or
+              print_export_defaults.pdf_cutting_guides
+              %}checked{%
+              endif
+              %}
+            />
+          </label>
+          <label class="toggle-row">
+            <span
+              >{{ print_export_pack_label_card_label | default("Include Pack
+              Label Cards") }}</span
             >
-                ×
-            </button>
+            <input type="hidden" name="include_pack_label_cards" value="0" />
+            <input
+              type="checkbox"
+              name="include_pack_label_cards"
+              value="1"
+              {%
+              if
+              print_export_defaults
+              and
+              print_export_defaults.include_pack_label_cards
+              %}checked{%
+              endif
+              %}
+            />
+          </label>
+
+          {% set no_waste_modal_enabled = print_export_defaults and
+          print_export_defaults.no_wasted_space_enabled %}
+          <section
+            class="no-waste-surprise-section{% if no_waste_modal_enabled %} no-waste-surprise-section-active{% endif %}"
+            data-no-waste-surprise-section
+          >
+            <label class="toggle-row no-waste-surprise-toggle-row">
+              <span>
+                <strong>No Wasted Space! Surprise Me!</strong>
+                <small>Fill unused print slots with surprise cards.</small>
+              </span>
+
+              <input type="hidden" name="no_wasted_space_enabled" value="0" />
+
+              <input
+                type="checkbox"
+                class="no-waste-surprise-toggle"
+                name="no_wasted_space_enabled"
+                value="1"
+                data-no-waste-surprise-toggle
+                {%
+                if
+                no_waste_modal_enabled
+                %}checked{%
+                endif
+                %}
+              />
+            </label>
+
+            <div
+              class="no-waste-surprise-details{% if not no_waste_modal_enabled %} hidden{% endif %}"
+              data-no-waste-surprise-details
+            >
+              <label class="no-waste-label-option-field">
+                <span class="imomir-multi-select-title"> Set Rules </span>
+                <select name="no_wasted_space_set_rules">
+                  {% for value, label in global_no_waste_set_rule_options %}
+                  <option
+                    value="{{ value }}"
+                    {%
+                    if
+                    print_export_defaults
+                    and
+                    value
+                    in
+                    print_export_defaults.no_wasted_space_set_rules
+                    %}selected{%
+                    endif
+                    %}
+                  >
+                    {{ label }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="no-waste-label-option-field">
+                <span class="imomir-multi-select-title"> Card Type </span>
+                <select name="no_wasted_space_card_types">
+                  {% for value, label in global_no_waste_card_type_options %}
+                  <option
+                    value="{{ value }}"
+                    {%
+                    if
+                    print_export_defaults
+                    and
+                    value
+                    in
+                    print_export_defaults.no_wasted_space_card_types
+                    %}selected{%
+                    endif
+                    %}
+                  >
+                    {{ label }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </label>
+
+              <label class="no-waste-label-option-field">
+                <span class="imomir-multi-select-title"> Label Options </span>
+                <select name="no_wasted_space_label_option">
+                  {% for value, label in global_no_waste_label_options %} {% if
+                  print_export_defaults and
+                  print_export_defaults.no_wasted_space_label_option == value %}
+                  <option value="{{ value }}" selected>{{ label }}</option>
+                  {% else %}
+                  <option value="{{ value }}">{{ label }}</option>
+                  {% endif %} {% endfor %}
+                </select>
+              </label>
+            </div>
+          </section>
         </div>
 
-        <form
-            id="printExportForm"
-            method="post"
-            class="print-export-form"
-        >
-            <input type="hidden" id="printExportActionInput" name="print_export_action" value="print">
+        <div class="print-export-settings-section">
+          <div class="print-export-settings-section-title">Export</div>
 
-            {% for pack_id in print_export_pack_ids|default([]) %}
-            <input type="hidden" name="pack_ids" value="{{ pack_id }}">
-            {% endfor %}
+          <label class="toggle-row">
+            <span>Export - Add Bleed</span>
+            <input type="hidden" name="export_add_bleed" value="0" />
+            <input
+              type="checkbox"
+              name="export_add_bleed"
+              value="1"
+              {%
+              if
+              print_export_defaults
+              and
+              print_export_defaults.export_add_bleed
+              %}checked{%
+              endif
+              %}
+            />
+          </label>
+        </div>
+      </div>
 
-            <div class="print-export-main-actions">
-                <button
-                    type="button"
-                    id="printExportPrintButton"
-                    class="action-button print-export-primary-button"
-                >
-                    Print to PDF
-                </button>
+      <div
+        id="printExportStatusPanel"
+        class="print-export-status-panel hidden"
+        aria-hidden="true"
+      >
+        <div class="print-export-status-header">
+          <div class="print-export-status-spinner" aria-hidden="true"></div>
 
-                <button
-                    type="button"
-                    id="printExportExportZipButton"
-                    class="action-button secondary-button print-export-secondary-button"
-                    {% if print_export_defaults and not print_export_defaults.export_enabled %}disabled{% endif %}
-                >
-                    Export to Zip
-                </button>
-            </div>
-
-            {% if print_export_defaults and not print_export_defaults.export_enabled %}
-            <div class="print-export-warning">
-                Chaos Draft Card Image Export is disabled in Settings.
-            </div>
-            {% endif %}
-
-            <button
-                type="button"
-                id="printExportSettingsToggle"
-                class="campaign-small-link-button print-export-settings-toggle"
-                aria-expanded="false"
-            >
-                <i class="fa-solid fa-gear"></i>
-                Settings
-            </button>
-
-            <div id="printExportSettingsPanel" class="print-export-settings-panel hidden" aria-hidden="true">
-                <label class="toggle-row">
-                    <span>Show Print/Export Labels</span>
-                    <input type="hidden" name="show_print_export_labels" value="0">
-                    <input
-                        type="checkbox"
-                        name="show_print_export_labels"
-                        value="1"
-                        {% if not print_export_defaults or print_export_defaults.show_print_export_labels %}checked{% endif %}
-                    >
-                </label>
-
-                <label class="settings-field print-export-radio-group">
-                    <span>Label Text</span>
-
-                    <div class="print-export-radio-options">
-                        <label>
-                            <input
-                                type="radio"
-                                name="label_text_mode"
-                                value="pack_code"
-                                {% if not print_export_defaults or print_export_defaults.label_text_mode != "proxy" %}checked{% endif %}
-                            >
-                            <span>Show Pack Code / Deck Name</span>
-                        </label>
-
-                        <label>
-                            <input
-                                type="radio"
-                                name="label_text_mode"
-                                value="proxy"
-                                {% if print_export_defaults and print_export_defaults.label_text_mode == "proxy" %}checked{% endif %}
-                            >
-                            <span>Show Proxy Label</span>
-                        </label>
-                    </div>
-                </label>
-
-                <div class="print-export-settings-section">
-                    <div class="print-export-settings-section-title">PDF Printing</div>
-
-                    <div class="toggle-row">
-                        <span>Print Template / Paper</span>
-
-                        <div class="print-template-setting-control">
-                            <select
-                                id="printExportPrintTemplate"
-                                name="print_template"
-                            >
-                                {% for value, label in global_print_template_options %}
-                                <option
-                                    value="{{ value }}"
-                                    {% if print_export_defaults and print_export_defaults.print_template == value %}selected{% endif %}
-                                >
-                                    {{ label }}
-                                </option>
-                                {% endfor %}
-                            </select>
-
-                            <button
-                                type="button"
-                                class="print-template-browse-button"
-                                data-print-template-selector-open
-                                data-print-template-target="printExportPrintTemplate"
-                                data-print-template-scope="chaos"
-                            >
-                                <i class="fa-solid fa-table-cells-large"></i>
-                                Browse Print Templates
-                            </button>
-                        </div>
-                    </div>
-                    <label class="toggle-row">
-                        <span>Silhouette Registration Marks</span>
-                        <input
-                            type="hidden"
-                            name="silhouette_registration_marks"
-                            value="0"
-                        >
-                        <input
-                            type="checkbox"
-                            name="silhouette_registration_marks"
-                            value="1"
-                            {% if not print_export_defaults or print_export_defaults.silhouette_registration_marks %}checked{% endif %}
-                        >
-                    </label>
-                    <label class="toggle-row">
-                        <span>PDF Cutting Guides</span>
-                        <input type="hidden" name="pdf_cutting_guides" value="0">
-                        <input
-                            type="checkbox"
-                            name="pdf_cutting_guides"
-                            value="1"
-                            {% if not print_export_defaults or print_export_defaults.pdf_cutting_guides %}checked{% endif %}
-                        >
-                    </label>
-                    <label class="toggle-row">
-                        <span>Include Pack Label Cards</span>
-                        <input type="hidden" name="include_pack_label_cards" value="0">
-                        <input
-                            type="checkbox"
-                            name="include_pack_label_cards"
-                            value="1"
-                            {% if print_export_defaults and print_export_defaults.include_pack_label_cards %}checked{% endif %}
-                        >
-                    </label>
-
-                    {% set no_waste_modal_enabled = print_export_defaults and print_export_defaults.no_wasted_space_enabled %}
-                    <section
-                        class="no-waste-surprise-section{% if no_waste_modal_enabled %} no-waste-surprise-section-active{% endif %}"
-                        data-no-waste-surprise-section
-                    >
-                        <label class="toggle-row no-waste-surprise-toggle-row">
-                            <span>
-                                <strong>No Wasted Space! Surprise Me!</strong>
-                                <small>Fill unused print slots with surprise cards.</small>
-                            </span>
-
-                            <input
-                                type="hidden"
-                                name="no_wasted_space_enabled"
-                                value="0"
-                            >
-
-                            <input
-                                type="checkbox"
-                                class="no-waste-surprise-toggle"
-                                name="no_wasted_space_enabled"
-                                value="1"
-                                data-no-waste-surprise-toggle
-                                {% if no_waste_modal_enabled %}checked{% endif %}
-                            >
-                        </label>
-
-                        <div
-                            class="no-waste-surprise-details{% if not no_waste_modal_enabled %} hidden{% endif %}"
-                            data-no-waste-surprise-details
-                        >
-                            <label class="no-waste-label-option-field">
-                                <span class="imomir-multi-select-title">
-                                    Set Rules
-                                </span>
-                                <select name="no_wasted_space_set_rules">
-                                    {% for value, label in global_no_waste_set_rule_options %}
-                                    <option
-                                        value="{{ value }}"
-                                        {% if print_export_defaults and value in print_export_defaults.no_wasted_space_set_rules %}selected{% endif %}
-                                    >
-                                        {{ label }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </label>
-
-                            <label class="no-waste-label-option-field">
-                                <span class="imomir-multi-select-title">
-                                    Card Type
-                                </span>
-                                <select name="no_wasted_space_card_types">
-                                    {% for value, label in global_no_waste_card_type_options %}
-                                    <option
-                                        value="{{ value }}"
-                                        {% if print_export_defaults and value in print_export_defaults.no_wasted_space_card_types %}selected{% endif %}
-                                    >
-                                        {{ label }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </label>
-
-                            <label class="no-waste-label-option-field">
-                                <span class="imomir-multi-select-title">
-                                    Label Options
-                                </span>
-                                <select name="no_wasted_space_label_option">
-                                    {% for value, label in global_no_waste_label_options %}
-                                    <option
-                                        value="{{ value }}"
-                                        {% if print_export_defaults and print_export_defaults.no_wasted_space_label_option == value %}selected{% endif %}
-                                    >
-                                        {{ label }}
-                                    </option>
-                                    {% endfor %}
-                                </select>
-                            </label>
-                        </div>
-                    </section>
-                </div>
-
-                <div class="print-export-settings-section">
-                    <div class="print-export-settings-section-title">Export</div>
-
-                    <label class="toggle-row">
-                        <span>Export - Add Bleed</span>
-                        <input type="hidden" name="export_add_bleed" value="0">
-                        <input
-                            type="checkbox"
-                            name="export_add_bleed"
-                            value="1"
-                            {% if print_export_defaults and print_export_defaults.export_add_bleed %}checked{% endif %}
-                        >
-                    </label>
-                </div>
+          <div>
+            <div id="printExportStatusTitle" class="print-export-status-title">
+              Preparing Print / Export
             </div>
 
             <div
-                id="printExportStatusPanel"
-                class="print-export-status-panel hidden"
-                aria-hidden="true"
+              id="printExportStatusMessage"
+              class="print-export-status-message"
             >
-                <div class="print-export-status-header">
-                    <div class="print-export-status-spinner" aria-hidden="true"></div>
-
-                    <div>
-                        <div id="printExportStatusTitle" class="print-export-status-title">
-                            Preparing Print / Export
-                        </div>
-
-                        <div id="printExportStatusMessage" class="print-export-status-message">
-                            Preparing request...
-                        </div>
-                    </div>
-                </div>
-
-                <div class="print-export-status-steps">
-                    <div id="printExportStatusStepPrepare" class="print-export-status-step print-export-status-step-active">
-                        Preparing request
-                    </div>
-
-                    <div id="printExportStatusStepGenerate" class="print-export-status-step">
-                        Generating file
-                    </div>
-
-                    <div id="printExportStatusStepDeliver" class="print-export-status-step">
-                        Delivering file
-                    </div>
-
-                    <div id="printExportStatusStepComplete" class="print-export-status-step">
-                        Complete
-                    </div>
-                </div>
-
-                <button
-                    type="button"
-                    id="printExportStatusCloseButton"
-                    class="action-button secondary-button print-export-status-close-button hidden"
-                >
-                    Close
-                </button>
+              Preparing request...
             </div>
-        </form>
-    </div>
+          </div>
+        </div>
+
+        <div class="print-export-status-steps">
+          <div
+            id="printExportStatusStepPrepare"
+            class="print-export-status-step print-export-status-step-active"
+          >
+            Preparing request
+          </div>
+
+          <div
+            id="printExportStatusStepGenerate"
+            class="print-export-status-step"
+          >
+            Generating file
+          </div>
+
+          <div
+            id="printExportStatusStepDeliver"
+            class="print-export-status-step"
+          >
+            Delivering file
+          </div>
+
+          <div
+            id="printExportStatusStepComplete"
+            class="print-export-status-step"
+          >
+            Complete
+          </div>
+        </div>
+
+        <button
+          type="button"
+          id="printExportStatusCloseButton"
+          class="action-button secondary-button print-export-status-close-button hidden"
+        >
+          Close
+        </button>
+      </div>
+    </form>
+  </div>
 </div>

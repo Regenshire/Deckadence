@@ -431,6 +431,11 @@
       body: "Create and manage custom decks.",
     },
 
+    menu_set_roulette: {
+      title: "Deck Roulette",
+      body: "Its like Chaos Draft. BUT FOR DECKS!!!\n\nThat's right, you can spin on the wheel of chaos for a whole entire deck!  You can do it for commander and most standard formats. Its a fun way to explore magic.",
+    },
+
     menu_manage_packs: {
       title: "Manage Packs",
       body: "Manage your packs and run test drafts.",
