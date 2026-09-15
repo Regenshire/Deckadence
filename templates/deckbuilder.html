@@ -57,425 +57,446 @@
   endif
   %}
 >
-  <header class="deckbuilder-header">
-    <div class="deckbuilder-title-wrap">
-      <h1>{{ deckbuilder.title }}</h1>
-      <div class="deckbuilder-subtitle">{{ deckbuilder.subtitle }}</div>
+  <header class="deckbuilder-header deckbuilder-header-compact">
+    <div class="deckbuilder-header-art-wrap" aria-hidden="true">
+      {% if player and player.effective_portrait_image_path %}
+      <img
+        src="{{ url_for('campaign_chaos_player_portrait', filename=player.effective_portrait_image_path) }}"
+        alt=""
+        class="deckbuilder-header-art"
+      />
+      {% elif player and player.portrait_image_path %}
+      <img
+        src="{{ url_for('campaign_chaos_player_portrait', filename=player.portrait_image_path) }}"
+        alt=""
+        class="deckbuilder-header-art"
+      />
+      {% else %}
+      <img
+        id="deckbuilderDeckArtImage"
+        src="{{ url_for('deck_art_image', deck_id=deckbuilder.deck_id) }}"
+        alt=""
+        class="deckbuilder-header-art deckbuilder-deck-art-portrait"
+      />
+      {% endif %}
     </div>
 
-    <div class="deckbuilder-actions">
-      {% set selected_deck_format = (deckbuilder.deck_format or
-      'Standard')|lower %}
-
-      <label class="deckbuilder-name-wrap" for="deckbuilderDeckNameInput">
-        <span>Deck Name</span>
+    <div class="deckbuilder-toolbar-rows">
+      <div class="deckbuilder-toolbar-row deckbuilder-toolbar-row-top">
         <input
           type="text"
           id="deckbuilderDeckNameInput"
-          class="campaign-add-pack-custom-input deckbuilder-name-input"
+          class="deckbuilder-toolbar-name-input"
           value="{{ deckbuilder.deck_name or '' }}"
           autocomplete="off"
+          aria-label="Deck Name"
+          title="Edit Deck Name"
+          data-help-id="deckbuilder-deck-name"
         />
-      </label>
 
-      <label class="deckbuilder-name-wrap" for="deckbuilderDeckTypeSelect">
-        <span>Format</span>
-        <select
-          id="deckbuilderDeckTypeSelect"
-          class="campaign-test-draft-picked-sort-select"
+        <div class="deckbuilder-header-count">
+          <span class="deckbuilder-header-count-label">Deck</span>
+
+          <strong class="deckbuilder-header-count-value">
+            <span id="deckbuilderDeckCount"
+              >{{ deckbuilder.deck_cards|length }}</span
+            >
+            <span class="deckbuilder-header-count-divider" aria-hidden="true"
+              >/</span
+            >
+            <span id="deckbuilderSideboardCount"
+              >{{ deckbuilder.sideboard_cards|length }}</span
+            >
+          </strong>
+        </div>
+
+        {% set selected_deck_format = (deckbuilder.deck_format or
+        'Standard')|lower %}
+
+        <label
+          class="deckbuilder-format-wrap"
+          for="deckbuilderDeckTypeSelect"
+          data-help-id="deckbuilder-format"
         >
-          {% set deck_format_options = [ ("Limited", "Limited / Draft"),
-          ("Standard", "Standard"), ("Commander", "Commander"), ("Modern",
-          "Modern"), ("Pioneer", "Pioneer"), ("Eternal", "Eternal"), ("Pauper",
-          "Pauper") ] %} {% for format_value, format_label in
-          deck_format_options %} {% if selected_deck_format ==
-          format_value|lower %}
-          <option value="{{ format_value }}" selected>
-            {{ format_label }}
-          </option>
-          {% else %}
-          <option value="{{ format_value }}">{{ format_label }}</option>
-          {% endif %} {% endfor %}
-        </select>
-      </label>
+          <span>Format</span>
 
-      <button
-        type="button"
-        id="deckbuilderCardBackButton"
-        class="deckbuilder-header-icon-button"
-        data-card-back-selector-open
-        data-card-back-save-url="{{ url_for('deckbuilder_card_back', deck_id=deckbuilder.deck_id) }}"
-        data-selected-card-back-key="{{ deckbuilder.card_back_key or '' }}"
-        title="Card Back"
-        aria-label="Choose Deck Card Back"
-      >
-        <i class="fa-solid fa-clone"></i>
-      </button>
+          <select
+            id="deckbuilderDeckTypeSelect"
+            class="campaign-test-draft-picked-sort-select"
+          >
+            {% set deck_format_options = [ ("Limited", "Limited / Draft"),
+            ("Standard", "Standard"), ("Commander", "Commander"), ("Modern",
+            "Modern"), ("Pioneer", "Pioneer"), ("Eternal", "Eternal"),
+            ("Pauper", "Pauper") ] %} {% for format_value, format_label in
+            deck_format_options %} {% if selected_deck_format ==
+            format_value|lower %}
+            <option value="{{ format_value }}" selected>
+              {{ format_label }}
+            </option>
+            {% else %}
+            <option value="{{ format_value }}">{{ format_label }}</option>
+            {% endif %} {% endfor %}
+          </select>
+        </label>
 
-      <button
-        type="button"
-        id="deckbuilderSaveDeckButton"
-        class="deckbuilder-header-icon-button"
-        title="Save Deck"
-        aria-label="Save Deck"
-      >
-        <i class="fa-solid fa-floppy-disk"></i>
-      </button>
+        <div class="deckbuilder-toolbar-spacer"></div>
 
-      <button
-        type="button"
-        id="deckbuilderLoadDeckButton"
-        class="deckbuilder-header-icon-button"
-        title="Load Deck"
-        aria-label="Load Deck"
-      >
-        <i class="fa-solid fa-folder-open"></i>
-      </button>
-
-      <button
-        type="button"
-        id="deckbuilderDeleteDeckButton"
-        class="deckbuilder-header-icon-button deckbuilder-header-icon-button-danger"
-        title="Delete Deck"
-        aria-label="Delete Deck"
-      >
-        <i class="fa-solid fa-trash"></i>
-      </button>
-
-      <button
-        type="button"
-        id="deckbuilderOpenPrintExportButton"
-        class="action-button deckbuilder-action-button"
-        title="Print or Export Deck"
-        aria-label="Print or Export Deck"
-      >
-        Print / Export
-      </button>
-
-      <div class="deckbuilder-copy-split">
-        <button
-          type="button"
-          id="deckbuilderCopyDecklistButton"
-          class="action-button secondary-button deckbuilder-copy-main-button"
-          data-copy-format="simple"
-        >
-          Copy
-        </button>
+        {% if image_isolation %} {% set isolation_checked_value = "false" %} {%
+        set isolation_label_value = "Off" %} {% if image_isolation.enabled %} {%
+        set isolation_checked_value = "true" %} {% set isolation_label_value =
+        "On" %} {% endif %}
 
         <button
           type="button"
-          id="deckbuilderCopyDecklistMenuButton"
-          class="action-button secondary-button deckbuilder-copy-menu-button"
-          aria-label="Choose copy format"
-          title="Choose copy format"
-          aria-expanded="false"
+          class="imomir-isolation-toggle"
+          role="switch"
+          aria-checked="{{ isolation_checked_value }}"
+          aria-label="Alternate Image Isolation"
+          data-image-isolation-toggle
+          data-enable-url="{{ image_isolation.enable_url }}"
+          data-disable-url="{{ image_isolation.disable_url }}"
+          data-scope-token="{{ image_isolation.scope_token }}"
+          data-isolation-epoch="{{ image_isolation.epoch }}"
+          data-help-id="deckbuilder-isolation"
         >
-          ▾
+          <span class="imomir-isolation-track" aria-hidden="true"></span>
+          <span data-isolation-label aria-hidden="true">
+            Isolation {{ isolation_label_value }}
+          </span>
+        </button>
+        {% endif %}
+
+        <button
+          type="button"
+          id="deckbuilderOpenPrintExportButton"
+          class="action-button deckbuilder-action-button"
+          title="Print or Export Deck"
+          aria-label="Print or Export Deck"
+        >
+          Print / Export
         </button>
 
-        <div
-          id="deckbuilderCopyDecklistMenu"
-          class="deckbuilder-copy-menu hidden"
-        >
+        <div class="deckbuilder-copy-split">
           <button
             type="button"
-            class="deckbuilder-copy-menu-item deckbuilder-copy-menu-item-active"
+            id="deckbuilderCopyDecklistButton"
+            class="action-button secondary-button deckbuilder-copy-main-button"
             data-copy-format="simple"
           >
-            Simple
+            Copy
           </button>
 
           <button
             type="button"
-            class="deckbuilder-copy-menu-item"
-            data-copy-format="detailed"
+            id="deckbuilderCopyDecklistMenuButton"
+            class="action-button secondary-button deckbuilder-copy-menu-button"
+            aria-label="Choose copy format"
+            title="Choose copy format"
+            aria-expanded="false"
+            data-help-id="deckbuilder-copy-format"
           >
-            Detailed
+            ▾
+          </button>
+
+          <div
+            id="deckbuilderCopyDecklistMenu"
+            class="deckbuilder-copy-menu hidden"
+          >
+            <button
+              type="button"
+              class="deckbuilder-copy-menu-item deckbuilder-copy-menu-item-active"
+              data-copy-format="simple"
+            >
+              Simple
+            </button>
+
+            <button
+              type="button"
+              class="deckbuilder-copy-menu-item"
+              data-copy-format="detailed"
+            >
+              Detailed
+            </button>
+          </div>
+        </div>
+
+        <a
+          href="{{ deckbuilder.routes.back_url }}"
+          class="action-button secondary-button deckbuilder-action-button"
+        >
+          Back
+        </a>
+      </div>
+
+      <div class="deckbuilder-toolbar-row deckbuilder-toolbar-row-bottom">
+        <div class="deckbuilder-header-icon-group">
+          <button
+            type="button"
+            id="deckbuilderCardBackButton"
+            class="deckbuilder-header-icon-button"
+            data-card-back-selector-open
+            data-card-back-save-url="{{ url_for('deckbuilder_card_back', deck_id=deckbuilder.deck_id) }}"
+            data-selected-card-back-key="{{ deckbuilder.card_back_key or '' }}"
+            title="Card Back"
+            aria-label="Choose Deck Card Back"
+            data-help-id="deckbuilder-card-back"
+          >
+            <i class="fa-solid fa-clone"></i>
+          </button>
+
+          <button
+            type="button"
+            id="deckbuilderSaveDeckButton"
+            class="deckbuilder-header-icon-button"
+            title="Save Deck"
+            aria-label="Save Deck"
+            data-help-id="deckbuilder-save"
+          >
+            <i class="fa-solid fa-floppy-disk"></i>
+          </button>
+
+          <button
+            type="button"
+            id="deckbuilderLoadDeckButton"
+            class="deckbuilder-header-icon-button"
+            title="Load Deck"
+            aria-label="Load Deck"
+            data-help-id="deckbuilder-load"
+          >
+            <i class="fa-solid fa-folder-open"></i>
+          </button>
+
+          <button
+            type="button"
+            id="deckbuilderDeleteDeckButton"
+            class="deckbuilder-header-icon-button deckbuilder-header-icon-button-danger"
+            title="Delete Deck"
+            aria-label="Delete Deck"
+            data-help-id="deckbuilder-delete"
+          >
+            <i class="fa-solid fa-trash"></i>
+          </button>
+
+          {% set external_source = deckbuilder.get("external_source") %} {% if
+          external_source and external_source.external_url %}
+          <button
+            type="button"
+            id="deckbuilderMoxfieldSyncButton"
+            class="deckbuilder-moxfield-sync-button"
+            data-moxfield-url="{{ external_source.external_url }}"
+            title="Moxfield Linked"
+            aria-label="Manage Moxfield Link"
+            data-help-id="deckbuilder-moxfield"
+          >
+            <img
+              src="{{ url_for('static', filename='img/moxfield_link.svg') }}"
+              alt=""
+              aria-hidden="true"
+            />
+          </button>
+          {% else %}
+          <button
+            type="button"
+            id="deckbuilderMoxfieldSyncButton"
+            class="deckbuilder-moxfield-sync-button"
+            data-moxfield-url=""
+            title="Sync with Moxfield"
+            aria-label="Sync with Moxfield"
+            data-help-id="deckbuilder-moxfield"
+          >
+            <img
+              src="{{ url_for('static', filename='img/moxfield_empty.svg') }}"
+              alt=""
+              aria-hidden="true"
+            />
+          </button>
+          {% endif %}
+        </div>
+
+        <button
+          type="button"
+          id="deckbuilderSideboardCollapsedButton"
+          class="deckbuilder-sideboard-collapsed-button hidden"
+          title="Open Sideboard"
+          aria-label="Open Sideboard"
+          data-help-id="deckbuilder-sideboard-toggle"
+        >
+          <span>Sideboard</span>
+          <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+        </button>
+
+        <div class="deckbuilder-toolbar-spacer"></div>
+
+        <div class="deckbuilder-sort-wrap">
+          <label for="deckbuilderSortSelect">Sort</label>
+
+          <select
+            id="deckbuilderSortSelect"
+            class="campaign-test-draft-picked-sort-select"
+          >
+            {% set deck_sort_options = [ ("name-asc", "Name A-Z"), ("name-desc",
+            "Name Z-A"), ("rarity-desc", "Rarity Mythic → Common"),
+            ("rarity-asc", "Rarity Common → Mythic"), ("mv-asc", "Mana Value Low
+            → High"), ("mv-desc", "Mana Value High → Low") ] %} {% for
+            sort_value, sort_label in deck_sort_options %} {% if
+            deckbuilder.default_sort_mode == sort_value %}
+            <option value="{{ sort_value }}" selected>{{ sort_label }}</option>
+            {% else %}
+            <option value="{{ sort_value }}">{{ sort_label }}</option>
+            {% endif %} {% endfor %}
+          </select>
+        </div>
+
+        <div class="deckbuilder-card-size-wrap">
+          <label for="deckbuilderCardSizeSelect">Card Size</label>
+
+          <select
+            id="deckbuilderCardSizeSelect"
+            class="campaign-test-draft-picked-sort-select"
+          >
+            {% set selected_card_size = (deckbuilder.default_card_size or
+            100)|int %} {% for card_size in [70, 85, 100, 115, 130, 150, 175,
+            200] %} {% if selected_card_size == card_size %}
+            <option value="{{ card_size }}" selected>{{ card_size }}%</option>
+            {% else %}
+            <option value="{{ card_size }}">{{ card_size }}%</option>
+            {% endif %} {% endfor %}
+          </select>
+        </div>
+
+        <div class="deckbuilder-view-buttons">
+          <button
+            type="button"
+            id="deckbuilderSelectAllButton"
+            class="campaign-test-draft-zone-view-button"
+            title="Select All Visible Cards"
+            aria-label="Select All Visible Cards"
+            data-help-id="deckbuilder-select-all"
+          >
+            <i class="fa-solid fa-check-double"></i>
+          </button>
+
+          <button
+            type="button"
+            id="deckbuilderClearSelectionButton"
+            class="campaign-test-draft-zone-view-button"
+            title="Clear Selection"
+            aria-label="Clear Selection"
+            data-help-id="deckbuilder-clear-selection"
+          >
+            <i class="fa-solid fa-square-xmark"></i>
+          </button>
+
+          {% if global_card_upscaling_control_enabled %}
+          <button
+            type="button"
+            id="deckbuilderBatchUpscaleButton"
+            class="campaign-test-draft-zone-view-button"
+            title="Batch Upscale Selected Cards"
+            aria-label="Batch Upscale Selected Cards"
+            data-help-id="deckbuilder-batch-upscale"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="imomir-batch-upscale-icon"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect
+                x="3"
+                y="7"
+                width="11"
+                height="12"
+                rx="1.8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></rect>
+
+              <rect
+                x="6"
+                y="4"
+                width="11"
+                height="12"
+                rx="1.8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              ></rect>
+
+              <path
+                d="M19 12V5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+              ></path>
+
+              <path
+                d="M16.4 7.6L19 5l2.6 2.6"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+          </button>
+          {% endif %}
+
+          <button
+            type="button"
+            id="deckbuilderStatsButton"
+            class="campaign-test-draft-zone-view-button"
+            title="Deck Stats"
+            aria-label="Deck Stats"
+            data-help-id="deckbuilder-stats"
+          >
+            <i class="fa-solid fa-chart-column"></i>
+          </button>
+
+          <button
+            type="button"
+            id="deckbuilderListViewButton"
+            class="campaign-test-draft-zone-view-button{% if deckbuilder.default_view_mode == 'list' %} campaign-test-draft-zone-view-button-active{% endif %}"
+            title="List View"
+            aria-label="List View"
+            data-help-id="deckbuilder-list-view"
+          >
+            <i class="fa-solid fa-list"></i>
+          </button>
+
+          <button
+            type="button"
+            id="deckbuilderGridViewButton"
+            class="campaign-test-draft-zone-view-button{% if deckbuilder.default_view_mode == 'grid' or not deckbuilder.default_view_mode %} campaign-test-draft-zone-view-button-active{% endif %}"
+            title="Grid View"
+            aria-label="Grid View"
+            data-help-id="deckbuilder-grid-view"
+          >
+            <i class="fa-solid fa-grip"></i>
+          </button>
+
+          <button
+            type="button"
+            id="deckbuilderStackViewButton"
+            class="campaign-test-draft-zone-view-button{% if deckbuilder.default_view_mode == 'stack' %} campaign-test-draft-zone-view-button-active{% endif %}"
+            title="Stack View"
+            aria-label="Stack View"
+            data-help-id="deckbuilder-stack-view"
+          >
+            <i class="fa-solid fa-layer-group"></i>
           </button>
         </div>
       </div>
-
-      <a
-        href="{{ deckbuilder.routes.back_url }}"
-        class="action-button secondary-button deckbuilder-action-button"
-      >
-        Back
-      </a>
     </div>
   </header>
-
-  <section class="deckbuilder-player-bar">
-    <div
-      class="campaign-test-draft-human-card campaign-test-draft-human-card-pickbar"
-    >
-      <div class="campaign-test-draft-human-portrait-wrap">
-        {% if player and player.effective_portrait_image_path %}
-        <img
-          src="{{ url_for('campaign_chaos_player_portrait', filename=player.effective_portrait_image_path) }}"
-          alt="{{ player.display_name }}"
-          class="campaign-test-draft-human-portrait"
-        />
-        {% elif player and player.portrait_image_path %}
-        <img
-          src="{{ url_for('campaign_chaos_player_portrait', filename=player.portrait_image_path) }}"
-          alt="{{ player.display_name }}"
-          class="campaign-test-draft-human-portrait"
-        />
-        {% else %}
-        <img
-          id="deckbuilderDeckArtImage"
-          src="{{ url_for('deck_art_image', deck_id=deckbuilder.deck_id) }}"
-          alt="{{ deckbuilder.deck_name }} Deck Art"
-          class="campaign-test-draft-human-portrait deckbuilder-deck-art-portrait"
-        />
-        {% endif %}
-      </div>
-
-      <div class="campaign-test-draft-human-copy">
-        <div class="campaign-current-player-eyebrow">
-          {{ deckbuilder.mode_label }}
-        </div>
-        <div class="campaign-test-draft-human-name">
-          {{ player.display_name if player else deckbuilder.deck_name }}
-        </div>
-      </div>
-    </div>
-
-    <div class="deckbuilder-summary">
-      <div>
-        <span>Deck</span>
-        <strong id="deckbuilderDeckCount"
-          >{{ deckbuilder.deck_cards|length }}</strong
-        >
-      </div>
-
-      <div>
-        <span>Sideboard</span>
-        <strong id="deckbuilderSideboardCount"
-          >{{ deckbuilder.sideboard_cards|length }}</strong
-        >
-      </div>
-
-      <div>
-        <span>Type</span>
-        <strong id="deckbuilderDeckTypeSummary"
-          >{{ deckbuilder.deck_format or 'Constructed' }}</strong
-        >
-      </div>
-    </div>
-  </section>
-
-  <section class="deckbuilder-controls">
-    <div class="deckbuilder-control-fields">
-      {% if image_isolation %}
-      <button
-        type="button"
-        class="imomir-isolation-toggle"
-        role="switch"
-        aria-checked="{{ 'true' if image_isolation.enabled else 'false' }}"
-        aria-label="Alternate Image Isolation"
-        data-image-isolation-toggle
-        data-enable-url="{{ image_isolation.enable_url }}"
-        data-disable-url="{{ image_isolation.disable_url }}"
-        data-scope-token="{{ image_isolation.scope_token }}"
-        data-isolation-epoch="{{ image_isolation.epoch }}"
-      >
-        <span class="imomir-isolation-track" aria-hidden="true"></span>
-        <span data-isolation-label aria-hidden="true"
-          >Isolation {{ 'On' if image_isolation.enabled else 'Off' }}</span
-        >
-      </button>
-      {% endif %} {% set external_source = deckbuilder.get("external_source") %}
-      {% if external_source and external_source.external_url %}
-      <button
-        type="button"
-        id="deckbuilderMoxfieldSyncButton"
-        class="deckbuilder-moxfield-sync-button"
-        data-moxfield-url="{{ external_source.external_url }}"
-        title="Moxfield Linked"
-        aria-label="Manage Moxfield Link"
-      >
-        <img
-          src="{{ url_for('static', filename='img/moxfield_link.svg') }}"
-          alt=""
-          aria-hidden="true"
-        />
-      </button>
-      {% else %}
-      <button
-        type="button"
-        id="deckbuilderMoxfieldSyncButton"
-        class="deckbuilder-moxfield-sync-button"
-        data-moxfield-url=""
-        title="Sync with Moxfield"
-        aria-label="Sync with Moxfield"
-      >
-        <img
-          src="{{ url_for('static', filename='img/moxfield_empty.svg') }}"
-          alt=""
-          aria-hidden="true"
-        />
-      </button>
-      {% endif %}
-
-      <div class="deckbuilder-sort-wrap">
-        <label for="deckbuilderSortSelect">Sort</label>
-        <select
-          id="deckbuilderSortSelect"
-          class="campaign-test-draft-picked-sort-select"
-        >
-          {% set deck_sort_options = [ ("name-asc", "Name A-Z"), ("name-desc",
-          "Name Z-A"), ("rarity-desc", "Rarity Mythic → Common"), ("rarity-asc",
-          "Rarity Common → Mythic"), ("mv-asc", "Mana Value Low → High"),
-          ("mv-desc", "Mana Value High → Low") ] %} {% for sort_value,
-          sort_label in deck_sort_options %} {% if deckbuilder.default_sort_mode
-          == sort_value %}
-          <option value="{{ sort_value }}" selected>{{ sort_label }}</option>
-          {% else %}
-          <option value="{{ sort_value }}">{{ sort_label }}</option>
-          {% endif %} {% endfor %}
-        </select>
-      </div>
-
-      <div class="deckbuilder-card-size-wrap">
-        <label for="deckbuilderCardSizeSelect">Card Size</label>
-        <select
-          id="deckbuilderCardSizeSelect"
-          class="campaign-test-draft-picked-sort-select"
-        >
-          {% set selected_card_size = (deckbuilder.default_card_size or 100)|int
-          %} {% for card_size in [70, 85, 100, 115, 130, 150, 175, 200] %} {% if
-          selected_card_size == card_size %}
-          <option value="{{ card_size }}" selected>{{ card_size }}%</option>
-          {% else %}
-          <option value="{{ card_size }}">{{ card_size }}%</option>
-          {% endif %} {% endfor %}
-        </select>
-      </div>
-    </div>
-
-    <div class="deckbuilder-view-buttons">
-      <button
-        type="button"
-        id="deckbuilderSelectAllButton"
-        class="campaign-test-draft-zone-view-button"
-        title="Select All Visible Cards"
-        aria-label="Select All Visible Cards"
-      >
-        <i class="fa-solid fa-check-double"></i>
-      </button>
-
-      <button
-        type="button"
-        id="deckbuilderClearSelectionButton"
-        class="campaign-test-draft-zone-view-button"
-        title="Clear Selection"
-        aria-label="Clear Selection"
-      >
-        <i class="fa-solid fa-square-xmark"></i>
-      </button>
-
-      {% if global_card_upscaling_control_enabled %}
-      <button
-        type="button"
-        id="deckbuilderBatchUpscaleButton"
-        class="campaign-test-draft-zone-view-button"
-        title="Batch Upscale Selected Cards"
-        aria-label="Batch Upscale Selected Cards"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          class="imomir-batch-upscale-icon"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <rect
-            x="3"
-            y="7"
-            width="11"
-            height="12"
-            rx="1.8"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-          ></rect>
-          <rect
-            x="6"
-            y="4"
-            width="11"
-            height="12"
-            rx="1.8"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.6"
-          ></rect>
-          <path
-            d="M19 12V5"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.9"
-            stroke-linecap="round"
-          ></path>
-          <path
-            d="M16.4 7.6L19 5l2.6 2.6"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.9"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          ></path>
-        </svg>
-      </button>
-      {% endif %}
-
-      <button
-        type="button"
-        id="deckbuilderStatsButton"
-        class="campaign-test-draft-zone-view-button"
-        title="Deck Stats"
-        aria-label="Deck Stats"
-      >
-        <i class="fa-solid fa-chart-column"></i>
-      </button>
-
-      <button
-        type="button"
-        id="deckbuilderListViewButton"
-        class="campaign-test-draft-zone-view-button{% if deckbuilder.default_view_mode == 'list' %} campaign-test-draft-zone-view-button-active{% endif %}"
-        title="List View"
-        aria-label="List View"
-      >
-        <i class="fa-solid fa-list"></i>
-      </button>
-
-      <button
-        type="button"
-        id="deckbuilderGridViewButton"
-        class="campaign-test-draft-zone-view-button{% if deckbuilder.default_view_mode == 'grid' or not deckbuilder.default_view_mode %} campaign-test-draft-zone-view-button-active{% endif %}"
-        title="Grid View"
-        aria-label="Grid View"
-      >
-        <i class="fa-solid fa-grip"></i>
-      </button>
-
-      <button
-        type="button"
-        id="deckbuilderStackViewButton"
-        class="campaign-test-draft-zone-view-button{% if deckbuilder.default_view_mode == 'stack' %} campaign-test-draft-zone-view-button-active{% endif %}"
-        title="Stack View"
-        aria-label="Stack View"
-      >
-        <i class="fa-solid fa-layer-group"></i>
-      </button>
-    </div>
-  </section>
 
   <main class="deckbuilder-main">
     <section class="deckbuilder-zone deckbuilder-zone-sideboard">
       <div class="deckbuilder-zone-header deckbuilder-zone-header-with-actions">
         <div>
           <h2>Sideboard</h2>
-          <span>Available cards</span>
         </div>
 
         <div class="deckbuilder-zone-header-actions">
@@ -485,6 +506,7 @@
             class="campaign-test-draft-zone-view-button"
             title="Add Card"
             aria-label="Add Card"
+            data-help-id="deckbuilder-add-card"
           >
             <i class="fa-solid fa-plus"></i>
           </button>
@@ -496,6 +518,7 @@
             title="Filter Sideboard"
             aria-label="Filter Sideboard"
             aria-expanded="false"
+            data-help-id="deckbuilder-sideboard-filter"
           >
             <i class="fa-solid fa-filter"></i>
           </button>
@@ -507,6 +530,7 @@
             title="Collapse Sideboard"
             aria-label="Collapse Sideboard"
             aria-expanded="true"
+            data-help-id="deckbuilder-sideboard-toggle"
           >
             <i class="fa-solid fa-chevron-up"></i>
           </button>
@@ -779,7 +803,6 @@
       <div class="deckbuilder-zone-header deckbuilder-zone-header-with-actions">
         <div>
           <h2>Deck</h2>
-          <span>Main deck</span>
         </div>
 
         <div class="deckbuilder-zone-header-actions">
@@ -789,6 +812,7 @@
             class="campaign-test-draft-zone-view-button"
             title="Select All Visible Deck Cards"
             aria-label="Select All Visible Deck Cards"
+            data-help-id="deckbuilder-deck-select-all"
           >
             <i class="fa-solid fa-check-double"></i>
           </button>
@@ -799,6 +823,7 @@
             class="campaign-test-draft-zone-view-button"
             title="Clear Deck Selection"
             aria-label="Clear Deck Selection"
+            data-help-id="deckbuilder-deck-clear-selection"
           >
             <i class="fa-solid fa-square-xmark"></i>
           </button>
@@ -810,6 +835,7 @@
             title="Filter Deck"
             aria-label="Filter Deck"
             aria-expanded="false"
+            data-help-id="deckbuilder-deck-filter"
           >
             <i class="fa-solid fa-filter"></i>
           </button>
@@ -1578,6 +1604,9 @@
     );
     const sideboardCollapseButton = document.getElementById(
       "deckbuilderSideboardCollapseButton",
+    );
+    const sideboardCollapsedButton = document.getElementById(
+      "deckbuilderSideboardCollapsedButton",
     );
     const sideboardFilterPanel = document.getElementById(
       "deckbuilderSideboardFilterPanel",
@@ -2552,6 +2581,10 @@
         sideboardCollapseButton.title = collapsed
           ? "Expand Sideboard"
           : "Collapse Sideboard";
+      }
+
+      if (sideboardCollapsedButton) {
+        sideboardCollapsedButton.classList.toggle("hidden", !collapsed);
       }
 
       if (collapsed) {
@@ -6461,6 +6494,12 @@
       });
     }
 
+    if (sideboardCollapsedButton) {
+      sideboardCollapsedButton.addEventListener("click", function () {
+        setDeckbuilderSideboardCollapsed(false);
+      });
+    }
+
     if (deckFilterButton) {
       deckFilterButton.addEventListener("click", function () {
         setDeckFilterPanelVisible(!deckFiltersVisible);
@@ -7167,7 +7206,6 @@
 </script>
 <style>
   .deckbuilder-deck-art-portrait {
-    object-fit: contain !important;
     background: transparent !important;
   }
 </style>

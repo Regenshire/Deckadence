@@ -498,6 +498,116 @@
       body: "Spin for a pack on the Chaos Draft wheel.  Clicking this button will result in a random pack from the available packs in the campaign to be selected.",
     },
 
+    "deckbuilder-deck-name": {
+      title: "Deck Name",
+      body: "Edit the deck name here. Press Enter or use Save Deck to save the new name.",
+    },
+
+    "deckbuilder-format": {
+      title: "Deck Format",
+      body: "Choose the format used for this deck, such as Commander, Standard, Modern, or Pauper.",
+    },
+
+    "deckbuilder-card-back": {
+      title: "Card Back",
+      body: "Choose the card back Deckadence should use when printing this deck.",
+    },
+
+    "deckbuilder-save": {
+      title: "Save Deck",
+      body: "Save the deck name, format, view settings, card size, sort order, and current Deck Builder layout.",
+    },
+
+    "deckbuilder-load": {
+      title: "Load Deck",
+      body: "Open another saved Deckadence deck in Deck Builder.",
+    },
+
+    "deckbuilder-delete": {
+      title: "Delete Deck",
+      body: "Delete this saved deck. Deckadence will ask for confirmation before removing it.",
+    },
+
+    "deckbuilder-moxfield": {
+      title: "Moxfield",
+      body: "Link this deck to Moxfield or import cards from a linked Moxfield deck.",
+    },
+
+    "deckbuilder-isolation": {
+      title: "Image Isolation",
+      body: "Keep alternate-image choices for this deck separate from the global alternate-image library.",
+    },
+
+    "deckbuilder-copy-format": {
+      title: "Copy Format",
+      body: "Choose whether Copy uses a simple deck list or a more detailed deck list.",
+    },
+
+    "deckbuilder-sideboard-toggle": {
+      title: "Sideboard",
+      body: "Collapse the Sideboard to give the main deck more room, or reopen it when you need to manage Sideboard cards.",
+    },
+
+    "deckbuilder-select-all": {
+      title: "Select Visible Cards",
+      body: "Select all cards currently visible in the active Deck Builder view.",
+    },
+
+    "deckbuilder-clear-selection": {
+      title: "Clear Selection",
+      body: "Clear the current multi-card selection.",
+    },
+
+    "deckbuilder-batch-upscale": {
+      title: "Batch Upscale",
+      body: "Send the selected cards to the active image upscaler as a batch.",
+    },
+
+    "deckbuilder-stats": {
+      title: "Deck Stats",
+      body: "Open statistics and summary information for the current deck.",
+    },
+
+    "deckbuilder-list-view": {
+      title: "List View",
+      body: "Show the deck as a compact card list.",
+    },
+
+    "deckbuilder-grid-view": {
+      title: "Grid View",
+      body: "Show the deck as a grid of full card images.",
+    },
+
+    "deckbuilder-stack-view": {
+      title: "Stack View",
+      body: "Group the main deck into Commander, mana-value, and land stacks.",
+    },
+
+    "deckbuilder-add-card": {
+      title: "Add Card",
+      body: "Search the card database and add cards to this deck.",
+    },
+
+    "deckbuilder-sideboard-filter": {
+      title: "Filter Sideboard",
+      body: "Filter Sideboard cards by text, rarity, color, mana value, type, or alternate-image status.",
+    },
+
+    "deckbuilder-deck-select-all": {
+      title: "Select Main Deck",
+      body: "Select every visible card in the main deck.",
+    },
+
+    "deckbuilder-deck-clear-selection": {
+      title: "Clear Main Deck Selection",
+      body: "Clear the current selection in the main deck.",
+    },
+
+    "deckbuilder-deck-filter": {
+      title: "Filter Main Deck",
+      body: "Filter main-deck cards by text, rarity, color, mana value, type, or alternate-image status.",
+    },
+
     "alternate-image-modal": {
       title: "Alternate Image",
       body: "Manage alternate artwork for this card. You can upload an image, link to an image URL, choose card-face settings, and manage existing alternate sources.",
