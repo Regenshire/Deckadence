@@ -294,6 +294,7 @@ from db.deckdb import (
 
 from db.externaldeckdb import (
     get_external_deck_source,
+    save_external_deck_source,
 )
 
 from modes.draft import (
@@ -10109,11 +10110,256 @@ def remove_card_bleed(
     # configured 63 x 88 mm card slot later.
     return bleed_removed_image
 
-def save_alternate_source_upload_file(
-    uploaded_file, card_uuid, face_kind, remove_bleed=False, bleed_size_mm=None,
-    *, destination_dir=None,
+def save_alternate_source_fullbleed_file(
+    source_path,
+    card_uuid,
+    face_kind,
+    bleed_size_mm=None,
+    *,
+    destination_dir=None,
 ):
-    if not uploaded_file or not uploaded_file.filename:
+    source_path = os.path.abspath(
+        str(source_path or "").strip()
+    )
+
+    if not source_path or not os.path.isfile(source_path):
+        raise FileNotFoundError(
+            f"Alternate image file was not found: {source_path}"
+        )
+
+    with Image.open(source_path) as source_image:
+        image_format = (
+            source_image.format
+            or ""
+        ).strip().upper()
+
+        source_image.verify()
+
+    extension_by_format = {
+        "PNG": ".png",
+        "JPEG": ".jpg",
+        "WEBP": ".webp",
+    }
+
+    file_ext = extension_by_format.get(
+        image_format
+    )
+
+    if not file_ext:
+        raise ValueError(
+            "Alternate images must be PNG, JPG, JPEG, or WEBP files."
+        )
+
+    ensure_download_directories()
+
+    output_dir = (
+        destination_dir
+        or ALTERNATE_SOURCE_DIR
+    )
+
+    os.makedirs(
+        output_dir,
+        exist_ok=True,
+    )
+
+    fullbleed_dir = os.path.join(
+        output_dir,
+        "fullbleed",
+    )
+
+    os.makedirs(
+        fullbleed_dir,
+        exist_ok=True,
+    )
+
+    safe_uuid = safe_filename(
+        card_uuid or "card"
+    )
+
+    safe_face = safe_filename(
+        face_kind or "single"
+    )
+
+    timestamp = datetime.now(
+        timezone.utc
+    ).strftime(
+        "%Y%m%d%H%M%S%f"
+    )
+
+    output_filename = (
+        f"alternate_{safe_uuid}_"
+        f"{safe_face}_{timestamp}"
+        f"{file_ext}"
+    )
+
+    output_path = os.path.join(
+        output_dir,
+        output_filename,
+    )
+
+    fullbleed_filename = (
+        f"fullbleed_{safe_uuid}_"
+        f"{safe_face}_{timestamp}"
+        f"{file_ext}"
+    )
+
+    fullbleed_output_path = os.path.join(
+        fullbleed_dir,
+        fullbleed_filename,
+    )
+
+    shutil.copy2(
+        source_path,
+        fullbleed_output_path,
+    )
+
+    with Image.open(source_path) as source_image:
+        processed_image = remove_card_bleed(
+            source_image,
+            bleed_size_mm=bleed_size_mm,
+        )
+
+        save_format = (
+            get_image_save_format_from_extension(
+                file_ext
+            )
+        )
+
+        if save_format == "JPEG":
+            processed_image = (
+                processed_image.convert(
+                    "RGB"
+                )
+            )
+
+            processed_image.save(
+                output_path,
+                format=save_format,
+                quality=95,
+                optimize=True,
+            )
+
+        else:
+            processed_image.save(
+                output_path,
+                format=save_format,
+            )
+
+    return {
+        "local_image_path": os.path.relpath(
+            output_path,
+            RUNTIME_BASE_DIR,
+        ).replace("\\", "/"),
+
+        "fullbleed_image_path": os.path.relpath(
+            fullbleed_output_path,
+            RUNTIME_BASE_DIR,
+        ).replace("\\", "/"),
+
+        "remove_bleed": True,
+
+        "bleed_size_mm": (
+            float(bleed_size_mm)
+            if bleed_size_mm is not None
+            else ALTERNATE_UPLOAD_BLEED_MM
+        ),
+    }
+
+
+def download_alternate_source_url_to_file(
+    external_url,
+    destination_path,
+):
+    clean_url = str(
+        external_url or ""
+    ).strip()
+
+    parsed_url = urlparse(
+        clean_url
+    )
+
+    if (
+        parsed_url.scheme not in {
+            "http",
+            "https",
+        }
+        or not parsed_url.netloc
+    ):
+        raise ValueError(
+            "Alternate image URL must be an absolute HTTP(S) URL."
+        )
+
+    destination_path = os.path.abspath(
+        destination_path
+    )
+
+    os.makedirs(
+        os.path.dirname(
+            destination_path
+        ),
+        exist_ok=True,
+    )
+
+    total_bytes = 0
+    maximum_bytes = 256 * 1024 * 1024
+
+    with requests.get(
+        clean_url,
+        headers={
+            "User-Agent": "Deckadence/1.0",
+            "Accept": (
+                "image/avif,image/webp,"
+                "image/png,image/jpeg,"
+                "image/*,*/*;q=0.8"
+            ),
+        },
+        stream=True,
+        timeout=(10, 60),
+    ) as response:
+        response.raise_for_status()
+
+        with open(
+            destination_path,
+            "wb",
+        ) as output_file:
+            for chunk in response.iter_content(
+                1024 * 1024
+            ):
+                if not chunk:
+                    continue
+
+                total_bytes += len(chunk)
+
+                if total_bytes > maximum_bytes:
+                    raise ValueError(
+                        "Alternate images cannot exceed 256 MiB."
+                    )
+
+                output_file.write(
+                    chunk
+                )
+
+    with Image.open(
+        destination_path
+    ) as downloaded_image:
+        downloaded_image.verify()
+
+    return destination_path
+
+
+def save_alternate_source_upload_file(
+    uploaded_file,
+    card_uuid,
+    face_kind,
+    remove_bleed=False,
+    bleed_size_mm=None,
+    *,
+    destination_dir=None,
+):
+    if (
+        not uploaded_file
+        or not uploaded_file.filename
+    ):
         return {
             "local_image_path": "",
             "fullbleed_image_path": "",
@@ -10121,62 +10367,106 @@ def save_alternate_source_upload_file(
             "bleed_size_mm": None,
         }
 
-    original_filename = (uploaded_file.filename or "").strip()
-    file_ext = os.path.splitext(original_filename)[1].strip().lower()
+    original_filename = (
+        uploaded_file.filename
+        or ""
+    ).strip()
 
-    if file_ext not in {".png", ".jpg", ".jpeg", ".webp"}:
-        raise ValueError("Alternate image upload must be a PNG, JPG, JPEG, or WEBP file.")
+    file_ext = os.path.splitext(
+        original_filename
+    )[1].strip().lower()
+
+    if file_ext not in {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".webp",
+    }:
+        raise ValueError(
+            "Alternate image upload must be a PNG, JPG, JPEG, or WEBP file."
+        )
 
     ensure_download_directories()
 
-    output_dir = destination_dir or ALTERNATE_SOURCE_DIR
-    os.makedirs(output_dir, exist_ok=True)
-    fullbleed_dir = os.path.join(output_dir, "fullbleed")
-    os.makedirs(fullbleed_dir, exist_ok=True)
-
-    safe_uuid = safe_filename(card_uuid or "card")
-    safe_face = safe_filename(face_kind or "single")
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-
-    output_filename = f"alternate_{safe_uuid}_{safe_face}_{timestamp}{file_ext}"
-    output_path = os.path.join(output_dir, output_filename)
-
-    fullbleed_relative_path = ""
-
     if remove_bleed:
-        fullbleed_filename = f"fullbleed_{safe_uuid}_{safe_face}_{timestamp}{file_ext}"
-        fullbleed_output_path = os.path.join(fullbleed_dir, fullbleed_filename)
-
-        uploaded_file.save(fullbleed_output_path)
-
-        with Image.open(fullbleed_output_path) as source_image:
-            processed_image = remove_card_bleed(
-                source_image,
-                bleed_size_mm=bleed_size_mm,
+        with TemporaryDirectory(
+            prefix="alternate-upload-input-",
+            dir=ALTERNATE_SOURCE_DIR,
+        ) as input_dir:
+            input_path = os.path.join(
+                input_dir,
+                f"source{file_ext}",
             )
 
-            save_format = get_image_save_format_from_extension(file_ext)
+            uploaded_file.save(
+                input_path
+            )
 
-            if save_format == "JPEG":
-                processed_image = processed_image.convert("RGB")
-                processed_image.save(output_path, format=save_format, quality=95, optimize=True)
-            else:
-                processed_image.save(output_path, format=save_format)
+            return (
+                save_alternate_source_fullbleed_file(
+                    input_path,
+                    card_uuid,
+                    face_kind,
+                    bleed_size_mm=bleed_size_mm,
+                    destination_dir=destination_dir,
+                )
+            )
 
-        fullbleed_relative_path = os.path.relpath(fullbleed_output_path, RUNTIME_BASE_DIR).replace("\\", "/")
+    output_dir = (
+        destination_dir
+        or ALTERNATE_SOURCE_DIR
+    )
 
-    else:
-        uploaded_file.save(output_path)
+    os.makedirs(
+        output_dir,
+        exist_ok=True,
+    )
 
-        # Validate the uploaded image can be opened before accepting it.
-        with Image.open(output_path) as test_image:
-            test_image.verify()
+    safe_uuid = safe_filename(
+        card_uuid or "card"
+    )
+
+    safe_face = safe_filename(
+        face_kind or "single"
+    )
+
+    timestamp = datetime.now(
+        timezone.utc
+    ).strftime(
+        "%Y%m%d%H%M%S%f"
+    )
+
+    output_filename = (
+        f"alternate_{safe_uuid}_"
+        f"{safe_face}_{timestamp}"
+        f"{file_ext}"
+    )
+
+    output_path = os.path.join(
+        output_dir,
+        output_filename,
+    )
+
+    uploaded_file.save(
+        output_path
+    )
+
+    with Image.open(
+        output_path
+    ) as test_image:
+        test_image.verify()
 
     return {
-        "local_image_path": os.path.relpath(output_path, RUNTIME_BASE_DIR).replace("\\", "/"),
-        "fullbleed_image_path": fullbleed_relative_path,
-        "remove_bleed": bool(remove_bleed),
-        "bleed_size_mm": float(bleed_size_mm) if bleed_size_mm is not None else None,
+        "local_image_path": os.path.relpath(
+            output_path,
+            RUNTIME_BASE_DIR,
+        ).replace("\\", "/"),
+
+        "fullbleed_image_path": "",
+
+        "remove_bleed": False,
+
+        "bleed_size_mm": None,
     }
 
 def save_reprocessed_alternate_image_atomic(
@@ -11148,25 +11438,153 @@ class AlternateImageEditor:
             with ExitStack() as stack:
                 files = None
                 destination = None
+
                 if context.is_isolated:
-                    files = stack.enter_context(AlternateImageFileSnapshot(
-                        context.scope_id, file_group_id=uuid4().hex
-                    ))
-                    if uploaded:
-                        destination = stack.enter_context(TemporaryDirectory(
-                            prefix="alternate-upload-", dir=ALTERNATE_SOURCE_DIR
-                        ))
+                    files = stack.enter_context(
+                        AlternateImageFileSnapshot(
+                            context.scope_id,
+                            file_group_id=uuid4().hex,
+                        )
+                    )
+
+                    if uploaded or remove_bleed:
+                        destination = stack.enter_context(
+                            TemporaryDirectory(
+                                prefix="alternate-source-",
+                                dir=ALTERNATE_SOURCE_DIR,
+                            )
+                        )
+
                 fullbleed_path = ""
+
                 if uploaded:
                     source_type = "uploaded_file"
-                    result = save_alternate_source_upload_file(
-                        uploaded_file, card_uuid, face_kind,
-                        remove_bleed=remove_bleed, bleed_size_mm=bleed_mm,
-                        destination_dir=destination,
+
+                    result = (
+                        save_alternate_source_upload_file(
+                            uploaded_file,
+                            card_uuid,
+                            face_kind,
+                            remove_bleed=remove_bleed,
+                            bleed_size_mm=bleed_mm,
+                            destination_dir=destination,
+                        )
                     )
-                    local_path = result["local_image_path"]
-                    fullbleed_path = result["fullbleed_image_path"]
-                    upload_paths = [local_path, fullbleed_path]
+
+                    local_path = (
+                        result[
+                            "local_image_path"
+                        ]
+                    )
+
+                    fullbleed_path = (
+                        result[
+                            "fullbleed_image_path"
+                        ]
+                    )
+
+                    upload_paths = [
+                        local_path,
+                        fullbleed_path,
+                    ]
+
+                elif (
+                    remove_bleed
+                    and source_type == "local_file"
+                ):
+                    source_local_path = (
+                        local_path
+                    )
+
+                    if not os.path.isabs(
+                        source_local_path
+                    ):
+                        source_local_path = (
+                            os.path.abspath(
+                                os.path.join(
+                                    RUNTIME_BASE_DIR,
+                                    source_local_path,
+                                )
+                            )
+                        )
+
+                    result = (
+                        save_alternate_source_fullbleed_file(
+                            source_local_path,
+                            card_uuid,
+                            face_kind,
+                            bleed_size_mm=bleed_mm,
+                            destination_dir=destination,
+                        )
+                    )
+
+                    local_path = (
+                        result[
+                            "local_image_path"
+                        ]
+                    )
+
+                    fullbleed_path = (
+                        result[
+                            "fullbleed_image_path"
+                        ]
+                    )
+
+                    upload_paths = [
+                        local_path,
+                        fullbleed_path,
+                    ]
+
+                elif (
+                    remove_bleed
+                    and source_type == "external_url"
+                ):
+                    download_dir = (
+                        stack.enter_context(
+                            TemporaryDirectory(
+                                prefix="alternate-url-",
+                                dir=ALTERNATE_SOURCE_DIR,
+                            )
+                        )
+                    )
+
+                    downloaded_path = os.path.join(
+                        download_dir,
+                        "source_image",
+                    )
+
+                    download_alternate_source_url_to_file(
+                        external_url,
+                        downloaded_path,
+                    )
+
+                    result = (
+                        save_alternate_source_fullbleed_file(
+                            downloaded_path,
+                            card_uuid,
+                            face_kind,
+                            bleed_size_mm=bleed_mm,
+                            destination_dir=destination,
+                        )
+                    )
+
+                    local_path = (
+                        result[
+                            "local_image_path"
+                        ]
+                    )
+
+                    fullbleed_path = (
+                        result[
+                            "fullbleed_image_path"
+                        ]
+                    )
+
+                    upload_paths = [
+                        local_path,
+                        fullbleed_path,
+                    ]
+
                 values = prepare_alternate_source_for_card(
                     card_uuid, source_name, source_type, face_kind,
                     external_image_url=external_url, local_image_path=local_path,
@@ -23845,6 +24263,205 @@ def deckbuilder_open(deck_id):
         "deckbuilder.html",
         deckbuilder=deckbuilder_context,
     )
+
+
+@app.route(
+    "/deck-builder/<int:deck_id>/moxfield-sync",
+    methods=["POST"],
+)
+def deckbuilder_moxfield_sync(deck_id):
+    deck_row = get_deck_by_id(
+        deck_id
+    )
+
+    if not deck_row:
+        return jsonify({
+            "ok": False,
+            "message": "Deck was not found.",
+        }), 404
+
+    payload = (
+        request.get_json(
+            silent=True
+        )
+        or {}
+    )
+
+    action = str(
+        payload.get("action")
+        or ""
+    ).strip().lower()
+
+    external_url = str(
+        payload.get("external_url")
+        or ""
+    ).strip()
+
+    if action in {
+        "sync_owned",
+        "upload_owned",
+    }:
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Moxfield account write access is not available yet. "
+                "Deckadence can currently link and import public "
+                "Moxfield decks."
+            ),
+        }), 501
+
+    if action not in {
+        "link",
+        "add_missing",
+        "add_all",
+        "overwrite",
+    }:
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Choose a valid Moxfield action."
+            ),
+        }), 400
+
+    if not external_url:
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Paste a Moxfield deck URL."
+            ),
+        }), 400
+
+    if "://" not in external_url:
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Paste the full Moxfield deck URL, "
+                "not only the deck ID."
+            ),
+        }), 400
+
+    provider = (
+        MoxfieldDeckProvider()
+    )
+
+    try:
+        provider.normalize_deck_identifier(
+            external_url
+        )
+
+        external_deck = (
+            provider.get_deck(
+                external_url
+            )
+        )
+
+    except ValueError as exc:
+        return jsonify({
+            "ok": False,
+            "message": str(exc),
+        }), 400
+
+    except ExternalDeckError as exc:
+        return jsonify({
+            "ok": False,
+            "message": str(exc),
+        }), 502
+
+    except Exception as exc:
+        write_error_log(
+            "DECK BUILDER MOXFIELD SYNC LOAD FAILED",
+            exc=exc,
+        )
+
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Deckadence could not load "
+                "that Moxfield deck."
+            ),
+        }), 500
+
+    summary = (
+        external_deck.summary
+    )
+
+    if action == "link":
+        result = (
+            save_external_deck_source(
+                deck_id=deck_id,
+                provider=summary.provider,
+                external_id=summary.external_id,
+                external_url=summary.external_url,
+                author=summary.author,
+                external_format=summary.format,
+            )
+        )
+
+    else:
+        if not is_card_database_ready():
+            return jsonify({
+                "ok": False,
+                "message": (
+                    "Download the card database before "
+                    "importing Moxfield cards."
+                ),
+            }), 400
+
+        importer = (
+            ExternalDeckImporter()
+        )
+
+        result = (
+            importer.apply_to_existing_deck(
+                deck_id=deck_id,
+                external_deck=external_deck,
+                mode=action,
+            )
+        )
+
+    if not result.get("ok"):
+        return jsonify({
+            "ok": False,
+            "message": (
+                result.get("message")
+                or "Could not apply the Moxfield deck."
+            ),
+            "unresolved_cards": (
+                result.get("unresolved_cards")
+                or []
+            ),
+        }), 400
+
+    external_source = (
+        get_external_deck_source(
+            deck_id,
+            provider="moxfield",
+        )
+    )
+
+    return jsonify({
+        "ok": True,
+        "message": (
+            result.get("message")
+            or "Moxfield action completed."
+        ),
+        "external_source": (
+            external_source
+            or {}
+        ),
+        "added_copy_count": int(
+            result.get(
+                "added_copy_count"
+            )
+            or 0
+        ),
+        "removed_copy_count": int(
+            result.get(
+                "removed_copy_count"
+            )
+            or 0
+        ),
+    })
 
 
 @app.route("/deck-builder/loadable-decks", methods=["GET"])

@@ -6353,6 +6353,150 @@ body:has(
   border-color: rgba(255, 120, 120, 0.7);
 }
 
+.deckbuilder-moxfield-sync-button {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  padding: 0;
+  margin: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.deckbuilder-moxfield-sync-button:hover {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.deckbuilder-moxfield-sync-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.deckbuilder-moxfield-sync-button img {
+  width: 32px;
+  height: 32px;
+  display: block;
+  object-fit: contain;
+  transition:
+    filter 0.15s ease,
+    transform 0.15s ease;
+}
+
+.deckbuilder-moxfield-sync-logo {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.deckbuilder-moxfield-sync-button:hover img {
+  transform: scale(1.08);
+  filter: brightness(1.3) drop-shadow(0 0 4px rgba(139, 92, 246, 0.95))
+    drop-shadow(0 0 8px rgba(139, 92, 246, 0.55));
+}
+
+.moxfield-sync-dialog {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.moxfield-sync-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.moxfield-sync-field {
+  display: grid;
+  gap: 7px;
+}
+
+.moxfield-sync-field-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.moxfield-sync-field input,
+.moxfield-sync-field select {
+  width: 100%;
+}
+
+.moxfield-sync-current-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.moxfield-sync-current-link > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.moxfield-sync-current-link a:not(.campaign-test-draft-icon-button) {
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moxfield-sync-action-help {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.moxfield-sync-status {
+  padding: 10px 12px;
+  border: 1px solid rgba(82, 182, 120, 0.45);
+  border-radius: 10px;
+  background: rgba(82, 182, 120, 0.08);
+}
+
+.moxfield-sync-status-error {
+  border-color: rgba(220, 85, 85, 0.55);
+  background: rgba(220, 85, 85, 0.08);
+}
+
+.moxfield-sync-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+@media (max-width: 620px) {
+  .moxfield-sync-current-link {
+    align-items: flex-start;
+  }
+
+  .moxfield-sync-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .deckbuilder-copy-split {
   position: relative;
   display: grid;

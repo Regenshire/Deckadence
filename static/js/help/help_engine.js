@@ -348,6 +348,8 @@
   window.DeckadenceHelp = {
     registerContextTips: registerContextTips,
 
+    refreshContextTargets: refreshContextTargets,
+
     setContextHelpEnabled: setContextEnabled,
 
     isContextHelpEnabled: function () {
@@ -494,6 +496,116 @@
     chaos_spin: {
       title: "Spin",
       body: "Spin for a pack on the Chaos Draft wheel.  Clicking this button will result in a random pack from the available packs in the campaign to be selected.",
+    },
+
+    "alternate-image-modal": {
+      title: "Alternate Image",
+      body: "Manage alternate artwork for this card. You can upload an image, link to an image URL, choose card-face settings, and manage existing alternate sources.",
+    },
+
+    "alternate-image-card-name": {
+      title: "Card",
+      body: "The card whose alternate image settings you are currently editing.",
+    },
+
+    "alternate-image-isolation": {
+      title: "Isolation On",
+      body: "This collection uses its own alternate image library. Changes made here affect only this isolated deck, pack, set, or collection.",
+    },
+
+    "alternate-image-preview": {
+      title: "Image Preview",
+      body: "Preview the current image or the new uploaded or linked image before adding it as an alternate source.",
+    },
+
+    "alternate-image-active-source": {
+      title: "Active Source",
+      body: "Shows the alternate image source currently being used for this card. If no alternate is active, Deckadence uses the accepted upscale or Scryfall image.",
+    },
+
+    "alternate-image-source-list": {
+      title: "Alternate Sources",
+      body: "Lists the alternate images already saved for this card. You can enable, disable, or delete sources from this list.",
+    },
+
+    "alternate-image-source-entry": {
+      title: "Alternate Source",
+      body: "A saved alternate image for this card. The card face and full-bleed status are shown beneath the source name.",
+    },
+
+    "alternate-image-source-toggle": {
+      title: "Enable / Disable Source",
+      body: "Turn this alternate source on or off without deleting it.",
+    },
+
+    "alternate-image-source-delete": {
+      title: "Delete Source",
+      body: "Permanently remove this alternate image source from the current image library.",
+    },
+
+    "alternate-image-add-source-form": {
+      title: "Add Alternate Source",
+      body: "Use these controls to add a new alternate image to this card.",
+    },
+
+    "alternate-image-source-input": {
+      title: "Image Source",
+      body: "Choose where the alternate image comes from, then provide the file, URL, or local path in the same row.",
+    },
+
+    "alternate-image-source-type": {
+      title: "Source Type",
+      body: "Choose whether to upload an image file, link to an external image URL, or use a local file path.",
+    },
+
+    "alternate-image-upload": {
+      title: "Upload Image",
+      body: "Choose an image file from your computer. The selected image appears in the preview before you save it.",
+    },
+
+    "alternate-image-url": {
+      title: "External Image URL",
+      body: "Paste a direct image URL. Deckadence previews the linked image before you save it.",
+    },
+
+    "alternate-image-local-path": {
+      title: "Local Image Path",
+      body: "Enter a path to an image already available to Deckadence on the host computer.",
+    },
+
+    "alternate-image-card-face": {
+      title: "Card Face",
+      body: "For double-faced cards, choose whether this alternate image belongs to the front or back face. This control is hidden for single-faced cards.",
+    },
+
+    "alternate-image-frame-template": {
+      title: "Card Frame Template",
+      body: "Choose the frame template Deckadence should use when processing this alternate image. Automatic uses the frame from the selected printing.",
+    },
+
+    "alternate-image-full-bleed": {
+      title: "3mm Full-Bleed",
+      body: "Enable this when the uploaded image includes a 3mm full-bleed border such as images sourced from MPCFill.",
+    },
+
+    "alternate-image-foil": {
+      title: "Foil",
+      body: "Set the current card to foil when this option is available for the screen you are using.",
+    },
+
+    "alternate-image-add-source": {
+      title: "Add Alternate Source",
+      body: "Save the selected file, URL, or local path as a new alternate image source for this card.",
+    },
+
+    "alternate-image-save-frame": {
+      title: "Save Frame Template",
+      body: "Save the selected frame template for the active alternate image source.",
+    },
+
+    "alternate-image-status": {
+      title: "Alternate Image Status",
+      body: "Displays success messages or errors while alternate image settings are being loaded or saved.",
     },
 
     chaos_silhouette_template: {

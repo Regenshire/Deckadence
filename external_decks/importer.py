@@ -9,6 +9,7 @@ from db.deckdb import (
 )
 
 from db.externaldeckdb import (
+    apply_external_deck_to_existing_deck,
     create_external_import_deck,
 )
 
@@ -309,6 +310,61 @@ class ExternalDeckImporter:
                 for card
                 in unresolved_cards
             ),
+        }
+
+    def apply_to_existing_deck(
+        self,
+        deck_id,
+        external_deck,
+        mode,
+        allow_partial=False,
+    ):
+        plan = self.prepare_import(
+            external_deck
+        )
+
+        if (
+            plan["unresolved_cards"]
+            and not allow_partial
+        ):
+            return {
+                "ok": False,
+                "message": (
+                    "The Moxfield deck could not be applied because "
+                    f"{len(plan['unresolved_cards'])} unique card(s) "
+                    "could not be resolved in the local card database."
+                ),
+                **plan,
+            }
+
+        if not plan["resolved_cards"]:
+            return {
+                "ok": False,
+                "message": (
+                    "The Moxfield deck did not contain any cards "
+                    "Deckadence could apply."
+                ),
+                **plan,
+            }
+
+        summary = external_deck.summary
+
+        apply_result = (
+            apply_external_deck_to_existing_deck(
+                deck_id=deck_id,
+                provider=summary.provider,
+                external_id=summary.external_id,
+                external_url=summary.external_url,
+                author=summary.author,
+                external_format=summary.format,
+                cards=plan["resolved_cards"],
+                mode=mode,
+            )
+        )
+
+        return {
+            **plan,
+            **apply_result,
         }
 
     def import_deck(
