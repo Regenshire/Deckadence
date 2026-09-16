@@ -1,0 +1,121 @@
+<div
+  id="moxfieldSyncModal"
+  class="campaign-add-pack-modal hidden"
+  aria-hidden="true"
+>
+  <div id="moxfieldSyncBackdrop" class="campaign-add-pack-backdrop"></div>
+
+  <div
+    class="campaign-add-pack-dialog moxfield-sync-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="moxfieldSyncTitle"
+  >
+    <div class="campaign-add-pack-header">
+      <div>
+        <h2 id="moxfieldSyncTitle" class="campaign-add-pack-title">
+          Sync with Moxfield
+        </h2>
+
+        <p class="campaign-add-pack-subtitle">
+          Link this Deckadence deck to a Moxfield deck or import cards from it.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        id="moxfieldSyncCloseButton"
+        class="campaign-add-pack-close-button"
+        aria-label="Close Moxfield Sync"
+      >
+        ×
+      </button>
+    </div>
+
+    <div class="moxfield-sync-body">
+      <div
+        id="moxfieldSyncCurrentLink"
+        class="moxfield-sync-current-link hidden"
+      >
+        <div>
+          <span class="moxfield-sync-field-label"> Linked Moxfield Deck </span>
+
+          <a
+            id="moxfieldSyncCurrentLinkAnchor"
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+          ></a>
+        </div>
+
+        <a
+          id="moxfieldSyncOpenLinkButton"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="campaign-test-draft-icon-button"
+          title="Open linked Moxfield deck"
+          aria-label="Open linked Moxfield deck"
+        >
+          <i class="fa-solid fa-arrow-up-right-from-square"></i>
+        </a>
+      </div>
+
+      <label class="moxfield-sync-field" for="moxfieldSyncUrlInput">
+        <span class="moxfield-sync-field-label"> Moxfield Deck URL </span>
+
+        <input
+          type="url"
+          id="moxfieldSyncUrlInput"
+          class="campaign-add-pack-custom-input"
+          placeholder="https://www.moxfield.com/decks/..."
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </label>
+
+      <label class="moxfield-sync-field" for="moxfieldSyncActionSelect">
+        <span class="moxfield-sync-field-label"> Action </span>
+
+        <select
+          id="moxfieldSyncActionSelect"
+          class="campaign-test-draft-picked-sort-select"
+        >
+          <option value="add_missing">Add Missing Cards from Moxfield</option>
+
+          <option value="add_all">Add All from Moxfield</option>
+
+          <option value="overwrite">Overwrite from Moxfield</option>
+
+          <option value="link">Link with Moxfield</option>
+        </select>
+      </label>
+
+      <div id="moxfieldSyncActionHelp" class="moxfield-sync-action-help"></div>
+
+      <div
+        id="moxfieldSyncStatus"
+        class="moxfield-sync-status hidden"
+        aria-live="polite"
+      ></div>
+
+      <div class="moxfield-sync-actions">
+        <button
+          type="button"
+          id="moxfieldSyncCancelButton"
+          class="action-button secondary-button"
+        >
+          Cancel
+        </button>
+
+        <button
+          type="button"
+          id="moxfieldSyncApplyButton"
+          class="action-button"
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

@@ -527,7 +527,7 @@
     const stackColumnWidth = Math.max(96, cardWidth);
     const stackCardWidth = Math.max(80, stackColumnWidth - 16);
     //const visibleStackStrip = Math.max(30, Math.round(stackCardWidth * 0.22));
-    const visibleStackStrip = Math.max(14, Math.round(stackCardWidth * 0.09));
+    const visibleStackStrip = Math.max(30, Math.round(stackCardWidth * 0.16));
     const cardHeight = Math.round(stackCardWidth * 1.4);
     const overlap = Math.max(0, cardHeight - visibleStackStrip);
 
