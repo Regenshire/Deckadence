@@ -166,13 +166,47 @@
   user-select: none;
 }
 
+.deck-art-preview-mana {
+  position: absolute;
+  top: 58.39%;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.68%;
+  width: 100%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.deck-art-preview-mana-symbol {
+  flex: 0 0 7.13%;
+  width: 7.13%;
+  aspect-ratio: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+.deck-art-preview-mana-symbol img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .deck-art-preview-title,
 .deck-art-preview-subtitle,
 .deck-art-preview-type {
   position: absolute;
   left: 50%;
   z-index: 3;
-  width: 80%;
   transform: translateX(-50%);
   color: #f7f7fa;
   text-align: center;
@@ -180,21 +214,32 @@
   pointer-events: none;
 }
 
+.deck-art-preview-title,
+.deck-art-preview-subtitle {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .deck-art-preview-title {
-  top: 67.5%;
-  font-size: clamp(0.9rem, 1.8vw, 1.26rem);
+  top: 71.29%;
+  width: 75.5%;
+  transform: translate(-50%, -50%);
+  font-size: 1.26rem;
   font-weight: 900;
   line-height: 1.08;
 }
 
 .deck-art-preview-subtitle {
-  top: 80.5%;
-  font-size: clamp(0.68rem, 1.25vw, 0.9rem);
+  top: 80.99%;
+  width: 72.3%;
+  font-size: 0.9rem;
   font-weight: 600;
+  line-height: 1.16;
 }
 
 .deck-art-preview-type {
   bottom: 3.5%;
+  width: 80%;
   font-size: clamp(0.7rem, 1.35vw, 0.94rem);
   font-weight: 900;
   letter-spacing: 0.055em;
@@ -312,7 +357,8 @@
 }
 
 .deck-art-field input,
-.deck-art-field select {
+.deck-art-field select,
+.deck-art-field textarea {
   width: 100%;
   min-height: 38px;
   padding: 7px 9px;
@@ -332,8 +378,15 @@
   color: #f2f4f8;
 }
 
+.deck-art-field textarea {
+  min-height: 58px;
+  resize: vertical;
+  line-height: 1.25;
+}
+
 .deck-art-field input:focus,
-.deck-art-field select:focus {
+.deck-art-field select:focus,
+.deck-art-field textarea:focus {
   outline: none;
   border-color: rgba(110, 156, 255, 0.82);
   box-shadow: 0 0 0 2px rgba(72, 127, 255, 0.12);
@@ -392,10 +445,70 @@
   font-size: 0.74rem;
 }
 
-.deck-art-frame-grid {
+.deck-art-frame-select {
+  position: relative;
+}
+
+.deck-art-frame-select > summary {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.deck-art-frame-select > summary::-webkit-details-marker {
+  display: none;
+}
+
+.deck-art-frame-select > summary > span:nth-child(2) {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck-art-frame-select > summary > i {
+  transition: transform 0.14s ease;
+}
+
+.deck-art-frame-select[open] > summary {
+  border-color: rgba(110, 156, 255, 0.82);
+  box-shadow: 0 0 0 2px rgba(72, 127, 255, 0.12);
+}
+
+.deck-art-frame-select[open] > summary > i {
+  transform: rotate(180deg);
+}
+
+.deck-art-frame-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 30;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  gap: 4px;
+  max-height: 260px;
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #1d2027;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+}
+
+.deck-art-frame-menu .deck-art-frame-button {
+  width: 100%;
 }
 
 .deck-art-frame-button {
@@ -467,6 +580,21 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.deck-art-text-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.deck-art-text-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.deck-art-range-control-compact {
+  min-width: 0;
+}
+
 .deck-art-modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -479,6 +607,12 @@
   .deckbuilder-deck-art-edit-button {
     opacity: 0.8;
     transform: none;
+  }
+}
+
+@media (max-width: 620px) {
+  .deck-art-text-control-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

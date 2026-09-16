@@ -53,6 +53,7 @@ from paths import (
     CUSTOM_SET_ICON_DIR,
     CAMPAIGN_PLAYER_PORTRAIT_DIR,
     DECK_ART_CACHE_DIR,
+    DECK_ART_GENERATED_DIR,
     DECK_ART_SOURCE_DIR,
     EXPORT_ROOT_DIR,
     DATA_DOWNLOAD_DIR,
@@ -455,6 +456,11 @@ DECK_ART_UPLOAD_MAX_BYTES = (
 )
 DECK_ART_UPLOAD_MAX_PIXELS = 40_000_000
 DECK_ART_UPLOAD_MAX_DIMENSION = 4096
+
+os.makedirs(
+    DECK_ART_GENERATED_DIR,
+    exist_ok=True,
+)
 
 os.makedirs(
     DECK_ART_SOURCE_DIR,
@@ -23135,6 +23141,151 @@ def normalize_deck_art_float(
     )
 
 
+def normalize_deck_art_int(
+    value,
+    default_value,
+    minimum_value,
+    maximum_value,
+):
+    try:
+        parsed_value = int(
+            round(
+                float(value)
+            )
+        )
+    except (
+        TypeError,
+        ValueError,
+    ):
+        parsed_value = int(
+            default_value
+        )
+
+    return max(
+        int(minimum_value),
+        min(
+            int(maximum_value),
+            parsed_value,
+        ),
+    )
+
+
+def normalize_deck_art_multiline_text(
+    value,
+    maximum_length,
+):
+    text = str(
+        value
+        or ""
+    ).replace(
+        "\r\n",
+        "\n",
+    ).replace(
+        "\r",
+        "\n",
+    )
+
+    lines = [
+        re.sub(
+            r"[^\S\n]+",
+            " ",
+            line,
+        ).strip()
+        for line in text.split(
+            "\n"
+        )
+    ]
+
+    while lines and not lines[0]:
+        lines.pop(0)
+
+    while lines and not lines[-1]:
+        lines.pop()
+
+    return "\n".join(
+        lines
+    )[:max(
+        0,
+        int(maximum_length),
+    )]
+
+def get_persisted_deck_art_path(
+    deck_id,
+):
+    try:
+        parsed_deck_id = int(
+            deck_id
+        )
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return ""
+
+    if parsed_deck_id < 1:
+        return ""
+
+    return os.path.join(
+        DECK_ART_GENERATED_DIR,
+        f"deck_art_{parsed_deck_id}.png",
+    )
+
+
+def save_persisted_deck_art_image(
+    deck_id,
+    spec,
+):
+    output_path = get_persisted_deck_art_path(
+        deck_id
+    )
+
+    if not output_path:
+        raise ValueError(
+            "Invalid deck ID for Deck Art output."
+        )
+
+    rendered_image = DECK_ART_RENDERER.render(
+        spec
+    )
+
+    temp_path = (
+        f"{output_path}."
+        f"{threading.get_ident()}.tmp"
+    )
+
+    try:
+        rendered_image.save(
+            temp_path,
+            format="PNG",
+            optimize=True,
+        )
+
+        os.replace(
+            temp_path,
+            output_path,
+        )
+
+    finally:
+        try:
+            rendered_image.close()
+        except Exception:
+            pass
+
+        if os.path.exists(
+            temp_path
+        ):
+            try:
+                os.remove(
+                    temp_path
+                )
+            except OSError:
+                pass
+
+    return output_path
+
+
+
+
 def save_deck_art_upload(
     upload_file,
 ):
@@ -23651,6 +23802,16 @@ def build_deck_art_spec_for_deck(
     artwork_zoom = 1.0
     artwork_offset_x = 0.0
     artwork_offset_y = 0.0
+    title_font_size = (
+        DECK_ART_RENDERER
+        .TITLE_FONT_SIZE_DEFAULT
+    )
+    subtitle_font_size = (
+        DECK_ART_RENDERER
+        .SUBTITLE_FONT_SIZE_DEFAULT
+    )
+    title_offset_y = 0
+    subtitle_offset_y = 0
 
     if has_custom_deck_art:
         deck_name = (
@@ -23713,6 +23874,42 @@ def build_deck_art_spec_for_deck(
             1.0,
         )
 
+        title_font_size = normalize_deck_art_int(
+            saved_deck_art_config.get(
+                "title_font_size"
+            ),
+            DECK_ART_RENDERER.TITLE_FONT_SIZE_DEFAULT,
+            DECK_ART_RENDERER.TITLE_FONT_SIZE_MIN,
+            DECK_ART_RENDERER.TITLE_FONT_SIZE_MAX,
+        )
+
+        subtitle_font_size = normalize_deck_art_int(
+            saved_deck_art_config.get(
+                "subtitle_font_size"
+            ),
+            DECK_ART_RENDERER.SUBTITLE_FONT_SIZE_DEFAULT,
+            DECK_ART_RENDERER.SUBTITLE_FONT_SIZE_MIN,
+            DECK_ART_RENDERER.SUBTITLE_FONT_SIZE_MAX,
+        )
+
+        title_offset_y = normalize_deck_art_int(
+            saved_deck_art_config.get(
+                "title_offset_y"
+            ),
+            0,
+            DECK_ART_RENDERER.TEXT_OFFSET_Y_MIN,
+            DECK_ART_RENDERER.TEXT_OFFSET_Y_MAX,
+        )
+
+        subtitle_offset_y = normalize_deck_art_int(
+            saved_deck_art_config.get(
+                "subtitle_offset_y"
+            ),
+            0,
+            DECK_ART_RENDERER.TEXT_OFFSET_Y_MIN,
+            DECK_ART_RENDERER.TEXT_OFFSET_Y_MAX,
+        )
+
         custom_source_type = str(
             saved_deck_art_config.get(
                 "source_type"
@@ -23744,6 +23941,10 @@ def build_deck_art_spec_for_deck(
         author=author,
         subtitle=subtitle,
         format_label=format_label,
+        title_font_size=title_font_size,
+        subtitle_font_size=subtitle_font_size,
+        title_offset_y=title_offset_y,
+        subtitle_offset_y=subtitle_offset_y,
         color_identity=tuple(
             color
             for color
@@ -23774,22 +23975,19 @@ def build_deck_art_spec_for_deck(
 def deck_art_image(
     deck_id,
 ):
-    spec = (
-        build_deck_art_spec_for_deck(
-            deck_id
-        )
+    image_path = get_persisted_deck_art_path(
+        deck_id
     )
 
-    if spec is None:
+    if (
+        not image_path
+        or not os.path.isfile(
+            image_path
+        )
+    ):
         return Response(
             status=404
         )
-
-    image_path = (
-        DECK_ART_RENDERER.render_cached(
-            spec
-        )
-    )
 
     response = send_file(
         image_path,
@@ -23797,10 +23995,6 @@ def deck_art_image(
         conditional=True,
     )
 
-    # The renderer itself is cached by the
-    # actual deck-art inputs. Revalidate this
-    # URL so renaming/changing a deck can
-    # select the new cached composition.
     response.cache_control.no_cache = True
 
     return response
@@ -24009,32 +24203,37 @@ def deckbuilder_deck_art_settings(
     ):
         source_type = "deck"
 
-    frame_options = [
-        {
-            "key": "none",
-            "label": "No Frame",
-            "image_url": "",
-        }
-    ]
+    frame_options = []
 
     for frame_key in (
-        "white",
-        "blue",
-        "black",
-        "red",
-        "green",
-        "gold",
-        "silver",
+        DECK_ART_RENDERER.FRAME_KEYS
     ):
+        frame_filename = (
+            DECK_ART_RENDERER
+            .OVERLAY_BY_KEY.get(
+                frame_key,
+                "",
+            )
+        )
+
         frame_options.append({
             "key": frame_key,
-            "label": f"deckbox_{frame_key}",
-            "image_url": url_for(
-                "static",
-                filename=(
-                    "img/"
-                    f"deckbox_{frame_key}.png"
-                ),
+            "label": (
+                DECK_ART_RENDERER
+                .frame_label(
+                    frame_key
+                )
+            ),
+            "image_url": (
+                url_for(
+                    "static",
+                    filename=(
+                        "img/"
+                        f"{frame_filename}"
+                    ),
+                )
+                if frame_filename
+                else ""
             ),
         })
 
@@ -24060,6 +24259,22 @@ def deckbuilder_deck_art_settings(
         "cards": card_options,
         "frames": frame_options,
         "deck_types": deck_type_options,
+        "mana_symbols": [
+            {
+                "symbol": color,
+                "image_url": url_for(
+                    "static",
+                    filename=(
+                        "img/symbols/"
+                        f"{color}.svg"
+                    ),
+                ),
+            }
+            for color in (
+                spec.color_identity
+                or ("C",)
+            )
+        ],
         "settings": {
             "source_type": source_type,
             "card_uuid": configured_card_uuid,
@@ -24121,6 +24336,41 @@ def deckbuilder_deck_art_settings(
                     ]
                     or ""
                 ).strip()
+            ),
+            "title_font_size": normalize_deck_art_int(
+                saved_config.get(
+                    "title_font_size"
+                ),
+                DECK_ART_RENDERER.TITLE_FONT_SIZE_DEFAULT,
+                DECK_ART_RENDERER.TITLE_FONT_SIZE_MIN,
+                DECK_ART_RENDERER.TITLE_FONT_SIZE_MAX,
+            ),
+
+            "subtitle_font_size": normalize_deck_art_int(
+                saved_config.get(
+                    "subtitle_font_size"
+                ),
+                DECK_ART_RENDERER.SUBTITLE_FONT_SIZE_DEFAULT,
+                DECK_ART_RENDERER.SUBTITLE_FONT_SIZE_MIN,
+                DECK_ART_RENDERER.SUBTITLE_FONT_SIZE_MAX,
+            ),
+
+            "title_offset_y": normalize_deck_art_int(
+                saved_config.get(
+                    "title_offset_y"
+                ),
+                0,
+                DECK_ART_RENDERER.TEXT_OFFSET_Y_MIN,
+                DECK_ART_RENDERER.TEXT_OFFSET_Y_MAX,
+            ),
+
+            "subtitle_offset_y": normalize_deck_art_int(
+                saved_config.get(
+                    "subtitle_offset_y"
+                ),
+                0,
+                DECK_ART_RENDERER.TEXT_OFFSET_Y_MIN,
+                DECK_ART_RENDERER.TEXT_OFFSET_Y_MAX,
             ),
 
             "zoom": normalize_deck_art_float(
@@ -24205,16 +24455,12 @@ def deckbuilder_deck_art_update(
             "message": "The selected Deck Art frame is invalid.",
         }), 400
 
-    title = re.sub(
-        r"\s+",
-        " ",
-        str(
-            request.form.get(
-                "title"
-            )
-            or ""
+    title = normalize_deck_art_multiline_text(
+        request.form.get(
+            "title"
         ),
-    ).strip()[:160]
+        160,
+    )
 
     if not title:
         return jsonify({
@@ -24222,16 +24468,12 @@ def deckbuilder_deck_art_update(
             "message": "Deck Title is required.",
         }), 400
 
-    subtitle = re.sub(
-        r"\s+",
-        " ",
-        str(
-            request.form.get(
-                "subtitle"
-            )
-            or ""
+    subtitle = normalize_deck_art_multiline_text(
+        request.form.get(
+            "subtitle"
         ),
-    ).strip()[:180]
+        180,
+    )
 
     deck_type = str(
         request.form.get(
@@ -24276,6 +24518,43 @@ def deckbuilder_deck_art_update(
         -1.0,
         1.0,
     )
+
+    title_font_size = normalize_deck_art_int(
+        request.form.get(
+            "title_font_size"
+        ),
+        DECK_ART_RENDERER.TITLE_FONT_SIZE_DEFAULT,
+        DECK_ART_RENDERER.TITLE_FONT_SIZE_MIN,
+        DECK_ART_RENDERER.TITLE_FONT_SIZE_MAX,
+    )
+
+    subtitle_font_size = normalize_deck_art_int(
+        request.form.get(
+            "subtitle_font_size"
+        ),
+        DECK_ART_RENDERER.SUBTITLE_FONT_SIZE_DEFAULT,
+        DECK_ART_RENDERER.SUBTITLE_FONT_SIZE_MIN,
+        DECK_ART_RENDERER.SUBTITLE_FONT_SIZE_MAX,
+    )
+
+    title_offset_y = normalize_deck_art_int(
+        request.form.get(
+            "title_offset_y"
+        ),
+        0,
+        DECK_ART_RENDERER.TEXT_OFFSET_Y_MIN,
+        DECK_ART_RENDERER.TEXT_OFFSET_Y_MAX,
+    )
+
+    subtitle_offset_y = normalize_deck_art_int(
+        request.form.get(
+            "subtitle_offset_y"
+        ),
+        0,
+        DECK_ART_RENDERER.TEXT_OFFSET_Y_MIN,
+        DECK_ART_RENDERER.TEXT_OFFSET_Y_MAX,
+    )
+
 
     card_uuid = str(
         request.form.get(
@@ -24382,6 +24661,10 @@ def deckbuilder_deck_art_update(
         "title": title,
         "subtitle": subtitle,
         "deck_type": deck_type,
+        "title_font_size": title_font_size,
+        "subtitle_font_size": subtitle_font_size,
+        "title_offset_y": title_offset_y,
+        "subtitle_offset_y": subtitle_offset_y,
         "zoom": zoom,
         "offset_x": offset_x,
         "offset_y": offset_y,
@@ -24406,8 +24689,9 @@ def deckbuilder_deck_art_update(
                 "The selected deck card image could not be resolved."
             )
 
-        DECK_ART_RENDERER.render_cached(
-            spec
+        save_persisted_deck_art_image(
+            deck_id,
+            spec,
         )
 
         save_result = update_deck_art_config(
@@ -24461,26 +24745,18 @@ def deckbuilder_deck_art_update(
 def get_deckbuilder_deck_art_path(
     deck_id,
 ):
-    spec = build_deck_art_spec_for_deck(
+    image_path = get_persisted_deck_art_path(
         deck_id
     )
 
-    if spec is None:
-        return ""
-
-    try:
-        return DECK_ART_RENDERER.render_cached(
-            spec
+    return (
+        image_path
+        if image_path
+        and os.path.isfile(
+            image_path
         )
-    except Exception as exc:
-        write_debug_log(
-            "DECK BUILDER DECK ART ERROR | "
-            f"deck_id={deck_id} | error={str(exc)}"
-        )
-
-        return ""
-
-
+        else ""
+    )
 DECK_ROULETTE_BRACKET_OPTIONS = (
     (
         1,

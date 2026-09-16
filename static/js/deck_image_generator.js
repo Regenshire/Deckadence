@@ -15,6 +15,7 @@ class DeckArtModal {
 
     this.cards = [];
     this.frames = [];
+    this.manaSymbols = [];
     this.frameKey = "silver";
     this.sourceType = "deck";
     this.persistedUploadUrl = "";
@@ -33,10 +34,21 @@ class DeckArtModal {
       uploadInput: this.q("[data-deck-art-upload-input]"),
       uploadDropzone: this.q("[data-deck-art-upload-dropzone]"),
       uploadName: this.q("[data-deck-art-upload-name]"),
-      frameGrid: this.q("[data-deck-art-frame-grid]"),
+      frameSelect: this.q("[data-deck-art-frame-select]"),
+      frameMenu: this.q("[data-deck-art-frame-menu]"),
+      frameCurrentSwatch: this.q("[data-deck-art-frame-current-swatch]"),
+      frameCurrentLabel: this.q("[data-deck-art-frame-current-label]"),
       title: this.q("[data-deck-art-title]"),
       subtitle: this.q("[data-deck-art-subtitle]"),
       type: this.q("[data-deck-art-type]"),
+      titleSize: this.q("[data-deck-art-title-size]"),
+      subtitleSize: this.q("[data-deck-art-subtitle-size]"),
+      titleY: this.q("[data-deck-art-title-y]"),
+      subtitleY: this.q("[data-deck-art-subtitle-y]"),
+      titleSizeOutput: this.q("[data-deck-art-title-size-output]"),
+      subtitleSizeOutput: this.q("[data-deck-art-subtitle-size-output]"),
+      titleYOutput: this.q("[data-deck-art-title-y-output]"),
+      subtitleYOutput: this.q("[data-deck-art-subtitle-y-output]"),
       zoom: this.q("[data-deck-art-zoom]"),
       x: this.q("[data-deck-art-x]"),
       y: this.q("[data-deck-art-y]"),
@@ -48,6 +60,7 @@ class DeckArtModal {
       sourceImage: this.q("[data-deck-art-source-image]"),
       previewEmpty: this.q("[data-deck-art-preview-empty]"),
       frameImage: this.q("[data-deck-art-frame-image]"),
+      previewMana: this.q("[data-deck-art-preview-mana]"),
       previewTitle: this.q("[data-deck-art-preview-title]"),
       previewSubtitle: this.q("[data-deck-art-preview-subtitle]"),
       previewType: this.q("[data-deck-art-preview-type]"),
@@ -55,7 +68,10 @@ class DeckArtModal {
     };
 
     this.handleKeydown = this.handleKeydown.bind(this);
-    this.handleResize = this.updatePreviewLayout.bind(this);
+    this.handleResize = () => {
+      this.updatePreviewLayout();
+      this.updatePreviewTextLayout();
+    };
 
     this.bindEvents();
   }
@@ -96,11 +112,12 @@ class DeckArtModal {
       this.setUploadFile(event.dataTransfer?.files?.[0] || null);
     });
 
-    this.el.frameGrid.addEventListener("click", (event) => {
+    this.el.frameMenu.addEventListener("click", (event) => {
       const button = event.target.closest("[data-deck-art-frame-key]");
 
       if (button) {
         this.setFrameKey(button.dataset.deckArtFrameKey);
+        this.el.frameSelect.removeAttribute("open");
       }
     });
 
@@ -108,6 +125,18 @@ class DeckArtModal {
       element.addEventListener("input", () => this.updatePreviewText());
 
       element.addEventListener("change", () => this.updatePreviewText());
+    });
+
+    [
+      this.el.titleSize,
+      this.el.subtitleSize,
+      this.el.titleY,
+      this.el.subtitleY,
+    ].forEach((element) => {
+      element.addEventListener("input", () => {
+        this.updateTextControlLabels();
+        this.updatePreviewText();
+      });
     });
 
     [this.el.zoom, this.el.x, this.el.y].forEach((element) => {
@@ -186,6 +215,8 @@ class DeckArtModal {
 
     window.removeEventListener("resize", this.handleResize);
 
+    this.el.frameSelect.removeAttribute("open");
+
     this.clearPendingUpload();
   }
 
@@ -242,6 +273,10 @@ class DeckArtModal {
 
     this.frames = Array.isArray(payload.frames) ? payload.frames : [];
 
+    this.manaSymbols = Array.isArray(payload.mana_symbols)
+      ? payload.mana_symbols
+      : [];
+
     this.persistedUploadUrl = String(settings.upload_source_url || "").trim();
 
     this.renderCards(settings.card_uuid);
@@ -253,6 +288,14 @@ class DeckArtModal {
     this.el.title.value = String(settings.title || "");
 
     this.el.subtitle.value = String(settings.subtitle || "");
+
+    this.el.titleSize.value = String(settings.title_font_size ?? 34);
+
+    this.el.subtitleSize.value = String(settings.subtitle_font_size ?? 18);
+
+    this.el.titleY.value = String(settings.title_offset_y ?? 0);
+
+    this.el.subtitleY.value = String(settings.subtitle_offset_y ?? 0);
 
     this.el.zoom.value = String(settings.zoom ?? 1);
 
@@ -266,9 +309,12 @@ class DeckArtModal {
 
     this.setSourceType(settings.source_type || "deck");
 
+    this.renderManaSymbols();
+
     this.setFrameKey(settings.frame_key || "silver");
 
     this.updateRangeLabels();
+    this.updateTextControlLabels();
     this.updatePreviewText();
     this.refreshSourcePreview();
   }
@@ -313,7 +359,7 @@ class DeckArtModal {
   renderFrames(selectedKey) {
     const selected = String(selectedKey || "silver").toLowerCase();
 
-    this.el.frameGrid.replaceChildren();
+    this.el.frameMenu.replaceChildren();
 
     this.frames.forEach((frame) => {
       const key = String(frame.key || "").toLowerCase();
@@ -323,27 +369,52 @@ class DeckArtModal {
       }
 
       const button = document.createElement("button");
-
       const swatch = document.createElement("span");
-
       const label = document.createElement("span");
 
       button.type = "button";
       button.className = "deck-art-frame-button";
-
       button.dataset.deckArtFrameKey = key;
-
       button.setAttribute("aria-pressed", key === selected ? "true" : "false");
 
       swatch.className = "deck-art-frame-swatch";
-
       swatch.dataset.frameKey = key;
 
       label.textContent = String(frame.label || key);
 
       button.append(swatch, label);
 
-      this.el.frameGrid.appendChild(button);
+      this.el.frameMenu.appendChild(button);
+    });
+  }
+
+  renderManaSymbols() {
+    this.el.previewMana.replaceChildren();
+
+    const symbols = this.manaSymbols.length
+      ? this.manaSymbols
+      : [{ symbol: "C", image_url: "" }];
+
+    symbols.forEach((item) => {
+      const symbol = String(item.symbol || "C").toUpperCase();
+      const imageUrl = String(item.image_url || "").trim();
+      const symbolWrap = document.createElement("span");
+
+      symbolWrap.className = "deck-art-preview-mana-symbol";
+      symbolWrap.dataset.symbol = symbol;
+
+      if (imageUrl) {
+        const image = document.createElement("img");
+
+        image.src = imageUrl;
+        image.alt = "";
+
+        symbolWrap.appendChild(image);
+      } else {
+        symbolWrap.textContent = symbol;
+      }
+
+      this.el.previewMana.appendChild(symbolWrap);
     });
   }
 
@@ -416,6 +487,12 @@ class DeckArtModal {
       button.setAttribute("aria-pressed", active ? "true" : "false");
     });
 
+    this.el.frameCurrentSwatch.dataset.frameKey = key;
+
+    this.el.frameCurrentLabel.textContent = String(frame.label || key);
+
+    this.el.previewMana.classList.toggle("hidden", key === "none");
+
     const frameUrl = String(frame.image_url || "").trim();
 
     if (frameUrl) {
@@ -428,7 +505,10 @@ class DeckArtModal {
       this.el.frameImage.classList.add("hidden");
     }
 
-    requestAnimationFrame(() => this.updatePreviewLayout());
+    requestAnimationFrame(() => {
+      this.updatePreviewLayout();
+      this.updatePreviewTextLayout();
+    });
   }
 
   setUploadFile(file) {
@@ -597,6 +677,58 @@ class DeckArtModal {
     return `${value < 0 ? negative : positive} ${percent}%`;
   }
 
+  updateTextControlLabels() {
+    const titleSize = Math.round(this.rangeValue(this.el.titleSize, 34));
+
+    const subtitleSize = Math.round(this.rangeValue(this.el.subtitleSize, 18));
+
+    const titleY = Math.round(this.rangeValue(this.el.titleY, 0));
+
+    const subtitleY = Math.round(this.rangeValue(this.el.subtitleY, 0));
+
+    this.el.titleSizeOutput.textContent = `${titleSize} px`;
+
+    this.el.subtitleSizeOutput.textContent = `${subtitleSize} px`;
+
+    this.el.titleYOutput.textContent = this.textOffsetLabel(titleY);
+
+    this.el.subtitleYOutput.textContent = this.textOffsetLabel(subtitleY);
+  }
+
+  textOffsetLabel(value) {
+    if (Math.abs(value) < 1) {
+      return "Default";
+    }
+
+    return `${value < 0 ? "Up" : "Down"} ${Math.abs(value)} px`;
+  }
+
+  updatePreviewTextLayout() {
+    const stageWidth = this.el.previewStage.clientWidth;
+
+    if (stageWidth < 1) {
+      return;
+    }
+
+    const scale = stageWidth / 477;
+
+    const titleSize = this.rangeValue(this.el.titleSize, 34);
+
+    const subtitleSize = this.rangeValue(this.el.subtitleSize, 18);
+
+    const titleY = this.rangeValue(this.el.titleY, 0);
+
+    const subtitleY = this.rangeValue(this.el.subtitleY, 0);
+
+    this.el.previewTitle.style.fontSize = `${titleSize * scale}px`;
+
+    this.el.previewSubtitle.style.fontSize = `${subtitleSize * scale}px`;
+
+    this.el.previewTitle.style.top = `${((514 + titleY) / 721) * 100}%`;
+
+    this.el.previewSubtitle.style.top = `${((584 + subtitleY) / 721) * 100}%`;
+  }
+
   updatePreviewText() {
     this.el.previewTitle.textContent =
       this.el.title.value.trim() || "Untitled Deck";
@@ -604,6 +736,8 @@ class DeckArtModal {
     this.el.previewSubtitle.textContent = this.el.subtitle.value.trim();
 
     this.el.previewType.textContent = this.el.type.value.trim().toUpperCase();
+
+    this.updatePreviewTextLayout();
   }
 
   async generate() {
@@ -650,6 +784,14 @@ class DeckArtModal {
     formData.set("subtitle", this.el.subtitle.value.trim());
 
     formData.set("deck_type", this.el.type.value || "");
+
+    formData.set("title_font_size", this.el.titleSize.value || "34");
+
+    formData.set("subtitle_font_size", this.el.subtitleSize.value || "18");
+
+    formData.set("title_offset_y", this.el.titleY.value || "0");
+
+    formData.set("subtitle_offset_y", this.el.subtitleY.value || "0");
 
     formData.set("zoom", this.el.zoom.value || "1");
 

@@ -60,6 +60,12 @@
             data-deck-art-frame-image
           />
 
+          <div
+            class="deck-art-preview-mana"
+            data-deck-art-preview-mana
+            aria-hidden="true"
+          ></div>
+
           <div class="deck-art-preview-title" data-deck-art-preview-title></div>
 
           <div
@@ -197,32 +203,126 @@
         <section class="deck-art-section-card">
           <div class="deck-art-section-label">Frame</div>
 
-          <div class="deck-art-frame-grid" data-deck-art-frame-grid></div>
+          <details class="deck-art-frame-select" data-deck-art-frame-select>
+            <summary>
+              <span
+                class="deck-art-frame-swatch"
+                data-frame-key="silver"
+                data-deck-art-frame-current-swatch
+              ></span>
+
+              <span data-deck-art-frame-current-label>Default - Silver</span>
+
+              <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+            </summary>
+
+            <div class="deck-art-frame-menu" data-deck-art-frame-menu></div>
+          </details>
         </section>
 
         <section class="deck-art-section-card deck-art-text-fields">
-          <label class="deck-art-field">
-            <span>Deck Title</span>
+          <div class="deck-art-text-editor">
+            <label class="deck-art-field">
+              <span>Deck Title</span>
 
-            <input
-              type="text"
-              maxlength="160"
-              autocomplete="off"
-              data-deck-art-title
-            />
-          </label>
+              <textarea
+                rows="2"
+                maxlength="160"
+                autocomplete="off"
+                data-deck-art-title
+              ></textarea>
+            </label>
 
-          <label class="deck-art-field">
-            <span>Deck Subtitle</span>
+            <div class="deck-art-text-control-grid">
+              <label
+                class="deck-art-range-control deck-art-range-control-compact"
+              >
+                <span>
+                  <strong>Font Size</strong>
+                  <output data-deck-art-title-size-output>34 px</output>
+                </span>
 
-            <input
-              type="text"
-              maxlength="180"
-              autocomplete="off"
-              placeholder="Optional subtitle"
-              data-deck-art-subtitle
-            />
-          </label>
+                <input
+                  type="range"
+                  min="18"
+                  max="44"
+                  step="1"
+                  value="34"
+                  data-deck-art-title-size
+                />
+              </label>
+
+              <label
+                class="deck-art-range-control deck-art-range-control-compact"
+              >
+                <span>
+                  <strong>Vertical</strong>
+                  <output data-deck-art-title-y-output>Default</output>
+                </span>
+
+                <input
+                  type="range"
+                  min="-60"
+                  max="60"
+                  step="1"
+                  value="0"
+                  data-deck-art-title-y
+                />
+              </label>
+            </div>
+          </div>
+
+          <div class="deck-art-text-editor">
+            <label class="deck-art-field">
+              <span>Deck Subtitle</span>
+
+              <textarea
+                rows="2"
+                maxlength="180"
+                autocomplete="off"
+                placeholder="Optional subtitle"
+                data-deck-art-subtitle
+              ></textarea>
+            </label>
+
+            <div class="deck-art-text-control-grid">
+              <label
+                class="deck-art-range-control deck-art-range-control-compact"
+              >
+                <span>
+                  <strong>Font Size</strong>
+                  <output data-deck-art-subtitle-size-output>18 px</output>
+                </span>
+
+                <input
+                  type="range"
+                  min="12"
+                  max="28"
+                  step="1"
+                  value="18"
+                  data-deck-art-subtitle-size
+                />
+              </label>
+
+              <label
+                class="deck-art-range-control deck-art-range-control-compact"
+              >
+                <span>
+                  <strong>Vertical</strong>
+                  <output data-deck-art-subtitle-y-output>Default</output>
+                </span>
+
+                <input
+                  type="range"
+                  min="-60"
+                  max="60"
+                  step="1"
+                  value="0"
+                  data-deck-art-subtitle-y
+                />
+              </label>
+            </div>
+          </div>
 
           <label class="deck-art-field">
             <span>Deck Type</span>

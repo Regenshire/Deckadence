@@ -33,6 +33,10 @@ class DeckArtSpec:
     author: str = ""
     subtitle: str = ""
     format_label: str = ""
+    title_font_size: int = 34
+    subtitle_font_size: int = 18
+    title_offset_y: int = 0
+    subtitle_offset_y: int = 0
     color_identity: tuple[str, ...] = ()
     scryfall_id: str = ""
     frame_key: str = ""
@@ -42,7 +46,7 @@ class DeckArtSpec:
     artwork_offset_y: float = 0.0
 
 class DeckArtRenderer:
-    CACHE_VERSION = 4
+    CACHE_VERSION = 5
 
     CANVAS_SIZE = (
         477,
@@ -56,6 +60,20 @@ class DeckArtRenderer:
         386,
     )
 
+    TITLE_FONT_SIZE_DEFAULT = 34
+    TITLE_FONT_SIZE_MIN = 18
+    TITLE_FONT_SIZE_MAX = 44
+
+    SUBTITLE_FONT_SIZE_DEFAULT = 18
+    SUBTITLE_FONT_SIZE_MIN = 12
+    SUBTITLE_FONT_SIZE_MAX = 28
+
+    TEXT_OFFSET_Y_MIN = -60
+    TEXT_OFFSET_Y_MAX = 60
+
+    TITLE_CENTER_Y = 514
+    SUBTITLE_TOP_Y = 584
+
     COLOR_ORDER = (
         "W",
         "U",
@@ -66,13 +84,24 @@ class DeckArtRenderer:
     )
 
     OVERLAY_BY_KEY = {
-        "black": "deckbox_black.png",
-        "blue": "deckbox_blue.png",
-        "gold": "deckbox_gold.png",
-        "green": "deckbox_green.png",
-        "red": "deckbox_red.png",
-        "silver": "deckbox_silver.png",
         "white": "deckbox_white.png",
+        "blue": "deckbox_blue.png",
+        "black": "deckbox_black.png",
+        "red": "deckbox_red.png",
+        "green": "deckbox_green.png",
+        "gold": "deckbox_gold.png",
+        "silver": "deckbox_silver.png",
+    }
+
+    FRAME_LABELS = {
+        "none": "No Frame",
+        "white": "Default - White",
+        "blue": "Default - Blue",
+        "black": "Default - Black",
+        "red": "Default - Red",
+        "green": "Default - Green",
+        "gold": "Default - Gold",
+        "silver": "Default - Silver",
     }
 
     SINGLE_COLOR_OVERLAY = {
@@ -85,13 +114,7 @@ class DeckArtRenderer:
 
     FRAME_KEYS = (
         "none",
-        "white",
-        "blue",
-        "black",
-        "red",
-        "green",
-        "gold",
-        "silver",
+        *OVERLAY_BY_KEY.keys(),
     )
 
     MANA_FALLBACK_COLORS = {
@@ -180,6 +203,10 @@ class DeckArtRenderer:
             "author": clean_spec.author,
             "subtitle": clean_spec.subtitle,
             "format_label": clean_spec.format_label,
+            "title_font_size": clean_spec.title_font_size,
+            "subtitle_font_size": clean_spec.subtitle_font_size,
+            "title_offset_y": clean_spec.title_offset_y,
+            "subtitle_offset_y": clean_spec.subtitle_offset_y,
             "color_identity": list(
                 clean_spec.color_identity
             ),
@@ -429,12 +456,16 @@ class DeckArtRenderer:
         self._draw_deck_name(
             draw,
             clean_spec.deck_name,
+            font_size=clean_spec.title_font_size,
+            offset_y=clean_spec.title_offset_y,
         )
 
         if clean_spec.subtitle:
             self._draw_subtitle(
                 draw,
                 clean_spec.subtitle,
+                font_size=clean_spec.subtitle_font_size,
+                offset_y=clean_spec.subtitle_offset_y,
             )
         else:
             self._draw_author(
@@ -453,15 +484,31 @@ class DeckArtRenderer:
     @staticmethod
     def _sanitize_render_text(
         value,
+        preserve_newlines=False,
     ):
         text = unicodedata.normalize(
             "NFC",
             str(value or ""),
+        ).replace(
+            "\r\n",
+            "\n",
+        ).replace(
+            "\r",
+            "\n",
         )
 
         cleaned_characters = []
 
         for character in text:
+            if (
+                preserve_newlines
+                and character == "\n"
+            ):
+                cleaned_characters.append(
+                    character
+                )
+                continue
+
             if character.isascii():
                 if character.isprintable():
                     cleaned_characters.append(
@@ -487,12 +534,33 @@ class DeckArtRenderer:
             cleaned_characters
         )
 
+        if preserve_newlines:
+            lines = [
+                re.sub(
+                    r"\s+",
+                    " ",
+                    line,
+                ).strip()
+                for line in cleaned_text.split(
+                    "\n"
+                )
+            ]
+
+            while lines and not lines[0]:
+                lines.pop(0)
+
+            while lines and not lines[-1]:
+                lines.pop()
+
+            return "\n".join(
+                lines
+            )
+
         return re.sub(
             r"\s+",
             " ",
             cleaned_text,
         ).strip()
-
     def _normalize_spec(
         self,
         spec,
@@ -508,7 +576,8 @@ class DeckArtRenderer:
 
         deck_name = (
             self._sanitize_render_text(
-                spec.deck_name
+                spec.deck_name,
+                preserve_newlines=True,
             )
             or "Untitled Deck"
         )
@@ -521,7 +590,8 @@ class DeckArtRenderer:
 
         subtitle = (
             self._sanitize_render_text(
-                spec.subtitle
+                spec.subtitle,
+                preserve_newlines=True,
             )
         )
 
@@ -595,6 +665,30 @@ class DeckArtRenderer:
             author=author,
             subtitle=subtitle,
             format_label=format_label,
+            title_font_size=self._normalize_int(
+                spec.title_font_size,
+                self.TITLE_FONT_SIZE_DEFAULT,
+                self.TITLE_FONT_SIZE_MIN,
+                self.TITLE_FONT_SIZE_MAX,
+            ),
+            subtitle_font_size=self._normalize_int(
+                spec.subtitle_font_size,
+                self.SUBTITLE_FONT_SIZE_DEFAULT,
+                self.SUBTITLE_FONT_SIZE_MIN,
+                self.SUBTITLE_FONT_SIZE_MAX,
+            ),
+            title_offset_y=self._normalize_int(
+                spec.title_offset_y,
+                0,
+                self.TEXT_OFFSET_Y_MIN,
+                self.TEXT_OFFSET_Y_MAX,
+            ),
+            subtitle_offset_y=self._normalize_int(
+                spec.subtitle_offset_y,
+                0,
+                self.TEXT_OFFSET_Y_MIN,
+                self.TEXT_OFFSET_Y_MAX,
+            ),
             color_identity=(
                 normalized_colors
             ),
@@ -609,6 +703,36 @@ class DeckArtRenderer:
             ),
             artwork_offset_y=self._normalize_offset(
                 spec.artwork_offset_y
+            ),
+        )
+
+
+    @staticmethod
+    def _normalize_int(
+        value,
+        default_value,
+        minimum_value,
+        maximum_value,
+    ):
+        try:
+            parsed_value = int(
+                round(
+                    float(value)
+                )
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            parsed_value = int(
+                default_value
+            )
+
+        return max(
+            int(minimum_value),
+            min(
+                int(maximum_value),
+                parsed_value,
             ),
         )
 
@@ -700,6 +824,30 @@ class DeckArtRenderer:
             )
 
         return clean_frame_key
+
+
+    @classmethod
+    def frame_label(
+        cls,
+        frame_key,
+    ):
+        clean_key = str(
+            frame_key
+            or ""
+        ).strip().lower()
+
+        if clean_key in cls.FRAME_LABELS:
+            return cls.FRAME_LABELS[
+                clean_key
+            ]
+
+        return (
+            clean_key
+            .replace("_", " ")
+            .strip()
+            .title()
+            or "Frame"
+        )
 
 
     def _resolve_overlay_key(
@@ -1517,54 +1665,52 @@ class DeckArtRenderer:
         self,
         draw,
         deck_name,
+        font_size=None,
+        offset_y=0,
     ):
-        max_width = 360
+        max_width = 330
         max_lines = 2
 
+        requested_size = self._normalize_int(
+            font_size,
+            self.TITLE_FONT_SIZE_DEFAULT,
+            self.TITLE_FONT_SIZE_MIN,
+            self.TITLE_FONT_SIZE_MAX,
+        )
+
         selected_font = None
+        selected_size = requested_size
         lines = []
 
         for size in range(
-            34,
-            21,
-            -2,
+            requested_size,
+            self.TITLE_FONT_SIZE_MIN - 1,
+            -1,
         ):
-            candidate_font = (
-                self._load_font(
-                    size,
-                    bold=True,
-                )
+            candidate_font = self._load_font(
+                size,
+                bold=True,
             )
 
-            candidate_lines = (
-                self._wrap_text(
-                    draw,
-                    deck_name,
-                    candidate_font,
-                    max_width,
-                )
+            candidate_lines = self._wrap_text(
+                draw,
+                deck_name,
+                candidate_font,
+                max_width,
             )
 
-            if (
-                len(candidate_lines)
-                <= max_lines
-            ):
-                selected_font = (
-                    candidate_font
-                )
-
-                lines = (
-                    candidate_lines
-                )
-
+            if len(candidate_lines) <= max_lines:
+                selected_font = candidate_font
+                selected_size = size
+                lines = candidate_lines
                 break
 
         if selected_font is None:
-            selected_font = (
-                self._load_font(
-                    22,
-                    bold=True,
-                )
+            selected_size = self.TITLE_FONT_SIZE_MIN
+
+            selected_font = self._load_font(
+                selected_size,
+                bold=True,
             )
 
             lines = self._wrap_text(
@@ -1572,35 +1718,28 @@ class DeckArtRenderer:
                 deck_name,
                 selected_font,
                 max_width,
-            )[:max_lines]
+                max_lines=max_lines,
+            )
 
-            if lines:
-                lines[-1] = (
-                    self._truncate_text(
-                        draw,
-                        lines[-1],
-                        selected_font,
-                        max_width,
-                    )
-                )
-
-        line_spacing = 7
+        line_spacing = max(
+            4,
+            int(round(
+                selected_size
+                * 0.35
+            )),
+        )
 
         line_heights = []
 
         for line in lines:
             bbox = draw.textbbox(
-                (
-                    0,
-                    0,
-                ),
-                line,
+                (0, 0),
+                line or " ",
                 font=selected_font,
             )
 
             line_heights.append(
-                bbox[3]
-                - bbox[1]
+                bbox[3] - bbox[1]
             )
 
         total_height = sum(
@@ -1610,39 +1749,34 @@ class DeckArtRenderer:
         if len(lines) > 1:
             total_height += (
                 line_spacing
-                * (
-                    len(lines)
-                    - 1
-                )
+                * (len(lines) - 1)
             )
 
-        y = int(
-            514
-            - (
-                total_height
-                / 2
-            )
+        clean_offset_y = self._normalize_int(
+            offset_y,
+            0,
+            self.TEXT_OFFSET_Y_MIN,
+            self.TEXT_OFFSET_Y_MAX,
         )
 
-        for (
-            line,
-            line_height,
-        ) in zip(
+        y = int(
+            self.TITLE_CENTER_Y
+            + clean_offset_y
+            - (total_height / 2)
+        )
+
+        for line, line_height in zip(
             lines,
             line_heights,
         ):
             bbox = draw.textbbox(
-                (
-                    0,
-                    0,
-                ),
+                (0, 0),
                 line,
                 font=selected_font,
             )
 
             line_width = (
-                bbox[2]
-                - bbox[0]
+                bbox[2] - bbox[0]
             )
 
             draw.text(
@@ -1652,12 +1786,10 @@ class DeckArtRenderer:
                         - line_width
                     )
                     / 2,
-                    y,
+                    y - bbox[1],
                 ),
-
                 line,
                 font=selected_font,
-
                 fill=(
                     248,
                     248,
@@ -1676,56 +1808,124 @@ class DeckArtRenderer:
         self,
         draw,
         subtitle,
+        font_size=None,
+        offset_y=0,
     ):
         if not subtitle:
             return
 
-        font = self._load_font(
-            18,
-            bold=False,
+        max_width = 345
+        max_lines = 2
+
+        requested_size = self._normalize_int(
+            font_size,
+            self.SUBTITLE_FONT_SIZE_DEFAULT,
+            self.SUBTITLE_FONT_SIZE_MIN,
+            self.SUBTITLE_FONT_SIZE_MAX,
         )
 
-        text = self._truncate_text(
-            draw,
-            subtitle,
-            font,
-            345,
+        selected_font = None
+        selected_size = requested_size
+        lines = []
+
+        for size in range(
+            requested_size,
+            self.SUBTITLE_FONT_SIZE_MIN - 1,
+            -1,
+        ):
+            candidate_font = self._load_font(
+                size,
+                bold=False,
+            )
+
+            candidate_lines = self._wrap_text(
+                draw,
+                subtitle,
+                candidate_font,
+                max_width,
+            )
+
+            if len(candidate_lines) <= max_lines:
+                selected_font = candidate_font
+                selected_size = size
+                lines = candidate_lines
+                break
+
+        if selected_font is None:
+            selected_size = self.SUBTITLE_FONT_SIZE_MIN
+
+            selected_font = self._load_font(
+                selected_size,
+                bold=False,
+            )
+
+            lines = self._wrap_text(
+                draw,
+                subtitle,
+                selected_font,
+                max_width,
+                max_lines=max_lines,
+            )
+
+        line_spacing = max(
+            3,
+            int(round(
+                selected_size
+                * 0.40
+            )),
         )
 
-        bbox = draw.textbbox(
-            (
-                0,
-                0,
-            ),
-            text,
-            font=font,
+        clean_offset_y = self._normalize_int(
+            offset_y,
+            0,
+            self.TEXT_OFFSET_Y_MIN,
+            self.TEXT_OFFSET_Y_MAX,
         )
 
-        text_width = (
-            bbox[2]
-            - bbox[0]
+        y = (
+            self.SUBTITLE_TOP_Y
+            + clean_offset_y
         )
 
-        draw.text(
-            (
+        for line in lines:
+            bbox = draw.textbbox(
+                (0, 0),
+                line or " ",
+                font=selected_font,
+            )
+
+            text_width = (
+                bbox[2] - bbox[0]
+            )
+
+            text_height = (
+                bbox[3] - bbox[1]
+            )
+
+            draw.text(
                 (
-                    self.CANVAS_SIZE[0]
-                    - text_width
-                )
-                / 2,
-                584,
-            ),
+                    (
+                        self.CANVAS_SIZE[0]
+                        - text_width
+                    )
+                    / 2,
+                    y - bbox[1],
+                ),
+                line,
+                font=selected_font,
+                fill=(
+                    235,
+                    235,
+                    240,
+                    255,
+                ),
+            )
 
-            text,
-            font=font,
+            y += (
+                text_height
+                + line_spacing
+            )
 
-            fill=(
-                235,
-                235,
-                240,
-                255,
-            ),
-        )
 
 
     def _draw_author(
@@ -2011,63 +2211,102 @@ class DeckArtRenderer:
         text,
         font,
         max_width,
+        max_lines=None,
     ):
-        words = str(
+        paragraphs = str(
             text
             or ""
-        ).strip().split()
+        ).replace(
+            "\r\n",
+            "\n",
+        ).replace(
+            "\r",
+            "\n",
+        ).split(
+            "\n"
+        )
 
-        if not words:
+        if not paragraphs:
             return []
 
         lines = []
-        current_line = ""
 
-        for word in words:
-            test_line = (
-                word
-                if not current_line
-                else (
-                    f"{current_line} "
-                    f"{word}"
-                )
-            )
+        for paragraph in paragraphs:
+            words = paragraph.strip().split()
 
-            bbox = draw.textbbox(
-                (
-                    0,
-                    0,
-                ),
-                test_line,
-                font=font,
-            )
+            if not words:
+                if lines:
+                    lines.append("")
+                continue
 
-            if (
-                (
-                    bbox[2]
-                    - bbox[0]
-                )
-                <= max_width
+            current_line = ""
 
-                or not current_line
-            ):
-                current_line = (
-                    test_line
+            for word in words:
+                test_line = (
+                    word
+                    if not current_line
+                    else (
+                        f"{current_line} "
+                        f"{word}"
+                    )
                 )
 
-            else:
+                bbox = draw.textbbox(
+                    (0, 0),
+                    test_line,
+                    font=font,
+                )
+
+                if (
+                    (bbox[2] - bbox[0])
+                    <= max_width
+                    or not current_line
+                ):
+                    current_line = test_line
+                else:
+                    lines.append(
+                        current_line
+                    )
+
+                    current_line = word
+
+            if current_line:
                 lines.append(
                     current_line
                 )
 
-                current_line = word
+        while lines and not lines[0]:
+            lines.pop(0)
 
-        if current_line:
-            lines.append(
-                current_line
+        while lines and not lines[-1]:
+            lines.pop()
+
+        if (
+            max_lines is not None
+            and len(lines) > max_lines
+        ):
+            visible_lines = lines[:max_lines]
+
+            last_line = (
+                visible_lines[-1]
+                or ""
+            ).rstrip()
+
+            if not last_line.endswith("…"):
+                last_line += "…"
+
+            visible_lines[-1] = self._truncate_text(
+                draw,
+                last_line,
+                font,
+                max_width,
             )
 
+            return visible_lines
+
         return lines
+
+
 
 
     @staticmethod
