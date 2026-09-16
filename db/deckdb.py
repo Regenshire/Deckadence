@@ -174,6 +174,13 @@ def ensure_deck_schema():
     ensure_column_exists(
         cursor,
         "decks",
+        "deck_art_json",
+        "TEXT",
+    )
+
+    ensure_column_exists(
+        cursor,
+        "decks",
         "alternate_image_scope_id",
         "TEXT REFERENCES alternate_image_scopes (image_scope_id)",
     )
@@ -413,6 +420,122 @@ def update_deck_card_back_key(
         "deck_id": parsed_deck_id,
         "card_back_key": clean_card_back_key,
     }
+
+
+def get_deck_art_config(
+    deck_id,
+):
+    deck_row = get_deck_by_id(
+        deck_id
+    )
+
+    if not deck_row:
+        return {}
+
+    raw_config = (
+        deck_row["deck_art_json"]
+        if "deck_art_json"
+        in deck_row.keys()
+        else ""
+    )
+
+    if not raw_config:
+        return {}
+
+    try:
+        parsed_config = json.loads(
+            raw_config
+        )
+    except (
+        TypeError,
+        ValueError,
+        json.JSONDecodeError,
+    ):
+        return {}
+
+    return (
+        parsed_config
+        if isinstance(
+            parsed_config,
+            dict,
+        )
+        else {}
+    )
+
+
+def update_deck_art_config(
+    deck_id,
+    deck_art_config,
+):
+    ensure_deck_schema()
+
+    parsed_deck_id = normalize_deck_optional_int(
+        deck_id
+    )
+
+    if parsed_deck_id is None:
+        return {
+            "ok": False,
+            "message": "Invalid deck ID.",
+        }
+
+    if not isinstance(
+        deck_art_config,
+        dict,
+    ):
+        return {
+            "ok": False,
+            "message": "Deck Art configuration is invalid.",
+        }
+
+    serialized_config = json.dumps(
+        deck_art_config,
+        sort_keys=True,
+        separators=(
+            ",",
+            ":",
+        ),
+    )
+
+    now_utc = deck_utc_now()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE decks
+        SET deck_art_json = ?,
+            updated_at_utc = ?
+        WHERE deck_id = ?
+          AND status = ?
+        """,
+        (
+            serialized_config,
+            now_utc,
+            parsed_deck_id,
+            DECK_STATUS_ACTIVE,
+        ),
+    )
+
+    if cursor.rowcount < 1:
+        conn.close()
+
+        return {
+            "ok": False,
+            "message": "Deck was not found.",
+        }
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "ok": True,
+        "message": "Deck Art configuration saved.",
+        "deck_id": parsed_deck_id,
+        "deck_art_config": deck_art_config,
+    }
+
 
 @isolation_operation
 def archive_deck(deck_id):
@@ -728,6 +851,7 @@ def get_saved_deckbuilder_cards_for_deck(deck_id, deck_zone=None, include_basic_
             cc.mana_cost,
             cc.colors_json,
             cc.color_identity_json,
+            cc.scryfall_id,
             cc.image_url
         FROM deck_cards dc
         LEFT JOIN chaos_cards cc
@@ -784,6 +908,7 @@ def get_saved_deckbuilder_cards_for_deck(deck_id, deck_zone=None, include_basic_
                 "mana_cost": row["mana_cost"] or "",
                 "colors_json": row["colors_json"] or "[]",
                 "color_identity_json": row["color_identity_json"] or "[]",
+                "scryfall_id": row["scryfall_id"] or "",
                 "image_url": row["image_url"] or "",
             })
 
@@ -3234,10 +3359,11 @@ def duplicate_deck(deck_id):
             default_sort_mode,
             notes,
             card_back_key,
+            deck_art_json,
             created_at_utc,
             updated_at_utc
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             DECK_SOURCE_TYPE_STANDALONE,
@@ -3251,6 +3377,7 @@ def duplicate_deck(deck_id):
             source_deck["default_sort_mode"] or "rarity-desc",
             source_deck["notes"] or "",
             source_deck["card_back_key"] or None,
+            source_deck["deck_art_json"] or None,
             now_utc,
             now_utc,
         ),

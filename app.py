@@ -53,6 +53,7 @@ from paths import (
     CUSTOM_SET_ICON_DIR,
     CAMPAIGN_PLAYER_PORTRAIT_DIR,
     DECK_ART_CACHE_DIR,
+    DECK_ART_SOURCE_DIR,
     EXPORT_ROOT_DIR,
     DATA_DOWNLOAD_DIR,
     IMAGE_CACHE_DIR,
@@ -274,7 +275,9 @@ from db.deckdb import (
     duplicate_deck,
     get_basic_land_counts_for_deck,
     DECK_FORMAT_OPTIONS,
+    DECK_STATUS_ACTIVE,
     get_deck_by_id,
+    get_deck_art_config,
     get_deck_management_rows,
     get_loadable_deck_rows,
     get_or_create_deck_for_draft_test,
@@ -283,6 +286,7 @@ from db.deckdb import (
     remove_basic_land_from_deck,
     remove_deckbuilder_card,
     update_deck_settings,
+    update_deck_art_config,
     update_deck_card_back_key,
     update_deckbuilder_stack_layout,
     update_deckbuilder_basic_land_printing,
@@ -442,6 +446,19 @@ app.secret_key = APP_SECRET_KEY
 DECK_ART_RENDERER = DeckArtRenderer(
     static_root=app.static_folder,
     cache_root=DECK_ART_CACHE_DIR,
+)
+
+DECK_ART_UPLOAD_MAX_BYTES = (
+    16
+    * 1024
+    * 1024
+)
+DECK_ART_UPLOAD_MAX_PIXELS = 40_000_000
+DECK_ART_UPLOAD_MAX_DIMENSION = 4096
+
+os.makedirs(
+    DECK_ART_SOURCE_DIR,
+    exist_ok=True,
 )
 
 register_ui_navigation(app)
@@ -23046,8 +23063,287 @@ def deck_art_external():
 
     return response
 
+def resolve_deck_art_source_path(
+    filename,
+):
+    clean_filename = str(
+        filename
+        or ""
+    ).strip()
+
+    if (
+        not clean_filename
+        or clean_filename
+        != os.path.basename(
+            clean_filename
+        )
+    ):
+        return ""
+
+    source_root = os.path.abspath(
+        DECK_ART_SOURCE_DIR
+    )
+    source_path = os.path.abspath(
+        os.path.join(
+            source_root,
+            clean_filename,
+        )
+    )
+
+    try:
+        if os.path.commonpath((
+            source_root,
+            source_path,
+        )) != source_root:
+            return ""
+    except ValueError:
+        return ""
+
+    return (
+        source_path
+        if os.path.isfile(
+            source_path
+        )
+        else ""
+    )
+
+
+def normalize_deck_art_float(
+    value,
+    default_value,
+    minimum_value,
+    maximum_value,
+):
+    try:
+        parsed_value = float(
+            value
+        )
+    except (
+        TypeError,
+        ValueError,
+    ):
+        parsed_value = float(
+            default_value
+        )
+
+    return max(
+        float(minimum_value),
+        min(
+            float(maximum_value),
+            parsed_value,
+        ),
+    )
+
+
+def save_deck_art_upload(
+    upload_file,
+):
+    if (
+        not upload_file
+        or not str(
+            upload_file.filename
+            or ""
+        ).strip()
+    ):
+        raise ValueError(
+            "Choose an image to upload."
+        )
+
+    upload_bytes = upload_file.read(
+        DECK_ART_UPLOAD_MAX_BYTES
+        + 1
+    )
+
+    if len(upload_bytes) > DECK_ART_UPLOAD_MAX_BYTES:
+        raise ValueError(
+            "Deck Art uploads must be 16 MB or smaller."
+        )
+
+    if not upload_bytes:
+        raise ValueError(
+            "The uploaded image was empty."
+        )
+
+    try:
+        with Image.open(
+            BytesIO(
+                upload_bytes
+            )
+        ) as source_image:
+            source_format = str(
+                source_image.format
+                or ""
+            ).strip().upper()
+
+            if source_format not in {
+                "JPEG",
+                "PNG",
+                "WEBP",
+            }:
+                raise ValueError(
+                    "Deck Art uploads must be PNG, JPEG, or WebP images."
+                )
+
+            width = int(
+                source_image.width
+                or 0
+            )
+            height = int(
+                source_image.height
+                or 0
+            )
+
+            if (
+                width < 1
+                or height < 1
+                or width * height
+                > DECK_ART_UPLOAD_MAX_PIXELS
+            ):
+                raise ValueError(
+                    "The uploaded image dimensions are too large."
+                )
+
+            normalized_image = (
+                ImageOps.exif_transpose(
+                    source_image
+                )
+                .convert("RGB")
+            )
+
+            normalized_image.thumbnail(
+                (
+                    DECK_ART_UPLOAD_MAX_DIMENSION,
+                    DECK_ART_UPLOAD_MAX_DIMENSION,
+                ),
+                Image.LANCZOS,
+            )
+
+            source_digest = hashlib.sha256(
+                upload_bytes
+            ).hexdigest()
+
+            filename = (
+                "deck_art_source_"
+                f"{source_digest}.png"
+            )
+
+            output_path = os.path.join(
+                DECK_ART_SOURCE_DIR,
+                filename,
+            )
+
+            if os.path.isfile(
+                output_path
+            ):
+                return filename
+
+            temp_path = (
+                f"{output_path}."
+                f"{threading.get_ident()}.tmp"
+            )
+
+            try:
+                normalized_image.save(
+                    temp_path,
+                    format="PNG",
+                    optimize=True,
+                )
+
+                os.replace(
+                    temp_path,
+                    output_path,
+                )
+
+            finally:
+                if os.path.exists(
+                    temp_path
+                ):
+                    try:
+                        os.remove(
+                            temp_path
+                        )
+                    except OSError:
+                        pass
+
+    except ValueError:
+        raise
+
+    except Exception as exc:
+        raise ValueError(
+            "The uploaded Deck Art image could not be read."
+        ) from exc
+
+    return filename
+
+
+def get_deck_card_artwork_path(
+    deck_id,
+    card_uuid,
+):
+    card_row = get_chaos_card_by_uuid(
+        card_uuid
+    )
+
+    if not card_row:
+        return ""
+
+    face_context = get_chaos_card_image_face_context(
+        card_row,
+        "front",
+    )
+
+    if not face_context:
+        return ""
+
+    with closing(get_db_connection()) as conn:
+        image_context = (
+            AlternateImageRepository.for_owner(
+                conn,
+                "deck",
+                str(deck_id),
+            ).context
+        )
+
+    image_source = resolve_card_image_source_for_page(
+        card_row,
+        face_context["page_kind"],
+        face_context["image_url"],
+        image_context=image_context,
+    )
+
+    local_result = get_local_card_image_result_from_source(
+        image_source
+    )
+
+    if local_result:
+        return os.path.abspath(
+            local_result["absolute_path"]
+        )
+
+    cached_result = download_chaos_image_to_cache(
+        card_row["card_uuid"],
+        face_context["page_kind"],
+        face_context["face_name"],
+        face_context["image_url"],
+    )
+
+    if not cached_result:
+        return ""
+
+    absolute_path = os.path.abspath(
+        cached_result["absolute_path"]
+    )
+
+    return (
+        absolute_path
+        if os.path.isfile(absolute_path)
+        else ""
+    )
+
+
 def build_deck_art_spec_for_deck(
     deck_id,
+    deck_art_config=None,
 ):
     conn = get_db_connection()
 
@@ -23057,7 +23353,8 @@ def build_deck_art_spec_for_deck(
             SELECT
                 deck_id,
                 deck_name,
-                deck_format
+                deck_format,
+                deck_art_json
             FROM decks
             WHERE deck_id = ?
             """,
@@ -23068,6 +23365,42 @@ def build_deck_art_spec_for_deck(
 
         if not deck_row:
             return None
+
+        if deck_art_config is None:
+            try:
+                saved_deck_art_config = json.loads(
+                    deck_row[
+                        "deck_art_json"
+                    ]
+                    or "{}"
+                )
+            except Exception:
+                saved_deck_art_config = {}
+        else:
+            saved_deck_art_config = (
+                deck_art_config
+                if isinstance(
+                    deck_art_config,
+                    dict,
+                )
+                else {}
+            )
+
+        if not isinstance(
+            saved_deck_art_config,
+            dict,
+        ):
+            saved_deck_art_config = {}
+
+        has_custom_deck_art = (
+            int(
+                saved_deck_art_config.get(
+                    "version"
+                )
+                or 0
+            )
+            >= 1
+        )
 
         external_author = ""
         external_format = ""
@@ -23113,6 +23446,7 @@ def build_deck_art_spec_for_deck(
         card_rows = conn.execute(
             """
             SELECT
+                dc.card_uuid,
                 dc.deck_zone,
                 dc.deck_role,
                 dc.display_order,
@@ -23160,11 +23494,24 @@ def build_deck_art_spec_for_deck(
 
     art_scryfall_id = ""
     leader_scryfall_id = ""
+    configured_scryfall_id = ""
 
     leader_colors = set()
     deck_colors = set()
 
+    configured_card_uuid = str(
+        saved_deck_art_config.get(
+            "card_uuid"
+        )
+        or ""
+    ).strip()
+
     for row in card_rows:
+        card_uuid = str(
+            row["card_uuid"]
+            or ""
+        ).strip()
+
         scryfall_id = str(
             row["scryfall_id"]
             or ""
@@ -23228,6 +23575,16 @@ def build_deck_art_spec_for_deck(
             )
 
         if (
+            configured_card_uuid
+            and card_uuid
+            == configured_card_uuid
+            and scryfall_id
+        ):
+            configured_scryfall_id = (
+                scryfall_id
+            )
+
+        if (
             not art_scryfall_id
             and scryfall_id
         ):
@@ -23238,6 +23595,21 @@ def build_deck_art_spec_for_deck(
     if leader_scryfall_id:
         art_scryfall_id = (
             leader_scryfall_id
+        )
+
+    if (
+        has_custom_deck_art
+        and str(
+            saved_deck_art_config.get(
+                "source_type"
+            )
+            or ""
+        ).strip().lower()
+        == "deck"
+        and configured_scryfall_id
+    ):
+        art_scryfall_id = (
+            configured_scryfall_id
         )
 
     effective_colors = (
@@ -23263,22 +23635,115 @@ def build_deck_art_spec_for_deck(
             format_label = (
                 format_rule["label"]
             )
-
         else:
             format_label = (
                 external_format
             )
 
+    deck_name = (
+        deck_row["deck_name"]
+        or "Untitled Deck"
+    )
+    author = external_author
+    subtitle = ""
+    frame_key = ""
+    artwork_path = ""
+    artwork_zoom = 1.0
+    artwork_offset_x = 0.0
+    artwork_offset_y = 0.0
+
+    if has_custom_deck_art:
+        deck_name = (
+            str(
+                saved_deck_art_config.get(
+                    "title"
+                )
+                or ""
+            ).strip()
+            or deck_name
+        )
+
+        author = ""
+
+        subtitle = str(
+            saved_deck_art_config.get(
+                "subtitle"
+            )
+            or ""
+        ).strip()
+
+        format_label = str(
+            saved_deck_art_config.get(
+                "deck_type"
+            )
+            or ""
+        ).strip()
+
+        frame_key = str(
+            saved_deck_art_config.get(
+                "frame_key"
+            )
+            or ""
+        ).strip().lower()
+
+        artwork_zoom = normalize_deck_art_float(
+            saved_deck_art_config.get(
+                "zoom"
+            ),
+            1.0,
+            1.0,
+            3.0,
+        )
+
+        artwork_offset_x = normalize_deck_art_float(
+            saved_deck_art_config.get(
+                "offset_x"
+            ),
+            0.0,
+            -1.0,
+            1.0,
+        )
+
+        artwork_offset_y = normalize_deck_art_float(
+            saved_deck_art_config.get(
+                "offset_y"
+            ),
+            0.0,
+            -1.0,
+            1.0,
+        )
+
+        custom_source_type = str(
+            saved_deck_art_config.get(
+                "source_type"
+            )
+            or ""
+        ).strip().lower()
+
+        if custom_source_type == "upload":
+            artwork_path = (
+                resolve_deck_art_source_path(
+                    saved_deck_art_config.get(
+                        "upload_filename"
+                    )
+                )
+            )
+
+        elif (
+            custom_source_type == "deck"
+            and configured_card_uuid
+        ):
+            artwork_path = get_deck_card_artwork_path(
+                deck_id,
+                configured_card_uuid,
+            )
+            art_scryfall_id = ""
+
     return DeckArtSpec(
-        deck_name=(
-            deck_row["deck_name"]
-            or "Untitled Deck"
-        ),
-
-        author=external_author,
-
+        deck_name=deck_name,
+        author=author,
+        subtitle=subtitle,
         format_label=format_label,
-
         color_identity=tuple(
             color
             for color
@@ -23292,10 +23757,14 @@ def build_deck_art_spec_for_deck(
             if color
             in effective_colors
         ),
-
         scryfall_id=(
             art_scryfall_id
         ),
+        frame_key=frame_key,
+        artwork_path=artwork_path,
+        artwork_zoom=artwork_zoom,
+        artwork_offset_x=artwork_offset_x,
+        artwork_offset_y=artwork_offset_y,
     )
 
 @app.route(
@@ -23336,6 +23805,658 @@ def deck_art_image(
 
     return response
 
+@app.route(
+    "/deck-art/deck/<int:deck_id>/source.png",
+    methods=["GET"],
+)
+def deck_art_source_image(
+    deck_id,
+):
+    deck_art_config = get_deck_art_config(
+        deck_id
+    )
+
+    source_path = resolve_deck_art_source_path(
+        deck_art_config.get(
+            "upload_filename"
+        )
+    )
+
+    if not source_path:
+        return Response(
+            status=404
+        )
+
+    response = send_file(
+        source_path,
+        mimetype="image/png",
+        conditional=True,
+    )
+
+    response.cache_control.no_cache = True
+
+    return response
+
+
+@app.route(
+    "/deck-builder/<int:deck_id>/deck-art/settings",
+    methods=["GET"],
+)
+def deckbuilder_deck_art_settings(
+    deck_id,
+):
+    deck_row = get_deck_by_id(
+        deck_id
+    )
+
+    if (
+        not deck_row
+        or str(
+            deck_row["status"]
+            or ""
+        ).strip().lower()
+        != DECK_STATUS_ACTIVE
+    ):
+        return jsonify({
+            "ok": False,
+            "message": "Deck was not found.",
+        }), 404
+
+    saved_config = get_deck_art_config(
+        deck_id
+    )
+
+    spec = build_deck_art_spec_for_deck(
+        deck_id
+    )
+
+    if spec is None:
+        return jsonify({
+            "ok": False,
+            "message": "Deck Art settings could not be loaded.",
+        }), 404
+
+    card_rows = get_saved_deckbuilder_cards_for_deck(
+        deck_id,
+        include_basic_lands=True,
+    )
+
+    card_options = []
+    seen_card_uuids = set()
+
+    for card in card_rows:
+        card_uuid = str(
+            card.get(
+                "card_uuid"
+            )
+            or ""
+        ).strip()
+
+        if (
+            not card_uuid
+            or card_uuid
+            in seen_card_uuids
+        ):
+            continue
+
+        seen_card_uuids.add(
+            card_uuid
+        )
+
+        scryfall_id = str(
+            card.get(
+                "scryfall_id"
+            )
+            or ""
+        ).strip()
+
+        preview_url = url_for(
+            "chaos_card_image",
+            card_uuid=card_uuid,
+            image_owner_kind="deck",
+            image_owner_id=str(deck_id),
+        )
+
+        card_options.append({
+            "card_uuid": card_uuid,
+            "card_name": str(
+                card.get(
+                    "card_name"
+                )
+                or "Unknown Card"
+            ),
+            "deck_zone": str(
+                card.get(
+                    "deck_zone"
+                )
+                or "deck"
+            ),
+            "scryfall_id": scryfall_id,
+            "preview_url": preview_url,
+        })
+
+    configured_card_uuid = str(
+        saved_config.get(
+            "card_uuid"
+        )
+        or ""
+    ).strip()
+
+    valid_card_uuids = {
+        card["card_uuid"]
+        for card in card_options
+    }
+
+    if configured_card_uuid not in valid_card_uuids:
+        configured_card_uuid = ""
+
+    if (
+        not configured_card_uuid
+        and spec.scryfall_id
+    ):
+        for card in card_options:
+            if (
+                card["scryfall_id"]
+                == spec.scryfall_id
+            ):
+                configured_card_uuid = (
+                    card["card_uuid"]
+                )
+                break
+
+    if (
+        not configured_card_uuid
+        and card_options
+    ):
+        configured_card_uuid = (
+            card_options[0][
+                "card_uuid"
+            ]
+        )
+
+    has_custom_config = (
+        int(
+            saved_config.get(
+                "version"
+            )
+            or 0
+        )
+        >= 1
+    )
+
+    source_type = str(
+        saved_config.get(
+            "source_type"
+        )
+        or "deck"
+    ).strip().lower()
+
+    if source_type not in {
+        "deck",
+        "upload",
+    }:
+        source_type = "deck"
+
+    upload_source_path = resolve_deck_art_source_path(
+        saved_config.get(
+            "upload_filename"
+        )
+    )
+
+    if (
+        source_type == "upload"
+        and not upload_source_path
+    ):
+        source_type = "deck"
+
+    frame_options = [
+        {
+            "key": "none",
+            "label": "No Frame",
+            "image_url": "",
+        }
+    ]
+
+    for frame_key in (
+        "white",
+        "blue",
+        "black",
+        "red",
+        "green",
+        "gold",
+        "silver",
+    ):
+        frame_options.append({
+            "key": frame_key,
+            "label": f"deckbox_{frame_key}",
+            "image_url": url_for(
+                "static",
+                filename=(
+                    "img/"
+                    f"deckbox_{frame_key}.png"
+                ),
+            ),
+        })
+
+    deck_type_options = [
+        {
+            "value": "",
+            "label": "None",
+        }
+    ]
+
+    for deck_type in DECK_FORMAT_OPTIONS:
+        deck_type_options.append({
+            "value": deck_type,
+            "label": (
+                "Limited / Draft"
+                if deck_type == "Limited"
+                else deck_type
+            ),
+        })
+
+    return jsonify({
+        "ok": True,
+        "cards": card_options,
+        "frames": frame_options,
+        "deck_types": deck_type_options,
+        "settings": {
+            "source_type": source_type,
+            "card_uuid": configured_card_uuid,
+
+            "upload_source_url": (
+                url_for(
+                    "deck_art_source_image",
+                    deck_id=deck_id,
+                )
+                if upload_source_path
+                else ""
+            ),
+
+            "frame_key": (
+                DECK_ART_RENDERER.resolve_frame_key(
+                    spec.frame_key,
+                    spec.color_identity,
+                )
+            ),
+
+            "title": (
+                str(
+                    saved_config.get(
+                        "title"
+                    )
+                    or ""
+                ).strip()
+                if has_custom_config
+                else str(
+                    deck_row[
+                        "deck_name"
+                    ]
+                    or "Untitled Deck"
+                ).strip()
+            ),
+
+            "subtitle": (
+                str(
+                    saved_config.get(
+                        "subtitle"
+                    )
+                    or ""
+                ).strip()
+                if has_custom_config
+                else ""
+            ),
+
+            "deck_type": (
+                str(
+                    saved_config.get(
+                        "deck_type"
+                    )
+                    or ""
+                ).strip()
+                if has_custom_config
+                else str(
+                    deck_row[
+                        "deck_format"
+                    ]
+                    or ""
+                ).strip()
+            ),
+
+            "zoom": normalize_deck_art_float(
+                saved_config.get(
+                    "zoom"
+                ),
+                1.0,
+                1.0,
+                3.0,
+            ),
+
+            "offset_x": normalize_deck_art_float(
+                saved_config.get(
+                    "offset_x"
+                ),
+                0.0,
+                -1.0,
+                1.0,
+            ),
+
+            "offset_y": normalize_deck_art_float(
+                saved_config.get(
+                    "offset_y"
+                ),
+                0.0,
+                -1.0,
+                1.0,
+            ),
+        },
+    })
+
+@app.route(
+    "/deck-builder/<int:deck_id>/deck-art",
+    methods=["POST"],
+)
+def deckbuilder_deck_art_update(
+    deck_id,
+):
+    deck_row = get_deck_by_id(
+        deck_id
+    )
+
+    if (
+        not deck_row
+        or str(
+            deck_row["status"]
+            or ""
+        ).strip().lower()
+        != DECK_STATUS_ACTIVE
+    ):
+        return jsonify({
+            "ok": False,
+            "message": "Deck was not found.",
+        }), 404
+
+    source_type = str(
+        request.form.get(
+            "source_type"
+        )
+        or "deck"
+    ).strip().lower()
+
+    if source_type not in {
+        "deck",
+        "upload",
+    }:
+        return jsonify({
+            "ok": False,
+            "message": "Choose Deck or Upload as the Art Source.",
+        }), 400
+
+    frame_key = str(
+        request.form.get(
+            "frame_key"
+        )
+        or ""
+    ).strip().lower()
+
+    if frame_key not in DECK_ART_RENDERER.FRAME_KEYS:
+        return jsonify({
+            "ok": False,
+            "message": "The selected Deck Art frame is invalid.",
+        }), 400
+
+    title = re.sub(
+        r"\s+",
+        " ",
+        str(
+            request.form.get(
+                "title"
+            )
+            or ""
+        ),
+    ).strip()[:160]
+
+    if not title:
+        return jsonify({
+            "ok": False,
+            "message": "Deck Title is required.",
+        }), 400
+
+    subtitle = re.sub(
+        r"\s+",
+        " ",
+        str(
+            request.form.get(
+                "subtitle"
+            )
+            or ""
+        ),
+    ).strip()[:180]
+
+    deck_type = str(
+        request.form.get(
+            "deck_type"
+        )
+        or ""
+    ).strip()
+
+    if (
+        deck_type
+        and deck_type
+        not in DECK_FORMAT_OPTIONS
+    ):
+        return jsonify({
+            "ok": False,
+            "message": "The selected Deck Type is invalid.",
+        }), 400
+
+    zoom = normalize_deck_art_float(
+        request.form.get(
+            "zoom"
+        ),
+        1.0,
+        1.0,
+        3.0,
+    )
+
+    offset_x = normalize_deck_art_float(
+        request.form.get(
+            "offset_x"
+        ),
+        0.0,
+        -1.0,
+        1.0,
+    )
+
+    offset_y = normalize_deck_art_float(
+        request.form.get(
+            "offset_y"
+        ),
+        0.0,
+        -1.0,
+        1.0,
+    )
+
+    card_uuid = str(
+        request.form.get(
+            "card_uuid"
+        )
+        or ""
+    ).strip()
+
+    card_rows = get_saved_deckbuilder_cards_for_deck(
+        deck_id,
+        include_basic_lands=True,
+    )
+
+    valid_card_uuids = {
+        str(
+            card.get(
+                "card_uuid"
+            )
+            or ""
+        ).strip()
+
+        for card in card_rows
+
+        if str(
+            card.get(
+                "card_uuid"
+            )
+            or ""
+        ).strip()
+    }
+
+    if (
+        source_type == "deck"
+        and card_uuid
+        not in valid_card_uuids
+    ):
+        return jsonify({
+            "ok": False,
+            "message": "Choose a card from the Deck or Sideboard.",
+        }), 400
+
+    existing_config = get_deck_art_config(
+        deck_id
+    )
+
+    upload_filename = str(
+        existing_config.get(
+            "upload_filename"
+        )
+        or ""
+    ).strip()
+
+    new_upload_filename = ""
+
+    if source_type == "upload":
+        upload_file = request.files.get(
+            "art_file"
+        )
+
+        if (
+            upload_file
+            and str(
+                upload_file.filename
+                or ""
+            ).strip()
+        ):
+            try:
+                new_upload_filename = (
+                    save_deck_art_upload(
+                        upload_file
+                    )
+                )
+
+                upload_filename = (
+                    new_upload_filename
+                )
+
+            except ValueError as exc:
+                return jsonify({
+                    "ok": False,
+                    "message": str(exc),
+                }), 400
+
+        if not resolve_deck_art_source_path(
+            upload_filename
+        ):
+            return jsonify({
+                "ok": False,
+                "message": "Choose an image to upload.",
+            }), 400
+
+    deck_art_config = {
+        "version": 1,
+        "source_type": source_type,
+
+        "card_uuid": (
+            card_uuid
+            if source_type == "deck"
+            else ""
+        ),
+
+        "upload_filename": upload_filename,
+        "frame_key": frame_key,
+        "title": title,
+        "subtitle": subtitle,
+        "deck_type": deck_type,
+        "zoom": zoom,
+        "offset_x": offset_x,
+        "offset_y": offset_y,
+    }
+
+    try:
+        spec = build_deck_art_spec_for_deck(
+            deck_id,
+            deck_art_config=deck_art_config,
+        )
+
+        if spec is None:
+            raise ValueError(
+                "Deck Art settings could not be built."
+            )
+
+        if (
+            source_type == "deck"
+            and not spec.artwork_path
+        ):
+            raise ValueError(
+                "The selected deck card image could not be resolved."
+            )
+
+        DECK_ART_RENDERER.render_cached(
+            spec
+        )
+
+        save_result = update_deck_art_config(
+            deck_id,
+            deck_art_config,
+        )
+
+        if not save_result.get(
+            "ok"
+        ):
+            raise ValueError(
+                save_result.get(
+                    "message"
+                )
+                or "Deck Art settings could not be saved."
+            )
+
+    except Exception as exc:
+        if new_upload_filename:
+            new_upload_path = resolve_deck_art_source_path(
+                new_upload_filename
+            )
+
+            if new_upload_path:
+                try:
+                    os.remove(
+                        new_upload_path
+                    )
+                except OSError:
+                    pass
+
+        write_debug_log(
+            "DECK ART UPDATE ERROR | "
+            f"deck_id={deck_id} | error={str(exc)}"
+        )
+
+        return jsonify({
+            "ok": False,
+            "message": "Deck Art could not be regenerated.",
+        }), 500
+
+    return jsonify({
+        "ok": True,
+        "message": "Deck Art regenerated.",
+        "image_url": url_for(
+            "deck_art_image",
+            deck_id=deck_id,
+        ),
+    })
 
 def get_deckbuilder_deck_art_path(
     deck_id,

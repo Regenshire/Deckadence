@@ -31,12 +31,18 @@ LOGGER = logging.getLogger(
 class DeckArtSpec:
     deck_name: str
     author: str = ""
+    subtitle: str = ""
     format_label: str = ""
     color_identity: tuple[str, ...] = ()
     scryfall_id: str = ""
+    frame_key: str = ""
+    artwork_path: str = ""
+    artwork_zoom: float = 1.0
+    artwork_offset_x: float = 0.0
+    artwork_offset_y: float = 0.0
 
 class DeckArtRenderer:
-    CACHE_VERSION = 3
+    CACHE_VERSION = 4
 
     CANVAS_SIZE = (
         477,
@@ -76,6 +82,17 @@ class DeckArtRenderer:
         "R": "red",
         "G": "green",
     }
+
+    FRAME_KEYS = (
+        "none",
+        "white",
+        "blue",
+        "black",
+        "red",
+        "green",
+        "gold",
+        "silver",
+    )
 
     MANA_FALLBACK_COLORS = {
         "W": (
@@ -157,57 +174,45 @@ class DeckArtRenderer:
             spec
         )
 
-        overlay_key = (
-            self._resolve_overlay_key(
-                clean_spec.color_identity
-            )
-        )
-
-        overlay_path = (
-            self._overlay_path(
-                overlay_key
-            )
-        )
-
-        overlay_stat = os.stat(
-            overlay_path
-        )
-
         cache_payload = {
             "version": self.CACHE_VERSION,
-
-            "deck_name": (
-                clean_spec.deck_name
-            ),
-
-            "author": (
-                clean_spec.author
-            ),
-
-            "format_label": (
-                clean_spec.format_label
-            ),
-
+            "deck_name": clean_spec.deck_name,
+            "author": clean_spec.author,
+            "subtitle": clean_spec.subtitle,
+            "format_label": clean_spec.format_label,
             "color_identity": list(
                 clean_spec.color_identity
             ),
-
-            "scryfall_id": (
-                clean_spec.scryfall_id
-            ),
-
-            "overlay_key": (
-                overlay_key
-            ),
-
-            "overlay_size": (
-                overlay_stat.st_size
-            ),
-
-            "overlay_mtime_ns": (
-                overlay_stat.st_mtime_ns
-            ),
+            "scryfall_id": clean_spec.scryfall_id,
+            "frame_key": clean_spec.frame_key,
+            "artwork_zoom": clean_spec.artwork_zoom,
+            "artwork_offset_x": clean_spec.artwork_offset_x,
+            "artwork_offset_y": clean_spec.artwork_offset_y,
         }
+
+        if clean_spec.frame_key != "none":
+            overlay_path = self._overlay_path(
+                clean_spec.frame_key
+            )
+            overlay_stat = os.stat(
+                overlay_path
+            )
+
+            cache_payload.update({
+                "overlay_size": overlay_stat.st_size,
+                "overlay_mtime_ns": overlay_stat.st_mtime_ns,
+            })
+
+        if clean_spec.artwork_path:
+            artwork_stat = os.stat(
+                clean_spec.artwork_path
+            )
+
+            cache_payload.update({
+                "artwork_path": clean_spec.artwork_path,
+                "artwork_size": artwork_stat.st_size,
+                "artwork_mtime_ns": artwork_stat.st_mtime_ns,
+            })
 
         cache_key = hashlib.sha256(
             json.dumps(
@@ -271,7 +276,6 @@ class DeckArtRenderer:
 
         return output_path
 
-
     def render(
         self,
         spec: DeckArtSpec,
@@ -280,31 +284,40 @@ class DeckArtRenderer:
             spec
         )
 
-        overlay_key = (
-            self._resolve_overlay_key(
-                clean_spec.color_identity
-            )
+        overlay = Image.new(
+            "RGBA",
+            self.CANVAS_SIZE,
+            (
+                0,
+                0,
+                0,
+                0,
+            ),
         )
 
-        overlay_path = (
-            self._overlay_path(
-                overlay_key
-            )
+        has_frame = (
+            clean_spec.frame_key
+            != "none"
         )
 
-        with Image.open(
-            overlay_path
-        ) as overlay_source:
-            overlay = (
-                overlay_source
-                .convert("RGBA")
+        if has_frame:
+            overlay_path = self._overlay_path(
+                clean_spec.frame_key
             )
 
-        if overlay.size != self.CANVAS_SIZE:
-            overlay = overlay.resize(
-                self.CANVAS_SIZE,
-                Image.LANCZOS,
-            )
+            with Image.open(
+                overlay_path
+            ) as overlay_source:
+                overlay = (
+                    overlay_source
+                    .convert("RGBA")
+                )
+
+            if overlay.size != self.CANVAS_SIZE:
+                overlay = overlay.resize(
+                    self.CANVAS_SIZE,
+                    Image.LANCZOS,
+                )
 
         image = Image.new(
             "RGBA",
@@ -317,14 +330,25 @@ class DeckArtRenderer:
             ),
         )
 
+        art_box = (
+            self.ART_BOX
+            if has_frame
+            else (
+                0,
+                0,
+                self.CANVAS_SIZE[0],
+                self.CANVAS_SIZE[1],
+            )
+        )
+
         art_width = (
-            self.ART_BOX[2]
-            - self.ART_BOX[0]
+            art_box[2]
+            - art_box[0]
         )
 
         art_height = (
-            self.ART_BOX[3]
-            - self.ART_BOX[1]
+            art_box[3]
+            - art_box[1]
         )
 
         artwork = self._load_artwork(
@@ -333,38 +357,90 @@ class DeckArtRenderer:
                 art_width,
                 art_height,
             ),
+            artwork_path=(
+                clean_spec.artwork_path
+            ),
+            zoom=clean_spec.artwork_zoom,
+            offset_x=(
+                clean_spec.artwork_offset_x
+            ),
+            offset_y=(
+                clean_spec.artwork_offset_y
+            ),
         )
 
         image.paste(
             artwork,
             (
-                self.ART_BOX[0],
-                self.ART_BOX[1],
+                art_box[0],
+                art_box[1],
             ),
         )
 
-        image.alpha_composite(
-            overlay
-        )
+        if has_frame:
+            image.alpha_composite(
+                overlay
+            )
+        else:
+            no_frame_shade = Image.new(
+                "RGBA",
+                self.CANVAS_SIZE,
+                (
+                    0,
+                    0,
+                    0,
+                    0,
+                ),
+            )
+
+            shade_draw = ImageDraw.Draw(
+                no_frame_shade
+            )
+
+            shade_draw.rectangle(
+                (
+                    0,
+                    450,
+                    self.CANVAS_SIZE[0],
+                    self.CANVAS_SIZE[1],
+                ),
+                fill=(
+                    0,
+                    0,
+                    0,
+                    168,
+                ),
+            )
+
+            image.alpha_composite(
+                no_frame_shade
+            )
 
         draw = ImageDraw.Draw(
             image
         )
 
-        self._draw_mana_identity(
-            image,
-            clean_spec.color_identity,
-        )
+        if has_frame:
+            self._draw_mana_identity(
+                image,
+                clean_spec.color_identity,
+            )
 
         self._draw_deck_name(
             draw,
             clean_spec.deck_name,
         )
 
-        self._draw_author(
-            draw,
-            clean_spec.author,
-        )
+        if clean_spec.subtitle:
+            self._draw_subtitle(
+                draw,
+                clean_spec.subtitle,
+            )
+        else:
+            self._draw_author(
+                draw,
+                clean_spec.author,
+            )
 
         self._draw_format(
             draw,
@@ -443,17 +519,37 @@ class DeckArtRenderer:
             )
         )
 
+        subtitle = (
+            self._sanitize_render_text(
+                spec.subtitle
+            )
+        )
+
         format_label = (
             self._sanitize_render_text(
                 spec.format_label
             )
-            or "Deck"
         )
 
         scryfall_id = str(
             spec.scryfall_id
             or ""
         ).strip().lower()
+
+        artwork_path = str(
+            spec.artwork_path
+            or ""
+        ).strip()
+
+        if artwork_path:
+            artwork_path = os.path.abspath(
+                artwork_path
+            )
+
+            if not os.path.isfile(
+                artwork_path
+            ):
+                artwork_path = ""
 
         requested_colors = {
             str(
@@ -489,15 +585,121 @@ class DeckArtRenderer:
                 if color != "C"
             )
 
+        frame_key = self.resolve_frame_key(
+            spec.frame_key,
+            normalized_colors,
+        )
+
         return DeckArtSpec(
             deck_name=deck_name,
             author=author,
+            subtitle=subtitle,
             format_label=format_label,
             color_identity=(
                 normalized_colors
             ),
             scryfall_id=scryfall_id,
+            frame_key=frame_key,
+            artwork_path=artwork_path,
+            artwork_zoom=self._normalize_zoom(
+                spec.artwork_zoom
+            ),
+            artwork_offset_x=self._normalize_offset(
+                spec.artwork_offset_x
+            ),
+            artwork_offset_y=self._normalize_offset(
+                spec.artwork_offset_y
+            ),
         )
+
+
+    @staticmethod
+    def _normalize_zoom(
+        value,
+    ):
+        try:
+            parsed_value = float(
+                value
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            parsed_value = 1.0
+
+        return max(
+            1.0,
+            min(
+                3.0,
+                parsed_value,
+            ),
+        )
+
+
+    @staticmethod
+    def _normalize_offset(
+        value,
+    ):
+        try:
+            parsed_value = float(
+                value
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            parsed_value = 0.0
+
+        return max(
+            -1.0,
+            min(
+                1.0,
+                parsed_value,
+            ),
+        )
+
+
+    @staticmethod
+    def _apply_artwork_offset(
+        base_position,
+        offset,
+    ):
+        if offset < 0:
+            return base_position * (
+                1.0 + offset
+            )
+
+        return (
+            base_position
+            + (
+                1.0
+                - base_position
+            )
+            * offset
+        )
+
+    def resolve_frame_key(
+        self,
+        frame_key,
+        color_identity=(),
+    ):
+        clean_frame_key = str(
+            frame_key
+            or ""
+        ).strip().lower()
+
+        if not clean_frame_key:
+            return self._resolve_overlay_key(
+                color_identity
+            )
+
+        if clean_frame_key not in self.FRAME_KEYS:
+            raise ValueError(
+                "Unsupported deck art frame: "
+                f"{clean_frame_key}"
+            )
+
+        return clean_frame_key
 
 
     def _resolve_overlay_key(
@@ -557,23 +759,57 @@ class DeckArtRenderer:
         self,
         scryfall_id,
         target_size,
+        *,
+        artwork_path="",
+        zoom=1.0,
+        offset_x=0.0,
+        offset_y=0.0,
     ):
+        clean_artwork_path = str(
+            artwork_path
+            or ""
+        ).strip()
+
+        if clean_artwork_path:
+            try:
+                with Image.open(
+                    clean_artwork_path
+                ) as source_image:
+                    source_image = (
+                        ImageOps.exif_transpose(
+                            source_image
+                        )
+                        .convert("RGB")
+                    )
+
+                    return self._fit_artwork(
+                        source_image,
+                        target_size,
+                        centering=(
+                            0.5,
+                            0.5,
+                        ),
+                        zoom=zoom,
+                        offset_x=offset_x,
+                        offset_y=offset_y,
+                    )
+
+            except Exception as exc:
+                LOGGER.warning(
+                    "DECK ART | Local artwork load failed "
+                    "| path=%s | error=%s",
+                    clean_artwork_path,
+                    str(exc),
+                )
+
         clean_scryfall_id = str(
             scryfall_id
             or ""
         ).strip().lower()
 
         valid_scryfall_id = bool(
-            re.fullmatch(
-                (
-                    r"[0-9a-f]{8}-"
-                    r"[0-9a-f]{4}-"
-                    r"[0-9a-f]{4}-"
-                    r"[0-9a-f]{4}-"
-                    r"[0-9a-f]{12}"
-                ),
-                clean_scryfall_id,
-                flags=re.IGNORECASE,
+            self.build_scryfall_artwork_url(
+                clean_scryfall_id
             )
         )
 
@@ -633,11 +869,10 @@ class DeckArtRenderer:
         ) in image_candidates:
 
             artwork_url = (
-                "https://cards.scryfall.io/"
-                f"{image_kind}/front/"
-                f"{clean_scryfall_id[0]}/"
-                f"{clean_scryfall_id[1]}/"
-                f"{clean_scryfall_id}.jpg"
+                self.build_scryfall_artwork_url(
+                    clean_scryfall_id,
+                    image_kind=image_kind,
+                )
             )
 
             try:
@@ -684,11 +919,13 @@ class DeckArtRenderer:
                             .convert("RGB")
                         )
 
-                        return ImageOps.fit(
+                        return self._fit_artwork(
                             source_image,
                             target_size,
-                            method=Image.LANCZOS,
                             centering=centering,
+                            zoom=zoom,
+                            offset_x=offset_x,
+                            offset_y=offset_y,
                         )
 
             except Exception as exc:
@@ -704,6 +941,176 @@ class DeckArtRenderer:
         return self._build_artwork_fallback(
             target_size
         )
+
+
+    @staticmethod
+    def build_scryfall_artwork_url(
+        scryfall_id,
+        image_kind="art_crop",
+    ):
+        clean_scryfall_id = str(
+            scryfall_id
+            or ""
+        ).strip().lower()
+
+        clean_image_kind = str(
+            image_kind
+            or "art_crop"
+        ).strip().lower()
+
+        if clean_image_kind not in {
+            "art_crop",
+            "large",
+            "normal",
+        }:
+            return ""
+
+        if not re.fullmatch(
+            (
+                r"[0-9a-f]{8}-"
+                r"[0-9a-f]{4}-"
+                r"[0-9a-f]{4}-"
+                r"[0-9a-f]{4}-"
+                r"[0-9a-f]{12}"
+            ),
+            clean_scryfall_id,
+            flags=re.IGNORECASE,
+        ):
+            return ""
+
+        return (
+            "https://cards.scryfall.io/"
+            f"{clean_image_kind}/front/"
+            f"{clean_scryfall_id[0]}/"
+            f"{clean_scryfall_id[1]}/"
+            f"{clean_scryfall_id}.jpg"
+        )
+
+
+    def _fit_artwork(
+        self,
+        source_image,
+        target_size,
+        *,
+        centering=(
+            0.5,
+            0.5,
+        ),
+        zoom=1.0,
+        offset_x=0.0,
+        offset_y=0.0,
+    ):
+        target_width = max(
+            1,
+            int(target_size[0]),
+        )
+        target_height = max(
+            1,
+            int(target_size[1]),
+        )
+
+        source_width = max(
+            1,
+            int(source_image.width),
+        )
+        source_height = max(
+            1,
+            int(source_image.height),
+        )
+
+        clean_zoom = self._normalize_zoom(
+            zoom
+        )
+        clean_offset_x = self._normalize_offset(
+            offset_x
+        )
+        clean_offset_y = self._normalize_offset(
+            offset_y
+        )
+
+        cover_scale = max(
+            target_width / source_width,
+            target_height / source_height,
+        )
+
+        scale = (
+            cover_scale
+            * clean_zoom
+        )
+
+        resized_width = max(
+            target_width,
+            int(round(
+                source_width
+                * scale
+            )),
+        )
+        resized_height = max(
+            target_height,
+            int(round(
+                source_height
+                * scale
+            )),
+        )
+
+        resized_image = source_image.resize(
+            (
+                resized_width,
+                resized_height,
+            ),
+            Image.LANCZOS,
+        )
+
+        extra_x = max(
+            0,
+            resized_width
+            - target_width,
+        )
+        extra_y = max(
+            0,
+            resized_height
+            - target_height,
+        )
+
+        base_x = max(
+            0.0,
+            min(
+                1.0,
+                float(centering[0]),
+            ),
+        )
+        base_y = max(
+            0.0,
+            min(
+                1.0,
+                float(centering[1]),
+            ),
+        )
+
+        crop_x = self._apply_artwork_offset(
+            base_x,
+            clean_offset_x,
+        )
+        crop_y = self._apply_artwork_offset(
+            base_y,
+            clean_offset_y,
+        )
+
+        left = int(round(
+            extra_x
+            * crop_x
+        ))
+        top = int(round(
+            extra_y
+            * crop_y
+        ))
+
+        return resized_image.crop((
+            left,
+            top,
+            left + target_width,
+            top + target_height,
+        ))
 
 
     @staticmethod
@@ -1265,6 +1672,62 @@ class DeckArtRenderer:
             )
 
 
+    def _draw_subtitle(
+        self,
+        draw,
+        subtitle,
+    ):
+        if not subtitle:
+            return
+
+        font = self._load_font(
+            18,
+            bold=False,
+        )
+
+        text = self._truncate_text(
+            draw,
+            subtitle,
+            font,
+            345,
+        )
+
+        bbox = draw.textbbox(
+            (
+                0,
+                0,
+            ),
+            text,
+            font=font,
+        )
+
+        text_width = (
+            bbox[2]
+            - bbox[0]
+        )
+
+        draw.text(
+            (
+                (
+                    self.CANVAS_SIZE[0]
+                    - text_width
+                )
+                / 2,
+                584,
+            ),
+
+            text,
+            font=font,
+
+            fill=(
+                235,
+                235,
+                240,
+                255,
+            ),
+        )
+
+
     def _draw_author(
         self,
         draw,
@@ -1335,11 +1798,11 @@ class DeckArtRenderer:
             r"\s*\([^)]*\)\s*$",
             "",
             format_label
-            or "Deck",
+            or "",
         ).strip().upper()
 
         if not clean_label:
-            clean_label = "DECK"
+            return
 
         font = (
             self._fit_single_line_font(

@@ -32,6 +32,8 @@
   data-sideboard-flex="{{ deckbuilder.sideboard_flex or 0.40 }}"
   data-deck-flex="{{ deckbuilder.deck_flex or 0.60 }}"
   data-save-url="{{ url_for('deckbuilder_save', deck_id=deckbuilder.deck_id) }}"
+  data-deck-art-settings-url="{{ url_for('deckbuilder_deck_art_settings', deck_id=deckbuilder.deck_id) }}"
+  data-deck-art-save-url="{{ url_for('deckbuilder_deck_art_update', deck_id=deckbuilder.deck_id) }}"
   data-delete-url="{{ url_for('deckbuilder_delete', deck_id=deckbuilder.deck_id) }}"
   data-card-action-url="{{ url_for('deckbuilder_card_action', deck_id=deckbuilder.deck_id) }}"
   data-bulk-card-action-url="{{ url_for('deckbuilder_card_action_bulk', deck_id=deckbuilder.deck_id) }}"
@@ -58,7 +60,7 @@
   %}
 >
   <header class="deckbuilder-header deckbuilder-header-compact">
-    <div class="deckbuilder-header-art-wrap" aria-hidden="true">
+    <div class="deckbuilder-header-art-wrap">
       {% if player and player.effective_portrait_image_path %}
       <img
         src="{{ url_for('campaign_chaos_player_portrait', filename=player.effective_portrait_image_path) }}"
@@ -78,6 +80,16 @@
         alt=""
         class="deckbuilder-header-art deckbuilder-deck-art-portrait"
       />
+
+      <button
+        type="button"
+        id="deckbuilderDeckArtEditButton"
+        class="deckbuilder-deck-art-edit-button"
+        aria-label="Regenerate Deck Art"
+        title="Regenerate Deck Art"
+      >
+        <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+      </button>
       {% endif %}
     </div>
 
@@ -1260,6 +1272,263 @@
   </div>
 
   {% include "_alternate_image_modal.html" %}
+
+  <div
+    id="deckArtModal"
+    class="campaign-add-pack-modal deck-art-modal hidden"
+    aria-hidden="true"
+  >
+    <div class="campaign-add-pack-backdrop" data-deck-art-close></div>
+
+    <div
+      class="campaign-add-pack-dialog deck-art-modal-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="deckArtModalTitle"
+    >
+      <div class="campaign-add-pack-header deck-art-modal-header">
+        <div>
+          <h2 id="deckArtModalTitle" class="campaign-add-pack-title">
+            Regenerate Deck Art
+          </h2>
+
+          <p class="campaign-add-pack-subtitle">
+            Choose the artwork, frame, crop, and deck text.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="action-button secondary-button deck-art-modal-close"
+          aria-label="Close"
+          title="Close"
+          data-deck-art-close
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="deck-art-modal-body">
+        <aside class="deck-art-preview-panel">
+          <div class="deck-art-section-label">Preview</div>
+
+          <div
+            class="deck-art-preview-stage"
+            data-deck-art-preview-stage
+            data-frame="silver"
+          >
+            <div class="deck-art-preview-art-box" data-deck-art-art-box>
+              <img
+                class="deck-art-preview-source hidden"
+                alt=""
+                data-deck-art-source-image
+              />
+
+              <div class="deck-art-preview-empty" data-deck-art-preview-empty>
+                Loading artwork...
+              </div>
+            </div>
+
+            <img
+              class="deck-art-preview-frame hidden"
+              alt=""
+              data-deck-art-frame-image
+            />
+
+            <div
+              class="deck-art-preview-title"
+              data-deck-art-preview-title
+            ></div>
+
+            <div
+              class="deck-art-preview-subtitle"
+              data-deck-art-preview-subtitle
+            ></div>
+
+            <div class="deck-art-preview-type" data-deck-art-preview-type></div>
+          </div>
+
+          <div class="deck-art-framing-controls">
+            <label class="deck-art-range-control">
+              <span>
+                <strong>Zoom</strong>
+                <output data-deck-art-zoom-output>100%</output>
+              </span>
+
+              <input
+                type="range"
+                min="1"
+                max="3"
+                step="0.01"
+                value="1"
+                data-deck-art-zoom
+              />
+            </label>
+
+            <label class="deck-art-range-control">
+              <span>
+                <strong>Horizontal</strong>
+                <output data-deck-art-x-output>Center</output>
+              </span>
+
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.01"
+                value="0"
+                data-deck-art-x
+              />
+            </label>
+
+            <label class="deck-art-range-control">
+              <span>
+                <strong>Vertical</strong>
+                <output data-deck-art-y-output>Center</output>
+              </span>
+
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.01"
+                value="0"
+                data-deck-art-y
+              />
+            </label>
+
+            <button
+              type="button"
+              class="action-button secondary-button deck-art-reset-framing"
+              data-deck-art-reset
+            >
+              Reset Framing
+            </button>
+          </div>
+        </aside>
+
+        <div class="deck-art-controls-column">
+          <div
+            class="flash-message deck-art-message hidden"
+            data-deck-art-message
+          ></div>
+
+          <section class="deck-art-section-card">
+            <div class="deck-art-section-label">Art Source</div>
+
+            <div
+              class="deck-art-source-toggle"
+              role="group"
+              aria-label="Art Source"
+            >
+              <button
+                type="button"
+                class="deck-art-source-button"
+                data-deck-art-source="deck"
+              >
+                <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+                Deck
+              </button>
+
+              <button
+                type="button"
+                class="deck-art-source-button"
+                data-deck-art-source="upload"
+              >
+                <i class="fa-solid fa-upload" aria-hidden="true"></i>
+                Upload
+              </button>
+            </div>
+
+            <div class="deck-art-source-panel" data-deck-art-deck-panel>
+              <label class="deck-art-field">
+                <span>Card</span>
+                <select data-deck-art-card-select></select>
+              </label>
+
+              <div class="deck-art-field-help">
+                Includes cards from the main deck and sideboard.
+              </div>
+            </div>
+
+            <div
+              class="deck-art-source-panel hidden"
+              data-deck-art-upload-panel
+            >
+              <label
+                class="deck-art-upload-dropzone"
+                data-deck-art-upload-dropzone
+              >
+                <input
+                  type="file"
+                  accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                  data-deck-art-upload-input
+                />
+
+                <i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i>
+                <strong>Choose or drop an image</strong>
+
+                <span data-deck-art-upload-name>
+                  PNG, JPEG, or WebP up to 16 MB
+                </span>
+              </label>
+            </div>
+          </section>
+
+          <section class="deck-art-section-card">
+            <div class="deck-art-section-label">Frame</div>
+
+            <div class="deck-art-frame-grid" data-deck-art-frame-grid></div>
+          </section>
+
+          <section class="deck-art-section-card deck-art-text-fields">
+            <label class="deck-art-field">
+              <span>Deck Title</span>
+
+              <input
+                type="text"
+                maxlength="160"
+                autocomplete="off"
+                data-deck-art-title
+              />
+            </label>
+
+            <label class="deck-art-field">
+              <span>Deck Subtitle</span>
+
+              <input
+                type="text"
+                maxlength="180"
+                autocomplete="off"
+                placeholder="Optional subtitle"
+                data-deck-art-subtitle
+              />
+            </label>
+
+            <label class="deck-art-field">
+              <span>Deck Type</span>
+              <select data-deck-art-type></select>
+            </label>
+          </section>
+
+          <div class="deck-art-modal-actions">
+            <button
+              type="button"
+              class="action-button secondary-button"
+              data-deck-art-close
+            >
+              Cancel
+            </button>
+
+            <button type="button" class="action-button" data-deck-art-generate>
+              <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+              Generate Deck Art
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div
     id="moxfieldSyncModal"
@@ -4999,6 +5268,38 @@
     }
 
     function bindHoverPreviews() {
+      const deckArtImage = document.getElementById("deckbuilderDeckArtImage");
+
+      if (deckArtImage && deckArtImage.dataset.hoverPreviewBound !== "1") {
+        deckArtImage.dataset.hoverPreviewBound = "1";
+
+        deckArtImage.addEventListener("mouseenter", function (event) {
+          if (!hoverPreview || !hoverPreviewImage) {
+            return;
+          }
+
+          hoverPreviewImage.src = deckArtImage.src;
+          hoverPreviewImage.alt = "Deck Art";
+
+          hoverPreview.classList.remove(
+            "campaign-test-draft-hover-preview-foil",
+          );
+
+          hoverPreview.classList.remove("hidden");
+          hoverPreview.setAttribute("aria-hidden", "false");
+
+          positionHoverPreview(event);
+        });
+
+        deckArtImage.addEventListener("mousemove", function (event) {
+          positionHoverPreview(event);
+        });
+
+        deckArtImage.addEventListener("mouseleave", function () {
+          hideHoverPreview();
+        });
+      }
+
       Array.from(
         document.querySelectorAll(
           ".deckbuilder-card, .deckbuilder-basic-land-card",
@@ -7213,4 +7514,52 @@
 global_card_upscaling_control_enabled %}
 <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
-{% endif %} {% endblock %}
+{% endif %}
+<script>
+  (function () {
+    const workspace = document.getElementById("deckbuilderWorkspace");
+    const editButton = document.getElementById("deckbuilderDeckArtEditButton");
+    const modalRoot = document.getElementById("deckArtModal");
+
+    if (
+      !workspace ||
+      !editButton ||
+      !modalRoot ||
+      !window.iMomirUI ||
+      !window.iMomirUI.DeckArtModal
+    ) {
+      return;
+    }
+
+    const deckArtModal = new window.iMomirUI.DeckArtModal({
+      root: modalRoot,
+      settingsUrl: workspace.dataset.deckArtSettingsUrl,
+      saveUrl: workspace.dataset.deckArtSaveUrl,
+      onGenerated: function (payload) {
+        const deckArtImage = document.getElementById("deckbuilderDeckArtImage");
+
+        if (!deckArtImage) {
+          return;
+        }
+
+        const imageUrl = new URL(
+          payload.image_url || deckArtImage.src,
+          window.location.origin,
+        );
+
+        imageUrl.searchParams.set("_art", String(Date.now()));
+
+        deckArtImage.src = imageUrl.toString();
+      },
+    });
+
+    window.iMomirUI.deckArt = deckArtModal;
+
+    editButton.addEventListener("click", function () {
+      deckArtModal.open().catch(function (error) {
+        console.error("Deck Art modal failed to open:", error);
+      });
+    });
+  })();
+</script>
+{% endblock %}
