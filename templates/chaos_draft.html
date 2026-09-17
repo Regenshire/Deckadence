@@ -1,224 +1,263 @@
-{% extends "base.html" %}
-
-{% block title %}Deckadence - Chaos Draft{% endblock %}
-
-{% block page_styles %}
+{% extends "base.html" %} {% block title %}Deckadence - Chaos Draft{% endblock
+%} {% block page_styles %}
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/card_views.css') }}"
->
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/card_views.css') }}"
+/>
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/chaos_draft.css') }}"
->
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/chaos_draft.css') }}"
+/>
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/print_export_modal.css') }}"
+/>
 {% if show_silhouette_template_library %}
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/silhouette_template_library.css') }}"
->
-{% endif %}
-{% endblock %}
-
-{% block content %}
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/silhouette_template_library.css') }}"
+/>
+{% endif %} {% endblock %} {% block content %}
 <div
-    class="screen screen-wide"
-    id="chaosDraftScreen"
-    data-open-print-in-new-tab="{{ '1' if open_print_in_new_tab else '0' }}"
-    data-sound-enabled="{{ '1' if sound_enabled else '0' }}"
-    data-print-card-backs="{{ '1' if print_card_backs else '0' }}"
-    data-chaos-export-format="{{ chaos_draft_export_format }}"
-    data-chaos-spin-url="{{ url_for('chaos_draft_spin') }}"
-    data-chaos-open-url="{{ url_for('chaos_draft_open') }}"
-    data-chaos-view-data-url="{{ url_for('chaos_draft_view_data') }}"
-    data-chaos-export-url="{{ url_for('chaos_draft_export') }}"
-    data-chaos-export-zip-url="{{ url_for('chaos_draft_export_zip') }}"
-    data-card-face-data-url="{{ url_for('card_face_data') }}"
+  class="screen screen-wide"
+  id="chaosDraftScreen"
+  data-open-print-in-new-tab="{{ '1' if open_print_in_new_tab else '0' }}"
+  data-sound-enabled="{{ '1' if sound_enabled else '0' }}"
+  data-print-card-backs="{{ '1' if print_card_backs else '0' }}"
+  data-chaos-export-format="{{ chaos_draft_export_format }}"
+  data-chaos-spin-url="{{ url_for('chaos_draft_spin') }}"
+  data-chaos-open-url="{{ url_for('chaos_draft_open') }}"
+  data-chaos-view-data-url="{{ url_for('chaos_draft_view_data') }}"
+  data-chaos-export-url="{{ url_for('chaos_draft_export') }}"
+  data-chaos-export-zip-url="{{ url_for('chaos_draft_export_zip') }}"
+  data-card-face-data-url="{{ url_for('card_face_data') }}"
 >
-    {% if not card_database_ready %}
-        {% set setup_title = "Chaos Draft Setup Required" %}
-        {% set setup_message = "No card database has been loaded yet. Download the card database before spinning Chaos Draft packs." %}
-        {% include "_setup_required_panel.html" %}
-    {% endif %}
+  {% if not card_database_ready %} {% set setup_title = "Chaos Draft Setup
+  Required" %} {% set setup_message = "No card database has been loaded yet.
+  Download the card database before spinning Chaos Draft packs." %} {% include
+  "_setup_required_panel.html" %} {% endif %}
 
-    <div class="page-panel chaos-draft-header-panel">
-        <div class="chaos-draft-header-layout">
-            <div class="chaos-draft-header-copy">
-                <h1 class="page-title">Chaos Draft</h1>
-                <p class="page-subtitle">
-                    Spin to select a random booster pack from the currently enabled sets.
-                </p>
-            </div>
+  <div class="page-panel chaos-draft-header-panel">
+    <div class="chaos-draft-header-layout">
+      <div class="chaos-draft-header-copy">
+        <h1 class="page-title">Chaos Draft</h1>
+        <p class="page-subtitle">
+          Spin to select a random booster pack from the currently enabled sets.
+        </p>
+      </div>
 
-            <div class="chaos-draft-top-actions">
-                <button type="button" id="chaosNextButton" class="chaos-draft-next-button" disabled>
-                    <span class="chaos-draft-next-button-label">Next Pack</span>
-                    <span class="chaos-draft-next-button-arrow">▷</span>
-                </button>
-            </div>
-        </div>
+      <div class="chaos-draft-top-actions">
+        <button
+          type="button"
+          id="chaosNextButton"
+          class="chaos-draft-next-button"
+          disabled
+        >
+          <span class="chaos-draft-next-button-label">Next Pack</span>
+          <span class="chaos-draft-next-button-arrow">▷</span>
+        </button>
+      </div>
     </div>
+  </div>
 
-    <div id="chaosDraftMessage" class="card-placeholder hidden">
-        Click Spin to generate a Chaos Draft pack selection.
-    </div>
+  <div id="chaosDraftMessage" class="card-placeholder hidden">
+    Click Spin to generate a Chaos Draft pack selection.
+  </div>
 
-    <div id="chaosDraftSpinner" class="chaos-draft-spinner-shell">
-        <div class="chaos-draft-spinner-window">
-            <div id="chaosDraftPointer" class="chaos-draft-pointer hidden">
-                <img src="{{ url_for('static', filename='img/packpointer_gold.png') }}" alt="Pack Pointer">
-            </div>
+  <div id="chaosDraftSpinner" class="chaos-draft-spinner-shell">
+    <div class="chaos-draft-spinner-window">
+      <div id="chaosDraftPointer" class="chaos-draft-pointer hidden">
+        <img
+          src="{{ url_for('static', filename='img/packpointer_gold.png') }}"
+          alt="Pack Pointer"
+        />
+      </div>
 
-            <div id="chaosDraftIdleCta" class="chaos-draft-idle-cta">
-                <button
-                    type="button"
-                    id="chaosSpinButton"
-                    class="chaos-draft-spin-cta"
-                    aria-label="Spin Chaos Draft"
-                    {% if not card_database_ready %}disabled{% endif %}
-                >
-                    <span class="chaos-draft-spin-logo" aria-hidden="true">
-                        <img
-                            src="{{ url_for('static', filename='img/Logos/spinlogo_D.svg') }}"
-                            alt=""
-                            class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-base"
-                        >
-                        <img
-                            src="{{ url_for('static', filename='img/Logos/spinlogo_spinning.svg') }}"
-                            alt=""
-                            class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-rotor"
-                        >
-                    </span>
-                </button>
-            </div>
-
-            <div id="chaosDraftSpinnerTrack" class="chaos-draft-spinner-track hidden"></div>
-        </div>
-    </div>
-
-    <div id="chaosDraftOpenRow" class="chaos-draft-open-row">
-        <div class="chaos-draft-open-actions">
-            <button type="button" id="chaosViewButton" class="action-button secondary-button chaos-draft-view-button" disabled>
-                View
-            </button>
-            <button type="button" id="chaosOpenButton" class="action-button chaos-draft-open-button" disabled>
-                Print / Export
-            </button>
-
-            {% if enable_track_packs %}
-            <button type="button" id="chaosSavePackButton" class="action-button secondary-button chaos-save-pack-button" disabled>
-                Save
-            </button>
-            {% endif %}
-
-            {% if chaos_draft_export_format in ["archidekt", "moxfield"] %}
-            <div class="chaos-export-split" id="chaosExportSplit">
-                <button type="button" id="chaosExportMainButton" class="action-button secondary-button chaos-export-main-button" disabled>
-                    Export
-                </button>
-                <button type="button" id="chaosExportMenuButton" class="action-button secondary-button chaos-export-menu-button" disabled aria-expanded="false" aria-haspopup="true">
-                    ▾
-                </button>
-
-                <div id="chaosExportMenu" class="chaos-export-menu hidden">
-                    <button
-                        type="button"
-                        id="chaosExportCopyButton"
-                        class="chaos-export-menu-item"
-                        data-export-action="copy"
-                    >
-                        Copy {{ chaos_draft_export_format|capitalize }}
-                    </button>
-                    <button
-                        type="button"
-                        id="chaosExportSaveButton"
-                        class="chaos-export-menu-item"
-                        data-export-action="save"
-                    >
-                        Save {{ chaos_draft_export_format|capitalize }}
-                    </button>
-                </div>
-            {% endif %}
-
-        </div>
-
-        {% if enable_track_packs %}
-        <div class="chaos-auto-save-row">
-            <label class="chaos-auto-save-inline" for="chaosAutoSavePackToggle" title="Automatically save this pack when opening the PDF">
-                <input
-                    type="checkbox"
-                    id="chaosAutoSavePackToggle"
-                    checked
-                >
-                <span>Auto-Save</span>
-            </label>
-        </div>
-        {% endif %}
-
-        {% if show_silhouette_template_library %}
-        <div class="chaos-draft-template-links">
-            <button
-                type="button"
-                class="silhouette-template-library-open-button"
-                data-silhouette-template-library-open
-                data-active-print-template="{{ active_print_template }}"
-            >
-                <i class="fa-solid fa-download"></i>
-                Silhouette Templates
-            </button>
-        </div>
-        {% endif %}
-    </div>
-
-    <div id="chaosDraftInlineViewPanel" class="page-panel chaos-pack-inline-view-panel hidden">
-        <div class="chaos-pack-inline-view-header">
-            <div class="chaos-pack-inline-view-header-copy">
-                <h2 id="chaosPackInlineTitle" class="page-title">Pack contents</h2>
-                <p id="chaosPackInlineSubtitle" class="page-subtitle"></p>
-            </div>
-        </div>
-
-        <div id="chaosPackInlineGrid" class="chaos-pack-inline-grid"></div>
-    </div>
-
-    <div id="chaosPackZoomOverlay" class="card-zoom-overlay hidden" aria-hidden="true">
-        <div id="chaosPackZoomBackdrop" class="card-zoom-backdrop"></div>
-        <div class="card-zoom-content">
+      <div id="chaosDraftIdleCta" class="chaos-draft-idle-cta">
+        <button
+          type="button"
+          id="chaosSpinButton"
+          class="chaos-draft-spin-cta"
+          aria-label="Spin Chaos Draft"
+          {%
+          if
+          not
+          card_database_ready
+          %}disabled{%
+          endif
+          %}
+        >
+          <span class="chaos-draft-spin-logo" aria-hidden="true">
             <img
-                id="chaosPackZoomImage"
-                src=""
-                alt=""
-                class="card-zoom-image"
-            >
+              src="{{ url_for('static', filename='img/Logos/spinlogo_D.svg') }}"
+              alt=""
+              class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-base"
+            />
+            <img
+              src="{{ url_for('static', filename='img/Logos/spinlogo_spinning.svg') }}"
+              alt=""
+              class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-rotor"
+            />
+          </span>
+        </button>
+      </div>
+
+      <div
+        id="chaosDraftSpinnerTrack"
+        class="chaos-draft-spinner-track hidden"
+      ></div>
+    </div>
+  </div>
+
+  <div id="chaosDraftOpenRow" class="chaos-draft-open-row">
+    <div class="chaos-draft-open-actions">
+      <button
+        type="button"
+        id="chaosViewButton"
+        class="action-button secondary-button chaos-draft-view-button"
+        disabled
+      >
+        View
+      </button>
+      <button
+        type="button"
+        id="chaosOpenButton"
+        class="action-button chaos-draft-open-button"
+        disabled
+      >
+        Print / Export
+      </button>
+
+      {% if enable_track_packs %}
+      <button
+        type="button"
+        id="chaosSavePackButton"
+        class="action-button secondary-button chaos-save-pack-button"
+        disabled
+      >
+        Save
+      </button>
+      {% endif %} {% if chaos_draft_export_format in ["archidekt", "moxfield"]
+      %}
+      <div class="chaos-export-split" id="chaosExportSplit">
+        <button
+          type="button"
+          id="chaosExportMainButton"
+          class="action-button secondary-button chaos-export-main-button"
+          disabled
+        >
+          Export
+        </button>
+        <button
+          type="button"
+          id="chaosExportMenuButton"
+          class="action-button secondary-button chaos-export-menu-button"
+          disabled
+          aria-expanded="false"
+          aria-haspopup="true"
+        >
+          ▾
+        </button>
+
+        <div id="chaosExportMenu" class="chaos-export-menu hidden">
+          <button
+            type="button"
+            id="chaosExportCopyButton"
+            class="chaos-export-menu-item"
+            data-export-action="copy"
+          >
+            Copy {{ chaos_draft_export_format|capitalize }}
+          </button>
+          <button
+            type="button"
+            id="chaosExportSaveButton"
+            class="chaos-export-menu-item"
+            data-export-action="save"
+          >
+            Save {{ chaos_draft_export_format|capitalize }}
+          </button>
         </div>
+        {% endif %}
+      </div>
+
+      {% if enable_track_packs %}
+      <div class="chaos-auto-save-row">
+        <label
+          class="chaos-auto-save-inline"
+          for="chaosAutoSavePackToggle"
+          title="Automatically save this pack when opening the PDF"
+        >
+          <input type="checkbox" id="chaosAutoSavePackToggle" checked />
+          <span>Auto-Save</span>
+        </label>
+      </div>
+      {% endif %} {% if show_silhouette_template_library %}
+      <div class="chaos-draft-template-links">
+        <button
+          type="button"
+          class="silhouette-template-library-open-button"
+          data-silhouette-template-library-open
+          data-active-print-template="{{ active_print_template }}"
+        >
+          <i class="fa-solid fa-download"></i>
+          Silhouette Templates
+        </button>
+      </div>
+      {% endif %}
     </div>
 
-<div id="chaosDraftBusyOverlay" class="chaos-draft-busy-overlay hidden" aria-hidden="true">
-    <div class="chaos-draft-busy-backdrop"></div>
-    <div class="chaos-draft-busy-card">
-            <div class="chaos-draft-busy-spinner"></div>
-            <div id="chaosDraftBusyTitle" class="chaos-draft-busy-title">Opening Pack</div>
-            <div id="chaosDraftBusyText" class="chaos-draft-busy-text">
-                Relax while we crack your Pack!
-            </div>
+    <div
+      id="chaosDraftInlineViewPanel"
+      class="page-panel chaos-pack-inline-view-panel hidden"
+    >
+      <div class="chaos-pack-inline-view-header">
+        <div class="chaos-pack-inline-view-header-copy">
+          <h2 id="chaosPackInlineTitle" class="page-title">Pack contents</h2>
+          <p id="chaosPackInlineSubtitle" class="page-subtitle"></p>
         </div>
+      </div>
+
+      <div id="chaosPackInlineGrid" class="chaos-pack-inline-grid"></div>
     </div>
-</div>
+
+    <div
+      id="chaosPackZoomOverlay"
+      class="card-zoom-overlay hidden"
+      aria-hidden="true"
+    >
+      <div id="chaosPackZoomBackdrop" class="card-zoom-backdrop"></div>
+      <div class="card-zoom-content">
+        <img id="chaosPackZoomImage" src="" alt="" class="card-zoom-image" />
+      </div>
+    </div>
+
+    <div
+      id="chaosDraftBusyOverlay"
+      class="chaos-draft-busy-overlay hidden"
+      aria-hidden="true"
+    >
+      <div class="chaos-draft-busy-backdrop"></div>
+      <div class="chaos-draft-busy-card">
+        <div class="chaos-draft-busy-spinner"></div>
+        <div id="chaosDraftBusyTitle" class="chaos-draft-busy-title">
+          Opening Pack
+        </div>
+        <div id="chaosDraftBusyText" class="chaos-draft-busy-text">
+          Relax while we crack your Pack!
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-{% set print_export_subject_label = "pack" %}
-{% include "_print_export_modal.html" %}
-
-{% if show_silhouette_template_library %}
-{% include "_silhouette_template_library_modal.html" %}
-{% endif %}
+{% set print_export_subject_label = "pack" %} {% include
+"_print_export_modal.html" %} {% if show_silhouette_template_library %} {%
+include "_silhouette_template_library_modal.html" %} {% endif %}
 
 <script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
-{% endblock %}
-
-{% block page_scripts_after_app %}
+{% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/chaos_draft.js') }}"></script>
 
 {% if show_silhouette_template_library %}
 <script src="{{ url_for('static', filename='js/silhouette_template_library.js') }}"></script>
-{% endif %}
-{% endblock %}
+{% endif %} {% endblock %}

@@ -1,418 +1,474 @@
-{% extends "base.html" %}
-
-{% block title %}Deckadence - Pack {{ pack.pack_tracking_code }}{% endblock %}
-
-{% block page_styles %}
+{% extends "base.html" %} {% block title %}Deckadence - Pack {{
+pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/image_compare.css') }}"
->
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/image_compare.css') }}"
+/>
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/upscale_batch.css') }}"
->
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/upscale_batch.css') }}"
+/>
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/card_views.css') }}"
->
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/card_views.css') }}"
+/>
 <link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/campaign_pack_detail.css') }}"
->
-{% endblock %}
-
-{% block content %}
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/campaign_pack_detail.css') }}"
+/>
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/print_export_modal.css') }}"
+/>
+{% endblock %} {% block content %}
 <div
-    class="screen screen-wide"
-    id="campaignPackDetailScreen"
-    data-card-face-data-url="{{ url_for('card_face_data') }}"
-    data-pack-display-name="{{ pack.pack_display_name }}"
+  class="screen screen-wide"
+  id="campaignPackDetailScreen"
+  data-card-face-data-url="{{ url_for('card_face_data') }}"
+  data-pack-display-name="{{ pack.pack_display_name }}"
 >
-    <div class="page-panel chaos-pack-view-header-panel">
-        <div class="chaos-pack-view-header-top">
-            <div class="chaos-pack-view-header-copy">
-                <h1 class="page-title">{{ pack.pack_display_name }}</h1>
-                <p class="page-subtitle">
-                    {{ pack.pack_tracking_code }} • {{ pack.total_cards }} cards
-                    {% if pack.is_preview %}
-                        • Preview - not saved yet
-                    {% else %}
-                        • Opened {{ pack.opened_count }}x
-                        {% if not pack.campaign_enabled %} • Disabled from Campaign Mode{% endif %}
-                    {% endif %}
-                </p>
-            </div>
+  <div class="page-panel chaos-pack-view-header-panel">
+    <div class="chaos-pack-view-header-top">
+      <div class="chaos-pack-view-header-copy">
+        <h1 class="page-title">{{ pack.pack_display_name }}</h1>
+        <p class="page-subtitle">
+          {{ pack.pack_tracking_code }} • {{ pack.total_cards }} cards {% if
+          pack.is_preview %} • Preview - not saved yet {% else %} • Opened {{
+          pack.opened_count }}x {% if not pack.campaign_enabled %} • Disabled
+          from Campaign Mode{% endif %} {% endif %}
+        </p>
+      </div>
 
-            <div class="chaos-pack-view-header-actions">
-                <a
-                    class="action-button secondary-button chaos-pack-view-back-button"
-                    href="{{ ui_navigation.back_fallback_url }}"
-                    data-ui-navigation-action="{{ ui_navigation.back_action }}"
-                    data-ui-navigation-fallback="{{ ui_navigation.back_fallback_url }}"
-                >
-                    Back
-                </a>
+      <div class="chaos-pack-view-header-actions">
+        <a
+          class="action-button secondary-button chaos-pack-view-back-button"
+          href="{{ ui_navigation.back_fallback_url }}"
+          data-ui-navigation-action="{{ ui_navigation.back_action }}"
+          data-ui-navigation-fallback="{{ ui_navigation.back_fallback_url }}"
+        >
+          Back
+        </a>
 
+        <button
+          type="button"
+          id="campaignPackOpenPrintExportButton"
+          class="action-button chaos-pack-view-back-button"
+          {%
+          if
+          pack.is_preview
+          %}
+          data-print-url="{{ url_for('campaign_chaos_pack_preview_print') }}"
+          data-export-zip-url="{{ url_for('campaign_chaos_pack_preview_export_zip') }}"
+          {%
+          else
+          %}
+          data-print-url="{{ url_for('campaign_chaos_packs_print') }}"
+          data-export-zip-url="{{ url_for('campaign_chaos_packs_export_zip') }}"
+          {%
+          endif
+          %}
+        >
+          Print / Export
+        </button>
 
-
-                <button
-                    type="button"
-                    id="campaignPackOpenPrintExportButton"
-                    class="action-button chaos-pack-view-back-button"
-                    {% if pack.is_preview %}
-                    data-print-url="{{ url_for('campaign_chaos_pack_preview_print') }}"
-                    data-export-zip-url="{{ url_for('campaign_chaos_pack_preview_export_zip') }}"
-                    {% else %}
-                    data-print-url="{{ url_for('campaign_chaos_packs_print') }}"
-                    data-export-zip-url="{{ url_for('campaign_chaos_packs_export_zip') }}"
-                    {% endif %}
-                >
-                    Print / Export
-                </button>
-
-                {% if not pack.is_preview %}
-                <div
-                    class="chaos-export-split pack-view-export-split"
-                    id="packViewCopySplit"
-                    data-export-url="{{ url_for('campaign_chaos_pack_export', tracked_pack_id=pack.tracked_pack_id) }}"
-                >
-                    <button
-                        type="button"
-                        id="packViewCopyMainButton"
-                        class="action-button secondary-button chaos-export-main-button"
-                        data-export-format="archidekt"
-                    >
-                        Copy
-                    </button>
-
-                    <button
-                        type="button"
-                        id="packViewCopyMenuButton"
-                        class="action-button secondary-button chaos-export-menu-button"
-                        aria-expanded="false"
-                        aria-haspopup="true"
-                        title="Choose export format"
-                    >
-                        ▾
-                    </button>
-
-                    <div id="packViewCopyMenu" class="chaos-export-menu hidden">
-                        <button
-                            type="button"
-                            class="chaos-export-menu-item pack-view-copy-format-button chaos-export-menu-item-active"
-                            data-export-format="archidekt"
-                        >
-                            Copy Archidekt
-                        </button>
-
-                        <button
-                            type="button"
-                            class="chaos-export-menu-item pack-view-copy-format-button"
-                            data-export-format="moxfield"
-                        >
-                            Copy Moxfield
-                        </button>
-
-                        <button
-                            type="button"
-                            class="chaos-export-menu-item pack-view-copy-format-button"
-                            data-export-format="archidekt_full"
-                        >
-                            Copy Archidekt - Full
-                        </button>
-
-                        <button
-                            type="button"
-                            class="chaos-export-menu-item pack-view-copy-format-button"
-                            data-export-format="moxfield_full"
-                        >
-                            Copy Moxfield - Full
-                        </button>
-                    </div>
-                </div>
-
-                <a
-                    class="action-button secondary-button chaos-pack-view-back-button"
-                    href="{{ url_for('campaign_chaos_history', tracked_pack_id=pack.tracked_pack_id) }}"
-                >
-                    History
-                </a>
-
-                {% if global_card_upscaling_control_enabled and cards %}
-                <button
-                    type="button"
-                    id="campaignPackBatchUpscaleButton"
-                    class="action-button secondary-button imomir-batch-upscale-icon-button chaos-packs-button"
-                    title="Batch Upscale Pack"
-                    aria-label="Batch Upscale all cards in this pack"
-                >
-                    <svg
-                        viewBox="0 0 24 24"
-                        class="imomir-batch-upscale-icon"
-                        aria-hidden="true"
-                        focusable="false"
-                    >
-                        <rect
-                            x="3"
-                            y="7"
-                            width="11"
-                            height="12"
-                            rx="1.8"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.6"
-                        ></rect>
-
-                        <rect
-                            x="6"
-                            y="4"
-                            width="11"
-                            height="12"
-                            rx="1.8"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.6"
-                        ></rect>
-
-                        <path
-                            d="M19 12V5"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.9"
-                            stroke-linecap="round"
-                        ></path>
-
-                        <path
-                            d="M16.4 7.6L19 5l2.6 2.6"
-                            fill="none"
-                            stroke="currentColor"
-                            stroke-width="1.9"
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                        ></path>
-                    </svg>
-                </button>
-                {% endif %}
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    <div class="chaos-pack-view-grid">
-        {% for card in cards %}
+        {% if not pack.is_preview %}
         <div
-            class="chaos-pack-view-card"
+          class="chaos-export-split pack-view-export-split"
+          id="packViewCopySplit"
+          data-export-url="{{ url_for('campaign_chaos_pack_export', tracked_pack_id=pack.tracked_pack_id) }}"
+        >
+          <button
+            type="button"
+            id="packViewCopyMainButton"
+            class="action-button secondary-button chaos-export-main-button"
+            data-export-format="archidekt"
+          >
+            Copy
+          </button>
+
+          <button
+            type="button"
+            id="packViewCopyMenuButton"
+            class="action-button secondary-button chaos-export-menu-button"
+            aria-expanded="false"
+            aria-haspopup="true"
+            title="Choose export format"
+          >
+            ▾
+          </button>
+
+          <div id="packViewCopyMenu" class="chaos-export-menu hidden">
+            <button
+              type="button"
+              class="chaos-export-menu-item pack-view-copy-format-button chaos-export-menu-item-active"
+              data-export-format="archidekt"
+            >
+              Copy Archidekt
+            </button>
+
+            <button
+              type="button"
+              class="chaos-export-menu-item pack-view-copy-format-button"
+              data-export-format="moxfield"
+            >
+              Copy Moxfield
+            </button>
+
+            <button
+              type="button"
+              class="chaos-export-menu-item pack-view-copy-format-button"
+              data-export-format="archidekt_full"
+            >
+              Copy Archidekt - Full
+            </button>
+
+            <button
+              type="button"
+              class="chaos-export-menu-item pack-view-copy-format-button"
+              data-export-format="moxfield_full"
+            >
+              Copy Moxfield - Full
+            </button>
+          </div>
+        </div>
+
+        <a
+          class="action-button secondary-button chaos-pack-view-back-button"
+          href="{{ url_for('campaign_chaos_history', tracked_pack_id=pack.tracked_pack_id) }}"
+        >
+          History
+        </a>
+
+        {% if global_card_upscaling_control_enabled and cards %}
+        <button
+          type="button"
+          id="campaignPackBatchUpscaleButton"
+          class="action-button secondary-button imomir-batch-upscale-icon-button chaos-packs-button"
+          title="Batch Upscale Pack"
+          aria-label="Batch Upscale all cards in this pack"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="imomir-batch-upscale-icon"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <rect
+              x="3"
+              y="7"
+              width="11"
+              height="12"
+              rx="1.8"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+            ></rect>
+
+            <rect
+              x="6"
+              y="4"
+              width="11"
+              height="12"
+              rx="1.8"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+            ></rect>
+
+            <path
+              d="M19 12V5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.9"
+              stroke-linecap="round"
+            ></path>
+
+            <path
+              d="M16.4 7.6L19 5l2.6 2.6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.9"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></path>
+          </svg>
+        </button>
+        {% endif %} {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="chaos-pack-view-grid">
+    {% for card in cards %}
+    <div
+      class="chaos-pack-view-card"
+      data-card-uuid="{{ card.card_uuid }}"
+      data-card-name="{{ card.card_name }}"
+      data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
+      {%
+      if
+      not
+      pack.is_preview
+      and
+      card.tracked_pack_card_id
+      %}
+      data-tracked-pack-card-id="{{ card.tracked_pack_card_id }}"
+      {%
+      endif
+      %}
+    >
+      <div
+        class="chaos-pack-view-image-wrap"
+        data-card-uuid="{{ card.card_uuid }}"
+      >
+        <img
+          src="{{ url_for('chaos_card_image', card_uuid=card.card_uuid, image_scope_id=card.image_scope_id or '') if pack.is_preview else url_for('chaos_card_image', card_uuid=card.card_uuid) }}"
+          alt="{{ card.card_name }}"
+          class="chaos-pack-view-image campaign-pack-detail-zoomable"
+          role="button"
+          tabindex="0"
+          data-card-uuid="{{ card.card_uuid }}"
+          data-zoom-src="{{ url_for('chaos_card_image', card_uuid=card.card_uuid, image_scope_id=card.image_scope_id or '') if pack.is_preview else url_for('chaos_card_image', card_uuid=card.card_uuid) }}"
+          data-zoom-alt="{{ card.card_name }}"
+          aria-label="Zoom {{ card.card_name }}"
+        />
+      </div>
+
+      <div class="chaos-pack-view-info">
+        <div class="chaos-pack-view-name">{{ card.card_name }}</div>
+
+        <div class="alternate-image-price-row">
+          {% if not pack.is_preview and card.tracked_pack_card_id %}
+          <button
+            type="button"
+            class="alternate-image-gear campaign-pack-change-printing-button"
+            data-card-name="{{ card.card_name }}"
+            data-current-card-uuid="{{ card.card_uuid }}"
+            data-printing-options-url="{{ url_for('campaign_chaos_pack_card_printing_options', tracked_pack_card_id=card.tracked_pack_card_id) }}"
+            data-update-url="{{ url_for('campaign_chaos_pack_card_update_printing', tracked_pack_card_id=card.tracked_pack_card_id) }}"
+            title="Change printing"
+            aria-label="Change printing for {{ card.card_name }}"
+          >
+            <svg
+              class="custom-draft-change-printing-icon"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              focusable="false"
+            >
+              <rect
+                x="7"
+                y="5"
+                width="10"
+                height="14"
+                rx="1.8"
+                ry="1.8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              ></rect>
+              <rect
+                x="5"
+                y="3"
+                width="10"
+                height="14"
+                rx="1.8"
+                ry="1.8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              ></rect>
+              <line
+                x1="8"
+                y1="8"
+                x2="12"
+                y2="8"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              ></line>
+              <line
+                x1="8"
+                y1="11"
+                x2="12"
+                y2="11"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              ></line>
+              <line
+                x1="8"
+                y1="14"
+                x2="11"
+                y2="14"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+              ></line>
+            </svg>
+          </button>
+          {% endif %}
+
+          <button
+            type="button"
+            class="alternate-image-gear alternate-image-button {% if card.has_alternate_source %}custom-draft-alternate-image-active{% endif %}"
+            data-has-alternate-source="{{ 1 if card.has_alternate_source else 0 }}"
             data-card-uuid="{{ card.card_uuid }}"
             data-card-name="{{ card.card_name }}"
             data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
-            {% if not pack.is_preview and card.tracked_pack_card_id %}
-            data-tracked-pack-card-id="{{ card.tracked_pack_card_id }}"
-            {% endif %}
-        >
-            <div class="chaos-pack-view-image-wrap" data-card-uuid="{{ card.card_uuid }}">
-                <img
-                    src="{{ url_for('chaos_card_image', card_uuid=card.card_uuid, image_scope_id=card.image_scope_id or '') if pack.is_preview else url_for('chaos_card_image', card_uuid=card.card_uuid) }}"
-                    alt="{{ card.card_name }}"
-                    class="chaos-pack-view-image campaign-pack-detail-zoomable"
-                    role="button"
-                    tabindex="0"
-                    data-card-uuid="{{ card.card_uuid }}"
-                    data-zoom-src="{{ url_for('chaos_card_image', card_uuid=card.card_uuid, image_scope_id=card.image_scope_id or '') if pack.is_preview else url_for('chaos_card_image', card_uuid=card.card_uuid) }}"
-                    data-zoom-alt="{{ card.card_name }}"
-                    aria-label="Zoom {{ card.card_name }}"
-                >
-            </div>
+            {%
+            if
+            not
+            pack.is_preview
+            and
+            card.tracked_pack_card_id
+            %}
+            data-foil-update-url="{{ url_for('campaign_chaos_pack_card_update_foil', tracked_pack_card_id=card.tracked_pack_card_id) }}"
+            {%
+            endif
+            %}
+            title="Alternate image settings"
+            aria-label="Alternate image settings for {{ card.card_name }}"
+          >
+            ⚙
+          </button>
 
-            <div class="chaos-pack-view-info">
-                <div class="chaos-pack-view-name">{{ card.card_name }}</div>
-
-                <div class="alternate-image-price-row">
-                    {% if not pack.is_preview and card.tracked_pack_card_id %}
-                    <button
-                        type="button"
-                        class="alternate-image-gear campaign-pack-change-printing-button"
-                        data-card-name="{{ card.card_name }}"
-                        data-current-card-uuid="{{ card.card_uuid }}"
-                        data-printing-options-url="{{ url_for('campaign_chaos_pack_card_printing_options', tracked_pack_card_id=card.tracked_pack_card_id) }}"
-                        data-update-url="{{ url_for('campaign_chaos_pack_card_update_printing', tracked_pack_card_id=card.tracked_pack_card_id) }}"
-                        title="Change printing"
-                        aria-label="Change printing for {{ card.card_name }}"
-                    >
-                        <svg
-                            class="custom-draft-change-printing-icon"
-                            viewBox="0 0 24 24"
-                            aria-hidden="true"
-                            focusable="false"
-                        >
-                            <rect x="7" y="5" width="10" height="14" rx="1.8" ry="1.8" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
-                            <rect x="5" y="3" width="10" height="14" rx="1.8" ry="1.8" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
-                            <line x1="8" y1="8" x2="12" y2="8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
-                            <line x1="8" y1="11" x2="12" y2="11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
-                            <line x1="8" y1="14" x2="11" y2="14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></line>
-                        </svg>
-                    </button>
-                    {% endif %}
-
-                    <button
-                        type="button"
-                        class="alternate-image-gear alternate-image-button {% if card.has_alternate_source %}custom-draft-alternate-image-active{% endif %}"
-                        data-has-alternate-source="{{ 1 if card.has_alternate_source else 0 }}"
-                        data-card-uuid="{{ card.card_uuid }}"
-                        data-card-name="{{ card.card_name }}"
-                        data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
-                        {% if not pack.is_preview and card.tracked_pack_card_id %}
-                        data-foil-update-url="{{ url_for('campaign_chaos_pack_card_update_foil', tracked_pack_card_id=card.tracked_pack_card_id) }}"
-                        {% endif %}
-                        title="Alternate image settings"
-                        aria-label="Alternate image settings for {{ card.card_name }}"
-                    >
-                        ⚙
-                    </button>
-
-                    {% if global_card_upscaling_control_enabled %}
-                    <button
-                        type="button"
-                        class="alternate-image-gear imomir-upscale-card-button {% if card.has_upscaled_image %}imomir-upscale-card-active{% endif %}"
-                        data-card-uuid="{{ card.card_uuid }}"
-                        data-upscale-control-url="{{ url_for('chaos_card_upscale_control', card_uuid=card.card_uuid, face='front') }}"
-                        title="Upscale Image"
-                        aria-label="Upscale {{ card.card_name }}"
-                    >
-                        <svg
-                            viewBox="0 0 24 24"
-                            class="imomir-upscale-icon"
-                            aria-hidden="true"
-                            focusable="false"
-                        >
-                            <rect
-                                x="3.5"
-                                y="6"
-                                width="13"
-                                height="13"
-                                rx="2"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="1.8"
-                            ></rect>
-
-                            <circle
-                                cx="8"
-                                cy="10"
-                                r="1.4"
-                                fill="currentColor"
-                            ></circle>
-
-                            <path
-                                d="M5.5 16l3.1-3.2 2.5 2.4 2.1-2.2 3.2 3.1"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="1.6"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            ></path>
-
-                            <path
-                                d="M18.5 11V4.5"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="1.9"
-                                stroke-linecap="round"
-                            ></path>
-
-                            <path
-                                d="M15.8 7.2l2.7-2.7 2.7 2.7"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="1.9"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            ></path>
-                        </svg>
-                    </button>
-                    {% endif %}
-
-                    {% if display_pack_prices %}
-                    <div class="chaos-pack-view-price">
-                        {% if card.price_info.price is not none %}
-                            ${{ "%.2f"|format(card.price_info.price) }}
-                        {% else %}
-                            Price unavailable
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                </div>
-
-                {% if card.sheet_is_foil or card.special_badges %}
-                <div class="chaos-pack-view-badges">
-                    {% if card.sheet_is_foil and "Foil" not in card.special_badges %}
-                    <span class="chaos-pack-view-badge campaign-pack-foil-badge">Foil</span>
-                    {% endif %}
-
-                    {% for badge in card.special_badges %}
-                    <span class="chaos-pack-view-badge {% if badge == 'Foil' %}campaign-pack-foil-badge{% endif %}">{{ badge }}</span>
-                    {% endfor %}
-                </div>
-                {% endif %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    <div
-        id="campaignPackChangePrintingOverlay"
-        class="custom-draft-card-search-overlay hidden"
-        aria-hidden="true"
-    >
-        <div class="custom-draft-card-search-window">
-            <div class="custom-draft-card-search-window-header">
-                <div>
-                    <h2>Change Printing</h2>
-                    <p id="campaignPackChangePrintingSubtitle" class="page-subtitle">
-                        Choose a replacement printing.
-                    </p>
-                </div>
-
-                <button
-                    type="button"
-                    id="campaignPackChangePrintingCloseButton"
-                    class="custom-draft-card-search-close-button"
-                    aria-label="Close Change Printing"
-                    title="Close"
-                >
-                    ×
-                </button>
-            </div>
-
-            <div class="custom-draft-card-search-panel">
-                <div id="campaignPackChangePrintingStatus" class="custom-draft-card-search-status hidden"></div>
-                <div id="campaignPackChangePrintingResults" class="custom-draft-card-search-results hidden"></div>
-            </div>
-        </div>
-    </div>
-    {% set print_export_subject_label = "pack" %}
-    {% if pack.is_preview %}
-        {% set print_export_pack_ids = [] %}
-    {% else %}
-        {% set print_export_pack_ids = [pack.tracked_pack_id] %}
-    {% endif %}
-    {% include "_print_export_modal.html" %}
-    {% include "_alternate_image_modal.html" %}
-    <div id="campaignPackZoomOverlay" class="card-zoom-overlay hidden" aria-hidden="true">
-        <div id="campaignPackZoomBackdrop" class="card-zoom-backdrop"></div>
-        <div class="card-zoom-content">
-            <img
-                id="campaignPackZoomImage"
-                src=""
-                alt=""
-                class="card-zoom-image"
+          {% if global_card_upscaling_control_enabled %}
+          <button
+            type="button"
+            class="alternate-image-gear imomir-upscale-card-button {% if card.has_upscaled_image %}imomir-upscale-card-active{% endif %}"
+            data-card-uuid="{{ card.card_uuid }}"
+            data-upscale-control-url="{{ url_for('chaos_card_upscale_control', card_uuid=card.card_uuid, face='front') }}"
+            title="Upscale Image"
+            aria-label="Upscale {{ card.card_name }}"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="imomir-upscale-icon"
+              aria-hidden="true"
+              focusable="false"
             >
+              <rect
+                x="3.5"
+                y="6"
+                width="13"
+                height="13"
+                rx="2"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              ></rect>
+
+              <circle cx="8" cy="10" r="1.4" fill="currentColor"></circle>
+
+              <path
+                d="M5.5 16l3.1-3.2 2.5 2.4 2.1-2.2 3.2 3.1"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+
+              <path
+                d="M18.5 11V4.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+              ></path>
+
+              <path
+                d="M15.8 7.2l2.7-2.7 2.7 2.7"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.9"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+          </button>
+          {% endif %} {% if display_pack_prices %}
+          <div class="chaos-pack-view-price">
+            {% if card.price_info.price is not none %} ${{
+            "%.2f"|format(card.price_info.price) }} {% else %} Price unavailable
+            {% endif %}
+          </div>
+          {% endif %}
         </div>
+
+        {% if card.sheet_is_foil or card.special_badges %}
+        <div class="chaos-pack-view-badges">
+          {% if card.sheet_is_foil and "Foil" not in card.special_badges %}
+          <span class="chaos-pack-view-badge campaign-pack-foil-badge"
+            >Foil</span
+          >
+          {% endif %} {% for badge in card.special_badges %}
+          <span
+            class="chaos-pack-view-badge {% if badge == 'Foil' %}campaign-pack-foil-badge{% endif %}"
+            >{{ badge }}</span
+          >
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
     </div>
+    {% endfor %}
+  </div>
+  <div
+    id="campaignPackChangePrintingOverlay"
+    class="custom-draft-card-search-overlay hidden"
+    aria-hidden="true"
+  >
+    <div class="custom-draft-card-search-window">
+      <div class="custom-draft-card-search-window-header">
+        <div>
+          <h2>Change Printing</h2>
+          <p id="campaignPackChangePrintingSubtitle" class="page-subtitle">
+            Choose a replacement printing.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          id="campaignPackChangePrintingCloseButton"
+          class="custom-draft-card-search-close-button"
+          aria-label="Close Change Printing"
+          title="Close"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="custom-draft-card-search-panel">
+        <div
+          id="campaignPackChangePrintingStatus"
+          class="custom-draft-card-search-status hidden"
+        ></div>
+        <div
+          id="campaignPackChangePrintingResults"
+          class="custom-draft-card-search-results hidden"
+        ></div>
+      </div>
+    </div>
+  </div>
+  {% set print_export_subject_label = "pack" %} {% if pack.is_preview %} {% set
+  print_export_pack_ids = [] %} {% else %} {% set print_export_pack_ids =
+  [pack.tracked_pack_id] %} {% endif %} {% include "_print_export_modal.html" %}
+  {% include "_alternate_image_modal.html" %}
+  <div
+    id="campaignPackZoomOverlay"
+    class="card-zoom-overlay hidden"
+    aria-hidden="true"
+  >
+    <div id="campaignPackZoomBackdrop" class="card-zoom-backdrop"></div>
+    <div class="card-zoom-content">
+      <img id="campaignPackZoomImage" src="" alt="" class="card-zoom-image" />
+    </div>
+  </div>
 </div>
 
 <script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/campaign_pack_detail.js') }}"></script>
-{% endblock %}
-
-{% block page_scripts_after_app %}
+{% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
 {% endblock %}
