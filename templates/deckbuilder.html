@@ -704,6 +704,8 @@
             src="{{ url_for('chaos_card_image', card_uuid=land_card.card_uuid) }}"
             alt="{{ land_card.card_name }}"
             class="campaign-test-draft-picked-thumb"
+            loading="lazy"
+            decoding="async"
           />
           {% else %}
           <div class="deckbuilder-basic-land-missing-image">
@@ -804,7 +806,11 @@
               Partner
             </div>
             {% endif %} {% if picked_card.sheet_is_foil %}
-            <div class="deckbuilder-card-meta-badge">Foil</div>
+            <div
+              class="deckbuilder-card-meta-badge deckbuilder-card-foil-badge"
+            >
+              Foil
+            </div>
             {% endif %}
           </div>
         </div>

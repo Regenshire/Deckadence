@@ -24813,7 +24813,7 @@ DECK_ROULETTE_TOP_LIMIT_OPTIONS = tuple(
 )
 
 DECK_ROULETTE_WHEEL_SIZE_OPTIONS = tuple(
-    range(6, 19)
+    range(4, 19)
 )
 
 
@@ -25123,7 +25123,7 @@ def deck_roulette_spin():
         normalize_deck_roulette_choice(
             payload.get("wheel_size"),
             DECK_ROULETTE_WHEEL_SIZE_OPTIONS,
-            12,
+            8,
         )
     )
 
@@ -26835,6 +26835,27 @@ def deckbuilder_card_action_bulk(deck_id):
     if not result.get("ok"):
         return jsonify(result), 400
 
+    response_mode = (request.form.get("response_mode") or "").strip().lower()
+
+    requested_card_ids = {
+        str(value or "").strip()
+        for value in deck_card_ids
+        if str(value or "").strip()
+    }
+
+    if (
+        response_mode == "delta"
+        and action in {"move", "remove", "set_foil", "remove_foil"}
+        and int(result.get("basic_land_removed_count") or 0) == 0
+        and int(result.get("affected_count") or 0) == len(requested_card_ids)
+    ):
+        return jsonify({
+            "ok": True,
+            "response_mode": "delta",
+            "message": result.get("message") or "Deck updated.",
+            "bulk_card_action_result": result,
+        })
+
     payload = get_deckbuilder_payload_after_update(
         deck_id,
         deck_row,
@@ -26918,6 +26939,25 @@ def deckbuilder_card_action(deck_id):
 
     if not result.get("ok"):
         return jsonify(result), 400
+
+    response_mode = (request.form.get("response_mode") or "").strip().lower()
+
+    delta_complete = (
+        action in {"move", "remove"}
+        or int(result.get("updated") or 0) > 0
+    )
+
+    if (
+        response_mode == "delta"
+        and action in {"move", "remove", "set_foil", "remove_foil"}
+        and delta_complete
+    ):
+        return jsonify({
+            "ok": True,
+            "response_mode": "delta",
+            "message": result.get("message") or "Deck updated.",
+            "card_action_result": result,
+        })
 
     if source_type == "draft_test" and source_id:
         draft_state = get_draft_test_detail_state(source_id)
