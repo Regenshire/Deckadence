@@ -733,6 +733,7 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
             />
 
             <div
+              id="alternateImageSourceComposer"
               class="alternate-image-source-composer"
               data-help-id="alternate-image-source-input"
             >
@@ -830,7 +831,7 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
                 for="alternateImageExportFrameTemplate"
                 data-help-id="alternate-image-frame-template"
               >
-                <span>Card Frame Template</span>
+                <span>Label Template</span>
 
                 <select
                   name="export_frame_template"
@@ -1049,6 +1050,9 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
     );
     const alternateSourceList = document.getElementById(
       "alternateImageSourceList",
+    );
+    const alternateSourceComposer = document.getElementById(
+      "alternateImageSourceComposer",
     );
     const alternateExportFrameTemplate = document.getElementById(
       "alternateImageExportFrameTemplate",
@@ -1869,6 +1873,10 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
       setAlternateFoilContext(options);
       setAlternateInputLocked(false);
 
+      if (alternateSourceComposer) {
+        alternateSourceComposer.classList.remove("hidden");
+      }
+
       updateAlternateSourceFieldVisibility();
       updateAlternateImagePreview();
 
@@ -1930,7 +1938,17 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
         activeSource ? activeSource.export_frame_template || "auto" : "auto",
       );
 
+      const hideSourceComposer = sources.length > 0 && !isDualFaced;
+
+      if (alternateSourceComposer) {
+        alternateSourceComposer.classList.toggle("hidden", hideSourceComposer);
+      }
+
       setAlternateInputLocked(Boolean(activeSource) && !isDualFaced);
+
+      if (alternateAddButton && hideSourceComposer) {
+        alternateAddButton.classList.add("hidden");
+      }
 
       renderActiveAlternateSources(sources, card);
 
