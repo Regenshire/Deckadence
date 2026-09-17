@@ -26335,14 +26335,13 @@ def deckbuilder_cards_add(deck_id):
     if not result.get("ok"):
         return jsonify(result), 400
 
-    deckbuilder_payload = get_deckbuilder_payload_after_update(
-        deck_id,
-        deck_row,
-        result_key="add_card_result",
-        result=result,
-    )
-
-    return jsonify(deckbuilder_payload), 200 if deckbuilder_payload.get("ok") else 400
+    return jsonify({
+        "ok": True,
+        "response_mode": "delta",
+        "inserted": True,
+        "message": result.get("message") or "Card added to sideboard.",
+        "add_card_result": result,
+    })
 
 @app.route("/deck-builder/<int:deck_id>/change-printing-options", methods=["GET"])
 def deckbuilder_change_printing_options(deck_id):
@@ -26944,12 +26943,22 @@ def deckbuilder_card_action(deck_id):
 
     delta_complete = (
         action in {"move", "remove"}
+        or (
+            action == "duplicate"
+            and int(result.get("deck_card_id") or 0) > 0
+        )
         or int(result.get("updated") or 0) > 0
     )
 
     if (
         response_mode == "delta"
-        and action in {"move", "remove", "set_foil", "remove_foil"}
+        and action in {
+            "move",
+            "remove",
+            "duplicate",
+            "set_foil",
+            "remove_foil",
+        }
         and delta_complete
     ):
         return jsonify({
