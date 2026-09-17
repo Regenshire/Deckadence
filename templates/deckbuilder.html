@@ -34,6 +34,10 @@
   rel="stylesheet"
   href="{{ url_for('static', filename='css/print_export_modal.css') }}"
 />
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css') }}"
+/>
 {% endblock %} {% block content %} {% set player = deckbuilder.human_player %}
 
 <div
@@ -1293,8 +1297,10 @@
     </div>
   </div>
 
-  {% include "_alternate_image_modal.html" %} {% include
-  "_deck_image_generator.html" %} {% include "_moxfield_sync_modal.html" %}
+  {% include "_alternate_image_modal.html" %}
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js') }}"></script>
+  {% include "_deck_image_generator.html" %} {% include
+  "_moxfield_sync_modal.html" %}
 
   <div
     id="deckbuilderDeleteDeckModal"

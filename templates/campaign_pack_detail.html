@@ -20,6 +20,10 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
   rel="stylesheet"
   href="{{ url_for('static', filename='css/print_export_modal.css') }}"
 />
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css') }}"
+/>
 {% endblock %} {% block content %}
 <div
   class="screen screen-wide"
@@ -454,6 +458,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
   print_export_pack_ids = [] %} {% else %} {% set print_export_pack_ids =
   [pack.tracked_pack_id] %} {% endif %} {% include "_print_export_modal.html" %}
   {% include "_alternate_image_modal.html" %}
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js') }}"></script>
   <div
     id="campaignPackZoomOverlay"
     class="card-zoom-overlay hidden"

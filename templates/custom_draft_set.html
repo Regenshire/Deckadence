@@ -24,6 +24,10 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
   rel="stylesheet"
   href="{{ url_for('static', filename='css/print_export_modal.css') }}"
 />
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css') }}"
+/>
 {% endblock %} {% block content %}
 <div class="screen screen-wide">
   <div class="page-panel">
@@ -1439,6 +1443,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
   {% set stats_modal_title = "Set Card Stats" %} {% set stats_modal_subtitle =
   "Stats for the currently visible filtered cards." %} {% include
   "_stats_modal.html" %} {% include "_alternate_image_modal.html" %}
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js') }}"></script>
 
   <div
     id="customDraftCardZoomOverlay"
