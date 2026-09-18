@@ -18,9 +18,16 @@
       href="{{ url_for('static', filename='css/print_template_selector.css') }}"
     />
 
+    {% if global_personal_use_agreement_required %}
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/personal_use_agreement.css') }}"
+    />
+    {% endif %}
+
     {% block page_styles %}{% endblock %}
   </head>
-  <body>
+  <body{% if global_personal_use_agreement_required %} class="personal-use-agreement-active"{% endif %}>
     <div class="app-shell">
       <div class="app-frame">
         <nav class="app-tabs" aria-label="Primary">
@@ -426,6 +433,10 @@
         {% block content %}{% endblock %}
       </div>
     </div>
+
+    {% if global_personal_use_agreement_required %}
+    {% include "_personal_use_agreement_modal.html" %}
+    {% endif %}
 
     {% include "_print_template_selector_modal.html" %} {% include
     "_help_layer.html" %}

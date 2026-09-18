@@ -2859,10 +2859,6 @@
     const nameRow = document.createElement("div");
     nameRow.className = "custom-draft-grid-card-name-row";
 
-    const sourceCheckbox = row.querySelector(
-      ".custom-draft-current-card-checkbox",
-    );
-
     const selectLabel = document.createElement("label");
     selectLabel.className =
       "custom-draft-current-card-select-wrap custom-draft-grid-card-select-wrap";
@@ -2872,7 +2868,7 @@
     gridCheckbox.className =
       "custom-draft-current-card-checkbox custom-draft-grid-card-checkbox";
     gridCheckbox.value = row.dataset.customSetCardId || "";
-    gridCheckbox.checked = Boolean(sourceCheckbox && sourceCheckbox.checked);
+    gridCheckbox.checked = isCurrentCardRowSelected(row);
     gridCheckbox.setAttribute("aria-label", "Select " + cardName);
 
     gridCheckbox.addEventListener("change", function () {
@@ -3025,10 +3021,14 @@
       return;
     }
 
+    const isSelected = isCurrentCardRowSelected(row);
     const sourceCheckbox = row.querySelector(
       ".custom-draft-current-card-checkbox",
     );
-    const isSelected = Boolean(sourceCheckbox && sourceCheckbox.checked);
+
+    if (sourceCheckbox && sourceCheckbox.checked !== isSelected) {
+      sourceCheckbox.checked = isSelected;
+    }
 
     gridCard.classList.toggle(
       "custom-draft-current-card-row-selected",
@@ -3489,6 +3489,16 @@
     }
   }
 
+  function isCurrentCardRowSelected(row) {
+    if (!row) {
+      return false;
+    }
+
+    const cardId = String(row.dataset.customSetCardId || "").trim();
+
+    return Boolean(cardId && selectedCurrentCardRows.has(cardId));
+  }
+
   function setCurrentCardRowSelection(row, isSelected) {
     if (!row) {
       return;
@@ -3591,7 +3601,9 @@
   }
 
   function clearCurrentCardSelection() {
-    Array.from(selectedCurrentCardRows.values()).forEach(function (row) {
+    selectedCurrentCardRows.clear();
+
+    getCurrentCardRows().forEach(function (row) {
       setCurrentCardRowSelection(row, false);
     });
 
@@ -4517,7 +4529,7 @@
       : "list";
 
   bindCurrentCardControls();
-  updateCurrentSelectionState();
+  clearCurrentCardSelection();
   filterCurrentCards();
 
   if (document.readyState === "complete") {

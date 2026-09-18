@@ -1,0 +1,85 @@
+body.personal-use-agreement-active {
+  overflow: hidden;
+}
+
+.personal-use-agreement-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(5, 7, 12, 0.9);
+  backdrop-filter: blur(6px);
+}
+
+.personal-use-agreement-dialog {
+  width: min(100%, 680px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: #181a20;
+  color: #f3f4f6;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.62);
+  padding: 28px;
+}
+
+.personal-use-agreement-eyebrow {
+  margin-bottom: 8px;
+  color: #aab2c0;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.personal-use-agreement-dialog h2 {
+  margin: 0;
+  font-size: 1.65rem;
+  line-height: 1.2;
+}
+
+.personal-use-agreement-copy {
+  margin-top: 18px;
+  line-height: 1.55;
+}
+
+.personal-use-agreement-copy p {
+  margin: 0;
+}
+
+.personal-use-agreement-copy p + p {
+  margin-top: 14px;
+}
+
+.personal-use-agreement-copy ul {
+  margin: 16px 0 0;
+  padding-left: 1.35rem;
+}
+
+.personal-use-agreement-copy li + li {
+  margin-top: 8px;
+}
+
+.personal-use-agreement-form {
+  margin-top: 24px;
+}
+
+.personal-use-agreement-button {
+  width: 100%;
+  min-height: 50px;
+}
+
+@media (max-width: 560px) {
+  .personal-use-agreement-overlay {
+    padding: 12px;
+  }
+
+  .personal-use-agreement-dialog {
+    max-height: calc(100vh - 24px);
+    padding: 20px;
+    border-radius: 14px;
+  }
+}

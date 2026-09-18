@@ -1795,6 +1795,9 @@ def inject_global_template_state():
         "nav_momir_mode": resolve_momir_mode_value(config),
         "nav_chaos_draft_mode": resolve_chaos_draft_mode_value(config),
         "global_reminder_state": global_reminder_state,
+        "global_personal_use_agreement_required": (
+            (config.get("personal_use_agreement_accepted") or "0").strip() != "1"
+        ),
         "global_qr_access_url": access_url,
         "global_qr_image_url": build_qr_code_image_url(access_url),
         "global_print_template_options": (
@@ -17218,6 +17221,17 @@ def help_get_progress(
         "ok": True,
         "progress": progress,
     })
+
+@app.route("/personal-use-agreement/accept", methods=["POST"])
+def accept_personal_use_agreement():
+    next_path = (request.form.get("next") or "").strip()
+
+    if not next_path.startswith("/") or next_path.startswith("//"):
+        next_path = url_for("index")
+
+    set_config_value("personal_use_agreement_accepted", "1")
+
+    return redirect(next_path)
 
 @app.route("/")
 def index():
