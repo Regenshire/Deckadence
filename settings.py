@@ -2,7 +2,7 @@ import secrets
 
 from card_backs import DEFAULT_CARD_BACK_KEY
 
-APP_VERSION = "2.3.0"
+APP_VERSION = "2.3.1"
 GITHUB_RELEASE_OWNER = "Regenshire"
 GITHUB_RELEASE_REPO = "Deckadence"
 GITHUB_LATEST_RELEASE_API_URL = (

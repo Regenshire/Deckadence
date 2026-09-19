@@ -253,3 +253,58 @@ Deckadence is released under the MIT License. See [`LICENSE.txt`](LICENSE.txt) f
 Deckadence relies on data and services provided by projects including **MTGJSON** and **Scryfall**, and is built using a number of open-source Python libraries listed above and in `requirements.txt`.
 
 Optional upscaling plugins use separately distributed open-source machine-learning libraries and models and are not required for normal Deckadence use.
+
+# Screenshots
+
+<p align="center">
+  <img
+    src="docs/images/example_chaos_draft.jpg"
+    alt=Chaos Draft"
+  >"
+  <br>
+  <em>Roll on a Chaos Draft spinner for curated or random packs</em>
+</p>
+<p align="center">
+  <img
+    src="docs/images/example_deck_roulette.jpg"
+    alt=Deck Roulette"
+  >"
+  <br>
+  <em>Spin on the Deck Roulette for deck ideas</em>
+</p>
+
+<p align="center">
+  <img
+    src="docs/images/example_momir_mode.jpg"
+    alt=Chaos Draft"
+  >"
+  <br>
+  <em>Play Momir with friends</em>
+</p>
+
+<p align="center">
+  <img
+    src="docs/images/example_setcardlist.jpg"
+    alt="Deckadence Set Card List"
+  >
+  <br>
+  <em>Custom Set — Manage the cards in custom sets</em>
+</p>
+
+<p align="center">
+  <img
+    src="docs/images/example_AlternateImage.jpg"
+    alt="Set Alternate Images"
+  >
+  <br>
+  <em>Set Alternate Images</em>
+</p>
+
+<p align="center">
+  <img
+    src="docs/images/example_deckbuilder_stacked.jpg"
+    alt=Deckbuilder Stack View"
+  >"
+  <br>
+  <em>Use the Deckbuilder to create and manage deckss</em>
+</p>
