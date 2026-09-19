@@ -111,7 +111,7 @@ block page_styles %}
       {% endcall %}
 
       {% call render_home_primary_card(
-        "Momir",
+        "Play Momir",
         "fa-wand-magic-sparkles",
         url_for("play_momir"),
         "I am feeling lucky!",
@@ -123,7 +123,7 @@ block page_styles %}
       {% endcall %}
 
       {% call render_home_primary_card(
-        "Sets",
+        "Custom Sets",
         "fa-clone",
         url_for("sets"),
         "Create your own set",
@@ -133,6 +133,18 @@ block page_styles %}
         Cube? Maybe to include in a Chaos Draft? Or maybe you just want to
         create a set that is full of custom artwork. Well, this is the place to
         do it!
+      {% endcall %}
+
+      {% call render_home_primary_card(
+        "Deck Roulette",
+        "fa-dharmachakra",
+        url_for("deck_roulette"),
+        "Spin the wheel!",
+        card_database_ready
+      ) %}
+        Want to try your hand at a new deck? Well step right up and give the Roulette a spin!  Want a Blue White Deck, how about Green Red Black deck?  Well, you select what you want and then give the roulette win a go!
+
+        Spin through decks, filter by format, Commander, color identity, and more, then open the winning deck in the Deck Builder.
       {% endcall %}
     </section>
     <section class="home-guides-section">
