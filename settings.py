@@ -1,3 +1,5 @@
+import secrets
+
 from card_backs import DEFAULT_CARD_BACK_KEY
 
 APP_VERSION = "2.3.0"
@@ -23,7 +25,7 @@ MTGJSON_SET_BOOSTER_SHEETS_URL = f"{MTGJSON_CSV_BASE_URL}/setBoosterSheets.csv"
 
 SCRYFALL_BULK_DATA_URL = "https://api.scryfall.com/bulk-data"
 
-APP_SECRET_KEY = "imomir-dev-key"
+APP_SECRET_KEY = secrets.token_hex(32)
 
 CARD_BACK_UPLOAD_MAX_SIZE_MB = 35
 CARD_BACK_UPLOAD_MAX_SIZE_BYTES = CARD_BACK_UPLOAD_MAX_SIZE_MB * 1024 * 1024

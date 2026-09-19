@@ -12,8 +12,15 @@ import json
 from paths import (
     ALTERNATE_SOURCE_DIR,
     CAMPAIGN_PLAYER_PORTRAIT_DIR,
+    CUSTOM_SET_ICON_DIR,
+    DECK_ART_GENERATED_DIR,
+    DECK_ART_SOURCE_DIR,
     EXPORT_ROOT_DIR,
     RUNTIME_BASE_DIR,
+    RUNTIME_CARD_BACK_DIR,
+    RUNTIME_PACK_ART_DIR,
+    RUNTIME_PRINT_TEMPLATE_DIR,
+    get_static_dir,
 )
 
 from db.database import get_db_connection, isolation_operation, IsolationStorage
@@ -72,6 +79,24 @@ FILE_FIELD_NAMES = {
     "portrait_image_path",
     "image_path",
 }
+
+FULL_BACKUP_ADDITIONAL_TABLE_NAMES = {
+    "sets",
+}
+
+FULL_BACKUP_EXTRA_DIRECTORIES = (
+    CUSTOM_SET_ICON_DIR,
+    RUNTIME_CARD_BACK_DIR,
+    RUNTIME_PACK_ART_DIR,
+    DECK_ART_SOURCE_DIR,
+    DECK_ART_GENERATED_DIR,
+    RUNTIME_PRINT_TEMPLATE_DIR,
+    os.path.join(
+        get_static_dir(),
+        "sil",
+        "Studio3",
+    ),
+)
 
 
 def utc_now_text():
@@ -531,6 +556,9 @@ def get_existing_full_backup_tables():
         "card_prices",
         "import_metadata",
         "chaos_session_state",
+        "upscaled_images",
+        "upscaling_jobs",
+        "upscaling_job_items",
         "_isolation_gc_queue",
         "_isolation_epochs",
     }
@@ -703,9 +731,27 @@ def build_full_rows_by_table():
     rows_by_table = {}
 
     for table_name in get_existing_full_backup_tables():
-        rows_by_table[table_name] = fetch_table_rows(table_name)
+        rows_by_table[table_name] = fetch_table_rows(
+            table_name
+        )
 
-    return include_isolated_archive_dependencies(rows_by_table)
+    if (
+        table_exists("sets")
+        and table_exists("custom_draft_sets")
+    ):
+        rows_by_table["sets"] = fetch_table_rows(
+            "sets",
+            where_clause=(
+                "set_code IN ("
+                "SELECT set_code "
+                "FROM custom_draft_sets"
+                ")"
+            ),
+        )
+
+    return include_isolated_archive_dependencies(
+        rows_by_table
+    )
 
 
 def get_row_identity(row):
@@ -806,56 +852,204 @@ def normalize_export_file_relative_path(table_name, field_name, field_value):
 
     clean_value = clean_value.replace("\\", "/").lstrip("/")
 
-    # chaos_players.portrait_image_path stores only the portrait filename.
-    # The actual file lives in data/campaign_player_portraits.
-    if table_name == "chaos_players" and field_name == "portrait_image_path":
+    # Portrait fields may store only the filename. The actual file lives in
+    # data/campaign_player_portraits.
+    if field_name == "portrait_image_path":
         if "/" not in clean_value:
             return os.path.relpath(
-                os.path.join(CAMPAIGN_PLAYER_PORTRAIT_DIR, clean_value),
+                os.path.join(
+                    CAMPAIGN_PLAYER_PORTRAIT_DIR,
+                    clean_value,
+                ),
                 RUNTIME_BASE_DIR,
             ).replace("\\", "/")
 
     return clean_value
 
-def collect_file_payloads(rows_by_table):
+def add_file_payload(
+    file_payloads,
+    absolute_path,
+):
+    if not absolute_path:
+        return
+
+    absolute_path = os.path.abspath(
+        absolute_path
+    )
+
+    if not os.path.isfile(absolute_path):
+        return
+
+    runtime_base = os.path.abspath(
+        RUNTIME_BASE_DIR
+    )
+
+    try:
+        common_path = os.path.commonpath([
+            runtime_base,
+            absolute_path,
+        ])
+    except ValueError:
+        return
+
+    if common_path != runtime_base:
+        return
+
+    relative_path = os.path.relpath(
+        absolute_path,
+        runtime_base,
+    ).replace("\\", "/")
+
+    if not is_safe_relative_path(
+        relative_path
+    ):
+        return
+
+    file_payloads[relative_path] = {
+        "relative_path": relative_path,
+        "absolute_path": absolute_path,
+        "archive_path": (
+            f"{ARCHIVE_FILE_ROOT}/"
+            f"{relative_path}"
+        ),
+    }
+
+
+def add_directory_file_payloads(
+    file_payloads,
+    directory_path,
+):
+    if (
+        not directory_path
+        or not os.path.isdir(directory_path)
+    ):
+        return
+
+    for (
+        root_path,
+        directory_names,
+        filenames,
+    ) in os.walk(directory_path):
+        directory_names.sort(
+            key=str.casefold
+        )
+
+        for filename in sorted(
+            filenames,
+            key=str.casefold,
+        ):
+            add_file_payload(
+                file_payloads,
+                os.path.join(
+                    root_path,
+                    filename,
+                ),
+            )
+
+
+def add_full_backup_extra_file_payloads(
+    file_payloads,
+    rows_by_table,
+):
+    for directory_path in (
+        FULL_BACKUP_EXTRA_DIRECTORIES
+    ):
+        add_directory_file_payloads(
+            file_payloads,
+            directory_path,
+        )
+
+    static_root = get_static_dir()
+
+    for row in rows_by_table.get(
+        "custom_draft_sets",
+        [],
+    ):
+        icon_relative_path = str(
+            row.get("icon_svg_path")
+            or ""
+        ).replace(
+            "\\",
+            "/",
+        ).lstrip("/")
+
+        if (
+            not icon_relative_path
+            or not is_safe_relative_path(
+                icon_relative_path
+            )
+        ):
+            continue
+
+        add_file_payload(
+            file_payloads,
+            os.path.join(
+                static_root,
+                icon_relative_path.replace(
+                    "/",
+                    os.sep,
+                ),
+            ),
+        )
+
+
+def collect_file_payloads(
+    rows_by_table,
+    export_kind=None,
+):
     file_payloads = {}
 
-    for table_name, rows in rows_by_table.items():
+    for (
+        table_name,
+        rows,
+    ) in rows_by_table.items():
         for row in rows or []:
-            for field_name, field_value in row.items():
-                if field_name not in FILE_FIELD_NAMES:
+            for (
+                field_name,
+                field_value,
+            ) in row.items():
+                if (
+                    field_name
+                    not in FILE_FIELD_NAMES
+                ):
                     continue
 
-                relative_path = normalize_export_file_relative_path(
-                    table_name=table_name,
-                    field_name=field_name,
-                    field_value=field_value,
+                relative_path = (
+                    normalize_export_file_relative_path(
+                        table_name=table_name,
+                        field_name=field_name,
+                        field_value=field_value,
+                    )
                 )
 
                 if not relative_path:
                     continue
 
-                if not is_safe_relative_path(relative_path):
+                if not is_safe_relative_path(
+                    relative_path
+                ):
                     continue
 
-                absolute_path = resolve_runtime_relative_path(relative_path)
+                absolute_path = (
+                    resolve_runtime_relative_path(
+                        relative_path
+                    )
+                )
 
-                if not absolute_path:
-                    continue
+                add_file_payload(
+                    file_payloads,
+                    absolute_path,
+                )
 
-                if not os.path.exists(absolute_path) or not os.path.isfile(absolute_path):
-                    continue
+    if export_kind == EXPORT_KIND_FULL:
+        add_full_backup_extra_file_payloads(
+            file_payloads,
+            rows_by_table,
+        )
 
-                clean_relative_path = relative_path.replace("\\", "/").lstrip("/")
-                archive_path = f"{ARCHIVE_FILE_ROOT}/{clean_relative_path}"
-
-                file_payloads[clean_relative_path] = {
-                    "relative_path": clean_relative_path,
-                    "absolute_path": absolute_path,
-                    "archive_path": archive_path,
-                }
-
-    return list(file_payloads.values())
+    return list(
+        file_payloads.values()
+    )
 
 
 def build_export_manifest(export_kind, rows_by_table):
@@ -875,7 +1069,10 @@ def build_export_manifest(export_kind, rows_by_table):
 
     files_element = ET.SubElement(root, "files")
 
-    for file_payload in collect_file_payloads(rows_by_table):
+    for file_payload in collect_file_payloads(
+        rows_by_table,
+        export_kind=export_kind,
+    ):
         file_element = ET.SubElement(files_element, "file")
         file_element.set("relative_path", file_payload["relative_path"])
         file_element.set("archive_path", file_payload["archive_path"])
@@ -905,7 +1102,10 @@ def create_export_archive(export_kind, rows_by_table, filename_prefix, auto_clea
 
     root = build_export_manifest(export_kind, rows_by_table)
     manifest_bytes = write_manifest_to_bytes(root)
-    file_payloads = collect_file_payloads(rows_by_table)
+    file_payloads = collect_file_payloads(
+        rows_by_table,
+        export_kind=export_kind,
+    )
 
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zip_file:
         zip_file.writestr(MANIFEST_FILENAME, manifest_bytes)
@@ -1171,7 +1371,12 @@ def get_allowed_tables_for_import(import_scope):
         )
 
     if clean_scope == EXPORT_KIND_FULL:
-        return set(get_existing_full_backup_tables())
+        return (
+            set(
+                get_existing_full_backup_tables()
+            )
+            | FULL_BACKUP_ADDITIONAL_TABLE_NAMES
+        )
 
     raise ValueError(f"Unknown import scope: {import_scope}")
 
