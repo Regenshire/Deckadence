@@ -1835,6 +1835,145 @@ def cleanup_upscaled_image_maintenance():
         ),
     }
 
+
+def delete_all_upscaled_images():
+    ensure_upscaling_schema()
+
+    os.makedirs(
+        UPSCALED_SCRYFALL_DIR,
+        exist_ok=True,
+    )
+
+    recovered_bytes = 0
+
+    for (
+        directory_path,
+        _directory_names,
+        filenames,
+    ) in os.walk(
+        UPSCALED_SCRYFALL_DIR
+    ):
+        for filename in filenames:
+            absolute_path = os.path.join(
+                directory_path,
+                filename,
+            )
+
+            recovered_bytes += (
+                _safe_file_size(
+                    absolute_path
+                )
+            )
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT upscaled_image_id
+        FROM upscaled_images
+        ORDER BY upscaled_image_id ASC
+        """
+    )
+
+    upscaled_image_ids = [
+        int(
+            row[
+                "upscaled_image_id"
+            ]
+        )
+        for row in cursor.fetchall()
+    ]
+
+    conn.close()
+
+    delete_result = (
+        delete_upscaled_image_records(
+            upscaled_image_ids
+        )
+    )
+
+    deleted_orphan_files = 0
+
+    for (
+        directory_path,
+        _directory_names,
+        filenames,
+    ) in os.walk(
+        UPSCALED_SCRYFALL_DIR
+    ):
+        for filename in filenames:
+            absolute_path = os.path.join(
+                directory_path,
+                filename,
+            )
+
+            try:
+                os.remove(
+                    absolute_path
+                )
+                deleted_orphan_files += 1
+            except OSError:
+                pass
+
+    removed_directories = 0
+
+    for (
+        directory_path,
+        _directory_names,
+        _filenames,
+    ) in os.walk(
+        UPSCALED_SCRYFALL_DIR,
+        topdown=False,
+    ):
+        if (
+            os.path.realpath(
+                directory_path
+            )
+            == os.path.realpath(
+                UPSCALED_SCRYFALL_DIR
+            )
+        ):
+            continue
+
+        try:
+            os.rmdir(
+                directory_path
+            )
+            removed_directories += 1
+        except OSError:
+            pass
+
+    return {
+        "deleted_records": int(
+            delete_result.get(
+                "deleted_count",
+                0,
+            )
+            or 0
+        ),
+        "deleted_files": (
+            int(
+                delete_result.get(
+                    "deleted_files",
+                    0,
+                )
+                or 0
+            )
+            + deleted_orphan_files
+        ),
+        "deleted_orphan_files": (
+            deleted_orphan_files
+        ),
+        "removed_directories": (
+            removed_directories
+        ),
+        "recovered_bytes": int(
+            recovered_bytes
+        ),
+    }
+
+
 def accept_upscaled_candidate(
     upscaled_image_id,
 ):

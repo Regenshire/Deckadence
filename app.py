@@ -254,6 +254,7 @@ from db.upscalyingdb import (
     accept_upscaled_candidates,
     analyze_upscaled_image_maintenance,
     cleanup_upscaled_image_maintenance,
+    delete_all_upscaled_images,
     delete_upscaled_images_for_card,
     discard_upscaled_candidate,
     ensure_upscaling_schema,
@@ -20523,6 +20524,326 @@ def config():
         section_defaults=section_defaults,
         history_count=get_recent_history_count(),
     )
+
+def normalize_managed_image_reference_path(raw_path):
+    clean_path = str(
+        raw_path or ""
+    ).strip()
+
+    if not clean_path:
+        return ""
+
+    absolute_path = (
+        clean_path
+        if os.path.isabs(clean_path)
+        else os.path.join(
+            RUNTIME_BASE_DIR,
+            clean_path,
+        )
+    )
+
+    return os.path.normcase(
+        os.path.realpath(absolute_path)
+    )
+
+
+def cleanup_orphaned_image_files():
+    managed_roots = (
+        IMAGE_CACHE_DIR,
+        CHAOS_IMAGE_CACHE_DIR,
+        ALTERNATE_SOURCE_DIR,
+        UPSCALED_SCRYFALL_DIR,
+    )
+
+    normalized_roots = {
+        os.path.normcase(
+            os.path.realpath(root_path)
+        ): root_path
+        for root_path in managed_roots
+    }
+
+    referenced_paths = set()
+    chaos_card_uuids = set()
+
+    def add_reference(raw_path):
+        normalized_path = (
+            normalize_managed_image_reference_path(
+                raw_path
+            )
+        )
+
+        if not normalized_path:
+            return
+
+        for normalized_root in normalized_roots:
+            try:
+                inside_root = (
+                    os.path.commonpath([
+                        normalized_root,
+                        normalized_path,
+                    ])
+                    == normalized_root
+                )
+            except ValueError:
+                inside_root = False
+
+            if inside_root:
+                referenced_paths.add(
+                    normalized_path
+                )
+                return
+
+    with closing(get_db_connection()) as conn:
+        query_specs = (
+            (
+                """
+                SELECT image_cache_path
+                FROM cards
+                WHERE image_cache_path IS NOT NULL
+                  AND TRIM(image_cache_path) <> ''
+                """,
+                ("image_cache_path",),
+            ),
+            (
+                """
+                SELECT image_cache_path
+                FROM chaos_cards
+                WHERE image_cache_path IS NOT NULL
+                  AND TRIM(image_cache_path) <> ''
+                """,
+                ("image_cache_path",),
+            ),
+            (
+                """
+                SELECT local_image_path, fullbleed_image_path
+                FROM alternate_sources
+                """,
+                (
+                    "local_image_path",
+                    "fullbleed_image_path",
+                ),
+            ),
+            (
+                """
+                SELECT local_image_path, fullbleed_image_path
+                FROM alternate_image_isolation
+                """,
+                (
+                    "local_image_path",
+                    "fullbleed_image_path",
+                ),
+            ),
+            (
+                """
+                SELECT
+                    source_image_path,
+                    output_image_path,
+                    fullbleed_image_path
+                FROM upscaled_images
+                """,
+                (
+                    "source_image_path",
+                    "output_image_path",
+                    "fullbleed_image_path",
+                ),
+            ),
+        )
+
+        for query_text, path_columns in query_specs:
+            try:
+                rows = conn.execute(
+                    query_text
+                ).fetchall()
+            except Exception:
+                continue
+
+            for row in rows:
+                for path_column in path_columns:
+                    try:
+                        add_reference(
+                            row[path_column]
+                        )
+                    except (
+                        KeyError,
+                        IndexError,
+                        TypeError,
+                    ):
+                        continue
+
+        try:
+            chaos_uuid_rows = conn.execute(
+                """
+                SELECT card_uuid
+                FROM chaos_cards
+                WHERE card_uuid IS NOT NULL
+                  AND TRIM(card_uuid) <> ''
+                """
+            ).fetchall()
+        except Exception:
+            chaos_uuid_rows = []
+
+        chaos_card_uuids = {
+            str(row["card_uuid"] or "")
+            .strip()
+            .lower()
+            for row in chaos_uuid_rows
+            if str(
+                row["card_uuid"] or ""
+            ).strip()
+        }
+
+    image_extensions = {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".webp",
+        ".gif",
+        ".bmp",
+        ".tif",
+        ".tiff",
+        ".avif",
+    }
+
+    deleted_files = 0
+    recovered_bytes = 0
+    scanned_files = 0
+    removed_directories = 0
+    deleted_by_store = {}
+
+    chaos_root = os.path.normcase(
+        os.path.realpath(
+            CHAOS_IMAGE_CACHE_DIR
+        )
+    )
+
+    for normalized_root, root_path in normalized_roots.items():
+        os.makedirs(
+            root_path,
+            exist_ok=True,
+        )
+
+        store_deleted = 0
+
+        for (
+            directory_path,
+            _directory_names,
+            filenames,
+        ) in os.walk(root_path):
+            for filename in filenames:
+                file_extension = (
+                    os.path.splitext(filename)[1]
+                    .strip()
+                    .lower()
+                )
+
+                if file_extension not in image_extensions:
+                    continue
+
+                absolute_path = os.path.normcase(
+                    os.path.realpath(
+                        os.path.join(
+                            directory_path,
+                            filename,
+                        )
+                    )
+                )
+
+                try:
+                    inside_root = (
+                        os.path.commonpath([
+                            normalized_root,
+                            absolute_path,
+                        ])
+                        == normalized_root
+                    )
+                except ValueError:
+                    inside_root = False
+
+                if not inside_root:
+                    continue
+
+                scanned_files += 1
+
+                if absolute_path in referenced_paths:
+                    continue
+
+                if normalized_root == chaos_root:
+                    card_uuid_prefix = (
+                        filename.split("_", 1)[0]
+                        .strip()
+                        .lower()
+                    )
+
+                    if (
+                        card_uuid_prefix
+                        in chaos_card_uuids
+                    ):
+                        continue
+
+                file_size = 0
+
+                try:
+                    file_size = int(
+                        os.path.getsize(
+                            absolute_path
+                        )
+                    )
+                except OSError:
+                    pass
+
+                try:
+                    os.remove(absolute_path)
+                except OSError:
+                    continue
+
+                deleted_files += 1
+                store_deleted += 1
+                recovered_bytes += max(
+                    0,
+                    file_size,
+                )
+
+        for (
+            directory_path,
+            _directory_names,
+            _filenames,
+        ) in os.walk(
+            root_path,
+            topdown=False,
+        ):
+            if (
+                os.path.normcase(
+                    os.path.realpath(
+                        directory_path
+                    )
+                )
+                == normalized_root
+            ):
+                continue
+
+            try:
+                os.rmdir(directory_path)
+                removed_directories += 1
+            except OSError:
+                pass
+
+        deleted_by_store[
+            os.path.basename(root_path)
+            or root_path
+        ] = store_deleted
+
+    return {
+        "deleted_files": deleted_files,
+        "recovered_bytes": recovered_bytes,
+        "scanned_files": scanned_files,
+        "removed_directories": (
+            removed_directories
+        ),
+        "deleted_by_store": (
+            deleted_by_store
+        ),
+    }
+
 @app.route(
     "/maintenance/alternate-bleed-reprocess/start",
     methods=["POST"],
@@ -20602,6 +20923,189 @@ def maintenance_alternate_bleed_reprocess_start():
 def maintenance_alternate_bleed_reprocess_status():
     return jsonify(
         build_alternate_bleed_reprocess_status()
+    )
+
+@app.route(
+    "/maintenance/delete-orphaned-images",
+    methods=["POST"],
+)
+def maintenance_delete_orphaned_images():
+    if get_image_download_status_copy().get(
+        "is_running"
+    ):
+        flash(
+            "Wait for the current image download to finish "
+            "before deleting orphaned images."
+        )
+        return redirect(
+            url_for(
+                "config",
+                open="image_maintenance",
+                scroll="image_maintenance",
+            )
+        )
+
+    if get_alternate_bleed_reprocess_status_copy().get(
+        "is_running"
+    ):
+        flash(
+            "Wait for alternate image bleed reprocessing "
+            "to finish before deleting orphaned images."
+        )
+        return redirect(
+            url_for(
+                "config",
+                open="image_maintenance",
+                scroll="image_maintenance",
+            )
+        )
+
+    batch_status = (
+        get_upscaling_batch_status_copy()
+    )
+
+    if (
+        batch_status.get("is_running")
+        or has_active_manual_upscale_runs()
+    ):
+        flash(
+            "Wait for Upscaling to finish before "
+            "deleting orphaned images."
+        )
+        return redirect(
+            url_for(
+                "config",
+                open="image_maintenance",
+                scroll="image_maintenance",
+            )
+        )
+
+    try:
+        result = cleanup_orphaned_image_files()
+
+    except Exception as exc:
+        write_error_log(
+            "ORPHANED IMAGE CLEANUP FAILED",
+            exc=exc,
+        )
+
+        flash(
+            f"Orphaned image cleanup failed: {str(exc)}"
+        )
+
+        return redirect(
+            url_for(
+                "config",
+                open="image_maintenance",
+                scroll="image_maintenance",
+            )
+        )
+
+    flash(
+        "Orphaned image cleanup complete. "
+        f"Deleted {result['deleted_files']} file(s) "
+        f"and recovered approximately "
+        f"{format_download_size(result['recovered_bytes'])}."
+    )
+
+    return redirect(
+        url_for(
+            "config",
+            open="image_maintenance",
+            scroll="image_maintenance",
+        )
+    )
+
+
+@app.route(
+    "/maintenance/delete-all-upscaled-images",
+    methods=["POST"],
+)
+def maintenance_delete_all_upscaled_images():
+    delete_confirmation = str(
+        request.form.get(
+            "delete_confirmation"
+        )
+        or ""
+    ).strip()
+
+    if delete_confirmation != "DELETE_UPSCALED":
+        flash(
+            "Delete All Up-scaled Images cancelled."
+        )
+        return redirect(
+            url_for(
+                "config",
+                open="danger_zone",
+                scroll="danger_zone",
+            )
+        )
+
+    batch_status = (
+        get_upscaling_batch_status_copy()
+    )
+
+    if batch_status.get("is_running"):
+        flash(
+            "Wait for Batch Upscaling to finish before "
+            "deleting all Up-scaled images."
+        )
+        return redirect(
+            url_for(
+                "config",
+                open="danger_zone",
+                scroll="danger_zone",
+            )
+        )
+
+    if has_active_manual_upscale_runs():
+        flash(
+            "Wait for the current manual Upscale to finish "
+            "before deleting all Up-scaled images."
+        )
+        return redirect(
+            url_for(
+                "config",
+                open="danger_zone",
+                scroll="danger_zone",
+            )
+        )
+
+    try:
+        result = delete_all_upscaled_images()
+
+    except Exception as exc:
+        write_error_log(
+            "DELETE ALL UPSCALED IMAGES FAILED",
+            exc=exc,
+        )
+
+        flash(
+            f"Delete All Up-scaled Images failed: {str(exc)}"
+        )
+
+        return redirect(
+            url_for(
+                "config",
+                open="danger_zone",
+                scroll="danger_zone",
+            )
+        )
+
+    flash(
+        "Deleted all Up-scaled images. "
+        f"Removed {result['deleted_records']} database record(s), "
+        f"{result['deleted_files']} file(s), and recovered "
+        f"approximately "
+        f"{format_download_size(result['recovered_bytes'])}."
+    )
+
+    return redirect(
+        url_for(
+            "config",
+            open="danger_zone",
+            scroll="danger_zone",
+        )
     )
 
 

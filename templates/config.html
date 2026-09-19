@@ -897,6 +897,18 @@
                 ></div>
 
                 <div class="config-button-row">
+                    <form
+                        method="post"
+                        action="{{ url_for('maintenance_delete_orphaned_images') }}"
+                    >
+                        <button
+                            type="submit"
+                            class="action-button secondary-button"
+                        >
+                            Delete Orphaned Images
+                        </button>
+                    </form>
+
                     <button
                         type="button"
                         id="reprocessAlternateBleedButton"
@@ -1249,6 +1261,24 @@
                 <div class="config-section-divider"></div>
 
                 <div class="cleanup-action-row">
+                    <form
+                        method="post"
+                        action="{{ url_for('maintenance_delete_all_upscaled_images') }}"
+                        id="deleteAllUpscaledImagesForm"
+                    >
+                        <input
+                            type="hidden"
+                            name="delete_confirmation"
+                            value=""
+                        >
+                        <button
+                            type="submit"
+                            class="action-button cleanup-danger-button cleanup-action-button"
+                        >
+                            Delete All Up-scaled Images
+                        </button>
+                    </form>
+
                     <form method="post" action="{{ url_for('maintenance_clear_all_history') }}" id="clearAllHistoryForm">
                         <input type="hidden" name="delete_confirmation" value="">
                         <button type="submit" class="action-button cleanup-danger-button cleanup-action-button">
@@ -1306,6 +1336,9 @@
 
 <script>
 (function () {
+    const deleteAllUpscaledImagesForm = document.getElementById(
+        "deleteAllUpscaledImagesForm"
+    );
     const clearAllHistoryForm = document.getElementById("clearAllHistoryForm");
     const clearAllPacksForm = document.getElementById("clearAllPacksForm");
 
@@ -1315,6 +1348,37 @@
         }
 
         return window.confirm((options && options.message) || "Continue?");
+    }
+
+    if (deleteAllUpscaledImagesForm) {
+        deleteAllUpscaledImagesForm.addEventListener(
+            "submit",
+            async function (event) {
+                event.preventDefault();
+
+                const confirmed = await confirmUiAction({
+                    title: "Delete All Up-scaled Images",
+                    message: "This permanently deletes every Up-scaled image file and its associated Upscale database record. Original card images, Alternate Images, and Scryfall cache images are not deleted.",
+                    confirmText: "Delete All Up-scaled Images",
+                    cancelText: "Cancel",
+                    danger: true
+                });
+
+                if (!confirmed) {
+                    return;
+                }
+
+                const hiddenInput = deleteAllUpscaledImagesForm.querySelector(
+                    "input[name='delete_confirmation']"
+                );
+
+                if (hiddenInput) {
+                    hiddenInput.value = "DELETE_UPSCALED";
+                }
+
+                deleteAllUpscaledImagesForm.submit();
+            }
+        );
     }
 
     if (clearAllHistoryForm) {
