@@ -1,7 +1,7 @@
 # Deckadence
 
 <p align="center">
-  <img src="docs/images/deckadence-logo.png" alt="Deckadence" width="600">
+  <img src="docs/images/deckadence.svg" alt="Deckadence" width="600">
 </p>
 
 ## Custom Set Management & Testing Tool | Design -> Proxy -> Test
