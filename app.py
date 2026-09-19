@@ -512,6 +512,48 @@ def parse_print_export_override_bool(raw_value, default_value=False):
     return bool(default_value)
 
 
+PDF_RENDER_RESOLUTION_PPI = {
+    "standard": 300.0,
+    "high": 450.0,
+    "max": 600.0,
+}
+
+
+def normalize_pdf_render_resolution(raw_value):
+    resolution = str(
+        raw_value or "standard"
+    ).strip().lower()
+
+    if resolution not in PDF_RENDER_RESOLUTION_PPI:
+        resolution = "standard"
+
+    return resolution
+
+
+def get_pdf_render_pixels_per_mm(config=None):
+    if config is None:
+        config = (
+            get_request_config()
+            if has_request_context()
+            else get_config()
+        )
+
+    effective_config = get_effective_print_config(
+        config
+    )
+
+    resolution = normalize_pdf_render_resolution(
+        effective_config.get(
+            "pdf_render_resolution"
+        )
+    )
+
+    return (
+        PDF_RENDER_RESOLUTION_PPI[resolution]
+        / 25.4
+    )
+
+
 PRINT_EXPORT_PROGRESS_TTL_SECONDS = 15 * 60
 PRINT_EXPORT_PROGRESS_MAX_JOBS = 100
 print_export_progress_lock = threading.Lock()
@@ -801,6 +843,21 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
             requested_print_template
         )
 
+    requested_pdf_render_resolution = (
+        normalize_pdf_render_resolution(
+            form_data.get(
+                "pdf_render_resolution"
+            )
+            or chaos_print_config.get(
+                "pdf_render_resolution"
+            )
+        )
+    )
+
+    g.print_export_pdf_render_resolution_override = (
+        requested_pdf_render_resolution
+    )
+
     label_mode = (form_data.get("label_text_mode") or "pack_code").strip().lower()
 
     if label_mode not in {"pack_code", "proxy"}:
@@ -927,6 +984,9 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
         ),
         "chaos_print_export_label_text_mode": label_mode,
         "chaos_print_template": persisted_print_template,
+        "chaos_pdf_render_resolution": (
+            requested_pdf_render_resolution
+        ),
         "chaos_silhouette_registration_marks": (
             "1"
             if g.print_export_silhouette_registration_marks_override
@@ -1009,6 +1069,19 @@ def get_effective_print_config(config=None, scope=None):
 
         if print_template_override:
             resolved_config["print_template"] = print_template_override
+
+        pdf_render_resolution_override = getattr(
+            g,
+            "print_export_pdf_render_resolution_override",
+            "",
+        )
+
+        if pdf_render_resolution_override:
+            resolved_config["pdf_render_resolution"] = (
+                normalize_pdf_render_resolution(
+                    pdf_render_resolution_override
+                )
+            )
 
     return resolved_config
 
@@ -5821,8 +5894,18 @@ def draw_processed_image_into_slot(
     slot_width_mm = float(slot_def["width_mm"])
     slot_height_mm = float(slot_def["height_mm"])
 
-    target_width_px = mm_to_px(slot_width_mm, 12)
-    target_height_px = mm_to_px(slot_height_mm, 12)
+    pixels_per_mm = (
+        get_pdf_render_pixels_per_mm()
+    )
+
+    target_width_px = mm_to_px(
+        slot_width_mm,
+        pixels_per_mm,
+    )
+    target_height_px = mm_to_px(
+        slot_height_mm,
+        pixels_per_mm,
+    )
 
     rotation_degrees = int(
         slot_def.get("rotation_degrees", 0) or 0
@@ -5844,11 +5927,17 @@ def draw_processed_image_into_slot(
 
     finished_width_px = min(
         target_width_px,
-        mm_to_px(finished_width_mm, 12),
+        mm_to_px(
+            finished_width_mm,
+            pixels_per_mm,
+        ),
     )
     finished_height_px = min(
         target_height_px,
-        mm_to_px(finished_height_mm, 12),
+        mm_to_px(
+            finished_height_mm,
+            pixels_per_mm,
+        ),
     )
 
     horizontal_bleed_mm = max(
@@ -5861,7 +5950,10 @@ def draw_processed_image_into_slot(
     )
 
     radius_px = (
-        mm_to_px(rounded_corner_radius_mm, 12)
+        mm_to_px(
+            rounded_corner_radius_mm,
+            pixels_per_mm,
+        )
         if rounded_corner_radius_mm and rounded_corner_radius_mm > 0
         else 0
     )
@@ -6968,6 +7060,9 @@ def build_custom_title_sheet_pdf(
                 show_pack_type=show_pack_type,
                 show_signature=show_signature,
                 color_overrides=color_overrides,
+                pixels_per_mm=(
+                    get_pdf_render_pixels_per_mm()
+                ),
             )
 
             title_temp_filename = (
@@ -7772,7 +7867,13 @@ def get_chaos_rendered_pdf_image_temp_path(card_uuid, page_kind, label_text):
     filename = f"chaos_pdf_rendered_{safe_filename(card_uuid)}_{safe_filename(page_kind)}_{label_part}_{uuid4().hex}.jpg"
     return get_chaos_temp_file_path(filename)
 
-def build_chaos_pack_image_title_card_bytes(set_code, booster_name, card_width_mm=63.5, card_height_mm=88.9):
+def build_chaos_pack_image_title_card_bytes(
+    set_code,
+    booster_name,
+    card_width_mm=63.5,
+    card_height_mm=88.9,
+    pixels_per_mm=12.0,
+):
     booster_key = normalize_chaos_booster_key(booster_name)
 
     set_code_variants = []
@@ -7814,8 +7915,19 @@ def build_chaos_pack_image_title_card_bytes(set_code, booster_name, card_width_m
 
         cropped_image = image.crop((left, top, right, bottom))
 
-        target_width_px = 762
-        target_height_px = 1067
+        pixels_per_mm = max(
+            1.0,
+            float(pixels_per_mm or 12.0),
+        )
+
+        target_width_px = int(round(
+            card_width_mm
+            * pixels_per_mm
+        ))
+        target_height_px = int(round(
+            card_height_mm
+            * pixels_per_mm
+        ))
 
         # COVER behavior:
         # preserve aspect ratio, scale to fill the target card shape,
@@ -7866,6 +7978,9 @@ def draw_chaos_pack_label_pdf_page(
         pack_tracking_code=pack_tracking_code,
         card_width_mm=page_width_mm,
         card_height_mm=page_height_mm,
+        pixels_per_mm=(
+            get_pdf_render_pixels_per_mm()
+        ),
     )
 
     label_reader = ImageReader(BytesIO(label_card_bytes))
@@ -7925,6 +8040,9 @@ def build_chaos_pack_label_rendered_entry(
         set_code=set_code,
         booster_name=booster_name,
         pack_tracking_code=pack_tracking_code,
+        pixels_per_mm=(
+            get_pdf_render_pixels_per_mm()
+        ),
     )
 
     pack_label_temp_filename = (
@@ -8936,6 +9054,7 @@ def build_chaos_pack_title_card_image_bytes(
     show_pack_type=True,
     show_signature=True,
     color_overrides=None,
+    pixels_per_mm=12.0,
 ):
     normalized_pack_display_name = normalize_chaos_pack_display_name(pack_display_name)
     title_set_name, title_booster_name = split_chaos_pack_display_name_for_title(normalized_pack_display_name)
@@ -8953,7 +9072,11 @@ def build_chaos_pack_title_card_image_bytes(
     if color_overrides:
         template_config.update(color_overrides)
 
-    pixels_per_mm = 12
+    pixels_per_mm = max(
+        1.0,
+        float(pixels_per_mm or 12.0),
+    )
+
     image_width_px = int(round(card_width_mm * pixels_per_mm))
     image_height_px = int(round(card_height_mm * pixels_per_mm))
 
@@ -13541,6 +13664,9 @@ def build_chaos_pack_pdf(
                 ),
                 card_width_mm=width_mm,
                 card_height_mm=height_mm,
+                pixels_per_mm=(
+                    get_pdf_render_pixels_per_mm()
+                ),
             )
 
             title_reader = ImageReader(BytesIO(title_card_bytes))
@@ -13574,7 +13700,13 @@ def build_chaos_pack_pdf(
                 title_card_bytes = None
 
                 if use_pack_image_for_title and set_code and booster_name:
-                    title_card_bytes = build_chaos_pack_image_title_card_bytes(set_code, booster_name)
+                    title_card_bytes = build_chaos_pack_image_title_card_bytes(
+                        set_code,
+                        booster_name,
+                        pixels_per_mm=(
+                            get_pdf_render_pixels_per_mm()
+                        ),
+                    )
 
                 if not title_card_bytes:
                     title_card_bytes = build_chaos_pack_title_card_image_bytes(
@@ -13584,6 +13716,9 @@ def build_chaos_pack_pdf(
                         pack_tracking_code=get_effective_pack_tracking_code(
                             pack_tracking_code,
                             label_settings=pdf_settings,
+                        ),
+                        pixels_per_mm=(
+                            get_pdf_render_pixels_per_mm()
                         ),
                     )
 
@@ -23757,6 +23892,13 @@ def get_print_export_defaults_from_config(config):
             no_waste_settings["label_option"]
         ),
         "print_template": print_template,
+        "pdf_render_resolution": (
+            normalize_pdf_render_resolution(
+                chaos_print_config.get(
+                    "pdf_render_resolution"
+                )
+            )
+        ),
         "export_add_bleed": get_config_bool(
             config,
             "export_add_bleed",

@@ -115,6 +115,7 @@ SCOPED_PRINT_SETTING_KEYS = (
     "print_bleed_size_mm",
     "pdf_crop_border",
     "pdf_cutting_guides",
+    "pdf_render_resolution",
 
     # Legacy on/off key retained so existing scoped settings can be migrated.
     "pdf_outer_slot_region_band",
@@ -205,6 +206,7 @@ DEFAULT_CONFIG = {
     "print_bleed_size_mm": "3.0",
     "pdf_crop_border": "1",
     "pdf_cutting_guides": "1",
+    "pdf_render_resolution": "standard",
 
     # Legacy safety-band checkbox value.
     "pdf_outer_slot_region_band": "0",
@@ -228,6 +230,7 @@ DEFAULT_CONFIG = {
     "momir_print_bleed_size_mm": "",
     "momir_pdf_crop_border": "",
     "momir_pdf_cutting_guides": "",
+    "momir_pdf_render_resolution": "",
 
     # Legacy safety-band checkbox value.
     "momir_pdf_outer_slot_region_band": "",
@@ -251,6 +254,7 @@ DEFAULT_CONFIG = {
     "chaos_print_bleed_size_mm": "",
     "chaos_pdf_crop_border": "",
     "chaos_pdf_cutting_guides": "1",
+    "chaos_pdf_render_resolution": "standard",
     "chaos_silhouette_registration_marks": "1",
     "chaos_no_wasted_space_enabled": "0",
     "chaos_no_wasted_space_set_rules": "current_set",

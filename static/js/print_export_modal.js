@@ -190,15 +190,17 @@
           radio.defaultChecked = radio.checked;
         });
 
-      const printTemplateSelect = form.querySelector(
-        'select[name="print_template"]',
-      );
+      ["print_template", "pdf_render_resolution"].forEach(function (fieldName) {
+        const selectElement = form.querySelector(`select[name="${fieldName}"]`);
 
-      if (printTemplateSelect) {
-        Array.from(printTemplateSelect.options).forEach(function (option) {
+        if (!selectElement) {
+          return;
+        }
+
+        Array.from(selectElement.options).forEach(function (option) {
           option.defaultSelected = option.selected;
         });
-      }
+      });
     }
 
     function showMessage(messageText, isError) {
