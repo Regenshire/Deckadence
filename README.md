@@ -259,7 +259,7 @@ Optional upscaling plugins use separately distributed open-source machine-learni
 <p align="center">
   <img
     src="docs/images/example_chaos_draft.jpg"
-    alt=Chaos Draft"
+    alt="Chaos Draft"
   >"
   <br>
   <em>Roll on a Chaos Draft spinner for curated or random packs</em>
@@ -267,7 +267,7 @@ Optional upscaling plugins use separately distributed open-source machine-learni
 <p align="center">
   <img
     src="docs/images/example_deck_roulette.jpg"
-    alt=Deck Roulette"
+    alt="Deck Roulette"
   >"
   <br>
   <em>Spin on the Deck Roulette for deck ideas</em>
@@ -276,8 +276,8 @@ Optional upscaling plugins use separately distributed open-source machine-learni
 <p align="center">
   <img
     src="docs/images/example_momir_mode.jpg"
-    alt=Chaos Draft"
-  >"
+    alt="Chaos Draft"
+  >
   <br>
   <em>Play Momir with friends</em>
 </p>
