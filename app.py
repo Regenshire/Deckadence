@@ -10,6 +10,7 @@ import random
 import re
 import shutil
 import socket
+import sys
 import threading
 import time
 import traceback
@@ -36435,7 +36436,8 @@ if __name__ == "__main__":
     set_runtime_debug_log_enabled_from_config()
 
     flask_debug_enabled = (
-        os.environ.get("DECKADENCE_FLASK_DEBUG", "").strip().lower()
+        not getattr(sys, "frozen", False)
+        and os.environ.get("DECKADENCE_FLASK_DEBUG", "").strip().lower()
         in {"1", "true", "yes", "on"}
     )
 
