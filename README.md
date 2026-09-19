@@ -21,6 +21,37 @@ Deckadence is intended for personal set building, proxy creation, playtesting, a
 
 ---
 
+# Minimum Requirements
+
+Deckadence is a local application and stores its database, downloaded card data, cached card images, custom artwork, decks, custom sets, generated files, and other user-created content on the computer running the application.
+
+Because Deckadence is designed to work with large collections of card images and other media, **available storage space is an important consideration**. Storage usage will increase over time as additional images and content are downloaded, uploaded, or generated.
+
+| Component            | Minimum                                                                 |
+| -------------------- | ----------------------------------------------------------------------- |
+| **Operating System** | Windows 10 or Windows 11, 64-bit                                        |
+| **Processor**        | 64-bit dual-core processor                                              |
+| **Memory**           | 8 GB RAM or more                                                        |
+| **Free Storage**     | **20 GB** (50+ GB recommended)                                          |
+| **Browser**          | Current version of a modern web browser                                 |
+| **Internet**         | Required for initial card database setup and online data/image features |
+
+### Storage Considerations
+
+The **20 GB minimum** provides enough working space for Deckadence itself, its local databases, application data, and a collection of cached and uploaded images. It should not be considered sufficient for a very large long-term proxy library with a ton of high resolution image uploads.
+
+Users who maintain large collections of high-resolution card images, alternate artwork, custom sets, generated proxies, backups, or upscaled images should consider **50 GB or more** of available storage.
+
+Deckadence does not require every card image to be downloaded in advance. It downloads images as cards are viewed and used in the application. Images are downloaded and cached locally. Storage consumption depends heavily on how the application is used. Large image libraries can eventually consume tens of gigabytes.
+
+### Additional Notes
+
+- A dedicated graphics card is **not required** for normal Deckadence use.
+- Python is **not required** when using the packaged Windows release.
+- Optional AI image-upscaling plugins may have substantially higher CPU, GPU, memory, and storage requirements.
+
+---
+
 # Installation
 
 ## Windows Release
