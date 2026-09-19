@@ -3854,6 +3854,109 @@ body:has(
   background: var(--button-hover);
 }
 
+/* ==========================================
+   Typed Destructive Confirmation Modal
+   ========================================== */
+
+.deckbuilder-delete-deck-dialog,
+.typed-delete-dialog {
+  width: min(100%, 560px);
+}
+
+.deckbuilder-delete-deck-body,
+.typed-delete-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.deckbuilder-delete-deck-warning,
+.typed-delete-warning {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(255, 120, 120, 0.42);
+  border-radius: 14px;
+  background: rgba(120, 40, 40, 0.18);
+}
+
+.deckbuilder-delete-deck-warning-icon,
+.typed-delete-warning-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(255, 120, 120, 0.12);
+  color: #ff9b9b;
+  font-size: 1.1rem;
+}
+
+.deckbuilder-delete-deck-warning-title,
+.typed-delete-warning-title {
+  color: var(--text);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.deckbuilder-delete-deck-warning-text,
+.typed-delete-warning-text {
+  margin-top: 0.3rem;
+  color: var(--muted);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.deckbuilder-delete-deck-confirm-field,
+.typed-delete-confirm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.deckbuilder-delete-deck-confirm-field > span,
+.typed-delete-confirm-field > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.deckbuilder-delete-deck-confirm-input,
+.typed-delete-confirm-input {
+  width: 100%;
+  min-height: 46px;
+}
+
+.deckbuilder-delete-deck-actions,
+.typed-delete-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.deckbuilder-delete-deck-cancel-button,
+.deckbuilder-delete-deck-confirm-button,
+.typed-delete-cancel-button,
+.typed-delete-confirm-button {
+  width: 100%;
+  min-height: 44px;
+}
+
+@media (max-width: 520px) {
+  .deckbuilder-delete-deck-warning,
+  .typed-delete-warning {
+    grid-template-columns: 1fr;
+  }
+
+  .deckbuilder-delete-deck-actions,
+  .typed-delete-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .campaign-add-pack-status {
   margin-bottom: 16px;
   border: 1px solid rgba(66, 205, 111, 0.45);
@@ -4494,13 +4597,21 @@ body:has(
 }
 
 .campaign-danger-button {
-  border-color: rgba(255, 120, 120, 0.55);
-  color: #ffd0d0;
+  border: solid;
+  border-color: rgba(189, 92, 92, 0.3);
+  background: rgba(156, 66, 66, 0.11);
+  min-width: 90px !important;
 }
 
 .campaign-danger-button:hover {
   background: rgba(120, 40, 40, 0.34);
   color: #ffffff;
+}
+
+.campaign-danger-button:disabled {
+  color: gray;
+  background: rgba(156, 66, 66, 0.05);
+  border-color: rgba(189, 92, 92, 0.15);
 }
 
 /* Campaign Player Management */
@@ -8139,6 +8250,11 @@ body:has(
   min-width: 160px;
 }
 
+.custom-draft-set-delete-form {
+  display: flex;
+  margin: 0;
+}
+
 .custom-draft-set-list {
   display: flex;
   flex-direction: column;
@@ -8260,6 +8376,10 @@ body:has(
   .custom-draft-set-actions,
   .custom-draft-set-save-row {
     justify-content: stretch;
+  }
+
+  .custom-draft-set-actions {
+    flex-direction: column;
   }
 
   .custom-draft-set-actions .action-button,

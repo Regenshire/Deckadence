@@ -11,6 +11,16 @@
     rel="stylesheet"
     href="{{ url_for('static', filename='css/chaos_draft.css') }}"
 >
+{% if global_card_upscaling_control_enabled %}
+<link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/image_compare.css') }}"
+>
+<link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/upscale_batch.css') }}"
+>
+{% endif %}
 <link
     rel="stylesheet"
     href="{{ url_for('static', filename='css/print_export_modal.css') }}"
@@ -285,6 +295,21 @@
                 <h2 id="chaosPackInlineTitle" class="page-title">Pack contents</h2>
                 <p id="chaosPackInlineSubtitle" class="page-subtitle"></p>
             </div>
+
+            {% if global_card_upscaling_control_enabled %}
+            <div class="chaos-pack-inline-view-header-actions">
+                <button
+                    type="button"
+                    id="chaosPackInlineUpscaleButton"
+                    class="action-button secondary-button chaos-pack-inline-upscale-pack-button"
+                    title="Upscale Pack"
+                    aria-label="Upscale all cards in this pack"
+                >
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Upscale Pack</span>
+                </button>
+            </div>
+            {% endif %}
         </div>
 
         <div id="chaosPackInlineGrid" class="chaos-pack-inline-grid"></div>
@@ -326,6 +351,10 @@
 {% endblock %}
 
 {% block page_scripts_after_app %}
+{% if global_card_upscaling_control_enabled %}
+<script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
+<script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
+{% endif %}
 <script src="{{ url_for('static', filename='js/chaos_draft.js') }}"></script>
 <script src="{{ url_for('static', filename='js/campaign_chaos_draft.js') }}"></script>
 

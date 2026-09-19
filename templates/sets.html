@@ -159,6 +159,23 @@
                         >
                             Manage
                         </a>
+
+                        <form
+                            method="post"
+                            action="{{ url_for('custom_draft_set_delete', set_code=custom_set.set_code) }}"
+                            class="custom-draft-set-delete-form"
+                            data-set-name="{{ custom_set.set_name }}"
+                            data-set-code="{{ custom_set.set_code }}"
+                        >
+                            <input type="hidden" name="delete_confirmation" value="">
+
+                            <button
+                                type="submit"
+                                class="action-button campaign-danger-button campaign-row-action-button"
+                            >
+                                Delete
+                            </button>
+                        </form>
                     </div>
                 </div>
                 {% endfor %}
@@ -168,6 +185,103 @@
                 No custom draft sets have been created yet.
             </div>
         {% endif %}
+    </div>
+
+    <div
+        id="customDraftSetDeleteModal"
+        class="campaign-add-pack-modal hidden"
+        aria-hidden="true"
+    >
+        <div
+            id="customDraftSetDeleteBackdrop"
+            class="campaign-add-pack-backdrop"
+        ></div>
+
+        <div
+            class="campaign-add-pack-dialog typed-delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customDraftSetDeleteTitle"
+        >
+            <div class="campaign-add-pack-header">
+                <div>
+                    <h2
+                        id="customDraftSetDeleteTitle"
+                        class="campaign-add-pack-title"
+                    >
+                        Delete Custom Draft Set
+                    </h2>
+
+                    <p class="campaign-add-pack-subtitle">
+                        This permanently removes the custom draft set. Type DELETE to confirm.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    id="customDraftSetDeleteCloseButton"
+                    class="campaign-add-pack-close-button"
+                    aria-label="Close Delete Custom Draft Set"
+                >
+                    ×
+                </button>
+            </div>
+
+            <div class="typed-delete-body">
+                <div class="typed-delete-warning">
+                    <div class="typed-delete-warning-icon">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                    </div>
+
+                    <div>
+                        <div class="typed-delete-warning-title">
+                            You are about to permanently delete this custom draft set.
+                        </div>
+
+                        <div
+                            id="customDraftSetDeleteName"
+                            class="typed-delete-warning-text"
+                        >
+                            Set name will appear here.
+                        </div>
+                    </div>
+                </div>
+
+                <label
+                    class="typed-delete-confirm-field"
+                    for="customDraftSetDeleteConfirmInput"
+                >
+                    <span>Type DELETE to confirm</span>
+
+                    <input
+                        type="text"
+                        id="customDraftSetDeleteConfirmInput"
+                        class="campaign-add-pack-custom-input typed-delete-confirm-input"
+                        autocomplete="off"
+                        spellcheck="false"
+                    >
+                </label>
+
+                <div class="typed-delete-actions">
+                    <button
+                        type="button"
+                        id="customDraftSetDeleteCancelButton"
+                        class="action-button secondary-button typed-delete-cancel-button"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="button"
+                        id="customDraftSetDeleteConfirmButton"
+                        class="action-button campaign-danger-button typed-delete-confirm-button"
+                        disabled
+                    >
+                        Delete Set
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <form id="setsForm" method="post" class="config-form">

@@ -2082,6 +2082,99 @@ def get_custom_draft_set(set_code):
     conn.close()
     return row
 
+
+@isolation_operation
+def delete_custom_draft_set(set_code):
+    clean_set_code = normalize_custom_draft_set_code(set_code)
+
+    if not clean_set_code:
+        return {
+            "ok": False,
+            "message": "Invalid custom set code.",
+        }
+
+    conn = get_db_connection()
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT
+                cds.set_code,
+                COALESCE(s.set_name, cds.set_code) AS set_name
+            FROM custom_draft_sets cds
+            LEFT JOIN sets s ON s.set_code = cds.set_code
+            WHERE cds.set_code = ?
+            """,
+            (clean_set_code,),
+        )
+
+        custom_set = cursor.fetchone()
+
+        if not custom_set:
+            return {
+                "ok": False,
+                "message": "Custom draft set was not found.",
+            }
+
+        cursor.execute(
+            """
+            DELETE FROM selected_sets
+            WHERE set_code = ?
+            """,
+            (clean_set_code,),
+        )
+
+        cursor.execute(
+            """
+            DELETE FROM custom_draft_set_cards
+            WHERE set_code = ?
+            """,
+            (clean_set_code,),
+        )
+
+        cursor.execute(
+            """
+            DELETE FROM custom_draft_pack_slots
+            WHERE set_code = ?
+            """,
+            (clean_set_code,),
+        )
+
+        cursor.execute(
+            """
+            DELETE FROM custom_draft_sets
+            WHERE set_code = ?
+            """,
+            (clean_set_code,),
+        )
+
+        deleted = cursor.rowcount
+
+        cursor.execute(
+            """
+            DELETE FROM sets
+            WHERE set_code = ?
+              AND set_type = 'custom'
+            """,
+            (clean_set_code,),
+        )
+
+        conn.commit()
+
+        return {
+            "ok": deleted > 0,
+            "message": "Custom draft set deleted.",
+            "set_code": clean_set_code,
+            "set_name": custom_set["set_name"] or clean_set_code,
+        }
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def update_custom_draft_set_card_back_key(
     set_code,
     card_back_key,

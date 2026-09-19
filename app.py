@@ -210,6 +210,7 @@ from db.database import (
     bulk_add_most_recent_cards_to_custom_draft_set,
     bulk_delete_custom_draft_set_cards,
     bulk_update_custom_draft_set_card_category,
+    delete_custom_draft_set,
     delete_custom_draft_set_card,
     generate_custom_draft_set_pack_cards,
     get_custom_draft_pack_slot_options,
@@ -34556,6 +34557,15 @@ def chaos_draft_view_data():
         price_source=pack_price_source,
     )
 
+    upscaling_enabled = (
+        is_card_upscaling_control_enabled()
+    )
+
+    if upscaling_enabled:
+        cards = add_upscaled_state_to_cards(
+            cards
+        )
+
     serialized_cards = []
     for card in cards:
         serialized_cards.append({
@@ -34566,6 +34576,18 @@ def chaos_draft_view_data():
             "special_badges": card.get("special_badges") or [],
             "price": card.get("price_info", {}).get("price"),
             "currency": card.get("price_info", {}).get("currency") or "USD",
+            "has_upscaled_image": bool(
+                card.get("has_upscaled_image")
+            ),
+            "upscale_control_url": (
+                url_for(
+                    "chaos_card_upscale_control",
+                    card_uuid=card.get("card_uuid"),
+                    face="front",
+                )
+                if upscaling_enabled
+                else ""
+            ),
         })
 
     return jsonify({
@@ -34824,6 +34846,48 @@ def custom_draft_sets_add():
     except Exception as exc:
         flash(str(exc))
         return redirect(url_for("sets"))
+
+
+@app.route("/custom-draft-sets/<path:set_code>/delete", methods=["POST"])
+def custom_draft_set_delete(set_code):
+    clean_set_code = normalize_custom_draft_set_code(set_code)
+    delete_confirmation = (
+        request.form.get("delete_confirmation")
+        or ""
+    ).strip()
+
+    if delete_confirmation != "DELETE":
+        flash("Type DELETE to confirm custom draft set deletion.")
+        return redirect(url_for("sets"))
+
+    try:
+        result = delete_custom_draft_set(clean_set_code)
+    except Exception as exc:
+        write_error_log(
+            f"CUSTOM SET DELETE FAILED | set_code={clean_set_code}",
+            exc=exc,
+        )
+        flash("Failed to delete the custom draft set.")
+        return redirect(url_for("sets"))
+
+    if not result.get("ok"):
+        flash(result.get("message") or "Custom draft set could not be deleted.")
+        return redirect(url_for("sets"))
+
+    pack_art_dir = os.path.join(RUNTIME_PACK_ART_DIR, clean_set_code)
+
+    try:
+        if os.path.isdir(pack_art_dir):
+            shutil.rmtree(pack_art_dir)
+    except OSError as exc:
+        write_error_log(
+            f"CUSTOM SET PACK ART CLEANUP FAILED | set_code={clean_set_code} | path={pack_art_dir}",
+            exc=exc,
+        )
+
+    flash(f'Custom draft set "{result.get("set_name") or clean_set_code}" deleted.')
+    return redirect(url_for("sets"))
+
 
 @app.route(
     "/custom-draft-sets/<path:set_code>/card-back",
