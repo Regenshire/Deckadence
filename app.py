@@ -5477,68 +5477,113 @@ def build_white_blank_card_image(width_px, height_px, radius_px=0):
 
     return base_image.convert("RGB")
 
-def get_processed_card_image_bytes(image_path, print_mode):
-    cache_key = (
-        os.path.abspath(image_path),
-        (print_mode or "").strip().lower(),
+def apply_print_mode_to_image(image, print_mode):
+    normalized_print_mode = (
+        print_mode or ""
+    ).strip().lower()
+
+    image = image.convert("RGB")
+
+    if normalized_print_mode == "grayscale":
+        image = ImageOps.grayscale(image)
+        image = ImageEnhance.Contrast(image).enhance(1.08)
+        image = ImageEnhance.Brightness(image).enhance(1.02)
+        image = image.convert("RGB")
+
+    elif normalized_print_mode == "monochrome":
+        image = ImageOps.grayscale(image)
+        image = ImageEnhance.Contrast(image).enhance(2.35)
+        image = ImageEnhance.Brightness(image).enhance(1.05)
+        image = image.point(
+            lambda p: 255 if p >= 160 else 0,
+            mode="1",
+        )
+        image = image.convert("RGB")
+
+    elif normalized_print_mode == "optimal":
+        image = ImageEnhance.Contrast(image).enhance(1.25)
+        image = ImageEnhance.Brightness(image).enhance(1.07)
+
+        def highlight_boost(p):
+            if p > 200:
+                return min(
+                    255,
+                    int(p + (255 - p) * 0.7),
+                )
+
+            return p
+
+        image = image.point(highlight_boost)
+
+        def contrast_curve(p):
+            return int((p - 128) * 1.1 + 128)
+
+        image = image.point(contrast_curve)
+
+    return image.convert("RGB")
+
+
+def load_pdf_slot_source_image(
+    image_path,
+    print_mode,
+    target_width_px,
+    target_height_px,
+    rotation_degrees=0,
+):
+    normalized_print_mode = (
+        print_mode or ""
+    ).strip().lower()
+
+    # Decode to approximately twice the final PDF resolution.
+    # This leaves ample resolution for the final Lanczos resize
+    # without decoding unnecessarily huge JPEG canvases.
+    decode_width_px = max(
+        1,
+        int(target_width_px or 1) * 2,
+    )
+    decode_height_px = max(
+        1,
+        int(target_height_px or 1) * 2,
     )
 
-    if has_request_context():
-        processed_cache = getattr(
-            g,
-            "processed_card_image_bytes_cache",
-            None,
+    if int(rotation_degrees or 0) % 360 in {90, 270}:
+        decode_width_px, decode_height_px = (
+            decode_height_px,
+            decode_width_px,
         )
 
-        if processed_cache is None:
-            processed_cache = {}
-            g.processed_card_image_bytes_cache = processed_cache
-
-        cached_bytes = processed_cache.get(cache_key)
-
-        if cached_bytes is not None:
-            return cached_bytes
-
     with Image.open(image_path) as source_image:
-        image = source_image.convert("RGB")
+        # Pillow can perform a reduced JPEG decode before materializing
+        # the complete RGB image. Only use this for normal Color mode so
+        # the other print modes retain their existing full-resolution
+        # processing behavior.
+        if (
+            normalized_print_mode == "color"
+            and (source_image.format or "").strip().upper() == "JPEG"
+            and (
+                source_image.width > decode_width_px * 2
+                or source_image.height > decode_height_px * 2
+            )
+        ):
+            try:
+                source_image.draft(
+                    "RGB",
+                    (
+                        decode_width_px,
+                        decode_height_px,
+                    ),
+                )
+            except Exception:
+                pass
 
-        if print_mode == "grayscale":
-            image = ImageOps.grayscale(image)
-            image = ImageEnhance.Contrast(image).enhance(1.08)
-            image = ImageEnhance.Brightness(image).enhance(1.02)
-            image = image.convert("RGB")
+        image = apply_print_mode_to_image(
+            source_image,
+            normalized_print_mode,
+        )
 
-        elif print_mode == "monochrome":
-            image = ImageOps.grayscale(image)
-            image = ImageEnhance.Contrast(image).enhance(2.35)
-            image = ImageEnhance.Brightness(image).enhance(1.05)
-            image = image.point(lambda p: 255 if p >= 160 else 0, mode="1")
-            image = image.convert("RGB")
+    return image
 
-        elif print_mode == "optimal":
-            image = ImageEnhance.Contrast(image).enhance(1.25)
-            image = ImageEnhance.Brightness(image).enhance(1.07)
 
-            def highlight_boost(p):
-                if p > 200:
-                    return min(255, int(p + (255 - p) * 0.7))
-                return p
-
-            image = image.point(highlight_boost)
-
-            def contrast_curve(p):
-                return int((p - 128) * 1.1 + 128)
-
-            image = image.point(contrast_curve)
-
-        output_buffer = BytesIO()
-        image.save(output_buffer, format="PNG")
-        processed_bytes = output_buffer.getvalue()
-
-    if has_request_context():
-        g.processed_card_image_bytes_cache[cache_key] = processed_bytes
-
-    return processed_bytes
 
 def draw_pdf_background_image(pdf_canvas, image_path, page_width_mm, page_height_mm):
     background_reader = ImageReader(image_path)
@@ -5861,105 +5906,125 @@ def draw_processed_image_into_slot(
                 radius_px=radius_px,
             )
         else:
-            processed_image_bytes = get_processed_card_image_bytes(
+            image = load_pdf_slot_source_image(
                 image_path,
                 print_mode,
+                target_width_px,
+                target_height_px,
+                rotation_degrees=rotation_degrees,
             )
 
-            with Image.open(BytesIO(processed_image_bytes)) as source_image:
-                image = source_image.convert("RGB")
+            if rotation_degrees == 90:
+                image = image.transpose(
+                    Image.Transpose.ROTATE_270
+                )
+            elif rotation_degrees == 180:
+                image = image.transpose(
+                    Image.Transpose.ROTATE_180
+                )
+            elif rotation_degrees == 270:
+                image = image.transpose(
+                    Image.Transpose.ROTATE_90
+                )
 
-                if rotation_degrees == 90:
-                    image = image.transpose(
-                        Image.Transpose.ROTATE_270
-                    )
-                elif rotation_degrees == 180:
-                    image = image.transpose(
-                        Image.Transpose.ROTATE_180
-                    )
-                elif rotation_degrees == 270:
-                    image = image.transpose(
-                        Image.Transpose.ROTATE_90
-                    )
+            if preserve_real_source_bleed:
+                image = crop_real_bleed_to_required_bleed(
+                    image,
+                    source_bleed_mm=source_bleed_mm,
+                    required_horizontal_bleed_mm=horizontal_bleed_mm,
+                    required_vertical_bleed_mm=vertical_bleed_mm,
+                    card_width_mm=finished_width_mm,
+                    card_height_mm=finished_height_mm,
+                )
 
-                if preserve_real_source_bleed:
-                    image = crop_real_bleed_to_required_bleed(
+                image = image.resize(
+                    (target_width_px, target_height_px),
+                    Image.LANCZOS,
+                )
+
+            else:
+                # Resize only the finished card to its physical 63 x 88 mm
+                # area. Bleed is added outside this rectangle afterward.
+                image = image.resize(
+                    (finished_width_px, finished_height_px),
+                    Image.LANCZOS,
+                )
+
+                if radius_px > 0:
+                    image = apply_rounded_corner_mask(
                         image,
-                        source_bleed_mm=source_bleed_mm,
-                        required_horizontal_bleed_mm=horizontal_bleed_mm,
-                        required_vertical_bleed_mm=vertical_bleed_mm,
-                        card_width_mm=finished_width_mm,
-                        card_height_mm=finished_height_mm,
+                        radius_px,
+                        matte_rgb=(0, 0, 0),
                     )
 
+                if add_edge_bleed_border:
+                    bleed_left_px = max(
+                        0,
+                        (target_width_px - finished_width_px) // 2,
+                    )
+                    bleed_right_px = max(
+                        0,
+                        target_width_px
+                        - finished_width_px
+                        - bleed_left_px,
+                    )
+                    bleed_top_px = max(
+                        0,
+                        (target_height_px - finished_height_px) // 2,
+                    )
+                    bleed_bottom_px = max(
+                        0,
+                        target_height_px
+                        - finished_height_px
+                        - bleed_top_px,
+                    )
+
+                    image = add_duplicated_edge_border(
+                        image,
+                        border_pixels=(
+                            bleed_left_px,
+                            bleed_top_px,
+                            bleed_right_px,
+                            bleed_bottom_px,
+                        ),
+                    )
+
+                if image.size != (
+                    target_width_px,
+                    target_height_px,
+                ):
                     image = image.resize(
                         (target_width_px, target_height_px),
                         Image.LANCZOS,
                     )
 
-                else:
-                    # Resize only the finished card to its physical 63 x 88 mm
-                    # area. Bleed is added outside this rectangle afterward.
-                    image = image.resize(
-                        (finished_width_px, finished_height_px),
-                        Image.LANCZOS,
-                    )
-
-                    if radius_px > 0:
-                        image = apply_rounded_corner_mask(
-                            image,
-                            radius_px,
-                            matte_rgb=(0, 0, 0),
-                        )
-
-                    if add_edge_bleed_border:
-                        bleed_left_px = max(
-                            0,
-                            (target_width_px - finished_width_px) // 2,
-                        )
-                        bleed_right_px = max(
-                            0,
-                            target_width_px
-                            - finished_width_px
-                            - bleed_left_px,
-                        )
-                        bleed_top_px = max(
-                            0,
-                            (target_height_px - finished_height_px) // 2,
-                        )
-                        bleed_bottom_px = max(
-                            0,
-                            target_height_px
-                            - finished_height_px
-                            - bleed_top_px,
-                        )
-
-                        image = add_duplicated_edge_border(
-                            image,
-                            border_pixels=(
-                                bleed_left_px,
-                                bleed_top_px,
-                                bleed_right_px,
-                                bleed_bottom_px,
-                            ),
-                        )
-
-                    if image.size != (
-                        target_width_px,
-                        target_height_px,
-                    ):
-                        image = image.resize(
-                            (target_width_px, target_height_px),
-                            Image.LANCZOS,
-                        )
-
-                image = image.convert("RGB")
+            image = image.convert("RGB")
 
         slot_buffer = BytesIO()
-        image.convert("RGB").save(
-            slot_buffer,
-            format="PNG",
-        )
+        normalized_print_mode = (
+            print_mode or ""
+        ).strip().lower()
+
+        if (
+            blank_white_card
+            or normalized_print_mode != "color"
+        ):
+            image.save(
+                slot_buffer,
+                format="PNG",
+            )
+        else:
+            # Color card images are fully opaque by this point. Keeping the
+            # final slot image as JPEG lets ReportLab embed it directly instead
+            # of converting PNG pixels back to RGB and Flate-compressing them.
+            image.save(
+                slot_buffer,
+                format="JPEG",
+                quality=95,
+                subsampling=0,
+                optimize=False,
+            )
+
         slot_image_bytes = slot_buffer.getvalue()
 
         if slot_cache_key is not None:
@@ -8513,6 +8578,87 @@ def draw_pdf_outer_slot_region_band(
         f"height_mm={height_mm:.4f}"
     )
 
+def summarize_pdf_rendered_image_workload(
+    rendered_image_entries,
+):
+    seen_paths = set()
+    source_count = 0
+    total_bytes = 0
+    large_source_count = 0
+    high_resolution_count = 0
+    largest_width = 0
+    largest_height = 0
+    largest_pixel_count = 0
+
+    large_file_threshold_bytes = 5 * 1024 * 1024
+    high_resolution_threshold_pixels = 8_000_000
+
+    for rendered_entry in rendered_image_entries or []:
+        image_path = str(
+            rendered_entry.get("temp_path")
+            or ""
+        ).strip()
+
+        if (
+            not image_path
+            or image_path in seen_paths
+            or not os.path.isfile(image_path)
+        ):
+            continue
+
+        seen_paths.add(image_path)
+        source_count += 1
+
+        try:
+            file_size = os.path.getsize(image_path)
+        except OSError:
+            file_size = 0
+
+        total_bytes += max(
+            0,
+            int(file_size or 0),
+        )
+
+        if file_size >= large_file_threshold_bytes:
+            large_source_count += 1
+
+        try:
+            # Image.open() only reads enough of the header to obtain
+            # dimensions here. image.load() is intentionally not called.
+            with Image.open(image_path) as source_image:
+                width, height = source_image.size
+
+            pixel_count = (
+                int(width)
+                * int(height)
+            )
+
+            if (
+                pixel_count
+                >= high_resolution_threshold_pixels
+            ):
+                high_resolution_count += 1
+
+            if pixel_count > largest_pixel_count:
+                largest_pixel_count = pixel_count
+                largest_width = int(width)
+                largest_height = int(height)
+
+        except Exception:
+            pass
+
+    return {
+        "source_count": source_count,
+        "total_bytes": total_bytes,
+        "large_source_count": large_source_count,
+        "high_resolution_count": high_resolution_count,
+        "largest_width": largest_width,
+        "largest_height": largest_height,
+        "largest_pixel_count": largest_pixel_count,
+    }
+
+
+
 def draw_chaos_rendered_entries_into_pdf_layout(
     pdf_canvas,
     rendered_image_entries,
@@ -8557,6 +8703,14 @@ def draw_chaos_rendered_entries_into_pdf_layout(
             slot_defs
         )
 
+        total_pages = max(
+            1,
+            math.ceil(
+                len(rendered_image_entries)
+                / cards_per_page
+            ),
+        )
+
         background_abs_path = (
             get_print_template_registration_background_path(
                 pdf_template_layout
@@ -8585,10 +8739,13 @@ def draw_chaos_rendered_entries_into_pdf_layout(
             or 0.0
         )
 
-        for page_start_index in range(
-            0,
-            len(rendered_image_entries),
-            cards_per_page,
+        for page_number, page_start_index in enumerate(
+            range(
+                0,
+                len(rendered_image_entries),
+                cards_per_page,
+            ),
+            start=1,
         ):
             page_entries = (
                 rendered_image_entries[
@@ -8721,6 +8878,17 @@ def draw_chaos_rendered_entries_into_pdf_layout(
 
             pdf_canvas.showPage()
             pages_rendered += 1
+
+            if page_number < total_pages:
+                update_print_export_progress(
+                    "generate",
+                    "Generating PDF",
+                    (
+                        f"Composed PDF page {page_number} "
+                        f"of {total_pages}. "
+                        f"Composing page {page_number + 1}..."
+                    ),
+                )
 
         return pages_rendered
 
@@ -13798,11 +13966,68 @@ def build_chaos_pack_pdf(
                 write_debug_log(
                     f"CHAOS PACK LABEL PDF ERROR | pack={pack_display_name} | error={str(exc)}"
                 )
-        update_print_export_progress(
-            "generate",
-            "Generating PDF",
-            "Composing PDF pages...",
+        compose_workload = (
+            summarize_pdf_rendered_image_workload(
+                rendered_image_entries
+            )
         )
+
+        large_source_count = max(
+            int(
+                compose_workload.get(
+                    "large_source_count",
+                    0,
+                )
+                or 0
+            ),
+            int(
+                compose_workload.get(
+                    "high_resolution_count",
+                    0,
+                )
+                or 0
+            ),
+        )
+
+        if large_source_count > 0:
+            largest_width = int(
+                compose_workload.get(
+                    "largest_width",
+                    0,
+                )
+                or 0
+            )
+            largest_height = int(
+                compose_workload.get(
+                    "largest_height",
+                    0,
+                )
+                or 0
+            )
+
+            largest_size_text = (
+                f"; largest {largest_width}x{largest_height}"
+                if largest_width > 0 and largest_height > 0
+                else ""
+            )
+
+            update_print_export_progress(
+                "generate",
+                "Generating PDF",
+                (
+                    f"Composing PDF pages from "
+                    f"{large_source_count} high-resolution "
+                    f"source image(s){largest_size_text}; "
+                    f"{format_download_size(compose_workload['total_bytes'])} "
+                    f"of rendered image data. This can take longer."
+                ),
+            )
+        else:
+            update_print_export_progress(
+                "generate",
+                "Generating PDF",
+                "Composing PDF pages...",
+            )
 
         pages_rendered = draw_chaos_rendered_entries_into_pdf_layout(
             c,
