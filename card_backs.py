@@ -8,6 +8,11 @@ DEFAULT_CARD_BACK_KEY = f"builtin:{DEFAULT_CARD_BACK_FILENAME}"
 BUILTIN_CARD_BACK_PREFIX = "builtin:"
 CUSTOM_CARD_BACK_PREFIX = "custom:"
 
+CUSTOM_CARD_BACK_FULLBLEED_DIRNAME = "fullbleed"
+CUSTOM_CARD_BACK_FULLBLEED_MM = 3.0
+CARD_BACK_FINISHED_WIDTH_MM = 63.0
+CARD_BACK_FINISHED_HEIGHT_MM = 88.0
+
 Image.init()
 SUPPORTED_IMAGE_EXTENSIONS = frozenset(
     extension.lower()
@@ -17,6 +22,13 @@ SUPPORTED_IMAGE_EXTENSIONS = frozenset(
 
 def get_builtin_card_back_dir(static_dir):
     return os.path.join(static_dir, "img", "card_backs")
+
+
+def get_custom_card_back_fullbleed_dir(runtime_card_back_dir):
+    return os.path.join(
+        runtime_card_back_dir,
+        CUSTOM_CARD_BACK_FULLBLEED_DIRNAME,
+    )
 
 
 def _is_supported_image_filename(filename):
@@ -44,6 +56,55 @@ def _safe_upload_stem(filename):
     return safe_stem or "custom_card_back"
 
 
+def _remove_known_card_back_bleed(
+    image,
+    bleed_mm=CUSTOM_CARD_BACK_FULLBLEED_MM,
+):
+    source_image = ImageOps.exif_transpose(image).convert("RGB")
+
+    bleed_mm = max(0.0, float(bleed_mm or 0.0))
+
+    if bleed_mm <= 0:
+        return source_image
+
+    full_width_mm = (
+        CARD_BACK_FINISHED_WIDTH_MM
+        + (bleed_mm * 2.0)
+    )
+
+    full_height_mm = (
+        CARD_BACK_FINISHED_HEIGHT_MM
+        + (bleed_mm * 2.0)
+    )
+
+    crop_x = int(round(
+        source_image.width
+        * (bleed_mm / full_width_mm)
+    ))
+
+    crop_y = int(round(
+        source_image.height
+        * (bleed_mm / full_height_mm)
+    ))
+
+    crop_x = max(
+        0,
+        min(crop_x, (source_image.width - 1) // 2),
+    )
+
+    crop_y = max(
+        0,
+        min(crop_y, (source_image.height - 1) // 2),
+    )
+
+    return source_image.crop((
+        crop_x,
+        crop_y,
+        source_image.width - crop_x,
+        source_image.height - crop_y,
+    ))
+
+
 def list_card_back_options(static_dir, runtime_card_back_dir):
     options = []
     builtin_dir = get_builtin_card_back_dir(static_dir)
@@ -64,6 +125,10 @@ def list_card_back_options(static_dir, runtime_card_back_dir):
                 "label": os.path.splitext(filename)[0],
                 "source": "builtin",
                 "absolute_path": absolute_path,
+                "fullbleed_absolute_path": "",
+                "print_master_absolute_path": absolute_path,
+                "source_has_real_bleed": False,
+                "source_bleed_mm": 0.0,
             })
 
     if os.path.isdir(runtime_card_back_dir):
@@ -76,12 +141,39 @@ def list_card_back_options(static_dir, runtime_card_back_dir):
             if not _is_supported_image_filename(filename):
                 continue
 
+            fullbleed_absolute_path = os.path.join(
+                get_custom_card_back_fullbleed_dir(
+                    runtime_card_back_dir
+                ),
+                filename,
+            )
+
+            source_has_real_bleed = os.path.isfile(
+                fullbleed_absolute_path
+            )
+
             options.append({
                 "key": f"{CUSTOM_CARD_BACK_PREFIX}{filename}",
                 "filename": filename,
                 "label": os.path.splitext(filename)[0].replace("_", " "),
                 "source": "custom",
                 "absolute_path": absolute_path,
+                "fullbleed_absolute_path": (
+                    fullbleed_absolute_path
+                    if source_has_real_bleed
+                    else ""
+                ),
+                "print_master_absolute_path": (
+                    fullbleed_absolute_path
+                    if source_has_real_bleed
+                    else absolute_path
+                ),
+                "source_has_real_bleed": source_has_real_bleed,
+                "source_bleed_mm": (
+                    CUSTOM_CARD_BACK_FULLBLEED_MM
+                    if source_has_real_bleed
+                    else 0.0
+                ),
             })
 
     return options
@@ -191,6 +283,7 @@ def save_custom_card_back_upload(
     file_storage,
     runtime_card_back_dir,
     max_file_size_bytes=None,
+    full_bleed_3mm=False,
 ):
     if not file_storage or not getattr(file_storage, "filename", ""):
         raise ValueError("Choose an image file to upload.")
@@ -296,11 +389,60 @@ def save_custom_card_back_upload(
 
         duplicate_index += 1
 
-    image.convert("RGB").save(
-        candidate_path,
-        format="PNG",
-        optimize=True,
+    full_bleed_3mm = bool(full_bleed_3mm)
+
+    clean_image = (
+        _remove_known_card_back_bleed(
+            image,
+            CUSTOM_CARD_BACK_FULLBLEED_MM,
+        )
+        if full_bleed_3mm
+        else image.convert("RGB")
     )
+
+    fullbleed_path = ""
+
+    if full_bleed_3mm:
+        fullbleed_dir = get_custom_card_back_fullbleed_dir(
+            runtime_card_back_dir
+        )
+
+        os.makedirs(
+            fullbleed_dir,
+            exist_ok=True,
+        )
+
+        fullbleed_path = os.path.join(
+            fullbleed_dir,
+            candidate_filename,
+        )
+
+    try:
+        clean_image.save(
+            candidate_path,
+            format="PNG",
+            optimize=True,
+        )
+
+        if fullbleed_path:
+            image.convert("RGB").save(
+                fullbleed_path,
+                format="PNG",
+                optimize=True,
+            )
+
+    except Exception:
+        for saved_path in (
+            candidate_path,
+            fullbleed_path,
+        ):
+            if saved_path and os.path.isfile(saved_path):
+                try:
+                    os.remove(saved_path)
+                except OSError:
+                    pass
+
+        raise
 
     return (
         f"{CUSTOM_CARD_BACK_PREFIX}"
@@ -383,6 +525,14 @@ def delete_custom_card_back(
             "The custom card back image no longer exists."
         )
 
+    fullbleed_path = (
+        option.get("fullbleed_absolute_path")
+        or ""
+    )
+
     os.remove(target_path)
+
+    if fullbleed_path and os.path.isfile(fullbleed_path):
+        os.remove(fullbleed_path)
 
     return option

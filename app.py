@@ -4908,6 +4908,13 @@ def serialize_card_back_option(option):
         "label": option["label"],
         "source": option["source"],
         "image_url": image_url,
+        "has_full_bleed": bool(
+            option.get("source_has_real_bleed")
+        ),
+        "source_bleed_mm": float(
+            option.get("source_bleed_mm")
+            or 0.0
+        ),
     }
 
 
@@ -6332,19 +6339,60 @@ def build_default_card_back_sheet_pdf():
         default_back_option["absolute_path"]
     )
 
+    fullbleed_back_path = str(
+        default_back_option.get(
+            "fullbleed_absolute_path"
+        )
+        or ""
+    ).strip()
+
+    use_real_source_bleed = bool(
+        is_silhouette_template(
+            pdf_template_layout[
+                "print_template"
+            ]
+        )
+        and default_back_option.get(
+            "source_has_real_bleed"
+        )
+        and fullbleed_back_path
+        and os.path.isfile(
+            fullbleed_back_path
+        )
+    )
+
+    rendered_back_path = (
+        fullbleed_back_path
+        if use_real_source_bleed
+        else mtg_back_path
+    )
+
     # Eight entries gives one full Silhouette Letter sheet.
     # For single-card templates, this intentionally generates 8 card-back pages.
     rendered_back_entries = []
 
     for back_index in range(8):
         rendered_back_entries.append({
-            "temp_path": mtg_back_path,
+            "temp_path": rendered_back_path,
             "page_kind": "back",
             "card_uuid": f"default_back_{back_index + 1}",
             "card_row": None,
             "is_dual_faced": 0,
             "is_persistent_cache_file": True,
             "is_template_rendered": False,
+            "uses_real_source_bleed": (
+                use_real_source_bleed
+            ),
+            "source_bleed_mm": (
+                float(
+                    default_back_option.get(
+                        "source_bleed_mm"
+                    )
+                    or 0.0
+                )
+                if use_real_source_bleed
+                else 0.0
+            ),
         })
 
     buffer = BytesIO()
@@ -7971,11 +8019,38 @@ def draw_chaos_card_back_entries_into_pdf_layout(
                     back_slot_index
                 )
 
+                fullbleed_temp_path = str(
+                    rendered_entry.get(
+                        "fullbleed_temp_path"
+                    )
+                    or ""
+                ).strip()
+
+                use_real_source_bleed = bool(
+                    pdf_template_layout.get(
+                        "is_silhouette_layout",
+                        False,
+                    )
+                    and rendered_entry.get(
+                        "source_has_real_bleed"
+                    )
+                    and fullbleed_temp_path
+                    and os.path.isfile(
+                        fullbleed_temp_path
+                    )
+                )
+
+                card_back_image_path = (
+                    fullbleed_temp_path
+                    if use_real_source_bleed
+                    else rendered_entry[
+                        "temp_path"
+                    ]
+                )
+
                 draw_processed_image_into_slot(
                     pdf_canvas,
-                    rendered_entry[
-                        "temp_path"
-                    ],
+                    card_back_image_path,
                     print_settings[
                         "print_mode"
                     ],
@@ -7984,8 +8059,18 @@ def draw_chaos_card_back_entries_into_pdf_layout(
                     ],
                     add_edge_bleed_border=(
                         add_edge_bleed_border
+                        and not use_real_source_bleed
                     ),
                     rounded_corner_radius_mm=0.0,
+                    preserve_real_source_bleed=(
+                        use_real_source_bleed
+                    ),
+                    source_bleed_mm=(
+                        rendered_entry.get(
+                            "source_bleed_mm"
+                        )
+                        or 0.0
+                    ),
                 )
 
             if fill_unused_slots:
@@ -11700,6 +11785,34 @@ def get_chaos_pdf_card_back_source(
         or "Card Back"
     )
 
+    default_back_fullbleed_path = str(
+        default_back_option.get(
+            "fullbleed_absolute_path"
+        )
+        or ""
+    ).strip()
+
+    default_back_has_real_bleed = bool(
+        default_back_option.get(
+            "source_has_real_bleed"
+        )
+        and default_back_fullbleed_path
+        and os.path.isfile(
+            default_back_fullbleed_path
+        )
+    )
+
+    default_back_bleed_mm = (
+        float(
+            default_back_option.get(
+                "source_bleed_mm"
+            )
+            or 0.0
+        )
+        if default_back_has_real_bleed
+        else 0.0
+    )
+
     if not card_row:
         return {
             "source_type": "local",
@@ -11707,6 +11820,17 @@ def get_chaos_pdf_card_back_source(
             "image_url": "",
             "face_name": default_back_name,
             "is_default_back": True,
+            "fullbleed_absolute_path": (
+                default_back_fullbleed_path
+                if default_back_has_real_bleed
+                else ""
+            ),
+            "source_has_real_bleed": (
+                default_back_has_real_bleed
+            ),
+            "source_bleed_mm": (
+                default_back_bleed_mm
+            ),
         }
 
     is_dual_faced = (
@@ -11721,6 +11845,17 @@ def get_chaos_pdf_card_back_source(
             "image_url": "",
             "face_name": default_back_name,
             "is_default_back": True,
+            "fullbleed_absolute_path": (
+                default_back_fullbleed_path
+                if default_back_has_real_bleed
+                else ""
+            ),
+            "source_has_real_bleed": (
+                default_back_has_real_bleed
+            ),
+            "source_bleed_mm": (
+                default_back_bleed_mm
+            ),
         }
 
     back_image_url = (
@@ -11765,6 +11900,17 @@ def get_chaos_pdf_card_back_source(
         "image_url": "",
         "face_name": default_back_name,
         "is_default_back": True,
+        "fullbleed_absolute_path": (
+            default_back_fullbleed_path
+            if default_back_has_real_bleed
+            else ""
+        ),
+        "source_has_real_bleed": (
+            default_back_has_real_bleed
+        ),
+        "source_bleed_mm": (
+            default_back_bleed_mm
+        ),
     }
 
 def prefetch_chaos_pdf_remote_images(
@@ -12101,6 +12247,12 @@ def build_chaos_pdf_card_back_rendered_entry(
     if back_source["source_type"] == "local":
         return {
             "temp_path": back_source["absolute_path"],
+            "fullbleed_temp_path": (
+                back_source.get(
+                    "fullbleed_absolute_path"
+                )
+                or ""
+            ),
             "page_kind": "card_back",
             "card_uuid": (card_uuid or "").strip(),
             "card_row": card_row,
@@ -12109,6 +12261,17 @@ def build_chaos_pdf_card_back_rendered_entry(
             ) if card_row else 0,
             "is_persistent_cache_file": True,
             "is_template_rendered": False,
+            "source_has_real_bleed": bool(
+                back_source.get(
+                    "source_has_real_bleed"
+                )
+            ),
+            "source_bleed_mm": float(
+                back_source.get(
+                    "source_bleed_mm"
+                )
+                or 0.0
+            ),
         }
 
     # Double-faced card backs must use the
@@ -14697,6 +14860,7 @@ def build_chaos_card_image_export_zip(
     export_rows=None,
     separate_special_slots=False,
     pack_label_image_path_override=None,
+    default_card_back_key=None,
 ):
     if export_rows is None:
         export_rows = get_tracked_pack_card_export_rows(tracked_pack_ids or [])
@@ -14729,22 +14893,81 @@ def build_chaos_card_image_export_zip(
     os.makedirs(images_foil_dir, exist_ok=True)
     os.makedirs(pack_labels_dir, exist_ok=True)
 
-    mtg_back_source_path = os.path.join(app.static_folder, "img", "mtg_back_custom_1.jpg")
-    if not os.path.exists(mtg_back_source_path):
-        raise FileNotFoundError(f"Default MTG back image was not found: {mtg_back_source_path}")
+    resolved_default_card_back_key = (
+        normalize_card_back_key(
+            default_card_back_key,
+            app.static_folder,
+            RUNTIME_CARD_BACK_DIR,
+            fallback_key=(
+                get_chaos_default_card_back_key()
+            ),
+        )
+    )
+
+    default_back_option = resolve_card_back_option(
+        resolved_default_card_back_key,
+        app.static_folder,
+        RUNTIME_CARD_BACK_DIR,
+    )
+
+    if not default_back_option:
+        raise FileNotFoundError(
+            "No usable default card back image was found."
+        )
+
+    default_back_source_path = (
+        default_back_option["absolute_path"]
+    )
+
+    default_back_fullbleed_path = str(
+        default_back_option.get(
+            "fullbleed_absolute_path"
+        )
+        or ""
+    ).strip()
+
+    use_real_back_bleed = bool(
+        export_add_bleed
+        and default_back_option.get(
+            "source_has_real_bleed"
+        )
+        and default_back_fullbleed_path
+        and os.path.isfile(
+            default_back_fullbleed_path
+        )
+    )
 
     default_back_filename = "default_back.jpg"
-    default_back_output_path = os.path.join(images_default_dir, default_back_filename)
+    default_back_output_path = os.path.join(
+        images_default_dir,
+        default_back_filename,
+    )
 
-    if export_add_bleed:
-        with Image.open(mtg_back_source_path) as mtg_back_image:
+    default_back_render_path = (
+        default_back_fullbleed_path
+        if use_real_back_bleed
+        else default_back_source_path
+    )
+
+    with Image.open(default_back_render_path) as source_back_image:
+        default_back_image = ImageOps.exif_transpose(
+            source_back_image
+        ).convert("RGB")
+
+        if export_add_bleed and not use_real_back_bleed:
             default_back_image = add_card_bleed(
-                mtg_back_image,
-                bleed_size_mm=get_configured_print_bleed_size_mm(),
+                default_back_image,
+                bleed_size_mm=(
+                    get_configured_print_bleed_size_mm()
+                ),
             )
-            default_back_image.save(default_back_output_path, format="JPEG", quality=95, optimize=True)
-    else:
-        shutil.copyfile(mtg_back_source_path, default_back_output_path)
+
+        default_back_image.save(
+            default_back_output_path,
+            format="JPEG",
+            quality=95,
+            optimize=True,
+        )
 
     # Also copy into root Default because the requested folder structure includes it.
     shutil.copyfile(
@@ -19111,6 +19334,12 @@ def card_back_upload():
                 RUNTIME_CARD_BACK_DIR,
                 max_file_size_bytes=(
                     CARD_BACK_UPLOAD_MAX_SIZE_BYTES
+                ),
+                full_bleed_3mm=(
+                    request.form.get(
+                        "full_bleed_3mm"
+                    )
+                    == "1"
                 ),
             )
         )
@@ -26023,6 +26252,10 @@ def deckbuilder_export_zip(deck_id):
                 get_deckbuilder_deck_art_path(
                     deck_id
                 )
+            ),
+            default_card_back_key=(
+                deck_row["card_back_key"]
+                or ""
             ),
         )
     except Exception as exc:
@@ -33472,6 +33705,10 @@ def custom_draft_set_export_zip(set_code):
         export_result = build_chaos_card_image_export_zip(
             export_rows=export_rows,
             separate_special_slots=(config.get("export_separate_special_slots") or "0").strip() == "1",
+            default_card_back_key=(
+                custom_set["card_back_key"]
+                or ""
+            ),
         )
     except Exception as exc:
         write_debug_log(
