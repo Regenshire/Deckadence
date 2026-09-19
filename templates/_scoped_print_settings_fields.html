@@ -1,4 +1,4 @@
-{% macro render_scoped_print_settings(scope, values, print_template_options, print_color_mode_options, include_chaos_options=false, no_waste_set_rule_options=(), no_waste_card_type_options=(), no_waste_label_options=()) %}
+{% macro render_scoped_print_settings(scope, values, print_template_options, print_color_mode_options, include_chaos_options=false, no_waste_set_rule_options=(), no_waste_card_type_options=(), no_waste_label_options=(), include_advanced_print_settings=true) %}
 <div class="settings-grid">
     <div class="toggle-row">
         <span>Default Print Template</span>
@@ -179,6 +179,7 @@
         </select>
     </label>
 
+    {% if include_advanced_print_settings %}
     <label class="toggle-row settings-field">
         <span>Use PDF Printing</span>
         <input
@@ -221,6 +222,7 @@
             value="{{ values.get('print_bleed_size_mm', '3.0') }}"
         >
     </label>
+    {% endif %}
 
     <label class="toggle-row settings-field">
         <span>Crop Border</span>
@@ -297,6 +299,7 @@
         >
     </label>
 
+    {% if include_advanced_print_settings %}
     <label class="toggle-row settings-field">
         <span>Open Print in New Tab</span>
         <input
@@ -305,6 +308,7 @@
             {% if values.get("open_print_in_new_tab", "1") == "1" %}checked{% endif %}
         >
     </label>
+    {% endif %}
 
     <div class="config-section-divider"></div>
 

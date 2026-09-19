@@ -516,6 +516,7 @@ PDF_RENDER_RESOLUTION_PPI = {
     "standard": 300.0,
     "high": 450.0,
     "max": 600.0,
+    "supermax": 1200.0,
 }
 
 
@@ -1927,7 +1928,7 @@ def build_print_template_load_reminder_items():
                 f"{filename}"
             ),
             "message": error_message,
-            "target_section": "chaos_print_settings",
+            "target_section": "print_settings",
         })
 
     return reminder_items
@@ -20282,6 +20283,7 @@ def config():
             "reminders",
             "card_database",
             "draft_modes",
+            "print_settings",
             "chaos_print_settings",
             "momir_modes",
             "other_modes",
@@ -20453,6 +20455,7 @@ def config():
         "draft_modes": "0",
         "momir_modes": "0",
         "other_modes": "0",
+        "print_settings": "0",
         "chaos_print_settings": "0",
         "momir_print_settings": "0",
         "primary_types": "0",

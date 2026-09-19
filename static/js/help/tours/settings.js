@@ -6,7 +6,7 @@
   window.DeckadenceTours.register({
     id: "settings_and_tribulations",
 
-    version: 1,
+    version: 2,
 
     title: "Settings and Tribulations",
 
@@ -50,27 +50,15 @@
       },
 
       {
-        id: "draft_modes",
-
-        route: "/config",
-
-        target: "#section_draft_modes",
-
-        title: "Draft Modes",
-
-        body: "Choose how you want to play Chaos Draft.  You can choose between a curated Campaign mode, or a more classic and simple Basic Chaos Draft mode.\n\nThe Campaign Mode allows you to create a curated experience.  In this mode you configure and setup Campaigns where selecting the type of packs to add.  You can add packs from any that exist in the history of magic the gathering, or if you want, you can create custom packs, or use packs from custom sets you have created.\n\nBasic Chaos Draft mode on the other hand is simple and doesn't require any configuration or setup. It just randomly opens packs.  You can control what sets and pack types are available via the Sets page and the Chaos Draft Settings you can find here on the Settings page.",
-      },
-
-      {
         id: "print_settings",
 
         route: "/config",
 
-        target: "#section_chaos_print_settings",
+        target: ".settings-category-print",
 
-        title: "Chaos Draft Print Settings",
+        title: "Print Settings",
 
-        body: "Chose how you want to print or export proxies of the chaos packs you generate. These settings allow you to choose your print template, card backs, labels, cutting guides, and other print options.\n\nPlease expand this section so you can see more helpful instructions.",
+        body: "Choose how you want to print or export cards throughout Deckadence. These shared settings allow you to choose your print template, card backs, labels, cutting guides, and other print options used throughout the application outside of Momir.\n\nPlease expand Print Defaults so you can see more helpful instructions.",
       },
 
       {
@@ -80,9 +68,9 @@
 
         target: "#chaos_print_template",
 
-        title: "Chaos Draft - Default Print Template",
+        title: "Default Print Template",
 
-        body: "Choose the type of print template you want to print to.  A print template are the settings for generating PDF files for your proxy print jobs.  A template includes things like the size of paper you are using and the layout of cards.  Click on Browse Print Templates to select from available templates.",
+        body: "Choose the type of print template you want to print to.  A print template are the settings for generating PDF files for your print jobs.  A template includes things like the size of paper you are using and the layout of cards.  Click on Browse Print Templates to select from available templates.",
       },
 
       {
@@ -92,7 +80,7 @@
 
         target: '[name="chaos_silhouette_registration_marks"]',
 
-        title: "Chaos Draft - Silhouette Registration Marks",
+        title: "Silhouette Registration Marks",
 
         body: "This option enables or disables Silhouette Registration Marks when printing to PDF for the selected Print Template.  When enabled, this adds Silhouette Cameo compatible registration marks to the PDF image. A Silhouette Cameo is a type of cutting machine commonly used by the proxy community to cut out cards using templates.",
       },
@@ -104,7 +92,7 @@
 
         target: '[name="chaos_pdf_cutting_guides"]',
 
-        title: "Chaos Draft - PDF Cutting  Guides",
+        title: "PDF Cutting  Guides",
 
         body: "This option enables or disables Cutting Guides on the PDF.  If you manually cut your cards, guides are pretty essential.  This turns cutting guides on.",
       },
@@ -116,7 +104,7 @@
 
         target: '[name="chaos_print_card_backs"]',
 
-        title: "Chaos Draft - Print Card Backs",
+        title: "Print Card Backs",
 
         body: "This option enables or disables card backs for the PDFs you generate.  If this is turned off, then no default card back will be added to the PDF files.",
       },
@@ -167,6 +155,30 @@
         title: "Tracking Code on Labels",
 
         body: "This option controls whether the pack tracking code is included on printed card labels. Tracking codes make it easier to identify and match printed cards with the rest of the cards in their pack.\n\nThis feature is great if you want to be able reseal a pack of cards for use in multiple drafts.",
+      },
+
+      {
+        id: "chaos_settings",
+
+        route: "/config",
+
+        target: ".settings-category-chaos",
+
+        title: "Chaos Draft Settings",
+
+        body: "These settings control the Chaos Draft experience, including the active Draft mode and Chaos Draft-specific pack, export, tracking, pricing, and image options.",
+      },
+
+      {
+        id: "draft_modes",
+
+        route: "/config",
+
+        target: "#section_draft_modes",
+
+        title: "Draft Modes",
+
+        body: "Choose how you want to play Chaos Draft.  You can choose between a curated Campaign mode, or a more classic and simple Basic Chaos Draft mode.\n\nThe Campaign Mode allows you to create a curated experience.  In this mode you configure and setup Campaigns where selecting the type of packs to add.  You can add packs from any that exist in the history of magic the gathering, or if you want, you can create custom packs, or use packs from custom sets you have created.\n\nBasic Chaos Draft mode on the other hand is simple and doesn't require any configuration or setup. It just randomly opens packs.  You can control what sets and pack types are available via the Sets page and the Chaos Draft Settings you can find here on the Settings page.",
       },
 
       {

@@ -518,9 +518,9 @@
 
         <div class="config-section-divider"></div>
 
-        <div id="section_chaos_print_settings" class="page-panel collapsible-panel {% if section_defaults.get('chaos_print_settings') == '1' %}is-open{% endif %}" data-section="chaos_print_settings">
+        <div id="section_print_settings" class="page-panel collapsible-panel {% if section_defaults.get('print_settings') == '1' %}is-open{% endif %}" data-section="print_settings">
             <button type="button" class="collapsible-header">
-                <span>Chaos Draft Print Settings</span>
+                <span>Print Settings</span>
                 <span class="collapsible-chevron">▾</span>
             </button>
 
@@ -533,13 +533,19 @@
                     true,
                     no_waste_set_rule_options,
                     no_waste_card_type_options,
-                    no_waste_label_options
+                    no_waste_label_options,
+                    false
                 ) }}
+            </div>
+        </div>
 
-                <div class="config-section-divider"></div>
+        <div id="section_chaos_print_settings" class="page-panel collapsible-panel {% if section_defaults.get('chaos_print_settings') == '1' %}is-open{% endif %}" data-section="chaos_print_settings">
+            <button type="button" class="collapsible-header">
+                <span>Chaos Draft Settings</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
 
-                <h3 class="cleanup-subsection-title">Other Chaos Draft Options</h3>
-
+            <div class="collapsible-body">
                 <div class="settings-grid">
                     <label class="toggle-row settings-field">
                         <span>Replace Basic Lands</span>
@@ -1176,6 +1182,71 @@
                         >
                     </label>
                 </div>
+
+                <div class="config-section-divider"></div>
+
+                <h3 class="cleanup-subsection-title">Other Print Settings</h3>
+
+                <div class="settings-grid">
+                    <label class="toggle-row settings-field">
+                        <span>Use PDF Printing</span>
+                        <input
+                            type="checkbox"
+                            name="chaos_use_pdf_print"
+                            form="configForm"
+                            {% if chaos_print_config.get("use_pdf_print", "1") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Card Width (mm)</span>
+                        <input
+                            type="number"
+                            name="chaos_pdf_width_mm"
+                            form="configForm"
+                            step="0.01"
+                            min="1"
+                            value="{{ chaos_print_config.get('pdf_width_mm', '57.5') }}"
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Card Height (mm)</span>
+                        <input
+                            type="number"
+                            name="chaos_pdf_height_mm"
+                            form="configForm"
+                            step="0.01"
+                            min="1"
+                            value="{{ chaos_print_config.get('pdf_height_mm', '85.25') }}"
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Print Bleed Size (mm)</span>
+                        <input
+                            type="number"
+                            name="chaos_print_bleed_size_mm"
+                            form="configForm"
+                            step="0.01"
+                            min="0"
+                            max="10"
+                            value="{{ chaos_print_config.get('print_bleed_size_mm', '3.0') }}"
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Open Print in New Tab</span>
+                        <input
+                            type="checkbox"
+                            name="chaos_open_print_in_new_tab"
+                            form="configForm"
+                            {% if chaos_print_config.get("open_print_in_new_tab", "1") == "1" %}checked{% endif %}
+                        >
+                    </label>
+                </div>
+
+                <div class="config-section-divider"></div>
 
                 <div class="cleanup-action-row">
                     <form method="post" action="{{ url_for('maintenance_clear_all_history') }}" id="clearAllHistoryForm">

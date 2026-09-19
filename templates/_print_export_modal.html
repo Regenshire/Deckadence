@@ -210,6 +210,12 @@
               >
                 Max
               </option>
+              <option
+                value="supermax"
+                {% if print_export_defaults and print_export_defaults.pdf_render_resolution in ["supermax"] %}selected{% endif %}
+              >
+                Supermax
+              </option>
             </select>
           </label>
 

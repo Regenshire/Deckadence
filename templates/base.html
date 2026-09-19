@@ -257,6 +257,17 @@
 
                 <a
                   class="app-nav-dropdown-item"
+                  href="{{ url_for('config') }}?open=print_settings&scroll=print_settings"
+                  role="menuitem"
+                >
+                  <span class="app-nav-item-icon">
+                    <i class="fa-solid fa-print"></i>
+                  </span>
+                  <span>Print Settings</span>
+                </a>
+
+                <a
+                  class="app-nav-dropdown-item"
                   href="{{ url_for('config') }}?open=card_database&scroll=card_database"
                   role="menuitem"
                 >
@@ -279,14 +290,6 @@
                     role="menuitem"
                   >
                     Draft Modes
-                  </a>
-
-                  <a
-                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
-                    href="{{ url_for('config') }}?open=chaos_print_settings&scroll=chaos_print_settings"
-                    role="menuitem"
-                  >
-                    Print Settings
                   </a>
                 </div>
 
