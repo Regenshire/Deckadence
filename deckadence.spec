@@ -1,4 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import shutil
+
 from PyInstaller.utils.hooks import collect_submodules
 
 hiddenimports = ['paths', 'settings', 'image_export_templates', 'pack_label_templates']
@@ -55,3 +58,20 @@ coll = COLLECT(
     upx_exclude=[],
     name='Deckadence',
 )
+
+distribution_dir = os.path.join(DISTPATH, 'Deckadence')
+
+for distribution_filename in (
+    'README.md',
+    'LICENSE.txt',
+):
+    source_path = os.path.join(SPECPATH, distribution_filename)
+    destination_path = os.path.join(
+        distribution_dir,
+        distribution_filename,
+    )
+
+    shutil.copy2(
+        source_path,
+        destination_path,
+    )
