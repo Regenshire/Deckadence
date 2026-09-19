@@ -322,6 +322,10 @@
 
       maxUploadSizeBytes = Number(payload.max_upload_size_bytes || 0);
 
+      if (uploadFullBleedInput) {
+        uploadFullBleedInput.checked = Boolean(payload.upload_full_bleed_3mm);
+      }
+
       if (!Number.isFinite(maxUploadSizeBytes) || maxUploadSizeBytes < 0) {
         maxUploadSizeBytes = 0;
       }
@@ -348,10 +352,6 @@
 
     if (uploadInput) {
       uploadInput.value = "";
-    }
-
-    if (uploadFullBleedInput) {
-      uploadFullBleedInput.checked = false;
     }
 
     const returnButton = activeButton;
@@ -530,10 +530,6 @@
       renderOptions();
 
       uploadInput.value = "";
-
-      if (uploadFullBleedInput) {
-        uploadFullBleedInput.checked = false;
-      }
 
       setStatus(payload.message || "Card back uploaded.", false);
     } catch (error) {

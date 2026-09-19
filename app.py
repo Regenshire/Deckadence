@@ -512,6 +512,112 @@ def parse_print_export_override_bool(raw_value, default_value=False):
     return bool(default_value)
 
 
+PRINT_EXPORT_PROGRESS_TTL_SECONDS = 15 * 60
+PRINT_EXPORT_PROGRESS_MAX_JOBS = 100
+print_export_progress_lock = threading.Lock()
+print_export_progress_jobs = {}
+
+
+def normalize_print_export_progress_id(raw_value):
+    progress_id = str(raw_value or "").strip()
+
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,96}", progress_id):
+        return ""
+
+    return progress_id
+
+
+def prune_print_export_progress_jobs_locked():
+    now = time.monotonic()
+
+    stale_job_ids = [
+        job_id
+        for job_id, state in print_export_progress_jobs.items()
+        if (
+            now
+            - float(state.get("updated_at_monotonic") or 0.0)
+            > PRINT_EXPORT_PROGRESS_TTL_SECONDS
+        )
+    ]
+
+    for job_id in stale_job_ids:
+        print_export_progress_jobs.pop(job_id, None)
+
+    while len(print_export_progress_jobs) > PRINT_EXPORT_PROGRESS_MAX_JOBS:
+        oldest_job_id = min(
+            print_export_progress_jobs,
+            key=lambda job_id: float(
+                print_export_progress_jobs[job_id].get(
+                    "updated_at_monotonic"
+                )
+                or 0.0
+            ),
+        )
+
+        print_export_progress_jobs.pop(oldest_job_id, None)
+
+
+def begin_print_export_progress(form_data):
+    progress_id = normalize_print_export_progress_id(
+        form_data.get("print_export_progress_id")
+        if hasattr(form_data, "get")
+        else ""
+    )
+
+    if not progress_id:
+        return ""
+
+    action_type = str(
+        form_data.get("print_export_action")
+        if hasattr(form_data, "get")
+        else "print"
+    ).strip().lower()
+
+    is_export = action_type == "export"
+    g.print_export_progress_id = progress_id
+
+    with print_export_progress_lock:
+        prune_print_export_progress_jobs_locked()
+
+        print_export_progress_jobs[progress_id] = {
+            "step": "prepare",
+            "title": (
+                "Preparing Export"
+                if is_export
+                else "Preparing PDF"
+            ),
+            "message": "Collecting selected settings...",
+            "updated_at_monotonic": time.monotonic(),
+        }
+
+    return progress_id
+
+
+def update_print_export_progress(step, title, message):
+    if not has_request_context():
+        return
+
+    progress_id = normalize_print_export_progress_id(
+        getattr(g, "print_export_progress_id", "")
+    )
+
+    if not progress_id:
+        return
+
+    with print_export_progress_lock:
+        state = print_export_progress_jobs.get(progress_id)
+
+        if state is None:
+            return
+
+        state.update({
+            "step": str(step or "generate").strip().lower(),
+            "title": str(title or "Generating file").strip(),
+            "message": str(message or "Working...").strip(),
+            "updated_at_monotonic": time.monotonic(),
+        })
+
+
 NO_WASTE_SET_RULE_VALUES = tuple(
     value for value, _ in NO_WASTE_SET_RULE_OPTIONS
 )
@@ -669,6 +775,8 @@ def get_request_no_waste_settings():
 def set_request_print_export_overrides_from_form(form_data, default_label_text=""):
     clean_default_label_text = None if default_label_text is None else str(default_label_text or "").strip()
 
+    begin_print_export_progress(form_data)
+
     def get_form_values(field_name):
         if hasattr(form_data, "getlist"):
             return form_data.getlist(field_name)
@@ -800,6 +908,56 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
             "0",
         ),
     )
+
+    persisted_print_template = (
+        getattr(
+            g,
+            "print_export_print_template_override",
+            "",
+        )
+        or chaos_print_config.get("print_template")
+        or "dk-1234"
+    ).strip().lower()
+
+    persisted_values = {
+        "chaos_print_labels_enabled": (
+            "1"
+            if g.print_export_labels_enabled_override
+            else "0"
+        ),
+        "chaos_print_export_label_text_mode": label_mode,
+        "chaos_print_template": persisted_print_template,
+        "chaos_silhouette_registration_marks": (
+            "1"
+            if g.print_export_silhouette_registration_marks_override
+            else "0"
+        ),
+        "chaos_pdf_cutting_guides": (
+            "1"
+            if g.print_export_pdf_cutting_guides_override
+            else "0"
+        ),
+        "chaos_print_pack_label_cards": (
+            "1"
+            if g.print_export_include_pack_label_cards_override
+            else "0"
+        ),
+        "chaos_no_wasted_space_enabled": (
+            "1"
+            if g.print_export_no_wasted_space_enabled_override
+            else "0"
+        ),
+        "export_add_bleed": (
+            "1"
+            if g.print_export_add_bleed_override
+            else "0"
+        ),
+    }
+
+    update_config_values(persisted_values)
+
+    if hasattr(g, "_config_cache"):
+        g._config_cache.update(persisted_values)
 
 
 def get_request_print_export_label_text(default_label_text=""):
@@ -12124,6 +12282,12 @@ def prefetch_chaos_pdf_remote_images(
         f"workers={worker_count}"
     )
 
+    update_print_export_progress(
+        "generate",
+        "Generating PDF",
+        f"Loading {len(download_jobs)} source image(s)...",
+    )
+
     with ThreadPoolExecutor(
         max_workers=worker_count,
         thread_name_prefix="chaos-image",
@@ -12158,6 +12322,28 @@ def prefetch_chaos_pdf_remote_images(
                     f"face_name={job['face_name']} | "
                     f"error={str(exc)}"
                 )
+
+            completed_count = (
+                success_count
+                + failure_count
+            )
+
+            progress_name = (
+                job.get("face_name")
+                or job.get("card_uuid")
+                or "Card image"
+            )
+
+            update_print_export_progress(
+                "generate",
+                "Generating PDF",
+                (
+                    f"Loading source image "
+                    f"{completed_count} of "
+                    f"{len(download_jobs)} — "
+                    f"{progress_name}"
+                ),
+            )
 
     elapsed_ms = (
         time.perf_counter() - prefetch_started_at
@@ -13279,6 +13465,19 @@ def build_chaos_pack_pdf(
                 no_waste_surprise_cards
             )
 
+        total_card_count = len(
+            cards_to_render
+        )
+
+        update_print_export_progress(
+            "generate",
+            "Generating PDF",
+            (
+                f"Preparing source images for "
+                f"{total_card_count} card(s)..."
+            ),
+        )
+
         # Prefetch all remote card images concurrently before rendering.
         prefetch_chaos_pdf_remote_images(
             cards_to_render,
@@ -13287,8 +13486,27 @@ def build_chaos_pack_pdf(
         )
 
         # Normal card image entries.
-        for card in cards_to_render:
+        for card_index, card in enumerate(
+            cards_to_render,
+            start=1,
+        ):
             card_uuid = card.get("card_uuid")
+
+            progress_card_name = str(
+                card.get("card_name")
+                or card.get("name")
+                or "Card"
+            ).strip()
+
+            update_print_export_progress(
+                "generate",
+                "Generating PDF",
+                (
+                    f"Preparing card {card_index} of "
+                    f"{total_card_count} — "
+                    f"{progress_card_name}"
+                ),
+            )
 
             is_no_waste_filler = bool(
                 card.get(
@@ -13420,6 +13638,10 @@ def build_chaos_pack_pdf(
                         "is_dual_faced": int(card_row["is_dual_faced"] or 0),
                         "is_persistent_cache_file": True,
                         "is_template_rendered": False,
+                        "progress_name": (
+                            page_entry.get("card_name")
+                            or progress_card_name
+                        ),
                         "is_no_waste_filler": (
                             is_no_waste_filler
                         ),
@@ -13460,7 +13682,33 @@ def build_chaos_pack_pdf(
             label_settings=pdf_settings,
         )
 
-        for rendered_entry in rendered_image_entries:
+        render_entry_total = len(
+            rendered_image_entries
+        )
+
+        for render_index, rendered_entry in enumerate(
+            rendered_image_entries,
+            start=1,
+        ):
+            progress_name = str(
+                rendered_entry.get("progress_name")
+                or (
+                    "Deck Box Card"
+                    if rendered_entry.get("page_kind") == "title"
+                    else "Card"
+                )
+            ).strip()
+
+            update_print_export_progress(
+                "generate",
+                "Generating PDF",
+                (
+                    f"Rendering card {render_index} of "
+                    f"{render_entry_total} — "
+                    f"{progress_name}"
+                ),
+            )
+
             if rendered_entry.get("page_kind") == "title":
                 template_rendered_entries.append(rendered_entry)
                 continue
@@ -13550,6 +13798,11 @@ def build_chaos_pack_pdf(
                 write_debug_log(
                     f"CHAOS PACK LABEL PDF ERROR | pack={pack_display_name} | error={str(exc)}"
                 )
+        update_print_export_progress(
+            "generate",
+            "Generating PDF",
+            "Composing PDF pages...",
+        )
 
         pages_rendered = draw_chaos_rendered_entries_into_pdf_layout(
             c,
@@ -13568,6 +13821,12 @@ def build_chaos_pack_pdf(
             raise ValueError("No Chaos Draft card images could be rendered into the PDF.")
 
         if print_card_backs and card_back_rendered_entries:
+            update_print_export_progress(
+                "generate",
+                "Generating PDF",
+                "Composing card-back pages...",
+            )
+
             back_render_started_at = time.perf_counter()
 
             back_pages_rendered = draw_chaos_card_back_entries_into_pdf_layout(
@@ -13613,6 +13872,12 @@ def build_chaos_pack_pdf(
                 draw_width_mm,
                 draw_height_mm,
             )
+
+        update_print_export_progress(
+            "generate",
+            "Generating PDF",
+            "Finalizing PDF...",
+        )
 
         c.save()
         buffer.seek(0)
@@ -14868,6 +15133,14 @@ def build_chaos_card_image_export_zip(
     if not export_rows:
         raise ValueError("No selected pack cards were available for image export.")
 
+    total_export_cards = len(export_rows)
+
+    update_print_export_progress(
+        "generate",
+        "Generating Zip Export",
+        f"Preparing export for {total_export_cards} card(s)...",
+    )
+
     separate_special_slots = bool(separate_special_slots)
 
     pack_label_image_path = str(
@@ -14983,8 +15256,26 @@ def build_chaos_card_image_export_zip(
 
     exported_filename_counts = {}
 
-    for export_row in export_rows:
+    for export_index, export_row in enumerate(
+        export_rows,
+        start=1,
+    ):
         card_uuid = export_row["card_uuid"]
+
+        progress_card_name = str(
+            export_row.get("card_name")
+            or "Card"
+        ).strip()
+
+        update_print_export_progress(
+            "generate",
+            "Generating Zip Export",
+            (
+                f"Rendering card {export_index} of "
+                f"{total_export_cards} — "
+                f"{progress_card_name}"
+            ),
+        )
         card_row = get_chaos_card_for_image(export_row)
 
         if not card_row:
@@ -15304,6 +15595,12 @@ def build_chaos_card_image_export_zip(
                 f"tracking_code={pack_label['pack_tracking_code']} | file=PackLabels/{pack_label_filename}"
             )
 
+    update_print_export_progress(
+        "generate",
+        "Generating Zip Export",
+        "Writing export XML files...",
+    )
+
     regular_xml_path = os.path.join(export_folder, "Regular.xml")
     foil_xml_path = os.path.join(export_folder, "Foil.xml")
 
@@ -15339,6 +15636,12 @@ def build_chaos_card_image_export_zip(
 
     zip_filename = f"{export_folder_name}.zip"
     zip_path = os.path.join(EXPORT_ROOT_DIR, zip_filename)
+
+    update_print_export_progress(
+        "generate",
+        "Generating Zip Export",
+        "Compressing export archive...",
+    )
 
     zip_image_export_folder(export_folder, zip_path)
 
@@ -19300,6 +19603,47 @@ def card_back_custom_image(filename):
         max_age=0,
     )
 
+@app.route(
+    "/print-export/progress",
+    methods=["GET"],
+)
+def print_export_progress():
+    progress_id = normalize_print_export_progress_id(
+        request.args.get("job_id")
+    )
+
+    if not progress_id:
+        return jsonify({
+            "ok": False,
+            "found": False,
+        }), 400
+
+    with print_export_progress_lock:
+        prune_print_export_progress_jobs_locked()
+
+        state = print_export_progress_jobs.get(
+            progress_id
+        )
+
+        if state is None:
+            return jsonify({
+                "ok": True,
+                "found": False,
+            })
+
+        payload = {
+            "step": state.get("step") or "generate",
+            "title": state.get("title") or "Generating file",
+            "message": state.get("message") or "Working...",
+        }
+
+    return jsonify({
+        "ok": True,
+        "found": True,
+        **payload,
+    })
+
+
 
 @app.route(
     "/card-backs/options",
@@ -19314,6 +19658,11 @@ def card_back_options():
         "max_upload_size_bytes": (
             CARD_BACK_UPLOAD_MAX_SIZE_BYTES
         ),
+        "upload_full_bleed_3mm": get_config_bool(
+            get_request_config(),
+            "card_back_upload_full_bleed_3mm",
+            "0",
+        ),
         "options": (
             get_serialized_card_back_options()
         ),
@@ -19326,6 +19675,13 @@ def card_back_options():
 )
 def card_back_upload():
     try:
+        full_bleed_3mm = (
+            request.form.get(
+                "full_bleed_3mm"
+            )
+            == "1"
+        )
+
         card_back_key = (
             save_custom_card_back_upload(
                 request.files.get(
@@ -19335,13 +19691,13 @@ def card_back_upload():
                 max_file_size_bytes=(
                     CARD_BACK_UPLOAD_MAX_SIZE_BYTES
                 ),
-                full_bleed_3mm=(
-                    request.form.get(
-                        "full_bleed_3mm"
-                    )
-                    == "1"
-                ),
+                full_bleed_3mm=full_bleed_3mm,
             )
+        )
+
+        set_config_value(
+            "card_back_upload_full_bleed_3mm",
+            "1" if full_bleed_3mm else "0",
         )
 
         option = resolve_card_back_option(
@@ -23128,13 +23484,26 @@ def get_print_export_defaults_from_config(config):
             ).template_id
         )
 
+    label_text_mode = (
+        config.get(
+            "chaos_print_export_label_text_mode"
+        )
+        or "pack_code"
+    ).strip().lower()
+
+    if label_text_mode not in {
+        "pack_code",
+        "proxy",
+    }:
+        label_text_mode = "pack_code"
+
     return {
         "show_print_export_labels": get_config_bool(
             chaos_print_config,
             "print_labels_enabled",
             "1",
         ),
-        "label_text_mode": "pack_code",
+        "label_text_mode": label_text_mode,
         "include_pack_label_cards": get_config_bool(
             chaos_print_config,
             "print_pack_label_cards",

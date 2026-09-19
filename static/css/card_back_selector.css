@@ -182,16 +182,25 @@
 
 .card-back-selector-upload-controls {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 10px;
-  flex-wrap: wrap;
+  width: min(430px, 100%);
 }
 
 .card-back-selector-upload-inputs {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-width: min(390px, 100%);
+  width: 100%;
+  min-width: 0;
+}
+
+.card-back-selector-upload-inputs > input[type="file"],
+.card-back-selector-full-bleed-row,
+.card-back-selector-upload-controls > .action-button {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .card-back-selector-full-bleed-row {

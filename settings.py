@@ -172,6 +172,8 @@ def resolve_scoped_print_config(config, scope):
 
 DEFAULT_CONFIG = {
     "personal_use_agreement_accepted": "0",
+    "card_back_upload_full_bleed_3mm": "0",
+    "chaos_print_export_label_text_mode": "pack_code",
     "type_creature": "1",
     "type_artifact": "0",
     "type_enchantment": "0",

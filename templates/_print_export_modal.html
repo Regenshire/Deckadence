@@ -2,6 +2,7 @@
   id="printExportModal"
   class="campaign-add-pack-modal hidden"
   aria-hidden="true"
+  data-progress-url="{{ url_for('print_export_progress') }}"
 >
   <div id="printExportBackdrop" class="campaign-add-pack-backdrop"></div>
 
@@ -102,7 +103,7 @@
         {% endif %}
 
         <label class="toggle-row">
-          <span>Show Print/Export Labels</span>
+          <span>Show Custom Card Labels</span>
           <input type="hidden" name="show_print_export_labels" value="0" />
           <input
             type="checkbox"
