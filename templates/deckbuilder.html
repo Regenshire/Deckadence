@@ -113,7 +113,18 @@
       {% endif %}
     </div>
 
-    <div class="deckbuilder-toolbar-rows">
+    <button
+      type="button"
+      id="deckbuilderMobileToolbarToggle"
+      class="deckbuilder-mobile-toolbar-toggle"
+      aria-expanded="false"
+      aria-controls="deckbuilderToolbarRows"
+    >
+      <span>Deck Controls</span>
+      <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+    </button>
+
+    <div id="deckbuilderToolbarRows" class="deckbuilder-toolbar-rows">
       <div class="deckbuilder-toolbar-row deckbuilder-toolbar-row-top">
         <input
           type="text"
@@ -876,6 +887,17 @@
             data-help-id="deckbuilder-deck-filter"
           >
             <i class="fa-solid fa-filter"></i>
+          </button>
+
+          <button
+            type="button"
+            id="deckbuilderDeckCollapseButton"
+            class="campaign-test-draft-zone-view-button deckbuilder-deck-collapse-button"
+            title="Collapse Deck"
+            aria-label="Collapse Deck"
+            aria-expanded="true"
+          >
+            <i class="fa-solid fa-chevron-up"></i>
           </button>
         </div>
       </div>

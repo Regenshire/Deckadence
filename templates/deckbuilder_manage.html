@@ -814,7 +814,9 @@ block content %}
 
       const confirmText = String(
         deleteConfirmInput ? deleteConfirmInput.value : "",
-      ).trim();
+      )
+        .trim()
+        .toUpperCase();
 
       deleteConfirmButton.disabled =
         deleteInProgress || confirmText !== "DELETE";
@@ -870,7 +872,9 @@ block content %}
 
       const confirmText = String(
         deleteConfirmInput ? deleteConfirmInput.value : "",
-      ).trim();
+      )
+        .trim()
+        .toUpperCase();
 
       if (confirmText !== "DELETE") {
         updateDeleteConfirmState();
@@ -971,7 +975,8 @@ block content %}
       deleteConfirmInput.addEventListener("keydown", function (event) {
         if (
           event.key === "Enter" &&
-          String(deleteConfirmInput.value || "").trim() === "DELETE"
+          String(deleteConfirmInput.value || "").trim().toUpperCase() ===
+            "DELETE"
         ) {
           event.preventDefault();
           deletePendingDeck();

@@ -216,7 +216,9 @@ function initializeCustomDraftSetDeleteActions() {
 
     const confirmText = String(
       deleteConfirmInput ? deleteConfirmInput.value : "",
-    ).trim();
+    )
+      .trim()
+      .toUpperCase();
 
     deleteConfirmButton.disabled = deleteInProgress || confirmText !== "DELETE";
   }
@@ -272,7 +274,9 @@ function initializeCustomDraftSetDeleteActions() {
 
     const confirmText = String(
       deleteConfirmInput ? deleteConfirmInput.value : "",
-    ).trim();
+    )
+      .trim()
+      .toUpperCase();
 
     if (confirmText !== "DELETE") {
       updateDeleteConfirmState();
@@ -329,7 +333,9 @@ function initializeCustomDraftSetDeleteActions() {
     deleteConfirmInput.addEventListener("keydown", function (event) {
       if (
         event.key === "Enter" &&
-        String(deleteConfirmInput.value || "").trim() === "DELETE"
+        String(deleteConfirmInput.value || "")
+          .trim()
+          .toUpperCase() === "DELETE"
       ) {
         event.preventDefault();
         deletePendingSet();

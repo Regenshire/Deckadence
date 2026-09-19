@@ -546,7 +546,9 @@ a.home-primary-card:hover {
   }
 
   .home-product-description {
-    font-size: 0.98rem;
+    font-size: 0.95rem;
+    margin-top: 3px;
+    margin-left: 11px;
   }
 
   .home-product-flow {

@@ -37,6 +37,7 @@
               id="appMenuToggleButton"
               class="app-logo-link app-menu-toggle-button"
               data-help-id="navigation-toggle"
+              data-mobile-home-url="{{ url_for('index') }}"
               aria-label="Minimize navigation"
               aria-expanded="true"
               title="Minimize Navigation"
@@ -244,6 +245,20 @@
               </button>
 
               <div class="app-nav-dropdown app-settings-dropdown" role="menu">
+                <button
+                  type="button"
+                  class="app-nav-dropdown-item app-nav-dropdown-button app-nav-mobile-qr-item"
+                  data-app-qr-open
+                  role="menuitem"
+                >
+                  <span class="app-nav-item-icon">
+                    <i class="fa-solid fa-qrcode"></i>
+                  </span>
+                  <span>Open Deckadence on Another Device</span>
+                </button>
+
+                <div class="app-nav-dropdown-divider app-nav-mobile-qr-divider"></div>
+
                 <a
                   class="app-nav-dropdown-item"
                   href="{{ url_for('config') }}?open=reminders&scroll=reminders"
@@ -418,6 +433,7 @@
               id="appQrButton"
               class="app-nav-square-button app-qr-nav-button"
               data-help-id="navigation-qr"
+              data-app-qr-open
               aria-label="Open Deckadence QR code"
               title="Open Deckadence on another device"
             >

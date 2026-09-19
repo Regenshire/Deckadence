@@ -341,7 +341,7 @@ function initializeAlternateBleedReprocessing() {
 
 function initializeAppNavigationMenus() {
   const menuToggles = document.querySelectorAll("[data-app-menu-toggle]");
-  const qrOpenButton = document.getElementById("appQrButton");
+  const qrOpenButtons = document.querySelectorAll("[data-app-qr-open]");
   const qrModal = document.getElementById("appQrModal");
   const qrCloseButton = document.getElementById("appQrCloseButton");
 
@@ -397,12 +397,15 @@ function initializeAppNavigationMenus() {
     }
   });
 
-  if (qrOpenButton && qrModal) {
-    qrOpenButton.addEventListener("click", function () {
-      closeAllMenus(null);
-      qrModal.classList.remove("hidden");
-      qrModal.setAttribute("aria-hidden", "false");
-      document.body.style.overflow = "hidden";
+  if (qrModal) {
+    qrOpenButtons.forEach(function (qrOpenButton) {
+      qrOpenButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        closeAllMenus(null);
+        qrModal.classList.remove("hidden");
+        qrModal.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+      });
     });
 
     qrModal.addEventListener("click", function (event) {
@@ -666,6 +669,12 @@ function initializeAppNavigationMenus() {
   }
 
   const menuStorageKey = "imomir-main-menu-collapsed";
+  const mobileNavigationMedia = window.matchMedia("(max-width: 760px)");
+  const mobileHomeUrl = String(menuToggleButton.dataset.mobileHomeUrl || "/");
+
+  function isMobileNavigation() {
+    return mobileNavigationMedia.matches;
+  }
 
   function isMenuCollapsed() {
     return appTabs.classList.contains("app-tabs-collapsed");
@@ -695,6 +704,13 @@ function initializeAppNavigationMenus() {
   }
 
   function updateMenuAccessibilityState() {
+    if (isMobileNavigation()) {
+      menuToggleButton.removeAttribute("aria-expanded");
+      menuToggleButton.setAttribute("aria-label", "Home");
+      menuToggleButton.title = "Home";
+      return;
+    }
+
     const collapsed = isMenuCollapsed();
 
     menuToggleButton.setAttribute(
@@ -713,9 +729,11 @@ function initializeAppNavigationMenus() {
   }
 
   function setMenuCollapsed(collapsed, savePreference) {
-    appTabs.classList.toggle("app-tabs-collapsed", Boolean(collapsed));
+    const shouldCollapse = !isMobileNavigation() && Boolean(collapsed);
 
-    document.body.classList.toggle("app-menu-is-collapsed", Boolean(collapsed));
+    appTabs.classList.toggle("app-tabs-collapsed", shouldCollapse);
+
+    document.body.classList.toggle("app-menu-is-collapsed", shouldCollapse);
 
     updateMenuAccessibilityState();
 
@@ -727,9 +745,9 @@ function initializeAppNavigationMenus() {
       updateWorkspaceNavigationOffset();
     });
 
-    if (savePreference) {
+    if (savePreference && !isMobileNavigation()) {
       try {
-        window.localStorage.setItem(menuStorageKey, collapsed ? "1" : "0");
+        window.localStorage.setItem(menuStorageKey, shouldCollapse ? "1" : "0");
       } catch (error) {
         /*
          * The menu still works when localStorage is unavailable.
@@ -739,6 +757,11 @@ function initializeAppNavigationMenus() {
   }
 
   function loadSavedMenuState() {
+    if (isMobileNavigation()) {
+      setMenuCollapsed(false, false);
+      return;
+    }
+
     let savedValue = "0";
 
     try {
@@ -751,12 +774,23 @@ function initializeAppNavigationMenus() {
   }
 
   menuToggleButton.addEventListener("click", function () {
+    if (isMobileNavigation()) {
+      window.location.assign(mobileHomeUrl);
+      return;
+    }
+
     setMenuCollapsed(!isMenuCollapsed(), true);
   });
 
   window.addEventListener("resize", function () {
     updateWorkspaceNavigationOffset();
   });
+
+  if (typeof mobileNavigationMedia.addEventListener === "function") {
+    mobileNavigationMedia.addEventListener("change", loadSavedMenuState);
+  } else if (typeof mobileNavigationMedia.addListener === "function") {
+    mobileNavigationMedia.addListener(loadSavedMenuState);
+  }
 
   if (window.ResizeObserver) {
     const navigationResizeObserver = new ResizeObserver(function () {

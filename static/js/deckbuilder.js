@@ -26,6 +26,18 @@
   const sideboardCollapsedButton = document.getElementById(
     "deckbuilderSideboardCollapsedButton",
   );
+  const deckCollapseButton = document.getElementById(
+    "deckbuilderDeckCollapseButton",
+  );
+  const mobileToolbarToggle = document.getElementById(
+    "deckbuilderMobileToolbarToggle",
+  );
+  const deckbuilderHeader = workspace
+    ? workspace.querySelector(".deckbuilder-header")
+    : null;
+  const deckbuilderMobileMedia = window.matchMedia(
+    "(max-width: 760px), (max-height: 600px) and (pointer: coarse)",
+  );
   const sideboardFilterPanel = document.getElementById(
     "deckbuilderSideboardFilterPanel",
   );
@@ -233,6 +245,8 @@
   }
 
   const STACK_HOVER_EXPAND_DELAY_MS = 300;
+  const MOBILE_CONTEXT_LONG_PRESS_MS = 550;
+  const MOBILE_CONTEXT_MOVE_TOLERANCE_PX = 12;
 
   const defaultDeckbuilderViewMode = normalizeDeckbuilderViewMode(
     workspace.dataset.defaultViewMode || "grid",
@@ -952,6 +966,130 @@
     }
   }
 
+  function isDeckbuilderMobileLayout() {
+    return deckbuilderMobileMedia.matches;
+  }
+
+  function setDeckbuilderMobileToolbarOpen(isOpen) {
+    if (!deckbuilderHeader || !mobileToolbarToggle) {
+      return;
+    }
+
+    const shouldOpen = isDeckbuilderMobileLayout() && Boolean(isOpen);
+
+    deckbuilderHeader.classList.toggle(
+      "deckbuilder-mobile-tools-open",
+      shouldOpen,
+    );
+
+    mobileToolbarToggle.setAttribute(
+      "aria-expanded",
+      shouldOpen ? "true" : "false",
+    );
+    mobileToolbarToggle.title = shouldOpen
+      ? "Hide Deck Controls"
+      : "Show Deck Controls";
+  }
+
+  function setDeckbuilderMobileActiveZone(zoneName) {
+    if (!deckbuilderMain) {
+      return;
+    }
+
+    const activeZone = zoneName === "sideboard" ? "sideboard" : "deck";
+    const sideboardIsActive = activeZone === "sideboard";
+
+    if (isDeckbuilderMobileLayout()) {
+      setDeckbuilderMobileToolbarOpen(false);
+    }
+
+    deckbuilderMain.classList.toggle(
+      "deckbuilder-mobile-sideboard-active",
+      sideboardIsActive,
+    );
+    deckbuilderMain.classList.toggle(
+      "deckbuilder-mobile-deck-active",
+      !sideboardIsActive,
+    );
+
+    if (sideboardCollapseButton) {
+      sideboardCollapseButton.setAttribute(
+        "aria-expanded",
+        sideboardIsActive ? "true" : "false",
+      );
+      sideboardCollapseButton.setAttribute(
+        "aria-label",
+        sideboardIsActive ? "Collapse Sideboard" : "Expand Sideboard",
+      );
+      sideboardCollapseButton.title = sideboardIsActive
+        ? "Collapse Sideboard"
+        : "Expand Sideboard";
+    }
+
+    if (deckCollapseButton) {
+      deckCollapseButton.setAttribute(
+        "aria-expanded",
+        sideboardIsActive ? "false" : "true",
+      );
+      deckCollapseButton.setAttribute(
+        "aria-label",
+        sideboardIsActive ? "Expand Deck" : "Collapse Deck",
+      );
+      deckCollapseButton.title = sideboardIsActive
+        ? "Expand Deck"
+        : "Collapse Deck";
+    }
+
+    hideHoverPreview();
+    setDeckbuilderContextMenuOpen(false);
+    setLandPaletteContextMenuOpen(false);
+  }
+
+  function applyDeckbuilderResponsiveLayout() {
+    if (!deckbuilderMain) {
+      return;
+    }
+
+    if (isDeckbuilderMobileLayout()) {
+      setDeckbuilderMobileToolbarOpen(false);
+
+      if (
+        !deckbuilderMain.classList.contains(
+          "deckbuilder-mobile-sideboard-active",
+        ) &&
+        !deckbuilderMain.classList.contains("deckbuilder-mobile-deck-active")
+      ) {
+        setDeckbuilderMobileActiveZone("deck");
+      }
+
+      return;
+    }
+
+    deckbuilderMain.classList.remove(
+      "deckbuilder-mobile-sideboard-active",
+      "deckbuilder-mobile-deck-active",
+    );
+
+    if (deckbuilderHeader) {
+      deckbuilderHeader.classList.remove("deckbuilder-mobile-tools-open");
+    }
+
+    if (mobileToolbarToggle) {
+      mobileToolbarToggle.setAttribute("aria-expanded", "false");
+      mobileToolbarToggle.title = "Show Deck Controls";
+    }
+
+    setDeckbuilderSideboardCollapsed(
+      deckbuilderMain.classList.contains("deckbuilder-sideboard-collapsed"),
+    );
+
+    if (deckCollapseButton) {
+      deckCollapseButton.setAttribute("aria-expanded", "true");
+      deckCollapseButton.setAttribute("aria-label", "Collapse Deck");
+      deckCollapseButton.title = "Collapse Deck";
+    }
+  }
+
   function setDeckbuilderSideboardCollapsed(isCollapsed) {
     const collapsed = Boolean(isCollapsed);
 
@@ -1639,7 +1777,9 @@
   function updateDeleteDeckConfirmState() {
     const confirmText = String(
       deleteDeckConfirmInput ? deleteDeckConfirmInput.value : "",
-    ).trim();
+    )
+      .trim()
+      .toUpperCase();
 
     if (deleteDeckConfirmButton) {
       deleteDeckConfirmButton.disabled = confirmText !== "DELETE";
@@ -1739,7 +1879,9 @@
 
     const confirmText = String(
       deleteDeckConfirmInput ? deleteDeckConfirmInput.value : "",
-    ).trim();
+    )
+      .trim()
+      .toUpperCase();
 
     if (confirmText !== "DELETE") {
       showDeckbuilderError(
@@ -3602,6 +3744,96 @@
     }, STACK_HOVER_EXPAND_DELAY_MS);
   }
 
+  function bindMobileContextLongPress(element, openMenuCallback) {
+    if (!element || element.dataset.mobileContextLongPressBound === "1") {
+      return;
+    }
+
+    element.dataset.mobileContextLongPressBound = "1";
+
+    let pressTimer = null;
+    let activePointerId = null;
+    let startX = 0;
+    let startY = 0;
+
+    function cancelLongPress() {
+      if (pressTimer !== null) {
+        window.clearTimeout(pressTimer);
+        pressTimer = null;
+      }
+
+      activePointerId = null;
+    }
+
+    element.addEventListener("pointerdown", function (event) {
+      if (
+        !isDeckbuilderMobileLayout() ||
+        event.pointerType === "mouse" ||
+        event.button !== 0
+      ) {
+        return;
+      }
+
+      if (
+        event.target &&
+        event.target.closest &&
+        event.target.closest("button, a, input, select, textarea")
+      ) {
+        return;
+      }
+
+      cancelLongPress();
+
+      activePointerId = event.pointerId;
+      startX = event.clientX;
+      startY = event.clientY;
+
+      pressTimer = window.setTimeout(function () {
+        pressTimer = null;
+        element.dataset.suppressNextClick = "1";
+
+        window.setTimeout(function () {
+          if (element.dataset.suppressNextClick === "1") {
+            delete element.dataset.suppressNextClick;
+          }
+        }, 800);
+
+        openMenuCallback(startX, startY, element);
+      }, MOBILE_CONTEXT_LONG_PRESS_MS);
+    });
+
+    element.addEventListener("pointermove", function (event) {
+      if (event.pointerId !== activePointerId || pressTimer === null) {
+        return;
+      }
+
+      const movedX = event.clientX - startX;
+      const movedY = event.clientY - startY;
+
+      if (Math.hypot(movedX, movedY) > MOBILE_CONTEXT_MOVE_TOLERANCE_PX) {
+        cancelLongPress();
+      }
+    });
+
+    element.addEventListener("pointerup", cancelLongPress);
+    element.addEventListener("pointercancel", cancelLongPress);
+    element.addEventListener("dragstart", cancelLongPress);
+
+    element.addEventListener(
+      "click",
+      function (event) {
+        if (element.dataset.suppressNextClick !== "1") {
+          return;
+        }
+
+        delete element.dataset.suppressNextClick;
+        event.preventDefault();
+        event.stopPropagation();
+      },
+      true,
+    );
+  }
+
   function bindCardContextMenus() {
     Array.from(
       document.querySelectorAll(
@@ -3616,6 +3848,18 @@
 
       cardElement.addEventListener("contextmenu", function (event) {
         openCardContextMenu(event, cardElement);
+      });
+
+      bindMobileContextLongPress(cardElement, function (x, y, targetElement) {
+        openCardContextMenu(
+          {
+            preventDefault: function () {},
+            stopPropagation: function () {},
+            clientX: x,
+            clientY: y,
+          },
+          targetElement,
+        );
       });
     });
 
@@ -3632,6 +3876,18 @@
 
       landElement.addEventListener("contextmenu", function (event) {
         openLandPaletteContextMenu(event, landElement);
+      });
+
+      bindMobileContextLongPress(landElement, function (x, y, targetElement) {
+        openLandPaletteContextMenu(
+          {
+            preventDefault: function () {},
+            stopPropagation: function () {},
+            clientX: x,
+            clientY: y,
+          },
+          targetElement,
+        );
       });
     });
   }
@@ -5163,8 +5419,31 @@
     });
   }
 
+  if (mobileToolbarToggle) {
+    mobileToolbarToggle.addEventListener("click", function () {
+      const isCurrentlyOpen =
+        deckbuilderHeader &&
+        deckbuilderHeader.classList.contains("deckbuilder-mobile-tools-open");
+
+      setDeckbuilderMobileToolbarOpen(!isCurrentlyOpen);
+    });
+  }
+
   if (sideboardCollapseButton) {
     sideboardCollapseButton.addEventListener("click", function () {
+      if (isDeckbuilderMobileLayout()) {
+        const sideboardIsActive =
+          deckbuilderMain &&
+          deckbuilderMain.classList.contains(
+            "deckbuilder-mobile-sideboard-active",
+          );
+
+        setDeckbuilderMobileActiveZone(
+          sideboardIsActive ? "deck" : "sideboard",
+        );
+        return;
+      }
+
       const isCurrentlyCollapsed = Boolean(
         deckbuilderMain &&
         deckbuilderMain.classList.contains("deckbuilder-sideboard-collapsed"),
@@ -5172,6 +5451,29 @@
 
       setDeckbuilderSideboardCollapsed(!isCurrentlyCollapsed);
     });
+  }
+
+  if (deckCollapseButton) {
+    deckCollapseButton.addEventListener("click", function () {
+      if (!isDeckbuilderMobileLayout()) {
+        return;
+      }
+
+      const deckIsActive =
+        deckbuilderMain &&
+        deckbuilderMain.classList.contains("deckbuilder-mobile-deck-active");
+
+      setDeckbuilderMobileActiveZone(deckIsActive ? "sideboard" : "deck");
+    });
+  }
+
+  if (typeof deckbuilderMobileMedia.addEventListener === "function") {
+    deckbuilderMobileMedia.addEventListener(
+      "change",
+      applyDeckbuilderResponsiveLayout,
+    );
+  } else if (typeof deckbuilderMobileMedia.addListener === "function") {
+    deckbuilderMobileMedia.addListener(applyDeckbuilderResponsiveLayout);
   }
 
   if (sideboardCollapsedButton) {
@@ -5533,7 +5835,9 @@
     deleteDeckConfirmInput.addEventListener("keydown", function (event) {
       if (
         event.key === "Enter" &&
-        String(deleteDeckConfirmInput.value || "").trim() === "DELETE"
+        String(deleteDeckConfirmInput.value || "")
+          .trim()
+          .toUpperCase() === "DELETE"
       ) {
         event.preventDefault();
         deleteCurrentDeck();
@@ -5860,6 +6164,7 @@
     }
   });
 
+  applyDeckbuilderResponsiveLayout();
   setDeckbuilderBasicLandCounts(getCurrentDeckBasicLandCounts());
   updateDeckbuilderCardSize(deckbuilderCardSize);
   setViewMode(deckbuilderViewMode);

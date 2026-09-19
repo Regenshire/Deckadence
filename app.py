@@ -19,12 +19,14 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from contextlib import ExitStack, closing
-from functools import wraps
+from functools import lru_cache, wraps
 from tempfile import TemporaryDirectory
 from urllib.parse import urlparse
 from uuid import uuid4
 
+import qrcode
 import requests
+from qrcode.image.pil import PilImage
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter, ImageChops, ImageDraw, ImageFont
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader, simpleSplit
@@ -2034,7 +2036,7 @@ def inject_global_template_state():
             (config.get("personal_use_agreement_accepted") or "0").strip() != "1"
         ),
         "global_qr_access_url": access_url,
-        "global_qr_image_url": build_qr_code_image_url(access_url),
+        "global_qr_image_url": url_for("deckadence_qr_code"),
         "global_print_template_options": (
             get_chaos_print_template_options()
         ),
@@ -3931,9 +3933,45 @@ def build_access_url():
     return f"{scheme}://{local_ip}:{server_port}"
 
 
-def build_qr_code_image_url(target_url):
-    encoded_target = requests.utils.quote(target_url, safe="")
-    return f"https://api.qrserver.com/v1/create-qr-code/?size=320x320&margin=12&data={encoded_target}"
+@lru_cache(maxsize=8)
+def build_qr_code_png_bytes(target_url):
+    qr_code = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=8,
+        border=2,
+    )
+
+    qr_code.add_data(target_url)
+    qr_code.make(fit=True)
+
+    qr_image = qr_code.make_image(
+        image_factory=PilImage,
+        fill_color="black",
+        back_color="white",
+    )
+
+    output_buffer = BytesIO()
+    qr_image.save(output_buffer, format="PNG")
+
+    return output_buffer.getvalue()
+
+
+@app.get("/deckadence-qr.png")
+def deckadence_qr_code():
+    qr_bytes = build_qr_code_png_bytes(
+        build_access_url()
+    )
+
+    response = Response(
+        qr_bytes,
+        mimetype="image/png",
+    )
+    response.headers["Cache-Control"] = (
+        "private, max-age=1800"
+    )
+
+    return response
 
 def resolve_game_mode_token_image(mode_value):
     mode_map = get_game_mode_option_map()
@@ -34855,7 +34893,7 @@ def custom_draft_set_delete(set_code):
     delete_confirmation = (
         request.form.get("delete_confirmation")
         or ""
-    ).strip()
+    ).strip().upper()
 
     if delete_confirmation != "DELETE":
         flash("Type DELETE to confirm custom draft set deletion.")
