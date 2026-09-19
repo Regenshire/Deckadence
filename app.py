@@ -36435,8 +36435,14 @@ if __name__ == "__main__":
     ensure_help_schema()
     set_runtime_debug_log_enabled_from_config()
 
+    use_waitress_server = (
+        getattr(sys, "frozen", False)
+        or os.environ.get("DECKADENCE_USE_WAITRESS", "").strip().lower()
+        in {"1", "true", "yes", "on"}
+    )
+
     flask_debug_enabled = (
-        not getattr(sys, "frozen", False)
+        not use_waitress_server
         and os.environ.get("DECKADENCE_FLASK_DEBUG", "").strip().lower()
         in {"1", "true", "yes", "on"}
     )
@@ -36444,9 +36450,32 @@ if __name__ == "__main__":
     app.config["TEMPLATES_AUTO_RELOAD"] = flask_debug_enabled
     app.jinja_env.auto_reload = flask_debug_enabled
 
-    app.run(
-        host="0.0.0.0",
-        port=5000,
-        debug=flask_debug_enabled,
-        use_reloader=flask_debug_enabled,
-    )
+    if use_waitress_server:
+        from waitress import serve
+
+        local_url = "http://127.0.0.1:5000"
+        network_url = f"http://{get_preferred_local_ip()}:5000"
+
+        print("")
+        print(f"Deckadence {APP_VERSION} is starting.")
+        print(f"  Local:   {local_url}")
+
+        if network_url != local_url:
+            print(f"  Network: {network_url}")
+
+        print("  Press Ctrl+C or close the command prompt to stop Deckadence.")
+        print("", flush=True)
+
+        serve(
+            app,
+            host="0.0.0.0",
+            port=5000,
+            threads=8,
+        )
+    else:
+        app.run(
+            host="0.0.0.0",
+            port=5000,
+            debug=flask_debug_enabled,
+            use_reloader=flask_debug_enabled,
+        )

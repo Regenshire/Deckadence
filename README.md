@@ -2,203 +2,156 @@
 
 ## Custom Set Management & Testing Tool | Design -> Proxy -> Test
 
-Deckadence is a self-hosted web application for creating, managing, printing, and playing with Magic: The Gathering cards and proxies. It is designed for local use on a Windows PC and can be opened from other computers, phones, or tablets on the same network.
+Deckadence is a self-hosted local Windows web application for creating, managing, printing, and playtesting with Magic: The Gathering cards from any set, deck, or pack. Deckadence support Chaos Drafts, custom draft sets and cubes, deck management, proxy printing, draft testing, card-image management, and optional AI image upscaling in one application.
 
-Deckadence combines Chaos Draft, custom draft sets and cubes, deck management, proxy printing, draft testing, card-image management, and optional AI image upscaling in one application.
+Deckadence runs on your own PC and opens in a web browser. Your Deckadence database, settings, custom sets, decks, cached images, and generated files are stored locally with the application. No account or hosted Deckadence service is required. You can also open Deckadence from a phone, tablet, or another computer on the same local network.
 
-## Features
+## What Deckadence Can Do
 
-- Create and manage custom draft sets, cubes, and custom Mystery Draft-style card pools.
-- Open random Chaos Draft boosters using MTGJSON booster definitions and card data.
-- Generate and manage pre-printed Chaos Draft packs.
-- Create and manage decks with the Deck Builder.
-- Run draft tests and manage draft/campaign data.
-- Download and cache card images from Scryfall.
-- Change card printings and alternate images without changing the underlying card identity.
-- Generate printable card and pack PDFs.
-- Use configurable print templates for different paper sizes, layouts, and workflows.
-- Support Silhouette-compatible print layouts and registration-mark templates.
-- Export Chaos Draft deck lists for services such as Archidekt and Moxfield.
-- Open Deckadence from another device on the local network using the built-in QR code.
-- Install optional upscaling plugins from the Deckadence Plugin Manager.
+- **Build custom sets, cubes, and drafts.** Create custom draft sets and chaos draft pools that use cards from any set.
+- **Run Chaos Drafts and manage packs.** Open boosters in the Chaos draft mode, build pre-printed pack pools, track opened packs, and use campaign and draft-testing tools.
+- **Build and manage decks.** Use the Deck Builder to organize cards, change printings, manage sideboards and basic lands, and prepare decks for playtesting or proxy printing.
+- **Create high-quality proxy print files.** Generate PDFs using configurable print templates, card backs, bleed, cutting guides, multi-card sheets, pack labels, and Silhouette-compatible layouts.
+- **Control card artwork and printings.** Use existing artwork, select alternate printings, use alternate image sources, and optionally install AI upscaling plugins for higher-resolution proxy images.
+- **Keep everything local.** Deckadence is designed to run from your own PC without a Deckadence account or cloud database. Local backup/export tools are included, and the application can be shared with devices on your home network using the built-in QR code.
+- **Proxy PDF Generation.** Generate PDFs or export image files for playtest card printing.
+- **Silhouette Support.** Deckadence supports Silhouette Cameo cutters.
 
-## Game Modes
+Deckadence is intended for personal set building, proxy creation, playtesting, and casual play. It is not intended for commercial proxy production or sanctioned tournament play.
 
-Deckadence includes Chaos Draft and a collection of Momir-style and alternate game modes, including:
+---
 
-- Momir Basic
-- Momir Select
-- Momir Planeswalker
-- Momir Legends
-- Momir Battleship
-- Momir Aggro
-- Momir Odds
-- Momir Evens
-- Momir Prime
-- Tower of Power
-- Chaos Draft
-- Pre-Print Chaos Draft
-- Planechase
-- Archenemy
-- Custom modes
+# Installation
 
 ## Windows Release
 
-The easiest way to use Deckadence is the packaged Windows release.
+The packaged Windows release is the easiest way to use Deckadence. You do **not** need to install Python or any of Deckadence's programming dependencies.
 
-1. Download the latest `Deckadence_vX.X.X_Windows.zip` file from the GitHub Releases page.
-2. Extract the entire ZIP file to a normal folder. Do not run Deckadence from inside the ZIP archive.
-3. Open the extracted `Deckadence` folder.
-4. Run `Deckadence.exe`.
-5. Open the address shown by Deckadence in your browser if it does not open automatically.
+1. Download the latest `Deckadence_vX.X.X_Windows.zip` from the [Deckadence GitHub Releases page](https://github.com/Regenshire/Deckadence/releases).
+2. Right-click the ZIP file and choose **Extract All**. Do not run Deckadence from inside the ZIP archive.
+3. Move or keep the extracted `Deckadence` folder in a normal location where your Windows account can save files, such as Documents or another folder you control. Avoid placing it inside `Program Files`.
+4. Open the extracted `Deckadence` folder.
+5. Run **`Start_Deckadence.bat`**. This starts Deckadence and opens it in your default browser.
 
-Deckadence normally listens on port `5000`.
+You can also run **`Deckadence.exe`** directly. The Deckadence window will display the local and network addresses you can open in a browser.
 
-On the same computer, the application can normally be opened at:
+Deckadence normally uses:
 
 ```text
 http://127.0.0.1:5000
 ```
 
-From another device on the same network, open Deckadence using the host computer's local IP address, for example:
+Keep the Deckadence program window open while using the application. Closing that window stops Deckadence.
+
+### Windows Firewall
+
+Windows may ask whether Deckadence is allowed to communicate on your network. If you want to open Deckadence from a phone, tablet, or another computer on your home network, allow access on **Private networks**.
+
+Deckadence does not need to be exposed to the public Internet.
+
+---
+
+# First-Time Use
+
+An Internet connection is required for the initial card database download and for features that download card data or images.
+
+## 1. Start Deckadence
+
+Run `Start_Deckadence.bat`. Your browser should open Deckadence automatically.
+
+If the browser does not open, use the local address shown in the Deckadence program window. The normal local address is:
+
+```text
+http://127.0.0.1:5000
+```
+
+## 2. Accept the Personal Use Agreement
+
+The first time Deckadence opens, you will be asked to accept the Personal Use Agreement. Deckadence is intended for personal, non-commercial set building and playtesting.
+
+## 3. Download the Card Database
+
+Before most Deckadence features can be used, the local card database must be created.
+
+1. Open **Settings**.
+2. Open the **Card Database** section.
+3. Select **Download Card Database**.
+4. Allow the download and import process to finish.
+
+The first database setup can take some time because Deckadence downloads and processes Magic card, set, and booster information for local use.
+
+## 4. Start Using Deckadence
+
+After the card database is ready, the main areas of the application are available:
+
+- **Play** contains Chaos Draft, campaigns, draft testing, and Momir-style game modes.
+- **Cards** contains Decks, Custom Sets, Packs, and related card-management tools.
+- **Settings** contains card database maintenance, printing options, image settings, plugins, backups, and other application preferences.
+
+Card images do not need to be downloaded all at once. Deckadence can cache images as they are needed, and image-management tools are available if you prefer to prepare images ahead of time.
+
+## 5. Optional: Use Deckadence From Another Device
+
+Deckadence can be opened from another computer, phone, or tablet connected to the same local network.
+
+Use the **QR code button** in the Deckadence navigation bar, or enter the network address shown by Deckadence into the other device's browser.
+
+For example:
 
 ```text
 http://192.168.1.50:5000
 ```
 
-Keep the command prompt style window running while you are using the website. If this window is closed then the Flask webserver that is hosting the app will shut down.
+The exact address depends on the computer running Deckadence.
 
-The QR code in Deckadence can also be used to open the application from a phone or tablet.
+## 6. Optional: Install an Image Upscaler
 
-## First-Time Setup
+Deckadence provides seperate image upscaling addons. These optional addons all Deckadence to use local language models hosted on your PC to upscale images.
 
-After starting Deckadence for the first time:
-
-1. Open **Settings**.
-2. Open **Card Database**.
-3. Select **Download Card Database**.
-4. Allow the initial MTGJSON data import to complete.
-
-Card images can be downloaded ahead of time or fetched later as needed.
-
-## Navigation
-
-The primary navigation is organized around the following areas:
-
-- **Play** — Draft and Momir gameplay.
-- **Cards** — Decks, custom Sets, and Packs.
-- **Settings** — card database, plugins, reminders, Chaos Draft settings, Momir settings, printing, exports, backup, and advanced configuration.
-
-## Chaos Draft
-
-Chaos Draft can select and open random booster products from the sets and booster types enabled in Deckadence.
-
-Deckadence uses booster information from MTGJSON to construct supported packs. Opened packs can be managed, printed, tracked, and used with Deckadence's draft and campaign tools.
-
-Custom draft sets can also be created for cubes, custom environments, and custom Mystery Draft-style pools.
-
-## Decks and Draft Testing
-
-Deckadence includes deck management and a Deck Builder for organizing cards and printings. Draft testing tools can create draft pools and allow cards to be moved into decks, sideboards, and other draft zones.
-
-## Printing
-
-Deckadence includes a configurable print pipeline for cards, packs, decks, and custom sets.
-
-Supported functionality includes:
-
-- PDF card printing
-- Multiple cards per page
-- Configurable paper sizes and orientations
-- Print bleed and cutting guides
-- Card backs
-- Pack labels
-- Silhouette registration-mark layouts
-- Template-driven print layouts
-
-Print settings for Chaos Draft and Momir are maintained independently where appropriate.
-
-## Optional AI Upscaling Plugins
-
-Deckadence supports optional AI image-upscaling plugins. Upscalers are installed separately so the main Deckadence application does not require PyTorch or GPU libraries.
-
-Open:
+Compatible upscalers can be managed under:
 
 **Settings → Plugins → Plugin Manager**
 
-and install the upscaler appropriate for the computer running Deckadence.
+Upscaling plugins are installed separately from the main Deckadence application because the LLM libraries and hardware requirements are significantly larger than the core application.
 
-### NVIDIA RTX 50 Series Upscaler
+---
 
-Designed for supported NVIDIA RTX 50 Series graphics cards using CUDA-accelerated PyTorch inference.
+# Technical Information
 
-Requirements:
+Deckadence is written in Python and uses a local web interface. The packaged Windows release includes the Python runtime and Deckadence's normal runtime libraries, so end users do not need to install Python separately.
 
-- Windows
-- NVIDIA RTX 50 Series GPU
-- Python 3.12 64-bit
-- Current compatible NVIDIA graphics driver
+The packaged application uses **Waitress** as its local HTTP server and **Flask** as the application framework. Application data is stored locally using **SQLite** and normal files inside the Deckadence installation.
 
-### AMD ROCm Upscaler
+For development from source, Python 3.12 64-bit is recommended. Exact package versions are maintained in `requirements.txt`.
 
-Designed for supported AMD Radeon GPUs using ROCm/HIP-accelerated PyTorch inference.
+Deckadence is intended for personal local network use only. It is not intended for use as an internet service. We recommending closing the application when not in use.
 
-Current target requirements:
+## Main Python Dependencies
 
-- Windows 11 25H2
-- Supported AMD Radeon RX 7000 or RX 9000 Series GPU
-- Python 3.12 64-bit
-- Compatible AMD ROCm/Adrenalin environment
+- **Flask** — application and web-interface framework
+- **Waitress** — local application server used by the packaged release
+- **Jinja2** — HTML template rendering
+- **Werkzeug** — Flask HTTP and utility support
+- **Pillow** — card, artwork, and image processing
+- **ReportLab** — PDF creation and print layouts
+- **pypdf** — PDF processing and combination
+- **Requests / urllib3** — downloads and communication with supported third-party data services
+- **qrcode / Pillow** — QR-code support
+- **CairoSVG** — SVG rendering used by artwork and set-icon workflows
+- **PyInstaller** — creates the packaged Windows application
 
-### CPU Upscaler
+Deckadence also uses supporting Python packages including `blinker`, `certifi`, `charset-normalizer`, `click`, `colorama`, `idna`, `itsdangerous`, `MarkupSafe`, and `setuptools`. These are bundled or installed as part of the normal application/build requirements.
 
-Provides the same Deckadence upscaling workflow without requiring a supported GPU. Processing is substantially slower than GPU acceleration but works on a much wider range of systems.
-
-Requirements:
-
-- Windows
-- 64-bit CPU
-- Python 3.12 64-bit
-
-### Upscaling Features
-
-The current production upscaling model is **Magic Card AI v3**, which provides:
-
-- Whole-card AI upscaling
-- Targeted processing for text- and symbol-sensitive card regions
-- Single-faced card support
-- Double-faced card support
-- Batch upscaling
-- Integration with Deckadence card, pack, set, and deck workflows
-
-AI model files are downloaded by the plugin when required.
+Optional Deckadence plugins can have their own dependencies. For example, AI upscaling plugins may install PyTorch and hardware-specific libraries in their own isolated plugin environment.
 
 ## Running From Source
 
-Python 3.12 64-bit is recommended.
-
-Create a virtual environment:
+For developers or advanced users:
 
 ```powershell
 py -3.12 -m venv .venv
-```
-
-Activate it:
-
-```powershell
 .\.venv\Scripts\Activate.ps1
-```
-
-Install Deckadence's Python requirements:
-
-```powershell
-python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-```
-
-Start Deckadence:
-
-```powershell
 python app.py
 ```
 
@@ -208,52 +161,60 @@ Then open:
 http://127.0.0.1:5000
 ```
 
-## Building the Windows Application
+---
 
-Deckadence uses PyInstaller and the included `deckadence.spec` file.
+# Privacy and Third-Party Services
 
-From the repository root:
+## No Deckadence Telemetry
 
-```powershell
-python -m PyInstaller --clean deckadence.spec
-```
+Deckadence does not include usage analytics, advertising tracking, or Deckadence-operated telemetry service.
 
-The packaged application is created under:
+Deckadence does not upload your saved decks, custom sets, campaigns, settings, locally cached card images, or generated proxy files to an online server. These items are stored locally on the computer hosting Deckadence.
 
-```text
-dist\Deckadence\
-```
+Deckadence does make normal Internet requests when you use features that require external data, images, release information, or optional plugins. Those third-party services may receive normal network information associated with the request, such as your public IP address and browser/application request information. These requests may include downloading files from MTGJson, files from Scryfall, and information from Moxfield.
 
-The complete `Deckadence` directory must be distributed together because the application uses a PyInstaller onedir build.
+## Services Used by Deckadence
 
-## Data Sources
+- **MTGJSON** — provides Magic card data, set information, booster definitions, and supported pricing data used to build Deckadence's local databases.
+- **Scryfall** — provides card images, bulk card information, set information, and set icons used by Deckadence image and card workflows.
+- **GitHub** — hosts Deckadence releases and optional plugin packages. Deckadence can check GitHub for a newer release and can download selected plugins from GitHub when requested.
+- **Moxfield** — used only when you choose Deckadence features that search for or import an external Moxfield deck.
+- **cdnjs / Font Awesome** — provides the Font Awesome icon stylesheet used by the browser interface.
 
-Deckadence uses the following external data sources:
+Third-party services are independent of Deckadence and are governed by their own availability, terms, and privacy practices.
 
-- **MTGJSON** — card, set, and booster data
-- **Scryfall** — card images and image matching
+---
 
-## Local Data
+# Responsible Use and Legal Information
 
-Deckadence stores downloaded databases, cached images, generated files, plugin installations, and other runtime data locally. Back up important Deckadence data before replacing or moving an existing installation.
+Deckadence is an unofficial fan-made application intended for **personal, non-commercial set building, proxy creation, casual play, and playtesting purposes only**.
 
-## License
+By using Deckadence, you are responsible for how you use the application and any material you create, download, upload, print, or share with it.
 
-MIT License. See `LICENSE.txt`.
+Please use Deckadence responsibly:
 
-## Disclaimer
+- Proxies and playtest cards created with Deckadence are not intended for resale or commercial distribution.
+- Proxies created with Deckadence are not represented as genuine Magic: The Gathering cards and are not intended for sanctioned tournament play.
+- Follow the rules of your local game store, tournament organizer, play group, or venue when using proxies or playtest cards.
+- You are responsible for ensuring that your use of Deckadence complies with applicable laws and the terms of any third-party service you choose to use.
+- Deckadence does not grant any license or ownership rights to Magic: The Gathering card artwork, names, symbols, rules text, trademarks, or other third-party intellectual property.
 
-Deckadence is an unofficial fan project and is not affiliated with, endorsed by, or sponsored by Wizards of the Coast.
+Deckadence is not affiliated with, endorsed by, sponsored by, or approved by Wizards of the Coast.
 
-Magic: The Gathering and related properties are trademarks of Wizards of the Coast.
+**Magic: The Gathering**, Magic card names, card artwork, symbols, rules text, and related trademarks and intellectual property are the property of Wizards of the Coast and/or their respective rights holders.
 
-## Credits
+Deckadence is provided without warranty under the terms of its software license. Users are responsible for maintaining backups of any Deckadence data they consider important.
 
-Deckadence makes use of data and services provided by:
+Please support your local game stores and the creators whose games and artwork make projects like this possible.
 
-- MTGJSON
-- Scryfall
+---
 
-The optional AI upscaling system uses open-source PyTorch-compatible image restoration models and supporting libraries distributed separately through Deckadence plugins.
+# License
 
-Magic the Gathering is
+Deckadence is released under the MIT License. See [`LICENSE.txt`](LICENSE.txt) for the full license text.
+
+# Credits
+
+Deckadence relies on data and services provided by projects including **MTGJSON** and **Scryfall**, and is built using a number of open-source Python libraries listed above and in `requirements.txt`.
+
+Optional upscaling plugins use separately distributed open-source machine-learning libraries and models and are not required for normal Deckadence use.

@@ -78,14 +78,6 @@ if (-not (Test-Path $StartBatSource)) {
     throw "Start_Deckadence.bat was not found: $StartBatSource"
 }
 
-$PyInstallerCommand = Get-Command `
-    "pyinstaller" `
-    -ErrorAction SilentlyContinue
-
-if (-not $PyInstallerCommand) {
-    throw "PyInstaller was not found in the current environment."
-}
-
 $PythonCommand = Get-Command `
     "python" `
     -ErrorAction SilentlyContinue
@@ -94,8 +86,24 @@ if (-not $PythonCommand) {
     throw "Python was not found in the current environment."
 }
 
-Write-Host "      PyInstaller: $($PyInstallerCommand.Source)"
+$PyInstallerVersion = & $PythonCommand.Source `
+    -m PyInstaller `
+    --version
+
+if ($LASTEXITCODE -ne 0) {
+    throw "PyInstaller is not installed for the selected Python environment."
+}
+
+$WaitressVersion = & $PythonCommand.Source `
+    -c "import importlib.metadata; print(importlib.metadata.version('waitress'))"
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Waitress is not installed for the selected Python environment. Run: python -m pip install -r requirements.txt"
+}
+
 Write-Host "      Python:      $($PythonCommand.Source)"
+Write-Host "      PyInstaller: $PyInstallerVersion"
+Write-Host "      Waitress:    $WaitressVersion"
 Write-Host "      Spec:        $SpecPath"
 Write-Host "      Launcher:    $StartBatSource"
 Write-Host ""
@@ -135,14 +143,15 @@ Write-Host ""
 
 Write-Host "[4/6] Building Deckadence with PyInstaller..."
 Write-Host ""
-Write-Host "      pyinstaller --noconfirm --clea Deckadence.spec"
+Write-Host "      python -m PyInstaller --noconfirm --clean deckadence.spec"
 Write-Host ""
 Write-Host "----------------------------------------"
 
 Push-Location $RepoRoot
 
 try {
-    & pyinstaller `
+    & $PythonCommand.Source `
+        -m PyInstaller `
         --noconfirm `
         --clean `
         "deckadence.spec"
