@@ -1438,6 +1438,49 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
       {% endif %}
     </div>
   </form>
+
+  <div
+    id="customDraftCardContextMenu"
+    class="imomir-card-context-menu hidden"
+    aria-hidden="true"
+  >
+    <button
+      type="button"
+      class="imomir-card-context-menu-item"
+      data-card-context-action="change-printing"
+    >
+      Change Printing
+    </button>
+
+    <button
+      type="button"
+      class="imomir-card-context-menu-item"
+      data-card-context-action="foil"
+    >
+      Set Foil
+    </button>
+
+    <button
+      type="button"
+      class="imomir-card-context-menu-item"
+      data-card-context-action="alternate-image"
+    >
+      Alternate Image Settings
+    </button>
+
+    {% if global_card_upscaling_control_enabled %}
+    <div class="imomir-card-context-menu-divider"></div>
+
+    <button
+      type="button"
+      class="imomir-card-context-menu-item"
+      data-card-context-action="upscale-image"
+    >
+      Upscale Image
+    </button>
+    {% endif %}
+  </div>
+
   {% set print_export_subject_label = "custom draft set" %} {% include
   "_print_export_modal.html" %} {% include "_card_back_selector_modal.html" %}
   {% set stats_modal_title = "Set Card Stats" %} {% set stats_modal_subtitle =

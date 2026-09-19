@@ -164,6 +164,306 @@
   window.refreshCheck = refreshCheck;
 })();
 
+/* ==========================================
+   Shared Card Context Menu
+   ------------------------------------------
+   Reusable right-click / long-press menu for
+   card-based screens outside Deck Builder.
+   ========================================== */
+(function () {
+  if (window.iMomirCardContextMenu) {
+    return;
+  }
+
+  const LONG_PRESS_MS = 560;
+  const MOVE_TOLERANCE_PX = 12;
+
+  function bind(options) {
+    const contextOptions = options || {};
+    const menu =
+      typeof contextOptions.menu === "string"
+        ? document.getElementById(contextOptions.menu)
+        : contextOptions.menu;
+    const root = contextOptions.root || document;
+    const targetSelector = String(contextOptions.targetSelector || "").trim();
+
+    if (!menu || !targetSelector) {
+      return null;
+    }
+
+    let activeTarget = null;
+    let pressTimer = null;
+    let pressPointerId = null;
+    let pressTarget = null;
+    let pressStartX = 0;
+    let pressStartY = 0;
+    let suppressClickTarget = null;
+
+    function resolveTarget(rawTarget) {
+      if (!(rawTarget instanceof Element)) {
+        return null;
+      }
+
+      const target = rawTarget.closest(targetSelector);
+
+      if (!target) {
+        return null;
+      }
+
+      if (root !== document && !root.contains(target)) {
+        return null;
+      }
+
+      return target;
+    }
+
+    function cancelLongPress() {
+      if (pressTimer !== null) {
+        window.clearTimeout(pressTimer);
+      }
+
+      pressTimer = null;
+      pressPointerId = null;
+      pressTarget = null;
+    }
+
+    function close() {
+      menu.classList.add("hidden");
+      menu.setAttribute("aria-hidden", "true");
+      activeTarget = null;
+    }
+
+    function position(x, y) {
+      const viewportWidth =
+        window.innerWidth || document.documentElement.clientWidth;
+      const viewportHeight =
+        window.innerHeight || document.documentElement.clientHeight;
+      const menuWidth = menu.offsetWidth || 230;
+      const menuHeight = menu.offsetHeight || 240;
+
+      menu.style.left =
+        Math.max(10, Math.min(x, viewportWidth - menuWidth - 10)) + "px";
+      menu.style.top =
+        Math.max(10, Math.min(y, viewportHeight - menuHeight - 10)) + "px";
+    }
+
+    function open(target, x, y) {
+      if (!target) {
+        return;
+      }
+
+      activeTarget = target;
+
+      if (typeof contextOptions.prepare === "function") {
+        contextOptions.prepare(target, menu);
+      }
+
+      const visibleAction = menu.querySelector(
+        "[data-card-context-action]:not(.hidden)",
+      );
+
+      if (!visibleAction) {
+        close();
+        return;
+      }
+
+      menu.classList.remove("hidden");
+      menu.setAttribute("aria-hidden", "false");
+      position(x, y);
+    }
+
+    root.addEventListener("contextmenu", function (event) {
+      const target = resolveTarget(event.target);
+
+      if (!target) {
+        return;
+      }
+
+      if (
+        typeof contextOptions.canOpen === "function" &&
+        !contextOptions.canOpen(target, event)
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      open(target, event.clientX, event.clientY);
+    });
+
+    root.addEventListener("pointerdown", function (event) {
+      if (event.pointerType === "mouse" || event.button !== 0) {
+        return;
+      }
+
+      if (
+        event.target instanceof Element &&
+        event.target.closest("button, a, input, select, textarea, label")
+      ) {
+        return;
+      }
+
+      const target = resolveTarget(event.target);
+
+      if (!target) {
+        return;
+      }
+
+      cancelLongPress();
+      pressPointerId = event.pointerId;
+      pressTarget = target;
+      pressStartX = event.clientX;
+      pressStartY = event.clientY;
+
+      pressTimer = window.setTimeout(function () {
+        pressTimer = null;
+        suppressClickTarget = pressTarget;
+        open(pressTarget, pressStartX, pressStartY);
+      }, LONG_PRESS_MS);
+    });
+
+    root.addEventListener("pointermove", function (event) {
+      if (event.pointerId !== pressPointerId || pressTimer === null) {
+        return;
+      }
+
+      if (
+        Math.hypot(event.clientX - pressStartX, event.clientY - pressStartY) >
+        MOVE_TOLERANCE_PX
+      ) {
+        cancelLongPress();
+      }
+    });
+
+    root.addEventListener("pointerup", cancelLongPress);
+    root.addEventListener("pointercancel", cancelLongPress);
+
+    root.addEventListener(
+      "click",
+      function (event) {
+        if (!suppressClickTarget) {
+          return;
+        }
+
+        const target = resolveTarget(event.target);
+
+        if (target !== suppressClickTarget) {
+          return;
+        }
+
+        suppressClickTarget = null;
+        event.preventDefault();
+        event.stopPropagation();
+      },
+      true,
+    );
+
+    menu.addEventListener("click", function (event) {
+      const actionButton = event.target.closest("[data-card-context-action]");
+
+      if (!actionButton || actionButton.classList.contains("hidden")) {
+        return;
+      }
+
+      const actionName = String(
+        actionButton.dataset.cardContextAction || "",
+      ).trim();
+      const target = activeTarget;
+
+      close();
+
+      if (
+        !actionName ||
+        !target ||
+        typeof contextOptions.onAction !== "function"
+      ) {
+        return;
+      }
+
+      Promise.resolve(
+        contextOptions.onAction(actionName, target, actionButton),
+      ).catch(function (error) {
+        if (typeof contextOptions.onError === "function") {
+          contextOptions.onError(error);
+          return;
+        }
+
+        console.error(error);
+      });
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!menu.contains(event.target)) {
+        close();
+      }
+    });
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape") {
+        close();
+      }
+    });
+
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+
+    return {
+      close: close,
+      getActiveTarget: function () {
+        return activeTarget;
+      },
+    };
+  }
+
+  async function setFoil(options) {
+    const foilOptions = options || {};
+    const updateUrl = String(foilOptions.updateUrl || "").trim();
+    const cardUuid = String(foilOptions.cardUuid || "").trim();
+    const isFoil = Boolean(foilOptions.isFoil);
+
+    if (!updateUrl || !cardUuid) {
+      throw new Error("Foil controls are not available for this card.");
+    }
+
+    const response = await fetch(updateUrl, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        is_foil: isFoil,
+      }),
+    });
+
+    const payload = await response.json();
+
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.message || "Could not update foil status.");
+    }
+
+    document.dispatchEvent(
+      new CustomEvent("imomir:card-image-refreshed", {
+        detail: {
+          cardUuid: cardUuid,
+          imageUrl: "",
+          imageChanged: false,
+          hasAlternateSource: null,
+          removeBleed: null,
+          isFoil: isFoil,
+        },
+      }),
+    );
+
+    return payload;
+  }
+
+  window.iMomirCardContextMenu = {
+    bind: bind,
+    setFoil: setFoil,
+  };
+})();
+
 document.addEventListener("DOMContentLoaded", function () {
   initializeAppNavigationMenus();
   initializeAlternateBleedReprocessing();

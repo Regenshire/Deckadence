@@ -4482,6 +4482,172 @@
     });
   }
 
+  function getCustomDraftContextSourceRow(cardElement) {
+    if (!cardElement || !currentCardList) {
+      return null;
+    }
+
+    if (cardElement.classList.contains("custom-draft-current-card-row")) {
+      return cardElement;
+    }
+
+    const customSetCardId = String(
+      cardElement.dataset.customSetCardId || "",
+    ).trim();
+
+    if (!customSetCardId) {
+      return null;
+    }
+
+    return currentCardList.querySelector(
+      '.custom-draft-current-card-row[data-custom-set-card-id="' +
+        CSS.escape(customSetCardId) +
+        '"]',
+    );
+  }
+
+  function setCustomDraftContextActionVisible(menu, actionName, isVisible) {
+    const menuItem = menu.querySelector(
+      '[data-card-context-action="' + actionName + '"]',
+    );
+
+    if (menuItem) {
+      menuItem.classList.toggle("hidden", !isVisible);
+    }
+  }
+
+  function prepareCustomDraftCardContextMenu(cardElement, menu) {
+    const sourceRow = getCustomDraftContextSourceRow(cardElement);
+
+    if (!sourceRow) {
+      return;
+    }
+
+    const changePrintingButton = sourceRow.querySelector(
+      ".custom-draft-change-printing-button",
+    );
+    const alternateImageButton = sourceRow.querySelector(
+      ".alternate-image-button",
+    );
+    const upscaleButton = sourceRow.querySelector(
+      ".imomir-upscale-card-button",
+    );
+    const foilUpdateUrl = alternateImageButton
+      ? String(alternateImageButton.dataset.foilUpdateUrl || "").trim()
+      : "";
+
+    setCustomDraftContextActionVisible(
+      menu,
+      "change-printing",
+      Boolean(changePrintingButton),
+    );
+    setCustomDraftContextActionVisible(menu, "foil", Boolean(foilUpdateUrl));
+    setCustomDraftContextActionVisible(
+      menu,
+      "alternate-image",
+      Boolean(alternateImageButton),
+    );
+    setCustomDraftContextActionVisible(
+      menu,
+      "upscale-image",
+      Boolean(
+        upscaleButton &&
+        String(upscaleButton.dataset.upscaleControlUrl || "").trim(),
+      ),
+    );
+
+    const foilMenuItem = menu.querySelector(
+      '[data-card-context-action="foil"]',
+    );
+
+    if (foilMenuItem) {
+      foilMenuItem.textContent =
+        sourceRow.dataset.isFoil === "1" ? "Remove Foil" : "Set Foil";
+    }
+  }
+
+  async function handleCustomDraftCardContextAction(actionName, cardElement) {
+    const sourceRow = getCustomDraftContextSourceRow(cardElement);
+
+    if (!sourceRow) {
+      return;
+    }
+
+    const changePrintingButton = sourceRow.querySelector(
+      ".custom-draft-change-printing-button",
+    );
+    const alternateImageButton = sourceRow.querySelector(
+      ".alternate-image-button",
+    );
+    const upscaleButton = sourceRow.querySelector(
+      ".imomir-upscale-card-button",
+    );
+
+    if (actionName === "change-printing" && changePrintingButton) {
+      changePrintingButton.click();
+      return;
+    }
+
+    if (actionName === "alternate-image" && alternateImageButton) {
+      alternateImageButton.click();
+      return;
+    }
+
+    if (actionName === "upscale-image" && upscaleButton) {
+      upscaleButton.click();
+      return;
+    }
+
+    if (actionName !== "foil" || !alternateImageButton) {
+      return;
+    }
+
+    if (
+      !window.iMomirCardContextMenu ||
+      typeof window.iMomirCardContextMenu.setFoil !== "function"
+    ) {
+      throw new Error("Foil controls are not available.");
+    }
+
+    const nextIsFoil = sourceRow.dataset.isFoil !== "1";
+    const payload = await window.iMomirCardContextMenu.setFoil({
+      updateUrl: alternateImageButton.dataset.foilUpdateUrl || "",
+      cardUuid: sourceRow.dataset.cardUuid || "",
+      isFoil: nextIsFoil,
+    });
+
+    showUiMessage(
+      payload.message || (nextIsFoil ? "Foil enabled." : "Foil removed."),
+      false,
+    );
+  }
+
+  function initializeCustomDraftCardContextMenu() {
+    if (
+      !window.iMomirCardContextMenu ||
+      typeof window.iMomirCardContextMenu.bind !== "function"
+    ) {
+      return;
+    }
+
+    window.iMomirCardContextMenu.bind({
+      menu: "customDraftCardContextMenu",
+      targetSelector:
+        ".custom-draft-current-card-row, .custom-draft-current-grid-card",
+      prepare: prepareCustomDraftCardContextMenu,
+      onAction: handleCustomDraftCardContextAction,
+      onError: function (error) {
+        showUiMessage(error.message || String(error), true);
+      },
+    });
+  }
+
+  document.addEventListener(
+    "DOMContentLoaded",
+    initializeCustomDraftCardContextMenu,
+    { once: true },
+  );
+
   document.addEventListener("imomir:card-image-refreshed", function (event) {
     const detail = event.detail || {};
     const cardUuid = detail.cardUuid || "";

@@ -417,6 +417,49 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
     </div>
     {% endfor %}
   </div>
+
+  <div
+    id="campaignPackCardContextMenu"
+    class="imomir-card-context-menu hidden"
+    aria-hidden="true"
+  >
+    <button
+      type="button"
+      class="imomir-card-context-menu-item"
+      data-card-context-action="change-printing"
+    >
+      Change Printing
+    </button>
+
+    <button
+      type="button"
+      class="imomir-card-context-menu-item"
+      data-card-context-action="foil"
+    >
+      Set Foil
+    </button>
+
+    <button
+      type="button"
+      class="imomir-card-context-menu-item"
+      data-card-context-action="alternate-image"
+    >
+      Alternate Image Settings
+    </button>
+
+    {% if global_card_upscaling_control_enabled %}
+    <div class="imomir-card-context-menu-divider"></div>
+
+    <button
+      type="button"
+      class="imomir-card-context-menu-item"
+      data-card-context-action="upscale-image"
+    >
+      Upscale Image
+    </button>
+    {% endif %}
+  </div>
+
   <div
     id="campaignPackChangePrintingOverlay"
     class="custom-draft-card-search-overlay hidden"
