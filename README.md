@@ -303,8 +303,8 @@ Optional upscaling plugins use separately distributed open-source machine-learni
 <p align="center">
   <img
     src="docs/images/example_deckbuilder_stacked.jpg"
-    alt=Deckbuilder Stack View"
-  >"
+    alt="Deckbuilder Stack View"
+  >
   <br>
   <em>Use the Deckbuilder to create and manage deckss</em>
 </p>
