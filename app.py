@@ -81,6 +81,7 @@ from paths import (
 from settings import (
     ALLOWED_CHAOS_BOOSTER_TYPES,
     APP_SECRET_KEY,
+    APP_SERVER_PORT,
     APP_VERSION,
     GITHUB_LATEST_RELEASE_API_URL,
     GITHUB_RELEASE_OWNER,
@@ -3920,7 +3921,10 @@ def build_access_url():
     else:
         scheme = "https" if request.is_secure else "http"
 
-    server_port = (request.environ.get("SERVER_PORT") or "5000").strip()
+    server_port = (
+        request.environ.get("SERVER_PORT")
+        or str(APP_SERVER_PORT)
+    ).strip()
     host_header = (request.headers.get("Host") or "").strip().lower()
 
     if host_header:
@@ -36491,8 +36495,10 @@ if __name__ == "__main__":
     if use_waitress_server:
         from waitress import serve
 
-        local_url = "http://127.0.0.1:5000"
-        network_url = f"http://{get_preferred_local_ip()}:5000"
+        local_url = f"http://127.0.0.1:{APP_SERVER_PORT}"
+        network_url = (
+            f"http://{get_preferred_local_ip()}:{APP_SERVER_PORT}"
+        )
 
         print("")
         print(f"Deckadence {APP_VERSION} is starting.")
@@ -36507,13 +36513,13 @@ if __name__ == "__main__":
         serve(
             app,
             host="0.0.0.0",
-            port=5000,
+            port=APP_SERVER_PORT,
             threads=8,
         )
     else:
         app.run(
             host="0.0.0.0",
-            port=5000,
+            port=APP_SERVER_PORT,
             debug=flask_debug_enabled,
             use_reloader=flask_debug_enabled,
         )

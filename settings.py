@@ -7,6 +7,8 @@ GITHUB_LATEST_RELEASE_API_URL = (
     f"https://api.github.com/repos/{GITHUB_RELEASE_OWNER}/{GITHUB_RELEASE_REPO}/releases/latest"
 )
 UPDATE_CHECK_INTERVAL_HOURS = 24
+APP_SERVER_PORT = 5000
+DATABASE_BUSY_TIMEOUT_SECONDS = 30.0
 
 MTGJSON_ATOMIC_URL = "https://mtgjson.com/api/v5/AtomicCards.json"
 MTGJSON_SET_LIST_URL = "https://mtgjson.com/api/v5/SetList.json"

@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 from paths import DATABASE_PATH, ALTERNATE_SOURCE_DIR, RUNTIME_BASE_DIR
 from settings import (
     CHAOS_BATCH_REPEAT_REPLACEMENT_CHANCES,
+    DATABASE_BUSY_TIMEOUT_SECONDS,
     DEFAULT_CONFIG,
 )
 
@@ -22,7 +23,10 @@ def get_db_connection():
     if db_parent and not os.path.exists(db_parent):
         os.makedirs(db_parent, exist_ok=True)
 
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = sqlite3.connect(
+        DATABASE_PATH,
+        timeout=float(DATABASE_BUSY_TIMEOUT_SECONDS),
+    )
     conn.row_factory = sqlite3.Row
     return conn
 
