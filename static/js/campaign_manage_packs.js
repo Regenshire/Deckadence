@@ -251,6 +251,30 @@
     "campaignOpenPrintExportButton",
   );
 
+  const packExportOpenButton = document.getElementById(
+    "campaignPackExportOpenButton",
+  );
+
+  const packExportModal = document.getElementById("campaignPackExportModal");
+
+  const packExportBackdrop = document.getElementById(
+    "campaignPackExportBackdrop",
+  );
+
+  const packExportCloseButton = document.getElementById(
+    "campaignPackExportCloseButton",
+  );
+
+  const packExportCancelButton = document.getElementById(
+    "campaignPackExportCancelButton",
+  );
+
+  const packExportStatusCloseButton = document.getElementById(
+    "campaignPackExportStatusCloseButton",
+  );
+
+  const packExportForm = document.getElementById("campaignPackExportForm");
+
   const campaignPrintUrl = config.dataset.campaignPrintUrl || "";
   const campaignExportZipUrl = config.dataset.campaignExportZipUrl || "";
   const campaignPreviewPrintUrl = config.dataset.campaignPreviewPrintUrl || "";
@@ -297,6 +321,44 @@
 
     showMessage: showUiMessage,
   });
+
+  const campaignPackFileExportController =
+    window.iMomirUI && window.iMomirUI.FileExportController && packExportForm
+      ? new window.iMomirUI.FileExportController({
+          formId: "campaignPackExportForm",
+          submitButtonId: "campaignPackExportSubmitButton",
+          statusPanelId: "campaignPackExportStatusPanel",
+          statusTitleId: "campaignPackExportStatusTitle",
+          statusMessageId: "campaignPackExportStatusMessage",
+          statusCloseButtonId: "campaignPackExportStatusCloseButton",
+          stepPrepareId: "campaignPackExportStatusStepPrepare",
+          stepGenerateId: "campaignPackExportStatusStepGenerate",
+          stepDeliverId: "campaignPackExportStatusStepDeliver",
+          stepCompleteId: "campaignPackExportStatusStepComplete",
+          progressUrl: packExportModal?.dataset.progressUrl || "",
+          fallbackFilename: "deckadence_packs_export.zip",
+          generateTitle: "Building Pack Export",
+          generateMessage:
+            "Collecting selected pack data " +
+            "and building the export archive...",
+          successTitle: "Pack Export Complete",
+          successMessage: "The selected-pack export " + "has been downloaded.",
+
+          beforeSubmit: function () {
+            return getSelectedPackIdsForTestDraft().length
+              ? ""
+              : "Select at least one " + "saved pack first.";
+          },
+
+          getExtraFormFields: function () {
+            return {
+              pack_ids: getSelectedPackIdsForTestDraft(),
+            };
+          },
+
+          showMessage: showUiMessage,
+        }).initialize()
+      : null;
 
   function showUiMessage(messageText, isError) {
     const cleanMessage = messageText || "";
@@ -364,6 +426,52 @@
       .filter(function (value) {
         return value !== "";
       });
+  }
+
+  function openPackExportModal() {
+    const selectedPackIds = getSelectedPackIdsForTestDraft();
+
+    if (!selectedPackIds.length) {
+      showUiMessage("Select at least one saved pack first.", true);
+
+      return;
+    }
+
+    if (packExportForm) {
+      const defaultMode = packExportForm.querySelector(
+        'input[name="export_mode"][value="data_only"]',
+      );
+
+      if (defaultMode) {
+        defaultMode.checked = true;
+      }
+    }
+
+    if (campaignPackFileExportController) {
+      campaignPackFileExportController.reset();
+    }
+
+    if (!packExportModal) {
+      return;
+    }
+
+    packExportModal.classList.remove("hidden");
+
+    packExportModal.setAttribute("aria-hidden", "false");
+
+    document.body.classList.add("modal-open");
+  }
+
+  function closePackExportModal() {
+    if (!packExportModal) {
+      return;
+    }
+
+    packExportModal.classList.add("hidden");
+
+    packExportModal.setAttribute("aria-hidden", "true");
+
+    document.body.classList.remove("modal-open");
   }
 
   function clearCampaignPrintExportPackInputs() {
@@ -2116,6 +2224,21 @@
     }
   }
 
+  if (packExportOpenButton) {
+    packExportOpenButton.addEventListener("click", openPackExportModal);
+  }
+
+  [
+    packExportBackdrop,
+    packExportCloseButton,
+    packExportCancelButton,
+    packExportStatusCloseButton,
+  ]
+    .filter(Boolean)
+    .forEach(function (element) {
+      element.addEventListener("click", closePackExportModal);
+    });
+
   if (openPrintExportButton) {
     openPrintExportButton.addEventListener(
       "click",
@@ -2672,6 +2795,11 @@
 
   document.addEventListener("keydown", function (event) {
     if (event.key !== "Escape") {
+      return;
+    }
+
+    if (packExportModal && !packExportModal.classList.contains("hidden")) {
+      closePackExportModal();
       return;
     }
 

@@ -519,6 +519,7 @@ def parse_print_export_override_bool(raw_value, default_value=False):
 
 
 PDF_RENDER_RESOLUTION_PPI = {
+    "draft": 150.0,
     "standard": 300.0,
     "high": 450.0,
     "max": 600.0,
@@ -1497,6 +1498,13 @@ def _build_pdf_template_layout(
                 "back_side_slot_order"
             )
             or "same"
+        ).strip().lower(),
+
+        "back_side_page_flip": (
+            template_layout.get(
+                "back_side_page_flip"
+            )
+            or "none"
         ).strip().lower(),
     }
 
@@ -3510,6 +3518,13 @@ def build_registry_template_layout(
             )
             or "same"
         ).strip().lower(),
+
+        "back_side_page_flip": (
+            duplex.get(
+                "back_side_page_flip"
+            )
+            or "none"
+        ).strip().lower(),
     }
 
 def build_chaos_registry_template_layout(
@@ -3785,14 +3800,11 @@ def get_active_print_template_metadata():
         "template_value": (
             selected_template_value
         ),
-        "is_silhouette": (
-            is_silhouette_template(
-                selected_template_value
-            )
-        ),
     }
 
 def get_silhouette_print_template_options():
+    # Legacy function name retained for compatibility.
+    # Cutting machine files may be linked to any Card Print template.
     return [
         {
             "value": template.template_id,
@@ -3800,7 +3812,7 @@ def get_silhouette_print_template_options():
         }
         for template
         in get_print_template_registry().list_templates()
-        if template.is_silhouette_layout
+        if template.cardprint_support
     ]
 
 
@@ -3841,6 +3853,14 @@ def serialize_silhouette_template_entry(
                 print_template,
                 print_template,
             )
+        ),
+        "machine_brand": (
+            entry.get("machine_brand")
+            or "Other"
+        ),
+        "file_format": (
+            entry.get("file_format")
+            or ""
         ),
         "download_url": url_for(
             "silhouette_template_download",
@@ -8229,6 +8249,123 @@ def build_pdf_template_slot_map(
         range(slot_count)
     )
 
+def normalize_pdf_back_side_page_flip(value):
+    normalized_value = str(
+        value or "none"
+    ).strip().lower()
+
+    if normalized_value not in {
+        "none",
+        "horizontal",
+        "vertical",
+    }:
+        return "none"
+
+    return normalized_value
+
+
+def get_pdf_back_side_rotation(
+    rotation_degrees,
+    page_flip,
+):
+    rotation = int(
+        rotation_degrees or 0
+    ) % 360
+
+    normalized_flip = (
+        normalize_pdf_back_side_page_flip(
+            page_flip
+        )
+    )
+
+    if normalized_flip == "horizontal":
+        return (-rotation) % 360
+
+    if normalized_flip == "vertical":
+        return (180 - rotation) % 360
+
+    return rotation
+
+
+def transform_pdf_slot_for_page_flip(
+    slot_def,
+    page_width_mm,
+    page_height_mm,
+    page_flip,
+):
+    transformed_slot = dict(
+        slot_def or {}
+    )
+
+    normalized_flip = (
+        normalize_pdf_back_side_page_flip(
+            page_flip
+        )
+    )
+
+    if normalized_flip == "none":
+        return transformed_slot
+
+    slot_x_mm = float(
+        transformed_slot["x_mm"]
+    )
+
+    slot_y_mm = float(
+        transformed_slot["y_mm"]
+    )
+
+    slot_width_mm = float(
+        transformed_slot["width_mm"]
+    )
+
+    slot_height_mm = float(
+        transformed_slot["height_mm"]
+    )
+
+    if normalized_flip == "horizontal":
+        transformed_slot["x_mm"] = (
+            float(page_width_mm)
+            - slot_x_mm
+            - slot_width_mm
+        )
+
+    elif normalized_flip == "vertical":
+        transformed_slot["y_mm"] = (
+            float(page_height_mm)
+            - slot_y_mm
+            - slot_height_mm
+        )
+
+    transformed_slot["rotation_degrees"] = (
+        get_pdf_back_side_rotation(
+            transformed_slot.get(
+                "rotation_degrees",
+                0,
+            ),
+            normalized_flip,
+        )
+    )
+
+    return transformed_slot
+
+
+def build_pdf_back_side_slot_defs(
+    slot_defs,
+    page_width_mm,
+    page_height_mm,
+    page_flip,
+):
+    return [
+        transform_pdf_slot_for_page_flip(
+            slot_def,
+            page_width_mm,
+            page_height_mm,
+            page_flip,
+        )
+        for slot_def in (slot_defs or [])
+    ]
+
+
 def draw_chaos_card_back_entries_into_pdf_layout(
     pdf_canvas,
     back_entries,
@@ -8257,6 +8394,21 @@ def draw_chaos_card_back_entries_into_pdf_layout(
         )
     ]
 
+    back_side_page_flip = (
+        normalize_pdf_back_side_page_flip(
+            pdf_template_layout.get(
+                "back_side_page_flip"
+            )
+        )
+    )
+
+    slot_defs = build_pdf_back_side_slot_defs(
+        slot_defs,
+        width_mm,
+        height_mm,
+        back_side_page_flip,
+    )
+
     use_slot_compositor = bool(
         slot_defs
         and (
@@ -8265,6 +8417,7 @@ def draw_chaos_card_back_entries_into_pdf_layout(
                 "is_silhouette_layout",
                 False,
             )
+            or back_side_page_flip != "none"
         )
     )
 
@@ -18200,11 +18353,6 @@ def play_draft():
                     "template_value"
                 ]
             ),
-            show_silhouette_template_library=(
-                active_template_metadata[
-                    "is_silhouette"
-                ]
-            ),
             print_export_defaults=get_print_export_defaults_from_config(config),
         )
 
@@ -18241,11 +18389,6 @@ def play_draft():
                     "template_value"
                 ]
             ),
-            show_silhouette_template_library=(
-                active_template_metadata[
-                    "is_silhouette"
-                ]
-            ),
             campaign_players=campaign_players,
             selected_campaign_player_id=selected_campaign_player_id,
             chaos_campaigns=chaos_campaigns,
@@ -18268,11 +18411,6 @@ def play_draft():
             active_print_template=(
                 active_template_metadata[
                     "template_value"
-                ]
-            ),
-            show_silhouette_template_library=(
-                active_template_metadata[
-                    "is_silhouette"
                 ]
             ),
         )
@@ -20192,6 +20330,10 @@ def card_back_delete():
     methods=["GET"],
 )
 def silhouette_template_options():
+    active_template_metadata = (
+        get_active_print_template_metadata()
+    )
+
     return jsonify({
         "ok": True,
         "templates": (
@@ -20199,6 +20341,11 @@ def silhouette_template_options():
         ),
         "print_template_options": (
             get_silhouette_print_template_options()
+        ),
+        "active_print_template": (
+            active_template_metadata[
+                "template_value"
+            ]
         ),
     })
 
@@ -20228,7 +20375,7 @@ def silhouette_template_upload():
         return jsonify({
             "ok": False,
             "message": (
-                "Choose a valid Silhouette Print Template."
+                "Choose a valid Card Print Template."
             ),
         }), 400
 
@@ -20246,13 +20393,18 @@ def silhouette_template_upload():
                 ),
                 requested_print_template,
                 app.static_folder,
+                machine_brand=(
+                    request.form.get(
+                        "machine_brand"
+                    )
+                ),
             )
         )
 
         return jsonify({
             "ok": True,
             "message": (
-                "Silhouette template uploaded."
+                "Card cutting machine template uploaded."
             ),
             "template": (
                 serialize_silhouette_template_entry(
@@ -20272,14 +20424,14 @@ def silhouette_template_upload():
 
     except Exception as exc:
         write_debug_log(
-            "SILHOUETTE TEMPLATE UPLOAD ERROR | "
+            "CUTTING MACHINE TEMPLATE UPLOAD ERROR | "
             f"error={str(exc)}"
         )
 
         return jsonify({
             "ok": False,
             "message": (
-                "The Silhouette template could not be uploaded."
+                "The cutting machine template could not be uploaded."
             ),
         }), 500
 
@@ -20300,7 +20452,7 @@ def silhouette_template_download(
 
     if not entry:
         return (
-            "Silhouette template was not found.",
+            "Cutting machine template was not found.",
             404,
         )
 
@@ -21566,64 +21718,176 @@ def campaign_chaos_campaigns_default_save():
     flash("No Campaign selected.")
     return redirect(url_for("campaign_chaos_campaigns"))
 
+@app.route(
+    "/campaign-chaos/campaigns/default/export",
+    methods=["POST"],
+)
 
-@app.route("/campaign-chaos/campaigns/default/backup", methods=["POST"])
-def campaign_chaos_campaigns_default_backup():
+
+def campaign_chaos_campaigns_default_export():
+    begin_print_export_progress(
+        request.form
+    )
+
+    export_mode = (
+        request.form.get("export_mode")
+        or "data_only"
+    ).strip().lower()
+
+    update_print_export_progress(
+        "generate",
+        "Building Campaign Export",
+        (
+            "Collecting campaign data "
+            "and image files..."
+            if export_mode
+            == "cards_and_images"
+            else
+            "Collecting campaign "
+            "and card data..."
+        ),
+    )
+
     try:
-        backup_result = export_default_campaign_archive(
-            auto_clear_exports_value=get_auto_clear_exports_config_value(),
+        export_result = (
+            export_default_campaign_archive(
+                export_mode=export_mode,
+                auto_clear_exports_value=(
+                    get_auto_clear_exports_config_value()
+                ),
+            )
         )
     except Exception as exc:
         return str(exc), 400
 
+    update_print_export_progress(
+        "deliver",
+        "Preparing Download",
+        "The campaign export is ready.",
+    )
+
     return send_file(
-        backup_result["zip_path"],
+        export_result["zip_path"],
         mimetype="application/zip",
         as_attachment=True,
-        download_name=backup_result["zip_filename"],
+        download_name=(
+            export_result["zip_filename"]
+        ),
         max_age=0,
     )
 
-@app.route("/campaign-chaos/campaigns/import-backup", methods=["POST"])
-def campaign_chaos_campaigns_import_backup():
-    backup_file = request.files.get("backup_file")
-    campaign_name_override = (request.form.get("campaign_name_override") or "").strip()
+
+@app.route(
+    "/campaign-chaos/campaigns/import",
+    methods=["POST"],
+)
+def campaign_chaos_campaigns_import():
+    export_file = request.files.get("export_file")
+
+    if export_file is None:
+        export_file = request.files.get("backup_file")
+
+    campaign_name_override = (
+        request.form.get("campaign_name_override")
+        or ""
+    ).strip()
 
     try:
         import_result = import_archive_from_file_object(
-            backup_file,
+            export_file,
             EXPORT_KIND_CAMPAIGN,
-            campaign_name_override=campaign_name_override,
+            campaign_name_override=(
+                campaign_name_override
+            ),
         )
     except Exception as exc:
-        flash(f"Campaign import failed: {str(exc)}")
-        return redirect(url_for("campaign_chaos_campaigns"))
+        flash(
+            f"Campaign import failed: {str(exc)}"
+        )
+        return redirect(
+            url_for("campaign_chaos_campaigns")
+        )
 
-    flash(
-        f"Campaign import complete. Imported {import_result['imported_rows']} row(s) "
-        f"and restored {import_result['extracted_files']} file(s)."
+    content_mode = (
+        import_result.get("content_mode")
+        or "data_only"
     )
 
-    return redirect(url_for("campaign_chaos_campaigns"))
+    content_label = (
+        "Cards and Image Files"
+        if content_mode == "cards_and_images"
+        else "Card Data Only"
+    )
+
+    flash(
+        f"Campaign import complete ({content_label}). "
+        f"Imported {import_result['imported_rows']} row(s) "
+        f"and restored "
+        f"{import_result['extracted_files']} file(s)."
+    )
+
+    return redirect(
+        url_for("campaign_chaos_campaigns")
+    )
 
 
-@app.route("/campaign-chaos/campaigns/<int:campaign_id>/backup", methods=["POST"])
-def campaign_chaos_campaigns_backup(campaign_id):
+@app.route(
+    "/campaign-chaos/campaigns/<int:campaign_id>/export",
+    methods=["POST"],
+)
+def campaign_chaos_campaigns_export(
+    campaign_id,
+):
+    begin_print_export_progress(
+        request.form
+    )
+
+    export_mode = (
+        request.form.get("export_mode")
+        or "data_only"
+    ).strip().lower()
+
+    update_print_export_progress(
+        "generate",
+        "Building Campaign Export",
+        (
+            "Collecting campaign data "
+            "and image files..."
+            if export_mode
+            == "cards_and_images"
+            else
+            "Collecting campaign "
+            "and card data..."
+        ),
+    )
+
     try:
-        backup_result = export_campaign_archive(
+        export_result = export_campaign_archive(
             campaign_id,
-            auto_clear_exports_value=get_auto_clear_exports_config_value(),
+            export_mode=export_mode,
+            auto_clear_exports_value=(
+                get_auto_clear_exports_config_value()
+            ),
         )
     except Exception as exc:
         return str(exc), 400
 
+    update_print_export_progress(
+        "deliver",
+        "Preparing Download",
+        "The campaign export is ready.",
+    )
+
     return send_file(
-        backup_result["zip_path"],
+        export_result["zip_path"],
         mimetype="application/zip",
         as_attachment=True,
-        download_name=backup_result["zip_filename"],
+        download_name=(
+            export_result["zip_filename"]
+        ),
         max_age=0,
     )
+
 
 @app.route("/campaign-chaos/campaigns/add", methods=["POST"])
 def campaign_chaos_campaigns_add():
@@ -22555,46 +22819,135 @@ def campaign_chaos_pack_detail(tracked_pack_id):
         print_export_defaults=get_print_export_defaults_from_config(config),
     )
 
-@app.route("/campaign-chaos/packs/backup", methods=["POST"])
-def campaign_chaos_packs_backup():
-    selected_pack_ids = normalize_tracked_pack_id_list(request.form.getlist("pack_ids"))
+@app.route(
+    "/campaign-chaos/packs/export",
+    methods=["POST"],
+)
+@app.route(
+    "/campaign-chaos/packs/backup",
+    methods=["POST"],
+)
+def campaign_chaos_packs_export():
+    begin_print_export_progress(
+        request.form
+    )
+
+    selected_pack_ids = (
+        normalize_tracked_pack_id_list(
+            request.form.getlist(
+                "pack_ids"
+            )
+        )
+    )
+
+    if not selected_pack_ids:
+        return (
+            "Select at least one saved "
+            "pack to export.",
+            400,
+        )
+
+    export_mode = (
+        request.form.get("export_mode")
+        or "data_only"
+    ).strip().lower()
+
+    selected_campaign_id = (
+        get_selected_chaos_campaign_id()
+    )
+
+    update_print_export_progress(
+        "generate",
+        "Building Pack Export",
+        (
+            "Collecting selected pack "
+            "data and image files..."
+            if export_mode
+            == "cards_and_images"
+            else
+            "Collecting selected pack "
+            "and card data..."
+        ),
+    )
 
     try:
-        backup_result = export_packs_archive(
+        export_result = export_packs_archive(
             selected_pack_ids,
-            auto_clear_exports_value=get_auto_clear_exports_config_value(),
+            export_mode=export_mode,
+            auto_clear_exports_value=(
+                get_auto_clear_exports_config_value()
+            ),
+            source_campaign_id=(
+                selected_campaign_id
+            ),
+            filter_campaign_membership=True,
         )
     except Exception as exc:
         return str(exc), 400
 
+    update_print_export_progress(
+        "deliver",
+        "Preparing Download",
+        "The selected-pack export is ready.",
+    )
+
     return send_file(
-        backup_result["zip_path"],
+        export_result["zip_path"],
         mimetype="application/zip",
         as_attachment=True,
-        download_name=backup_result["zip_filename"],
+        download_name=(
+            export_result["zip_filename"]
+        ),
         max_age=0,
     )
 
 
-@app.route("/campaign-chaos/packs/import-backup", methods=["POST"])
+@app.route(
+    "/campaign-chaos/packs/import-backup",
+    methods=["POST"],
+)
 def campaign_chaos_packs_import_backup():
-    backup_file = request.files.get("backup_file")
-
-    try:
-        import_result = import_archive_from_file_object(
-            backup_file,
-            EXPORT_KIND_PACKS,
-        )
-    except Exception as exc:
-        flash(f"Pack import failed: {str(exc)}")
-        return redirect(url_for("campaign_chaos_packs"))
-
-    flash(
-        f"Pack import complete. Imported {import_result['imported_rows']} row(s) "
-        f"and restored {import_result['extracted_files']} file(s)."
+    backup_file = request.files.get(
+        "backup_file"
     )
 
-    return redirect(url_for("campaign_chaos_packs"))
+    try:
+        import_result = (
+            import_archive_from_file_object(
+                backup_file,
+                EXPORT_KIND_PACKS,
+                target_campaign_id=(
+                    get_selected_chaos_campaign_id()
+                ),
+            )
+        )
+    except Exception as exc:
+        flash(
+            f"Pack import failed: {str(exc)}"
+        )
+
+        return redirect(
+            url_for(
+                "campaign_chaos_packs"
+            )
+        )
+
+    flash(
+        f"Pack import complete. "
+        f"Imported "
+        f"{import_result.get('pack_count', 0)} "
+        f"pack(s), "
+        f"{import_result['imported_rows']} "
+        f"row(s), and restored "
+        f"{import_result['extracted_files']} "
+        f"file(s)."
+    )
+
+    return redirect(
+        url_for(
+            "campaign_chaos_packs"
+        )
+    )
 
 @app.route("/campaign-chaos/packs/print-default-back-sheet", methods=["GET"])
 def campaign_chaos_print_default_back_sheet():

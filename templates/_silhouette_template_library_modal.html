@@ -19,11 +19,11 @@
         <div class="silhouette-template-library-header">
             <div>
                 <h2 id="silhouetteTemplateLibraryTitle">
-                    Silhouette Templates
+                    Card Cutting Machine Templates
                 </h2>
 
                 <p>
-                    Download a Silhouette Studio template compatible with your print layout and media.
+                    Download cutting templates compatible with your Deckadence print layout and card cutting machine.
                 </p>
             </div>
 
@@ -51,6 +51,17 @@
                     </select>
                 </label>
 
+                <label
+                    class="silhouette-template-library-filter"
+                    for="silhouetteTemplateLibraryBrandFilter"
+                >
+                    <span>Cutting Machine Brand</span>
+
+                    <select id="silhouetteTemplateLibraryBrandFilter">
+                        <option value="">All Brands</option>
+                    </select>
+                </label>
+
                 <div
                     id="silhouetteTemplateLibraryFilterSummary"
                     class="silhouette-template-library-filter-summary"
@@ -66,7 +77,7 @@
                 id="silhouetteTemplateLibraryEmpty"
                 class="silhouette-template-library-empty hidden"
             >
-                No Silhouette templates are currently available.
+                No card cutting machine templates are currently available.
             </div>
 
             <div class="silhouette-template-library-admin-row">
@@ -77,7 +88,7 @@
                     aria-expanded="false"
                 >
                     <i class="fa-solid fa-plus"></i>
-                    Add Silhouette Template
+                    Add Cutting Machine Template
                 </button>
             </div>
 
@@ -86,11 +97,12 @@
                 class="silhouette-template-upload-section hidden"
             >
                 <h3>
-                    Add Silhouette Template
+                    Add Cutting Machine Template
                 </h3>
 
                 <p>
-                    Upload a Silhouette Studio .studio3 file and associate it with a Deckadence Print Template.
+                    Upload a cutting-machine template and associate it with a Deckadence Print Template.
+                    Supported formats are .studio3, .svg, .dxf, and .fcm.
                 </p>
 
                 <form
@@ -98,13 +110,25 @@
                     class="silhouette-template-upload-form"
                 >
                     <label>
-                        <span>Studio3 File</span>
+                        <span>Template File</span>
 
                         <input
                             type="file"
                             id="silhouetteTemplateUploadFile"
                             class="silhouette-template-upload-file-input"
-                            accept=".studio3"
+                            accept=".studio3,.svg,.dxf,.fcm"
+                            required
+                        >
+                    </label>
+
+                    <label>
+                        <span>Cutting Machine Brand</span>
+
+                        <input
+                            type="text"
+                            id="silhouetteTemplateUploadBrand"
+                            maxlength="80"
+                            placeholder="Silhouette, Cricut, Brother, Siser..."
                             required
                         >
                     </label>

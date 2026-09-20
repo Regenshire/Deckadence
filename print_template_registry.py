@@ -1402,6 +1402,7 @@ def _read_duplex_settings(parser):
     ):
         return {
             "back_side_slot_order": "same",
+            "back_side_page_flip": "none",
         }
 
     back_side_slot_order = (
@@ -1427,8 +1428,41 @@ def _read_duplex_settings(parser):
             "Mirror_Vertical, or Reverse."
         )
 
+    back_side_page_flip = (
+        _get_text(
+            parser,
+            "Duplex",
+            "Back_Side_Page_Flip",
+            fallback="None",
+        )
+        .strip()
+        .lower()
+    )
+
+    if back_side_page_flip not in {
+        "none",
+        "horizontal",
+        "vertical",
+    }:
+        raise ValueError(
+            "[Duplex] Back_Side_Page_Flip "
+            "must be None, Horizontal, or Vertical."
+        )
+
+    if (
+        back_side_page_flip != "none"
+        and back_side_slot_order != "same"
+    ):
+        raise ValueError(
+            "[Duplex] Back_Side_Slot_Order must be Same "
+            "when Back_Side_Page_Flip is Horizontal or Vertical."
+        )
+
     return {
         "back_side_slot_order": (
             back_side_slot_order
+        ),
+        "back_side_page_flip": (
+            back_side_page_flip
         ),
     }

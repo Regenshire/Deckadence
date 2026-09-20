@@ -5,6 +5,14 @@ import threading
 
 
 STUDIO3_EXTENSION = ".studio3"
+
+CUTTING_MACHINE_TEMPLATE_EXTENSIONS = {
+    ".studio3",
+    ".svg",
+    ".dxf",
+    ".fcm",
+}
+
 SILHOUETTE_TEMPLATE_MANIFEST_FILENAME = "templates.json"
 
 _manifest_lock = threading.Lock()
@@ -31,7 +39,8 @@ def _validate_manifest_filename(filename):
     if (
         not clean_filename
         or clean_filename != os.path.basename(clean_filename)
-        or os.path.splitext(clean_filename)[1].lower() != STUDIO3_EXTENSION
+        or os.path.splitext(clean_filename)[1].lower()
+        not in CUTTING_MACHINE_TEMPLATE_EXTENSIONS
     ):
         return ""
 
@@ -47,9 +56,15 @@ def _safe_uploaded_filename(filename):
         original_filename
     )
 
-    if extension.lower() != STUDIO3_EXTENSION:
+    clean_extension = extension.lower()
+
+    if (
+        clean_extension
+        not in CUTTING_MACHINE_TEMPLATE_EXTENSIONS
+    ):
         raise ValueError(
-            "Only Silhouette Studio .studio3 files can be uploaded."
+            "Supported cutting template files are "
+            ".studio3, .svg, .dxf, and .fcm."
         )
 
     safe_stem = re.sub(
@@ -59,11 +74,11 @@ def _safe_uploaded_filename(filename):
     ).strip("._-")
 
     if not safe_stem:
-        safe_stem = "Silhouette_Template"
+        safe_stem = "Cutting_Machine_Template"
 
     return (
         f"{safe_stem}"
-        f"{STUDIO3_EXTENSION}"
+        f"{clean_extension}"
     )
 
 
@@ -95,12 +110,12 @@ def _read_manifest_document(static_folder):
         json.JSONDecodeError,
     ) as exc:
         raise ValueError(
-            "The Silhouette template manifest could not be read."
+            "The card cutting machine template manifest could not be read."
         ) from exc
 
     if not isinstance(document, dict):
         raise ValueError(
-            "The Silhouette template manifest is invalid."
+            "The card cutting machine template manifest is invalid."
         )
 
     templates = document.get(
@@ -233,11 +248,33 @@ def list_silhouette_templates(
             or ""
         ).strip().lower()
 
+        extension = os.path.splitext(
+            filename
+        )[1].lower()
+
+        machine_brand = str(
+            raw_entry.get(
+                "machine_brand"
+            )
+            or (
+                "Silhouette"
+                if extension
+                == STUDIO3_EXTENSION
+                else "Other"
+            )
+        ).strip()
+
         templates.append({
             "filename": filename,
             "name": name,
             "description": description,
             "print_template": print_template,
+            "machine_brand": machine_brand,
+            "file_format": (
+                extension
+                .lstrip(".")
+                .upper()
+            ),
             "absolute_path": absolute_path,
         })
 
@@ -284,6 +321,7 @@ def save_silhouette_template_upload(
     description,
     print_template,
     static_folder,
+    machine_brand="",
 ):
     if (
         not file_storage
@@ -294,7 +332,7 @@ def save_silhouette_template_upload(
         )
     ):
         raise ValueError(
-            "Choose a .studio3 file to upload."
+            "Choose a cutting machine template file to upload."
         )
 
     clean_name = str(
@@ -308,6 +346,10 @@ def save_silhouette_template_upload(
     clean_print_template = str(
         print_template or ""
     ).strip().lower()
+
+    clean_machine_brand = str(
+        machine_brand or ""
+    ).strip()
 
     if not clean_name:
         raise ValueError(
@@ -329,6 +371,17 @@ def save_silhouette_template_upload(
             "Linked Print Template is required."
         )
 
+    if not clean_machine_brand:
+        raise ValueError(
+            "Cutting Machine Brand is required."
+        )
+
+    if len(clean_machine_brand) > 80:
+        raise ValueError(
+            "Cutting Machine Brand must be "
+            "80 characters or fewer."
+        )
+
     studio3_dir = (
         get_silhouette_studio3_dir(
             static_folder
@@ -346,9 +399,9 @@ def save_silhouette_template_upload(
         )
     )
 
-    stem = os.path.splitext(
+    stem, extension = os.path.splitext(
         base_filename
-    )[0]
+    )
 
     with _manifest_lock:
         document = (
@@ -394,7 +447,7 @@ def save_silhouette_template_upload(
             candidate_filename = (
                 f"{stem}_"
                 f"{duplicate_index}"
-                f"{STUDIO3_EXTENSION}"
+                f"{extension}"
             )
 
             duplicate_index += 1
@@ -414,6 +467,9 @@ def save_silhouette_template_upload(
             ),
             "print_template": (
                 clean_print_template
+            ),
+            "machine_brand": (
+                clean_machine_brand
             ),
         }
 
@@ -463,7 +519,7 @@ def save_silhouette_template_upload(
 
     if not saved_entry:
         raise ValueError(
-            "The uploaded Silhouette template could not be registered."
+            "The uploaded cutting machine template could not be registered."
         )
 
     return saved_entry

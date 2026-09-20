@@ -18,6 +18,11 @@
       href="{{ url_for('static', filename='css/print_template_selector.css') }}"
     />
 
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/silhouette_template_library.css') }}"
+    />
+
     {% if global_personal_use_agreement_required %}
     <link
       rel="stylesheet"
@@ -281,6 +286,18 @@
                   <span>Print Settings</span>
                 </a>
 
+                <button
+                  type="button"
+                  class="app-nav-dropdown-item app-nav-dropdown-button"
+                  data-silhouette-template-library-open
+                  role="menuitem"
+                >
+                  <span class="app-nav-item-icon">
+                    <i class="fa-solid fa-scissors"></i>
+                  </span>
+                  <span>Card Cutting Machine Templates</span>
+                </button>
+
                 <a
                   class="app-nav-dropdown-item"
                   href="{{ url_for('config') }}?open=card_database&scroll=card_database"
@@ -457,8 +474,9 @@
     {% include "_personal_use_agreement_modal.html" %}
     {% endif %}
 
-    {% include "_print_template_selector_modal.html" %} {% include
-    "_help_layer.html" %}
+    {% include "_print_template_selector_modal.html" %}
+    {% include "_silhouette_template_library_modal.html" %}
+    {% include "_help_layer.html" %}
 
     <div
       id="appQrModal"
@@ -508,6 +526,7 @@
     <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
 
     <script src="{{ url_for('static', filename='js/print_template_selector.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/silhouette_template_library.js') }}"></script>
 
     {% block page_scripts_before_app %}{% endblock %}
 

@@ -39,6 +39,7 @@ Thumbs.db
 # Logs
 *.log
 
+
 # Dev Stuff
 .vscode/
 .dev_prompts/*

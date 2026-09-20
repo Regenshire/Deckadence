@@ -193,6 +193,12 @@
             <span>Print Resolution</span>
             <select name="pdf_render_resolution">
               <option
+                value="draft"
+                {% if not print_export_defaults or print_export_defaults.pdf_render_resolution in ["draft"] %}selected{% endif %}
+              >
+                Draft
+              </option>
+              <option
                 value="standard"
                 {% if not print_export_defaults or print_export_defaults.pdf_render_resolution in ["standard"] %}selected{% endif %}
               >

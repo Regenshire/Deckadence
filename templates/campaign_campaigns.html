@@ -1,5 +1,10 @@
 {% extends "base.html" %} {% block title %}Deckadence - Manage Campaigns{%
-endblock %} {% block content %}
+endblock %} {% block page_styles %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/print_export_modal.css') }}"
+/>
+{% endblock %} {% block content %}
 <div class="screen screen-wide">
   <div class="page-panel">
     <div class="chaos-pack-view-header-top">
@@ -26,6 +31,305 @@ endblock %} {% block content %}
   {% with messages = get_flashed_messages() %} {% if messages %}
   <div class="flash-message">{{ messages[0] }}</div>
   {% endif %} {% endwith %}
+
+    <div
+    id="campaignExportModal"
+    class="campaign-add-pack-modal hidden"
+    aria-hidden="true"
+    data-progress-url="{{ url_for('print_export_progress') }}"
+  >
+    <div
+      id="campaignExportBackdrop"
+      class="campaign-add-pack-backdrop"
+    ></div>
+
+    <div
+      class="campaign-add-pack-dialog campaign-transfer-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="campaignExportTitle"
+    >
+      <div class="campaign-add-pack-header">
+        <div>
+          <h2
+            id="campaignExportTitle"
+            class="campaign-add-pack-title"
+          >
+            Export Campaign
+          </h2>
+
+          <p class="campaign-add-pack-subtitle">
+            Choose what to include when exporting
+            <strong id="campaignExportCampaignName">
+              this campaign
+            </strong>.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          id="campaignExportCloseButton"
+          class="campaign-add-pack-close-button"
+          aria-label="Close Export Campaign"
+        >
+          ×
+        </button>
+      </div>
+
+      <form
+        id="campaignExportForm"
+        method="post"
+        action=""
+        target="_blank"
+      >
+        <div class="campaign-transfer-options">
+          <label class="campaign-transfer-option">
+            <input
+              type="radio"
+              name="export_mode"
+              value="data_only"
+              checked
+            />
+
+            <span class="campaign-transfer-option-card">
+              <span class="campaign-transfer-option-header">
+                <span class="campaign-transfer-option-title">
+                  Export Card Data Only (Default)
+                </span>
+
+                <span class="campaign-add-pack-option-pill">
+                  Smaller
+                </span>
+              </span>
+
+              <span class="campaign-transfer-option-text">
+                Export campaign, pack, card, player, draft,
+                and history data without local image files.
+                Imported cards will use their normal card
+                image sources.
+              </span>
+            </span>
+          </label>
+
+          <label class="campaign-transfer-option">
+            <input
+              type="radio"
+              name="export_mode"
+              value="cards_and_images"
+            />
+
+            <span class="campaign-transfer-option-card">
+              <span class="campaign-transfer-option-header">
+                <span class="campaign-transfer-option-title">
+                  Export Cards and Image Files
+                </span>
+
+                <span class="campaign-add-pack-option-pill">
+                  Complete
+                </span>
+              </span>
+
+              <span class="campaign-transfer-option-text">
+                Include the campaign data plus local
+                campaign portraits and alternate or custom
+                image files referenced by exported packs.
+                This produces a larger ZIP file.
+              </span>
+            </span>
+          </label>
+        </div>
+
+        <div class="campaign-transfer-actions">
+          <button
+            type="button"
+            id="campaignExportCancelButton"
+            class="action-button secondary-button"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            id="campaignExportSubmitButton"
+            class="action-button"
+          >
+            Export Campaign
+          </button>
+        </div>
+        <div
+          id="campaignExportStatusPanel"
+          class="print-export-status-panel hidden"
+          aria-hidden="true"
+        >
+          <div class="print-export-status-header">
+            <div
+              class="print-export-status-spinner"
+              aria-hidden="true"
+            ></div>
+
+            <div>
+              <div
+                id="campaignExportStatusTitle"
+                class="print-export-status-title"
+              >
+                Preparing Export
+              </div>
+
+              <div
+                id="campaignExportStatusMessage"
+                class="print-export-status-message"
+              >
+                Preparing request...
+              </div>
+            </div>
+          </div>
+
+          <div class="print-export-status-steps">
+            <div
+              id="campaignExportStatusStepPrepare"
+              class="print-export-status-step print-export-status-step-active"
+            >
+              Preparing request
+            </div>
+
+            <div
+              id="campaignExportStatusStepGenerate"
+              class="print-export-status-step"
+            >
+              Building archive
+            </div>
+
+            <div
+              id="campaignExportStatusStepDeliver"
+              class="print-export-status-step"
+            >
+              Delivering file
+            </div>
+
+            <div
+              id="campaignExportStatusStepComplete"
+              class="print-export-status-step"
+            >
+              Complete
+            </div>
+          </div>
+
+          <button
+            type="button"
+            id="campaignExportStatusCloseButton"
+            class="action-button secondary-button print-export-status-close-button hidden"
+          >
+            Close
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div
+    id="campaignImportModal"
+    class="campaign-add-pack-modal hidden"
+    aria-hidden="true"
+  >
+    <div
+      id="campaignImportBackdrop"
+      class="campaign-add-pack-backdrop"
+    ></div>
+
+    <div
+      class="campaign-add-pack-dialog campaign-transfer-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="campaignImportTitle"
+    >
+      <div class="campaign-add-pack-header">
+        <div>
+          <h2
+            id="campaignImportTitle"
+            class="campaign-add-pack-title"
+          >
+            Import Campaign
+          </h2>
+
+          <p class="campaign-add-pack-subtitle">
+            Import either a Card Data Only export or a
+            Cards and Image Files export. Deckadence
+            detects the export mode automatically.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          id="campaignImportCloseButton"
+          class="campaign-add-pack-close-button"
+          aria-label="Close Import Campaign"
+        >
+          ×
+        </button>
+      </div>
+
+      <form
+        id="campaignImportForm"
+        method="post"
+        action="{{ url_for('campaign_chaos_campaigns_import') }}"
+        enctype="multipart/form-data"
+      >
+        <div class="campaign-transfer-fields">
+          <label class="campaign-transfer-field">
+            <span>Campaign Export ZIP</span>
+
+            <input
+              type="file"
+              id="campaignImportFileInput"
+              name="export_file"
+              accept=".zip"
+              class="campaign-transfer-file-input"
+              required
+            />
+          </label>
+
+          <label class="campaign-transfer-field">
+            <span>
+              Campaign Name Override
+              <em>(Optional)</em>
+            </span>
+
+            <input
+              type="text"
+              id="campaignImportNameOverrideInput"
+              name="campaign_name_override"
+              class="campaign-save-input"
+              placeholder="Keep the exported campaign name"
+              autocomplete="off"
+            />
+          </label>
+        </div>
+
+        <div class="campaign-transfer-note">
+          Card Data Only exports do not restore local image
+          files. Cards will use their normal image sources
+          after import.
+        </div>
+
+        <div class="campaign-transfer-actions">
+          <button
+            type="button"
+            id="campaignImportCancelButton"
+            class="action-button secondary-button"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="submit"
+            class="action-button"
+          >
+            Import Campaign
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div class="page-panel">
     <h2>Add Campaign</h2>
@@ -62,36 +366,13 @@ endblock %} {% block content %}
         </button>
       </form>
 
-      <form
-        method="post"
-        action="{{ url_for('campaign_chaos_campaigns_import_backup') }}"
-        enctype="multipart/form-data"
-        class="campaign-inline-import-form"
+      <button
+        type="button"
+        id="campaignImportOpenButton"
+        class="action-button secondary-button campaign-save-add-button"
       >
-        <input
-          type="hidden"
-          id="campaignImportNameOverrideInput"
-          name="campaign_name_override"
-          value=""
-        />
-
-        <label class="action-button secondary-button campaign-save-add-button">
-          Import Campaign
-          <input
-            type="file"
-            name="backup_file"
-            accept=".zip"
-            class="hidden"
-            onchange="
-              document.getElementById('campaignImportNameOverrideInput').value =
-                document.getElementById('campaignAddNameInput')
-                  ? document.getElementById('campaignAddNameInput').value
-                  : '';
-              this.form.submit();
-            "
-          />
-        </label>
-      </form>
+        Import Campaign
+      </button>
     </div>
   </div>
 
@@ -128,22 +409,16 @@ endblock %} {% block content %}
           </button>
 
           <button
-            type="submit"
-            form="campaignDefaultBackupForm"
-            class="action-button secondary-button campaign-save-row-button"
+            type="button"
+            class="action-button secondary-button campaign-save-row-button campaign-export-open-button"
+            data-export-url="{{ url_for('campaign_chaos_campaigns_default_export') }}"
+            data-campaign-name="No Campaign"
           >
-            Backup
+            Export
           </button>
         </div>
       </form>
 
-      <form
-        id="campaignDefaultBackupForm"
-        method="post"
-        action="{{ url_for('campaign_chaos_campaigns_default_backup') }}"
-        class="campaign-save-backup-form hidden"
-        target="_blank"
-      ></form>
     </div>
 
     {% if campaigns %}
@@ -267,11 +542,12 @@ endblock %} {% block content %}
             </button>
 
             <button
-              type="submit"
-              form="campaignBackupForm{{ campaign.campaign_id }}"
-              class="action-button secondary-button campaign-save-row-button"
+              type="button"
+              class="action-button secondary-button campaign-save-row-button campaign-export-open-button"
+              data-export-url="{{ url_for('campaign_chaos_campaigns_export', campaign_id=campaign.campaign_id) }}"
+              data-campaign-name="{{ campaign.campaign_name }}"
             >
-              Backup
+              Export
             </button>
           </div>
         </form>
@@ -281,14 +557,6 @@ endblock %} {% block content %}
           method="post"
           action="{{ url_for('campaign_chaos_campaign_open', campaign_id=campaign.campaign_id) }}"
           class="hidden"
-        ></form>
-
-        <form
-          id="campaignBackupForm{{ campaign.campaign_id }}"
-          method="post"
-          action="{{ url_for('campaign_chaos_campaigns_backup', campaign_id=campaign.campaign_id) }}"
-          class="campaign-save-backup-form hidden"
-          target="_blank"
         ></form>
 
         <form
@@ -329,48 +597,358 @@ endblock %} {% block content %}
 
 <script>
   (function () {
+    class CampaignTransferModalController {
+      constructor(options) {
+        this.modal = document.getElementById(
+          options.modalId,
+        );
+        this.backdrop = document.getElementById(
+          options.backdropId,
+        );
+
+        this.closeButtons = (
+          options.closeButtonIds || []
+        )
+          .map(function (buttonId) {
+            return document.getElementById(
+              buttonId,
+            );
+          })
+          .filter(Boolean);
+
+        this.bind();
+      }
+
+      bind() {
+        const controller = this;
+
+        this.closeButtons.forEach(function (button) {
+          button.addEventListener(
+            "click",
+            function () {
+              controller.close();
+            },
+          );
+        });
+
+        if (this.backdrop) {
+          this.backdrop.addEventListener(
+            "click",
+            function () {
+              controller.close();
+            },
+          );
+        }
+      }
+
+      open(focusSelector) {
+        if (!this.modal) {
+          return;
+        }
+
+        this.modal.classList.remove("hidden");
+        this.modal.setAttribute(
+          "aria-hidden",
+          "false",
+        );
+
+        document.body.classList.add(
+          "modal-open",
+        );
+
+        const focusTarget = (
+          focusSelector
+          ? this.modal.querySelector(
+              focusSelector,
+            )
+          : null
+        );
+
+        if (focusTarget) {
+          window.setTimeout(function () {
+            focusTarget.focus();
+          }, 0);
+        }
+      }
+
+      close() {
+        if (
+          !this.modal
+          || this.modal.classList.contains("hidden")
+        ) {
+          return;
+        }
+
+        this.modal.classList.add("hidden");
+        this.modal.setAttribute(
+          "aria-hidden",
+          "true",
+        );
+
+        document.body.classList.remove(
+          "modal-open",
+        );
+      }
+
+      isOpen() {
+        return Boolean(
+          this.modal
+          && !this.modal.classList.contains(
+            "hidden",
+          ),
+        );
+      }
+    }
+
+    const exportModal =
+      new CampaignTransferModalController({
+        modalId: "campaignExportModal",
+        backdropId: "campaignExportBackdrop",
+        closeButtonIds: [
+          "campaignExportCloseButton",
+          "campaignExportCancelButton",
+          "campaignExportStatusCloseButton",
+        ],
+      });
+
+    const importModal =
+      new CampaignTransferModalController({
+        modalId: "campaignImportModal",
+        backdropId: "campaignImportBackdrop",
+        closeButtonIds: [
+          "campaignImportCloseButton",
+          "campaignImportCancelButton",
+        ],
+      });
+
+    const exportForm = document.getElementById(
+      "campaignExportForm",
+    );
+
+    const campaignFileExportController = (
+      window.iMomirUI
+      && window.iMomirUI.FileExportController
+      && exportForm
+    )
+      ? new window.iMomirUI.FileExportController({
+          formId: "campaignExportForm",
+          submitButtonId:
+            "campaignExportSubmitButton",
+          statusPanelId:
+            "campaignExportStatusPanel",
+          statusTitleId:
+            "campaignExportStatusTitle",
+          statusMessageId:
+            "campaignExportStatusMessage",
+          statusCloseButtonId:
+            "campaignExportStatusCloseButton",
+          stepPrepareId:
+            "campaignExportStatusStepPrepare",
+          stepGenerateId:
+            "campaignExportStatusStepGenerate",
+          stepDeliverId:
+            "campaignExportStatusStepDeliver",
+          stepCompleteId:
+            "campaignExportStatusStepComplete",
+          progressUrl: (
+            document.getElementById(
+              "campaignExportModal",
+            )?.dataset.progressUrl
+            || ""
+          ),
+          fallbackFilename:
+            "deckadence_campaign_export.zip",
+          generateTitle:
+            "Building Campaign Export",
+          generateMessage:
+            "Collecting campaign data and "
+            + "building the export archive...",
+          successTitle:
+            "Campaign Export Complete",
+          successMessage:
+            "The campaign export has "
+            + "been downloaded.",
+        }).initialize()
+      : null;
+
+    const exportCampaignName =
+      document.getElementById(
+        "campaignExportCampaignName",
+      );
+
+    const exportButtons = Array.from(
+      document.querySelectorAll(
+        ".campaign-export-open-button",
+      ),
+    );
+
+    exportButtons.forEach(function (button) {
+      button.addEventListener(
+        "click",
+        function () {
+          if (!exportForm) {
+            return;
+          }
+
+          exportForm.action = (
+            button.dataset.exportUrl
+            || ""
+          );
+
+          if (exportCampaignName) {
+            exportCampaignName.textContent = (
+              button.dataset.campaignName
+              || "this campaign"
+            );
+          }
+
+          const defaultMode =
+            exportForm.querySelector(
+              'input[name="export_mode"][value="data_only"]',
+            );
+
+          if (defaultMode) {
+            defaultMode.checked = true;
+          }
+
+          if (
+            campaignFileExportController
+          ) {
+            campaignFileExportController
+              .reset();
+          }
+
+          exportModal.open(
+            'input[name="export_mode"][value="data_only"]',
+          );
+        },
+      );
+    });
+
+    const importOpenButton =
+      document.getElementById(
+        "campaignImportOpenButton",
+      );
+
+    const importForm =
+      document.getElementById(
+        "campaignImportForm",
+      );
+
+    const importNameOverrideInput =
+      document.getElementById(
+        "campaignImportNameOverrideInput",
+      );
+
+    const addCampaignNameInput =
+      document.getElementById(
+        "campaignAddNameInput",
+      );
+
+    if (importOpenButton) {
+      importOpenButton.addEventListener(
+        "click",
+        function () {
+          if (importForm) {
+            importForm.reset();
+          }
+
+          if (
+            importNameOverrideInput
+            && addCampaignNameInput
+            && addCampaignNameInput.value.trim()
+          ) {
+            importNameOverrideInput.value = (
+              addCampaignNameInput.value.trim()
+            );
+          }
+
+          importModal.open(
+            "#campaignImportFileInput",
+          );
+        },
+      );
+    }
+
+    document.addEventListener(
+      "keydown",
+      function (event) {
+        if (event.key !== "Escape") {
+          return;
+        }
+
+        if (exportModal.isOpen()) {
+          exportModal.close();
+        }
+
+        if (importModal.isOpen()) {
+          importModal.close();
+        }
+      },
+    );
+
     const deleteForms = Array.from(
-      document.querySelectorAll(".campaign-save-delete-form"),
+      document.querySelectorAll(
+        ".campaign-save-delete-form",
+      ),
     );
 
     async function confirmUiAction(options) {
       if (
-        window.iMomirConfirm &&
-        typeof window.iMomirConfirm.show === "function"
+        window.iMomirConfirm
+        && typeof window.iMomirConfirm.show
+          === "function"
       ) {
-        return await window.iMomirConfirm.show(options || {});
+        return await window.iMomirConfirm.show(
+          options || {},
+        );
       }
 
-      return window.confirm((options && options.message) || "Continue?");
+      return window.confirm(
+        (options && options.message)
+        || "Continue?",
+      );
     }
 
     deleteForms.forEach(function (form) {
-      form.addEventListener("submit", async function (event) {
-        event.preventDefault();
+      form.addEventListener(
+        "submit",
+        async function (event) {
+          event.preventDefault();
 
-        const campaignName = form.dataset.campaignName || "this campaign";
+          const campaignName = (
+            form.dataset.campaignName
+            || "this campaign"
+          );
 
-        const confirmed = await confirmUiAction({
-          title: "Delete Campaign",
-          message: "You are about to permanently delete " + campaignName + ".",
-          confirmText: "Delete Campaign",
-          cancelText: "Cancel",
-          danger: true,
-        });
+          const confirmed =
+            await confirmUiAction({
+              title: "Delete Campaign",
+              message:
+                "You are about to permanently delete "
+                + campaignName
+                + ".",
+              confirmText: "Delete Campaign",
+              cancelText: "Cancel",
+              danger: true,
+            });
 
-        if (!confirmed) {
-          return;
-        }
+          if (!confirmed) {
+            return;
+          }
 
-        const hiddenInput = form.querySelector(
-          "input[name='delete_confirmation']",
-        );
-        if (hiddenInput) {
-          hiddenInput.value = "DELETE";
-        }
+          const hiddenInput =
+            form.querySelector(
+              "input[name='delete_confirmation']",
+            );
 
-        form.submit();
-      });
+          if (hiddenInput) {
+            hiddenInput.value = "DELETE";
+          }
+
+          form.submit();
+        },
+      );
     });
   })();
 </script>

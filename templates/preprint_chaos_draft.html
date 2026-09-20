@@ -2,14 +2,7 @@
 
 {% block title %}Deckadence - PRE-PRINT Chaos Draft{% endblock %}
 
-{% block page_styles %}
-{% if show_silhouette_template_library %}
-<link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/silhouette_template_library.css') }}"
->
-{% endif %}
-{% endblock %}
+{% block page_styles %}{% endblock %}
 
 {% block content %}
 <div class="screen screen-result screen-medium">
@@ -80,7 +73,6 @@
             </div>
         </form>
     </div>
-    {% if show_silhouette_template_library %}
     <div class="chaos-draft-template-links">
         <button
             type="button"
@@ -88,11 +80,10 @@
             data-silhouette-template-library-open
             data-active-print-template="{{ active_print_template }}"
         >
-            <i class="fa-solid fa-download"></i>
-            Silhouette Templates
+            <i class="fa-solid fa-scissors"></i>
+            Card Cutting Machine Templates
         </button>
     </div>
-    {% endif %}
 </div>
 <div id="preprintChaosBusyOverlay" class="chaos-draft-busy-overlay hidden" aria-hidden="true">
     <div class="chaos-draft-busy-backdrop"></div>
@@ -104,12 +95,6 @@
         </div>
     </div>
 </div>
-
-{% if show_silhouette_template_library %}
-{% include "_silhouette_template_library_modal.html" %}
-
-<script src="{{ url_for('static', filename='js/silhouette_template_library.js') }}"></script>
-{% endif %}
 
 <script>
 (function () {

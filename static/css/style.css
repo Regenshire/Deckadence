@@ -8323,7 +8323,140 @@ body:has(
   cursor: default;
 }
 
+.campaign-transfer-dialog {
+  width: min(100%, 680px);
+}
+
+.campaign-transfer-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.campaign-transfer-option {
+  position: relative;
+  display: block;
+  cursor: pointer;
+}
+
+.campaign-transfer-option > input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.campaign-transfer-option-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel-2);
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.campaign-transfer-option:hover .campaign-transfer-option-card {
+  border-color: rgba(110, 156, 255, 0.55);
+}
+
+.campaign-transfer-option > input:checked + .campaign-transfer-option-card {
+  border-color: rgba(66, 205, 111, 0.62);
+  background: rgba(66, 205, 111, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(66, 205, 111, 0.12);
+}
+
+.campaign-transfer-option
+  > input:focus-visible
+  + .campaign-transfer-option-card {
+  outline: 2px solid rgba(110, 156, 255, 0.9);
+  outline-offset: 2px;
+}
+
+.campaign-transfer-option-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.campaign-transfer-option-title {
+  color: var(--text);
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+
+.campaign-transfer-option-text {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.campaign-transfer-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.campaign-transfer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.campaign-transfer-field > span {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.campaign-transfer-field em {
+  font-weight: 500;
+}
+
+.campaign-transfer-file-input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  color: var(--text);
+  padding: 10px 12px;
+}
+
+.campaign-transfer-note {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.campaign-transfer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 18px;
+}
+
 @media (max-width: 760px) {
+  .campaign-transfer-options {
+    grid-template-columns: 1fr;
+  }
+
+  .campaign-transfer-actions {
+    flex-direction: column-reverse;
+  }
+
+  .campaign-transfer-actions .action-button {
+    width: 100%;
+  }
   .campaign-save-edit-form {
     grid-template-columns: 1fr;
   }

@@ -22,12 +22,7 @@
   rel="stylesheet"
   href="{{ url_for('static', filename='css/print_export_modal.css') }}"
 />
-{% if show_silhouette_template_library %}
-<link
-  rel="stylesheet"
-  href="{{ url_for('static', filename='css/silhouette_template_library.css') }}"
-/>
-{% endif %} {% endblock %} {% block content %}
+{% endblock %} {% block content %}
 <div
   class="screen screen-wide"
   id="chaosDraftScreen"
@@ -201,7 +196,7 @@
           <span>Auto-Save</span>
         </label>
       </div>
-      {% endif %} {% if show_silhouette_template_library %}
+      {% endif %}
       <div class="chaos-draft-template-links">
         <button
           type="button"
@@ -209,11 +204,10 @@
           data-silhouette-template-library-open
           data-active-print-template="{{ active_print_template }}"
         >
-          <i class="fa-solid fa-download"></i>
-          Silhouette Templates
+          <i class="fa-solid fa-scissors"></i>
+          Card Cutting Machine Templates
         </button>
       </div>
-      {% endif %}
     </div>
 
     <div
@@ -276,8 +270,7 @@
 </div>
 
 {% set print_export_subject_label = "pack" %} {% include
-"_print_export_modal.html" %} {% if show_silhouette_template_library %} {%
-include "_silhouette_template_library_modal.html" %} {% endif %}
+"_print_export_modal.html" %}
 
 <script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
 {% endblock %} {% block page_scripts_after_app %}
@@ -287,6 +280,4 @@ include "_silhouette_template_library_modal.html" %} {% endif %}
 {% endif %}
 <script src="{{ url_for('static', filename='js/chaos_draft.js') }}"></script>
 
-{% if show_silhouette_template_library %}
-<script src="{{ url_for('static', filename='js/silhouette_template_library.js') }}"></script>
-{% endif %} {% endblock %}
+{% endblock %}

@@ -30,6 +30,13 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+a.datas = [
+    data_item
+    for data_item in a.datas
+    if not data_item[0].lower().endswith(".psd")
+]
+
 pyz = PYZ(a.pure)
 
 exe = EXE(

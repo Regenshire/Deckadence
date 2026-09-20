@@ -90,7 +90,7 @@
 
         title: "Setup Guide Finished",
 
-        body: "Initial setup is complete after the Card Database finishes downloading successfully. Once this id completed, the main play and card tools will unlock, and you can refresh the database later whenever you want newer cards and sets to be available in Deckadence.",
+        body: "Initial setup is complete after the Card Database finishes downloading successfully. Once this is completed, the main play and card tools will unlock, and you can refresh the database later whenever you want newer cards and sets to be available in Deckadence.",
 
         nextLabel: "Finish Tour",
       },
