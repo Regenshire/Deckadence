@@ -538,6 +538,225 @@ def normalize_pdf_render_resolution(raw_value):
     return resolution
 
 
+def get_pdf_render_resolution_filename_label(config=None):
+    if config is None:
+        config = (
+            get_request_config()
+            if has_request_context()
+            else get_config()
+        )
+
+    effective_config = get_effective_print_config(
+        config
+    )
+
+    return normalize_pdf_render_resolution(
+        effective_config.get(
+            "pdf_render_resolution"
+        )
+    ).upper()
+
+
+def sanitize_pdf_filename_component(value, fallback="Print"):
+    clean_value = str(
+        value or ""
+    ).strip()
+
+    clean_value = re.sub(
+        r'[<>:"/\\|?*\x00-\x1F]',
+        "-",
+        clean_value,
+    )
+
+    clean_value = re.sub(
+        r"\s+",
+        " ",
+        clean_value,
+    )
+
+    clean_value = re.sub(
+        r"-{2,}",
+        "-",
+        clean_value,
+    )
+
+    clean_value = clean_value.strip(
+        " .-"
+    )
+
+    if not clean_value:
+        clean_value = str(
+            "Print"
+            if fallback is None
+            else fallback
+        ).strip()
+
+    return clean_value[:180].rstrip(
+        " .-"
+    )
+
+
+def build_print_pdf_filename(
+    subject_parts,
+    card_count,
+    resolution_label=None,
+):
+    clean_subject_parts = []
+
+    for subject_part in (
+        subject_parts or []
+    ):
+        clean_part = (
+            sanitize_pdf_filename_component(
+                subject_part,
+                fallback="",
+            )
+        )
+
+        if clean_part:
+            clean_subject_parts.append(
+                clean_part
+            )
+
+    if not clean_subject_parts:
+        clean_subject_parts = [
+            "Deckadence Print"
+        ]
+
+    try:
+        clean_card_count = max(
+            0,
+            int(card_count or 0),
+        )
+    except (TypeError, ValueError):
+        clean_card_count = 0
+
+    clean_resolution_label = str(
+        resolution_label
+        or get_pdf_render_resolution_filename_label()
+        or "STANDARD"
+    ).strip().upper()
+
+    filename_suffix = (
+        f" - {clean_card_count} Cards"
+        f" - {clean_resolution_label}"
+    )
+
+    subject_text = " - ".join(
+        clean_subject_parts
+    )
+
+    maximum_base_length = 220
+    maximum_subject_length = max(
+        1,
+        maximum_base_length
+        - len(filename_suffix),
+    )
+
+    subject_text = subject_text[
+        :maximum_subject_length
+    ].rstrip(" .-")
+
+    return (
+        f"{subject_text}"
+        f"{filename_suffix}.pdf"
+    )
+
+
+def build_pack_print_pdf_filename(
+    pack_tracking_code,
+    pack_display_name,
+    card_count,
+):
+    subject_parts = []
+
+    clean_tracking_code = str(
+        pack_tracking_code or ""
+    ).strip().upper()
+
+    clean_display_name = str(
+        pack_display_name or ""
+    ).strip()
+
+    if clean_tracking_code:
+        subject_parts.append(
+            clean_tracking_code
+        )
+
+    if (
+        clean_display_name
+        and clean_display_name.casefold()
+        != clean_tracking_code.casefold()
+    ):
+        subject_parts.append(
+            clean_display_name
+        )
+
+    if not subject_parts:
+        subject_parts.append(
+            "Chaos Draft Pack"
+        )
+
+    return build_print_pdf_filename(
+        subject_parts,
+        card_count,
+    )
+
+
+def build_combined_pack_print_pdf_filename(
+    print_result,
+):
+    printed_packs = list(
+        (print_result or {}).get(
+            "printed_packs",
+            [],
+        )
+        or []
+    )
+
+    total_card_count = int(
+        (print_result or {}).get(
+            "total_card_count",
+            0,
+        )
+        or 0
+    )
+
+    if len(printed_packs) == 1:
+        pack_state = printed_packs[0]
+
+        return build_pack_print_pdf_filename(
+            pack_state.get(
+                "pack_tracking_code"
+            ),
+            pack_state.get(
+                "pack_display_name"
+            ),
+            pack_state.get(
+                "card_count",
+                total_card_count,
+            ),
+        )
+
+    pack_count = len(printed_packs)
+
+    if pack_count <= 0:
+        pack_count = int(
+            (print_result or {}).get(
+                "pack_count",
+                0,
+            )
+            or 0
+        )
+
+    return build_print_pdf_filename(
+        [
+            f"{pack_count} Selected Packs"
+        ],
+        total_card_count,
+    )
+
+
 def get_pdf_render_pixels_per_mm(config=None):
     if config is None:
         config = (
@@ -7241,17 +7460,49 @@ def build_custom_title_card_jpg_buffer(
     return output_buffer
 
 def build_inline_pdf_response(pdf_buffer, filename):
-    safe_name = (filename or "document.pdf").strip()
-    if not safe_name.lower().endswith(".pdf"):
-        safe_name = f"{safe_name}.pdf"
+    raw_name = str(
+        filename or "Deckadence Print"
+    ).strip()
 
-    return Response(
+    if raw_name.lower().endswith(".pdf"):
+        raw_name = raw_name[:-4]
+
+    safe_name = (
+        sanitize_pdf_filename_component(
+            raw_name,
+            fallback="Deckadence Print",
+        )
+        + ".pdf"
+    )
+
+    if isinstance(
+        pdf_buffer,
+        (bytes, bytearray),
+    ):
+        pdf_buffer = BytesIO(
+            bytes(pdf_buffer)
+        )
+
+    if hasattr(pdf_buffer, "seek"):
+        pdf_buffer.seek(0)
+
+    update_print_export_progress(
+        "deliver",
+        "Opening PDF",
+        f"{safe_name} is ready.",
+    )
+
+    response = send_file(
         pdf_buffer,
         mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f"inline; filename={safe_name}"
-        }
+        as_attachment=False,
+        download_name=safe_name,
+        max_age=0,
     )
+
+    response.headers["Cache-Control"] = "no-store"
+
+    return response
 
 def build_html_print_slots(template_layout):
     page_height_mm = float(
@@ -13680,6 +13931,13 @@ def build_chaos_pack_pdf(
 
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
+    c.setTitle(
+        str(
+            pack_display_name
+            or "Deckadence Print"
+        ).strip()
+        or "Deckadence Print"
+    )
 
     draw_x_mm = pdf_template_layout["draw_x_mm"]
     draw_y_mm = pdf_template_layout["draw_y_mm"]
@@ -22676,13 +22934,11 @@ def campaign_chaos_history_action():
         except Exception as exc:
             return str(exc), 400
 
-        return Response(
-            print_result["buffer"].getvalue(),
-            mimetype="application/pdf",
-            headers={
-                "Content-Disposition": f'inline; filename="campaign_history_selected_packs_{print_result["pack_count"]}.pdf"',
-                "Cache-Control": "no-store",
-            },
+        return build_inline_pdf_response(
+            print_result["buffer"],
+            build_combined_pack_print_pdf_filename(
+                print_result
+            ),
         )
     
     if action == "delete":
@@ -23064,13 +23320,11 @@ def campaign_chaos_pack_print(tracked_pack_id):
     except Exception as exc:
         return str(exc), 400
 
-    return Response(
-        print_result["buffer"].getvalue(),
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="campaign_pack_{tracked_pack_id}.pdf"',
-            "Cache-Control": "no-store",
-        },
+    return build_inline_pdf_response(
+        print_result["buffer"],
+        build_combined_pack_print_pdf_filename(
+            print_result
+        ),
     )
 
 @app.route("/campaign-chaos/packs/<int:tracked_pack_id>/label-settings", methods=["POST"])
@@ -23508,13 +23762,28 @@ def campaign_chaos_pack_preview_print():
     except Exception as exc:
         return str(exc), 400
 
-    return Response(
-        pdf_buffer.getvalue(),
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": 'inline; filename="campaign_pack_preview.pdf"',
-            "Cache-Control": "no-store",
-        },
+    preview_cards = (
+        preview_pack.get("cards")
+        or []
+    )
+
+    return build_inline_pdf_response(
+        pdf_buffer,
+        build_pack_print_pdf_filename(
+            preview_pack.get(
+                "pack_tracking_code"
+            ),
+            (
+                preview_pack.get(
+                    "pack_display_name"
+                )
+                or preview_pack.get(
+                    "display_name"
+                )
+                or "Generated Pack"
+            ),
+            len(preview_cards),
+        ),
     )
 
 
@@ -23670,13 +23939,11 @@ def campaign_chaos_packs_print():
     except Exception as exc:
         return str(exc), 400
 
-    return Response(
-        print_result["buffer"].getvalue(),
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="campaign_saved_packs_{print_result["pack_count"]}.pdf"',
-            "Cache-Control": "no-store",
-        },
+    return build_inline_pdf_response(
+        print_result["buffer"],
+        build_combined_pack_print_pdf_filename(
+            print_result
+        ),
     )
 
 
@@ -23741,13 +24008,11 @@ def campaign_chaos_packs_action():
         except Exception as exc:
             return str(exc), 400
 
-        return Response(
-            print_result["buffer"].getvalue(),
-            mimetype="application/pdf",
-            headers={
-                "Content-Disposition": f'inline; filename="campaign_saved_packs_{print_result["pack_count"]}.pdf"',
-                "Cache-Control": "no-store",
-            },
+        return build_inline_pdf_response(
+            print_result["buffer"],
+            build_combined_pack_print_pdf_filename(
+                print_result
+            ),
         )
 
     if action == "export_zip":
@@ -27839,15 +28104,14 @@ def deckbuilder_print(deck_id):
         )
         return str(exc), 400
 
-    filename = f"{safe_filename(deck_display_name)}_deck_builder.pdf"
+    filename = build_print_pdf_filename(
+        [deck_display_name],
+        len(cards),
+    )
 
-    return Response(
-        pdf_buffer.getvalue(),
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            "Cache-Control": "no-store",
-        },
+    return build_inline_pdf_response(
+        pdf_buffer,
+        filename,
     )
 
 
@@ -29262,6 +29526,12 @@ def campaign_chaos_open():
         return jsonify(result), 400
 
     if "print_export_action" in request.form:
+        update_print_export_progress(
+            "deliver",
+            "Opening PDF",
+            "The PDF is ready. Opening it in a new tab...",
+        )
+
         return redirect(result["download_url"])
 
     return jsonify(result)
@@ -29302,6 +29572,12 @@ def chaos_draft_open():
         return jsonify(result), 400
 
     if "print_export_action" in request.form:
+        update_print_export_progress(
+            "deliver",
+            "Opening PDF",
+            "The PDF is ready. Opening it in a new tab...",
+        )
+
         return redirect(result["download_url"])
 
     return jsonify(result)
@@ -34913,8 +35189,10 @@ def chaos_draft_open_file():
     if not pdf_state:
         return "No opened Chaos Draft PDF is available.", 404
 
-    pdf_hex = (pdf_state.get("pdf_base64") or "").strip()
-    filename = (pdf_state.get("filename") or "chaos_draft_pack.pdf").strip()
+    pdf_hex = (
+        pdf_state.get("pdf_base64")
+        or ""
+    ).strip()
 
     if not pdf_hex:
         return "Chaos Draft PDF data was empty.", 404
@@ -34924,13 +35202,30 @@ def chaos_draft_open_file():
     except Exception:
         return "Chaos Draft PDF data was invalid.", 500
 
-    return Response(
-        pdf_bytes,
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f"inline; filename={filename}",
-            "Cache-Control": "no-store"
-        }
+    opened_pack = get_chaos_session_state(
+        "pending_opened_pack",
+        default_value=None,
+    ) or {}
+
+    pack_cards = (
+        opened_pack.get("cards")
+        or []
+    )
+
+    filename = build_pack_print_pdf_filename(
+        opened_pack.get(
+            "pack_tracking_code"
+        ),
+        (
+            opened_pack.get("display_name")
+            or "Chaos Draft Pack"
+        ),
+        len(pack_cards),
+    )
+
+    return build_inline_pdf_response(
+        BytesIO(pdf_bytes),
+        filename,
     )
 
 @app.route("/chaos-draft/view-data", methods=["GET"])
@@ -35366,15 +35661,14 @@ def custom_draft_set_print(set_code):
         )
         return str(exc), 400
 
-    filename = f"{safe_filename(set_display_name)}_{safe_filename(clean_set_code)}.pdf"
+    filename = build_print_pdf_filename(
+        [set_display_name],
+        len(cards),
+    )
 
-    return Response(
-        pdf_buffer.getvalue(),
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            "Cache-Control": "no-store",
-        },
+    return build_inline_pdf_response(
+        pdf_buffer,
+        filename,
     )
 
 @app.route("/custom-draft-sets/<path:set_code>/export-zip", methods=["POST"])

@@ -170,8 +170,24 @@
   border-top-color: rgba(239, 68, 68, 0.75);
 }
 
+.print-export-status-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.print-export-status-open-pdf-button,
+.print-export-status-download-pdf-button {
+  width: 100%;
+  min-width: 0;
+}
+
 .print-export-status-close-button {
-  align-self: flex-end;
+  width: auto;
+  min-width: 84px;
+  padding-left: 18px;
+  padding-right: 18px;
 }
 
 @keyframes print-export-spin {

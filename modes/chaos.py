@@ -6197,6 +6197,8 @@ def build_tracked_packs_combined_pdf(
 
     merger = PdfWriter()
     appended_count = 0
+    total_card_count = 0
+    printed_packs = []
     pack_label_states = []
 
     config = get_config()
@@ -6230,6 +6232,19 @@ def build_tracked_packs_combined_pdf(
 
         merger.append(pack_pdf_buffer)
         appended_count += 1
+        total_card_count += len(cards)
+
+        printed_packs.append({
+            "pack_tracking_code": (
+                pack_state.get("pack_tracking_code")
+                or ""
+            ),
+            "pack_display_name": (
+                pack_state.get("pack_display_name")
+                or ""
+            ),
+            "card_count": len(cards),
+        })
 
         if print_pack_labels and not pack_state.get("labels_disabled_for_pack"):
             pack_label_states.append(pack_state)
@@ -6258,6 +6273,40 @@ def build_tracked_packs_combined_pdf(
 
         merger.append(label_pdf_buffer)
 
+    if len(printed_packs) == 1:
+        printed_pack = printed_packs[0]
+        title_parts = [
+            str(
+                printed_pack.get(
+                    "pack_tracking_code"
+                )
+                or ""
+            ).strip(),
+            str(
+                printed_pack.get(
+                    "pack_display_name"
+                )
+                or ""
+            ).strip(),
+        ]
+
+        document_title = " - ".join(
+            part
+            for part in title_parts
+            if part
+        )
+    else:
+        document_title = (
+            f"{appended_count} Selected Packs"
+        )
+
+    merger.add_metadata({
+        "/Title": (
+            document_title
+            or "Deckadence Print"
+        ),
+    })
+
     output_buffer = BytesIO()
     merger.write(output_buffer)
     merger.close()
@@ -6266,6 +6315,8 @@ def build_tracked_packs_combined_pdf(
     return {
         "buffer": output_buffer,
         "pack_count": appended_count,
+        "total_card_count": total_card_count,
+        "printed_packs": printed_packs,
     }
 
 def build_campaign_chaos_spin_result(static_folder, write_debug_log_fn=None, campaign_id=None, draft_game_id=None):

@@ -68,6 +68,10 @@
     const statusPanel = getElement("printExportStatusPanel");
     const statusTitle = getElement("printExportStatusTitle");
     const statusMessage = getElement("printExportStatusMessage");
+    const statusOpenPdfButton = getElement("printExportStatusOpenPdfButton");
+    const statusDownloadPdfButton = getElement(
+      "printExportStatusDownloadPdfButton",
+    );
     const statusCloseButton = getElement("printExportStatusCloseButton");
 
     const stepPrepare = getElement("printExportStatusStepPrepare");
@@ -83,7 +87,8 @@
       ? String(subtitle.textContent || "").trim()
       : "";
 
-    let activeObjectUrl = "";
+    let activePdfObjectUrl = "";
+    let activePdfFilename = "";
     let progressPollTimer = 0;
     let progressPollInFlight = false;
 
@@ -311,6 +316,14 @@
         statusMessage.textContent = "Preparing request...";
       }
 
+      if (statusOpenPdfButton) {
+        statusOpenPdfButton.classList.add("hidden");
+      }
+
+      if (statusDownloadPdfButton) {
+        statusDownloadPdfButton.classList.add("hidden");
+      }
+
       if (statusCloseButton) {
         statusCloseButton.classList.add("hidden");
       }
@@ -367,7 +380,7 @@
       }
     }
 
-    function setStatusComplete(titleText, messageText) {
+    function setStatusComplete(titleText, messageText, showPdfActions) {
       showStatusPanel();
       setStatusStep("complete");
 
@@ -382,6 +395,14 @@
 
       if (statusMessage) {
         statusMessage.textContent = messageText || "The file is ready.";
+      }
+
+      if (statusOpenPdfButton) {
+        statusOpenPdfButton.classList.toggle("hidden", !showPdfActions);
+      }
+
+      if (statusDownloadPdfButton) {
+        statusDownloadPdfButton.classList.toggle("hidden", !showPdfActions);
       }
 
       if (statusCloseButton) {
@@ -407,6 +428,14 @@
         statusMessage.textContent = messageText || "Print / Export failed.";
       }
 
+      if (statusOpenPdfButton) {
+        statusOpenPdfButton.classList.add("hidden");
+      }
+
+      if (statusDownloadPdfButton) {
+        statusDownloadPdfButton.classList.add("hidden");
+      }
+
       if (statusCloseButton) {
         statusCloseButton.classList.remove("hidden");
       }
@@ -414,28 +443,24 @@
       setButtonsWorking(false);
     }
 
-    function revokeActiveObjectUrlLater() {
-      if (!activeObjectUrl) {
-        return;
-      }
-
-      const objectUrlToRevoke = activeObjectUrl;
-      activeObjectUrl = "";
-
-      window.setTimeout(function () {
+    function replacePreparedPdf(blob, filename) {
+      if (activePdfObjectUrl) {
         try {
-          URL.revokeObjectURL(objectUrlToRevoke);
+          URL.revokeObjectURL(activePdfObjectUrl);
         } catch (error) {
           // Ignore cleanup failures.
         }
-      }, 60000);
+      }
+
+      activePdfObjectUrl = URL.createObjectURL(blob);
+      activePdfFilename = filename || "Deckadence Print.pdf";
     }
 
     function downloadBlob(blob, filename) {
-      activeObjectUrl = URL.createObjectURL(blob);
-
+      const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = activeObjectUrl;
+
+      link.href = objectUrl;
       link.download = filename || "iMomir_export.zip";
       link.style.display = "none";
 
@@ -443,23 +468,51 @@
       link.click();
       document.body.removeChild(link);
 
-      revokeActiveObjectUrlLater();
+      window.setTimeout(function () {
+        try {
+          URL.revokeObjectURL(objectUrl);
+        } catch (error) {
+          // Ignore cleanup failures.
+        }
+      }, 60000);
     }
 
-    function openPdfBlob(blob) {
-      activeObjectUrl = URL.createObjectURL(blob);
+    function openPreparedPdf() {
+      if (!activePdfObjectUrl) {
+        showMessage("No generated PDF is available to open.", true);
+        return false;
+      }
+
+      const pdfWindow = window.open(activePdfObjectUrl, "_blank");
+
+      if (!pdfWindow) {
+        return false;
+      }
+
+      try {
+        pdfWindow.opener = null;
+      } catch (error) {
+        // Ignore opener cleanup failures.
+      }
+
+      return true;
+    }
+
+    function downloadPreparedPdf() {
+      if (!activePdfObjectUrl) {
+        showMessage("No generated PDF is available to download.", true);
+        return;
+      }
 
       const link = document.createElement("a");
-      link.href = activeObjectUrl;
-      link.target = "_blank";
-      link.rel = "noopener";
+
+      link.href = activePdfObjectUrl;
+      link.download = activePdfFilename || "Deckadence Print.pdf";
       link.style.display = "none";
 
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      revokeActiveObjectUrlLater();
     }
 
     async function runPrintExport(actionType) {
@@ -477,6 +530,11 @@
       }
 
       resetStatusPanel();
+
+      if (!isExport) {
+        setSettingsVisible(false);
+      }
+
       setButtonsWorking(true);
 
       updateStatus(
@@ -528,10 +586,10 @@
 
         updateStatus(
           "deliver",
-          isExport ? "Downloading Zip" : "Opening PDF",
+          isExport ? "Downloading Zip" : "Preparing PDF",
           isExport
             ? "The zip file is ready. Starting download..."
-            : "The PDF is ready. Opening in a new tab...",
+            : "The PDF is ready. Preparing it for you to open or download...",
         );
 
         const blob = await response.blob();
@@ -540,7 +598,7 @@
           response.headers.get("Content-Disposition") || "";
         const fallbackFilename = isExport
           ? "iMomir_image_export.zip"
-          : "iMomir_print.pdf";
+          : "Deckadence Print.pdf";
         const filename = getFilenameFromContentDisposition(
           contentDisposition,
           fallbackFilename,
@@ -548,21 +606,27 @@
 
         if (isExport) {
           downloadBlob(blob, filename);
-        } else {
-          openPdfBlob(blob);
+
+          setStatusComplete(
+            "Export Complete",
+            "The zip export has been downloaded.",
+            false,
+          );
+
+          showMessage("Export to Zip complete.", false);
+          return;
         }
 
+        replacePreparedPdf(blob, filename);
+
         setStatusComplete(
-          isExport ? "Export Complete" : "PDF Ready",
-          isExport
-            ? "The zip export has been downloaded."
-            : "The PDF has been opened in a new tab.",
+          "PDF Ready",
+          `${filename} is ready. If it does not open automatically, use the buttons below.`,
+          true,
         );
 
-        showMessage(
-          isExport ? "Export to Zip complete." : "PDF generated.",
-          false,
-        );
+        openPreparedPdf();
+        showMessage("PDF generated.", false);
       } catch (error) {
         stopProgressPolling();
         console.error(error);
@@ -602,6 +666,18 @@
       if (closeButton) {
         closeButton.addEventListener("click", function () {
           setModalVisible(false);
+        });
+      }
+
+      if (statusOpenPdfButton) {
+        statusOpenPdfButton.addEventListener("click", function () {
+          openPreparedPdf();
+        });
+      }
+
+      if (statusDownloadPdfButton) {
+        statusDownloadPdfButton.addEventListener("click", function () {
+          downloadPreparedPdf();
         });
       }
 
