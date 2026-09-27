@@ -15,6 +15,9 @@ UPSCALE_QUALITY_ACCEPTED = "accepted"
 UPSCALE_QUALITY_REJECTED = "rejected"
 UPSCALE_QUALITY_SUPERSEDED = "superseded"
 
+UPSCALE_SOURCE_SCRYFALL = "scryfall"
+UPSCALE_SOURCE_ALTERNATE = "alternate_source"
+
 
 def upscaling_utc_now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -42,6 +45,9 @@ def ensure_upscaling_schema():
             face_kind TEXT NOT NULL DEFAULT 'single',
 
             source_image_path TEXT,
+            source_type TEXT NOT NULL DEFAULT 'scryfall',
+            alternate_source_id INTEGER,
+            source_image_scope_id TEXT,
             source_sha256 TEXT,
 
             output_image_path TEXT NOT NULL,
@@ -74,6 +80,27 @@ def ensure_upscaling_schema():
             updated_at_utc TEXT
         )
         """
+    )
+
+    ensure_column_exists(
+        cursor,
+        "upscaled_images",
+        "source_type",
+        "TEXT NOT NULL DEFAULT 'scryfall'",
+    )
+
+    ensure_column_exists(
+        cursor,
+        "upscaled_images",
+        "alternate_source_id",
+        "INTEGER",
+    )
+
+    ensure_column_exists(
+        cursor,
+        "upscaled_images",
+        "source_image_scope_id",
+        "TEXT",
     )
 
     ensure_column_exists(
@@ -277,6 +304,73 @@ def normalize_upscaled_face_kind(face_kind):
 
     return value
 
+def normalize_upscaled_source_type(source_type):
+    value = str(
+        source_type
+        or UPSCALE_SOURCE_SCRYFALL
+    ).strip().lower()
+
+    if value not in {
+        UPSCALE_SOURCE_SCRYFALL,
+        UPSCALE_SOURCE_ALTERNATE,
+    }:
+        value = UPSCALE_SOURCE_SCRYFALL
+
+    return value
+
+
+def _build_upscaled_source_filter(
+    source_type=None,
+    alternate_source_id=None,
+    source_image_scope_id=None,
+):
+    if source_type is None:
+        return "", []
+
+    clean_source_type = (
+        normalize_upscaled_source_type(
+            source_type
+        )
+    )
+
+    if clean_source_type == UPSCALE_SOURCE_ALTERNATE:
+        try:
+            clean_alternate_source_id = int(
+                alternate_source_id
+            )
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return "1 = 0", []
+
+        if clean_alternate_source_id <= 0:
+            return "1 = 0", []
+
+        clean_scope_id = str(
+            source_image_scope_id
+            or ""
+        ).strip()
+
+        return (
+            """
+            COALESCE(source_type, 'scryfall') = ?
+            AND alternate_source_id = ?
+            AND COALESCE(source_image_scope_id, '') = ?
+            """,
+            [
+                UPSCALE_SOURCE_ALTERNATE,
+                clean_alternate_source_id,
+                clean_scope_id,
+            ],
+        )
+
+    return (
+        "COALESCE(source_type, 'scryfall') = ?",
+        [
+            UPSCALE_SOURCE_SCRYFALL,
+        ],
+    )
 
 def get_upscaled_image_absolute_path(output_image_path):
     clean_path = str(
@@ -371,6 +465,10 @@ def hydrate_upscaled_image_paths(
 def get_current_upscaled_image_for_card(
     card_row,
     face_kind="single",
+    *,
+    source_type=None,
+    alternate_source_id=None,
+    source_image_scope_id=None,
 ):
     if not card_row:
         return None
@@ -453,6 +551,20 @@ def get_current_upscaled_image_for_card(
     if not identity_conditions:
         return None
 
+    source_where_sql, source_parameters = (
+        _build_upscaled_source_filter(
+            source_type,
+            alternate_source_id,
+            source_image_scope_id,
+        )
+    )
+
+    source_filter_sql = (
+        f"AND ({source_where_sql})"
+        if source_where_sql
+        else ""
+    )
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -466,6 +578,7 @@ def get_current_upscaled_image_for_card(
         FROM upscaled_images
         WHERE is_current = 1
           AND quality_status = ?
+          {source_filter_sql}
           AND face_kind IN (?, 'single')
           AND (
               {where_identity_sql}
@@ -480,6 +593,7 @@ def get_current_upscaled_image_for_card(
         """,
         (
             UPSCALE_QUALITY_ACCEPTED,
+            *source_parameters,
             clean_face_kind,
             *identity_parameters,
             clean_face_kind,
@@ -812,7 +926,6 @@ def set_upscaled_generated_bleed(
 
 
 
-
 def register_upscaled_candidate(
     *,
     card_uuid=None,
@@ -821,6 +934,9 @@ def register_upscaled_candidate(
     collector_number=None,
     face_kind="single",
     source_image_path=None,
+    source_type=UPSCALE_SOURCE_SCRYFALL,
+    alternate_source_id=None,
+    source_image_scope_id=None,
     output_image_path,
     output_width=None,
     output_height=None,
@@ -834,6 +950,41 @@ def register_upscaled_candidate(
             face_kind
         )
     )
+
+    clean_source_type = (
+        normalize_upscaled_source_type(
+            source_type
+        )
+    )
+
+    clean_alternate_source_id = None
+    clean_source_image_scope_id = None
+
+    if clean_source_type == UPSCALE_SOURCE_ALTERNATE:
+        try:
+            clean_alternate_source_id = int(
+                alternate_source_id
+            )
+        except (
+            TypeError,
+            ValueError,
+        ) as exc:
+            raise ValueError(
+                "Alternate Upscale source ID is required."
+            ) from exc
+
+        if clean_alternate_source_id <= 0:
+            raise ValueError(
+                "Alternate Upscale source ID is required."
+            )
+
+        clean_source_image_scope_id = (
+            str(
+                source_image_scope_id
+                or ""
+            ).strip()
+            or None
+        )
 
     absolute_output_path = (
         get_upscaled_image_absolute_path(
@@ -852,6 +1003,20 @@ def register_upscaled_candidate(
         UPSCALED_SCRYFALL_DIR,
     )
 
+    source_sha256 = None
+
+    if (
+        source_image_path
+        and os.path.isfile(
+            source_image_path
+        )
+    ):
+        source_sha256 = (
+            calculate_upscaled_file_sha256(
+                source_image_path
+            )
+        )
+
     now_utc = upscaling_utc_now()
 
     conn = get_db_connection()
@@ -866,6 +1031,10 @@ def register_upscaled_candidate(
             collector_number,
             face_kind,
             source_image_path,
+            source_type,
+            alternate_source_id,
+            source_image_scope_id,
+            source_sha256,
             output_image_path,
             output_width,
             output_height,
@@ -879,7 +1048,8 @@ def register_upscaled_candidate(
         )
         VALUES (
             ?, ?, ?, ?, ?,
-            ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?,
             ?, ?, ?, ?,
             ?, 0, ?
         )
@@ -891,6 +1061,10 @@ def register_upscaled_candidate(
             collector_number,
             clean_face_kind,
             source_image_path,
+            clean_source_type,
+            clean_alternate_source_id,
+            clean_source_image_scope_id,
+            source_sha256,
             relative_output_path,
             output_width,
             output_height,
@@ -915,6 +1089,7 @@ def register_upscaled_candidate(
     conn.close()
 
     return candidate_id
+
 
 def delete_upscaled_image_records(
     upscaled_image_ids,
@@ -1993,11 +2168,34 @@ def accept_upscaled_candidate(
         )
     )
 
+    source_where, source_params = (
+        _build_upscaled_source_filter(
+            candidate["source_type"],
+            candidate["alternate_source_id"],
+            candidate["source_image_scope_id"],
+        )
+    )
+
     if not identity_where:
         raise ValueError(
             "Upscaled candidate has no "
             "usable card identity."
         )
+
+    source_where, source_params = (
+        _build_upscaled_source_filter(
+            candidate.get(
+                "source_type"
+            )
+            or UPSCALE_SOURCE_SCRYFALL,
+            candidate.get(
+                "alternate_source_id"
+            ),
+            candidate.get(
+                "source_image_scope_id"
+            ),
+        )
+    )
 
     now_utc = upscaling_utc_now()
 
@@ -2018,6 +2216,7 @@ def accept_upscaled_candidate(
               AND face_kind IN (?, 'single')
               AND is_current = 1
               AND quality_status = ?
+              AND ({source_where})
               AND ({identity_where})
             """,
             (
@@ -2030,6 +2229,7 @@ def accept_upscaled_candidate(
                     "face_kind"
                 ],
                 UPSCALE_QUALITY_ACCEPTED,
+                *source_params,
                 *identity_params,
             ),
         )
@@ -2065,6 +2265,7 @@ def accept_upscaled_candidate(
             WHERE upscaled_image_id <> ?
               AND face_kind IN (?, 'single')
               AND is_current = 0
+              AND ({source_where})
               AND ({identity_where})
             """,
             (
@@ -2074,6 +2275,7 @@ def accept_upscaled_candidate(
                 candidate[
                     "face_kind"
                 ],
+                *source_params,
                 *identity_params,
             ),
         )
@@ -2268,6 +2470,21 @@ def accept_upscaled_candidates(
                     "no usable card identity."
                 )
 
+            source_where, source_params = (
+                _build_upscaled_source_filter(
+                    candidate[
+                        "source_type"
+                    ]
+                    or UPSCALE_SOURCE_SCRYFALL,
+                    candidate[
+                        "alternate_source_id"
+                    ],
+                    candidate[
+                        "source_image_scope_id"
+                    ],
+                )
+            )
+
             cursor.execute(
                 f"""
                 UPDATE upscaled_images
@@ -2279,6 +2496,7 @@ def accept_upscaled_candidates(
                   AND face_kind = ?
                   AND is_current = 1
                   AND quality_status = ?
+                  AND ({source_where})
                   AND ({identity_where})
                 """,
                 (
@@ -2289,6 +2507,7 @@ def accept_upscaled_candidates(
                         "face_kind"
                     ],
                     UPSCALE_QUALITY_ACCEPTED,
+                    *source_params,
                     *identity_params,
                 ),
             )
@@ -2322,6 +2541,7 @@ def accept_upscaled_candidates(
                 WHERE upscaled_image_id <> ?
                   AND face_kind IN (?, 'single')
                   AND is_current = 0
+                  AND ({source_where})
                   AND ({identity_where})
                 """,
                 (
@@ -2329,6 +2549,7 @@ def accept_upscaled_candidates(
                     candidate[
                         "face_kind"
                     ],
+                    *source_params,
                     *identity_params,
                 ),
             )
@@ -2441,6 +2662,10 @@ def discard_upscaled_candidate(
 def revert_current_upscaled_image_for_card(
     card_row,
     face_kind="single",
+    *,
+    source_type=None,
+    alternate_source_id=None,
+    source_image_scope_id=None,
 ):
     clean_face_kind = (
         normalize_upscaled_face_kind(
@@ -2457,6 +2682,20 @@ def revert_current_upscaled_image_for_card(
     if not identity_where:
         return 0
 
+    source_where, source_params = (
+        _build_upscaled_source_filter(
+            source_type,
+            alternate_source_id,
+            source_image_scope_id,
+        )
+    )
+
+    source_filter_sql = (
+        f"AND ({source_where})"
+        if source_where
+        else ""
+    )
+
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -2468,11 +2707,13 @@ def revert_current_upscaled_image_for_card(
             quality_status
         FROM upscaled_images
         WHERE face_kind IN (?, 'single')
+          {source_filter_sql}
           AND ({identity_where})
         ORDER BY upscaled_image_id ASC
         """,
         (
             clean_face_kind,
+            *source_params,
             *identity_params,
         ),
     )

@@ -9,6 +9,14 @@
 
   const LAST_MODEL_STORAGE_KEY = "imomir_last_upscale_model";
 
+  const ALTERNATE_IMAGES_STORAGE_KEY =
+    "deckadence_batch_upscale_alternate_images";
+
+  const ALTERNATE_MAX_MB_STORAGE_KEY =
+    "deckadence_batch_upscale_alternate_max_mb";
+
+  const DEFAULT_ALTERNATE_MAX_MB = 4.0;
+
   let overlay = null;
   let titleElement = null;
   let messageElement = null;
@@ -25,6 +33,10 @@
 
   let replaceWrap = null;
   let replaceCheckbox = null;
+
+  let alternateWrap = null;
+  let alternateCheckbox = null;
+  let alternateMaxInput = null;
 
   let progressWrap = null;
   let progressBar = null;
@@ -163,11 +175,44 @@
 
     const replaceText = document.createElement("span");
 
-    replaceText.textContent = "Replace existing Scryfall Upscales";
+    replaceText.textContent =
+      "Replace existing Upscales for active image source";
 
     replaceWrap.appendChild(replaceCheckbox);
 
     replaceWrap.appendChild(replaceText);
+
+    alternateWrap = document.createElement("label");
+
+    alternateWrap.className = "imomir-batch-upscale-alternate-wrap";
+
+    alternateCheckbox = document.createElement("input");
+
+    alternateCheckbox.type = "checkbox";
+
+    alternateCheckbox.checked = false;
+
+    const alternateText = document.createElement("span");
+
+    alternateText.textContent = "Upscale Alternate Images Files below";
+
+    alternateMaxInput = document.createElement("input");
+
+    alternateMaxInput.type = "number";
+    alternateMaxInput.min = "0.01";
+    alternateMaxInput.max = "256";
+    alternateMaxInput.step = "0.01";
+    alternateMaxInput.value = "4.00";
+    alternateMaxInput.className = "imomir-batch-upscale-alternate-max-input";
+
+    const alternateMbText = document.createElement("span");
+
+    alternateMbText.textContent = "MB";
+
+    alternateWrap.appendChild(alternateCheckbox);
+    alternateWrap.appendChild(alternateText);
+    alternateWrap.appendChild(alternateMaxInput);
+    alternateWrap.appendChild(alternateMbText);
 
     progressWrap = document.createElement("div");
     progressWrap.className = "imomir-batch-upscale-progress-section hidden";
@@ -209,6 +254,7 @@
     body.appendChild(modelWrap);
     body.appendChild(holofoilWrap);
     body.appendChild(replaceWrap);
+    body.appendChild(alternateWrap);
     body.appendChild(progressWrap);
 
     const footer = document.createElement("div");
@@ -268,6 +314,14 @@
     modelSelect.addEventListener("change", function () {
       saveUpscaleModel(modelSelect.value);
     });
+
+    alternateCheckbox.addEventListener("change", function () {
+      updateAlternateInputState();
+      saveAlternateSettings();
+    });
+
+    alternateMaxInput.addEventListener("change", saveAlternateSettings);
+    alternateMaxInput.addEventListener("blur", saveAlternateSettings);
 
     startButton.addEventListener("click", startPendingBatch);
 
@@ -339,6 +393,67 @@
     } catch (error) {
       console.warn("Could not save Upscale model.", error);
     }
+  }
+
+  function normalizeAlternateMaxMb(value) {
+    let parsedValue = Number.parseFloat(String(value || ""));
+
+    if (!Number.isFinite(parsedValue)) {
+      parsedValue = DEFAULT_ALTERNATE_MAX_MB;
+    }
+
+    parsedValue = Math.max(0.01, Math.min(256, parsedValue));
+
+    return Math.round(parsedValue * 100) / 100;
+  }
+
+  function getSavedAlternateSettings() {
+    let enabled = false;
+    let maxMb = DEFAULT_ALTERNATE_MAX_MB;
+
+    try {
+      enabled =
+        window.localStorage.getItem(ALTERNATE_IMAGES_STORAGE_KEY) === "1";
+
+      const savedMaxMb = window.localStorage.getItem(
+        ALTERNATE_MAX_MB_STORAGE_KEY,
+      );
+
+      if (savedMaxMb !== null) {
+        maxMb = normalizeAlternateMaxMb(savedMaxMb);
+      }
+    } catch (error) {
+      console.warn("Could not read Batch Alternate Image settings.", error);
+    }
+
+    return {
+      enabled: enabled,
+      maxMb: maxMb,
+    };
+  }
+
+  function saveAlternateSettings() {
+    const maxMb = normalizeAlternateMaxMb(alternateMaxInput.value);
+
+    alternateMaxInput.value = maxMb.toFixed(2);
+
+    try {
+      window.localStorage.setItem(
+        ALTERNATE_IMAGES_STORAGE_KEY,
+        alternateCheckbox.checked ? "1" : "0",
+      );
+
+      window.localStorage.setItem(
+        ALTERNATE_MAX_MB_STORAGE_KEY,
+        maxMb.toFixed(2),
+      );
+    } catch (error) {
+      console.warn("Could not save Batch Alternate Image settings.", error);
+    }
+  }
+
+  function updateAlternateInputState() {
+    alternateMaxInput.disabled = !alternateCheckbox.checked;
   }
 
   async function loadBatchModels() {
@@ -453,9 +568,10 @@
 
     detailElement.textContent =
       "This can take a substantial amount of time. " +
-      "Cards currently using an Alternate Image are always skipped. " +
-      "With Replace disabled, cards that already have an accepted Upscale are skipped. " +
-      "With Replace enabled, existing Scryfall Upscales are replaced by the newly generated result. " +
+      "Cards using an Alternate Image are skipped unless the Alternate Image option is enabled. " +
+      "Enabled Alternate Images larger than the selected file-size limit are skipped. " +
+      "With Replace disabled, cards whose active image source already has an accepted Upscale are skipped. " +
+      "With Replace enabled, the accepted Upscale for the active image source is replaced by the newly generated result. " +
       "Successful cards are accepted automatically and failures do not stop the batch.";
 
     inputWrap.classList.toggle("hidden", options.mode !== "next");
@@ -467,6 +583,14 @@
     replaceWrap.classList.remove("hidden");
 
     replaceCheckbox.checked = false;
+
+    const alternateSettings = getSavedAlternateSettings();
+
+    alternateCheckbox.checked = alternateSettings.enabled;
+    alternateMaxInput.value = alternateSettings.maxMb.toFixed(2);
+    alternateWrap.classList.remove("hidden");
+
+    updateAlternateInputState();
 
     progressWrap.classList.add("hidden");
 
@@ -507,6 +631,8 @@
     holofoilWrap.classList.add("hidden");
 
     replaceWrap.classList.add("hidden");
+
+    alternateWrap.classList.add("hidden");
 
     deleteButton.classList.add("hidden");
 
@@ -644,6 +770,15 @@
 
     payload.replace_existing = Boolean(replaceCheckbox.checked);
 
+    const alternateMaxMb = normalizeAlternateMaxMb(alternateMaxInput.value);
+
+    payload.include_alternate_images = Boolean(alternateCheckbox.checked);
+    payload.alternate_image_max_mb = alternateMaxMb;
+
+    alternateMaxInput.value = alternateMaxMb.toFixed(2);
+
+    saveAlternateSettings();
+
     payload.holofoil_stamp_replacement = holofoilEnabled
       ? String(holofoilSelect.value || "none")
           .trim()
@@ -728,9 +863,9 @@
       deleteButton.textContent = "Confirm Delete Upscales";
 
       detailElement.textContent =
-        "This permanently removes all generated Scryfall Upscale files and database records for the cards in this scope. " +
-        "Alternate Images are not deleted. " +
-        "Cards without an Alternate Image will fall back to Scryfall. " +
+        "This permanently removes all generated Upscale files and database records for the cards in this scope. " +
+        "Original Alternate Image files are not deleted. " +
+        "Cards will fall back to their normal active image source. " +
         "Click Confirm Delete Upscales to continue.";
 
       return;

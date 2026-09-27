@@ -255,6 +255,8 @@ from db.helpdb import (
 )
 
 from db.upscalyingdb import (
+    UPSCALE_SOURCE_ALTERNATE,
+    UPSCALE_SOURCE_SCRYFALL,
     accept_upscaled_candidate,
     accept_upscaled_candidates,
     analyze_upscaled_image_maintenance,
@@ -2411,6 +2413,8 @@ upscaling_batch_status = {
     "message": "No batch upscale has been run.",
     "source_label": "",
     "replace_existing": False,
+    "include_alternate_images": False,
+    "alternate_image_max_mb": 4.0,
     "holofoil_stamp_replacement": "",
     "total_cards": 0,
     "processed_cards": 0,
@@ -10031,6 +10035,213 @@ def ensure_alternate_source_cached(alternate_source_row):
         "alternate_source_id": alternate_source_id,
     }
 
+
+def get_card_upscale_source_identity(
+    card_row,
+    face_kind="single",
+    *,
+    image_context=None,
+):
+    context = image_context
+
+    if context is None:
+        context = AlternateImageContext(
+            dict(
+                card_row
+                or {}
+            ).get(
+                "image_scope_id"
+            )
+        )
+
+    alternate_source = (
+        get_alternate_source_for_card(
+            card_row,
+            face_kind=face_kind,
+            image_context=context,
+        )
+    )
+
+    if alternate_source:
+        return {
+            "source_type": (
+                UPSCALE_SOURCE_ALTERNATE
+            ),
+            "source_label": (
+                "Alternate Image"
+            ),
+            "alternate_source_id": int(
+                alternate_source[
+                    "alternate_source_id"
+                ]
+            ),
+            "source_image_scope_id": (
+                context.scope_id
+                or ""
+            ),
+            "alternate_source": (
+                alternate_source
+            ),
+        }
+
+    return {
+        "source_type": (
+            UPSCALE_SOURCE_SCRYFALL
+        ),
+        "source_label": (
+            "Scryfall Source"
+        ),
+        "alternate_source_id": None,
+        "source_image_scope_id": "",
+        "alternate_source": None,
+    }
+
+
+def get_current_upscaled_image_for_source(
+    card_row,
+    face_kind="single",
+    *,
+    image_context=None,
+):
+    source_identity = (
+        get_card_upscale_source_identity(
+            card_row,
+            face_kind=face_kind,
+            image_context=image_context,
+        )
+    )
+
+    current_upscaled = (
+        get_current_upscaled_image_for_card(
+            card_row,
+            face_kind=face_kind,
+            source_type=(
+                source_identity[
+                    "source_type"
+                ]
+            ),
+            alternate_source_id=(
+                source_identity[
+                    "alternate_source_id"
+                ]
+            ),
+            source_image_scope_id=(
+                source_identity[
+                    "source_image_scope_id"
+                ]
+            ),
+        )
+    )
+
+    return (
+        source_identity,
+        current_upscaled,
+    )
+
+
+def load_card_upscale_source(
+    card_row,
+    face_context,
+    *,
+    image_context=None,
+):
+    source_identity = (
+        get_card_upscale_source_identity(
+            card_row,
+            face_kind=(
+                face_context[
+                    "page_kind"
+                ]
+            ),
+            image_context=image_context,
+        )
+    )
+
+    if (
+        source_identity[
+            "source_type"
+        ]
+        == UPSCALE_SOURCE_ALTERNATE
+    ):
+        cached_source = (
+            ensure_alternate_source_cached(
+                source_identity[
+                    "alternate_source"
+                ]
+            )
+        )
+
+        if (
+            not cached_source
+            or not os.path.isfile(
+                cached_source[
+                    "absolute_path"
+                ]
+            )
+        ):
+            raise ValueError(
+                "The Alternate Image source "
+                "could not be loaded."
+            )
+
+        source_path = os.path.abspath(
+            cached_source[
+                "absolute_path"
+            ]
+        )
+
+    else:
+        image_url = str(
+            face_context.get(
+                "image_url",
+                "",
+            )
+            or ""
+        ).strip()
+
+        if not image_url:
+            raise ValueError(
+                "Scryfall image URL was "
+                "not found for "
+                f"{face_context['requested_face']} "
+                "face."
+            )
+
+        source_result = (
+            download_chaos_image_to_cache(
+                card_row[
+                    "card_uuid"
+                ],
+                face_context[
+                    "page_kind"
+                ],
+                face_context[
+                    "face_name"
+                ],
+                image_url,
+            )
+        )
+
+        if not source_result:
+            raise ValueError(
+                "The Scryfall source "
+                "image could not be loaded for "
+                f"{face_context['requested_face']} "
+                "face."
+            )
+
+        source_path = os.path.abspath(
+            source_result[
+                "absolute_path"
+            ]
+        )
+
+    return {
+        **source_identity,
+        "absolute_path": source_path,
+    }
+
+
 class AlternateImageFileSnapshot:
     """Prepare independent files; discard them unless the DB commit succeeds."""
 
@@ -10203,13 +10414,25 @@ def resolve_card_image_source_for_page(
     if normalized_page_kind not in {"front", "back"}:
         normalized_page_kind = "single"
 
-    alternate_source = get_alternate_source_for_card(
+    (
+        upscale_source_identity,
+        upscaled_image,
+    ) = get_current_upscaled_image_for_source(
         card_row,
         face_kind=normalized_page_kind,
         image_context=image_context,
     )
 
-    if alternate_source:
+    alternate_source = (
+        upscale_source_identity[
+            "alternate_source"
+        ]
+    )
+
+    if (
+        alternate_source
+        and not upscaled_image
+    ):
         try:
             cached_alternate = ensure_alternate_source_cached(alternate_source)
 
@@ -10349,11 +10572,6 @@ def resolve_card_image_source_for_page(
                 f"page_kind={normalized_page_kind} | error={str(exc)} | falling back to Scryfall"
             )
 
-    upscaled_image = get_current_upscaled_image_for_card(
-        card_row,
-        face_kind=normalized_page_kind,
-    )
-
     if upscaled_image:
         absolute_path = (
             upscaled_image[
@@ -10415,7 +10633,8 @@ def resolve_card_image_source_for_page(
             )
 
             write_debug_log(
-                "UPSCALED SCRYFALL SOURCE USED | "
+                "UPSCALED SOURCE USED | "
+                f"source_type={upscale_source_identity['source_type']} | "
                 f"upscaled_image_id={upscaled_image['upscaled_image_id']} | "
                 f"card_uuid={card_row['card_uuid']} | "
                 f"page_kind={normalized_page_kind} | "
@@ -10426,8 +10645,26 @@ def resolve_card_image_source_for_page(
             return {
                 "source_type": "upscaled",
                 "image_scope_id": image_context.scope_id,
-                "source_level": 1,
-                "source_label": "Upscaled",
+                "source_level": (
+                    3
+                    if (
+                        upscale_source_identity[
+                            "source_type"
+                        ]
+                        == UPSCALE_SOURCE_ALTERNATE
+                    )
+                    else 1
+                ),
+                "source_label": (
+                    "Upscaled Alternate"
+                    if (
+                        upscale_source_identity[
+                            "source_type"
+                        ]
+                        == UPSCALE_SOURCE_ALTERNATE
+                    )
+                    else "Upscaled"
+                ),
 
                 # Clean Upscaled card used for
                 # previews and ordinary views.
@@ -10485,7 +10722,11 @@ def resolve_card_image_source_for_page(
                 ),
 
                 "image_url": "",
-                "alternate_source_id": None,
+                "alternate_source_id": (
+                    upscale_source_identity[
+                        "alternate_source_id"
+                    ]
+                ),
 
                 "upscaled_image_id": (
                     upscaled_image[
@@ -10493,7 +10734,20 @@ def resolve_card_image_source_for_page(
                     ]
                 ),
 
-                "export_frame_template": "auto",
+                "export_frame_template": (
+                    (
+                        alternate_source[
+                            "export_frame_template"
+                        ]
+                        or "auto"
+                    )
+                    if (
+                        alternate_source
+                        and "export_frame_template"
+                        in alternate_source.keys()
+                    )
+                    else "auto"
+                ),
             }
 
     return {
@@ -12154,18 +12408,51 @@ def get_image_owner_for_page():
 
 @app.url_defaults
 def add_image_owner_to_urls(endpoint, values):
+    scoped_image_endpoints = {
+        "chaos_card_image",
+        "chaos_card_image_preview",
+        "chaos_card_image_source",
+        "chaos_card_image_upscaled",
+        "chaos_card_image_compare",
+        "chaos_card_upscale_control",
+        "chaos_card_upscale_run",
+        "chaos_card_upscale_revert",
+    }
+
     if (
-        endpoint not in {"chaos_card_image", "chaos_card_image_preview"}
+        endpoint not in scoped_image_endpoints
         or not has_request_context()
     ):
         return
 
-    if "image_scope_id" in values or "image_owner_kind" in values:
+    if (
+        "image_scope_id" in values
+        or "image_owner_kind" in values
+    ):
         return
 
-    owner_kind, owner_id = get_image_owner_for_page()
+    owner_kind = str(
+        request.args.get(
+            "image_owner_kind",
+            "",
+        )
+        or ""
+    ).strip()
 
-    if owner_kind:
+    owner_id = str(
+        request.args.get(
+            "image_owner_id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not owner_kind:
+        owner_kind, owner_id = (
+            get_image_owner_for_page()
+        )
+
+    if owner_kind and owner_id:
         values.update(
             image_owner_kind=owner_kind,
             image_owner_id=owner_id,
@@ -30560,6 +30847,56 @@ def chaos_card_image_source(card_uuid):
     if not face_context:
         return ("Not found", 404)
 
+    image_context = (
+        get_requested_image_context()
+    )
+
+    source_identity = (
+        get_card_upscale_source_identity(
+            card_row,
+            face_kind=(
+                face_context[
+                    "page_kind"
+                ]
+            ),
+            image_context=image_context,
+        )
+    )
+
+    if (
+        source_identity[
+            "source_type"
+        ]
+        == UPSCALE_SOURCE_ALTERNATE
+    ):
+        cached_source = (
+            ensure_alternate_source_cached(
+                source_identity[
+                    "alternate_source"
+                ]
+            )
+        )
+
+        if (
+            cached_source
+            and os.path.isfile(
+                cached_source[
+                    "absolute_path"
+                ]
+            )
+        ):
+            return send_file(
+                os.path.abspath(
+                    cached_source[
+                        "absolute_path"
+                    ]
+                ),
+                conditional=True,
+                max_age=0,
+            )
+
+        return ("Not found", 404)
+
     image_url = (
         face_context["image_url"]
         or ""
@@ -30641,13 +30978,19 @@ def chaos_card_image_upscaled(card_uuid):
     if not face_context:
         return ("Not found", 404)
 
-    upscaled_image = (
-        get_current_upscaled_image_for_card(
-            card_row,
-            face_kind=(
-                face_context["page_kind"]
-            ),
-        )
+    (
+        _source_identity,
+        upscaled_image,
+    ) = get_current_upscaled_image_for_source(
+        card_row,
+        face_kind=(
+            face_context[
+                "page_kind"
+            ]
+        ),
+        image_context=(
+            get_requested_image_context()
+        ),
     )
 
     if not upscaled_image:
@@ -30845,16 +31188,20 @@ def build_chaos_upscale_face_control_data(
     card_row,
     card_uuid,
     face_context,
+    *,
+    image_context=None,
 ):
-    current_upscaled = (
-        get_current_upscaled_image_for_card(
-            card_row,
-            face_kind=(
-                face_context[
-                    "page_kind"
-                ]
-            ),
-        )
+    (
+        source_identity,
+        current_upscaled,
+    ) = get_current_upscaled_image_for_source(
+        card_row,
+        face_kind=(
+            face_context[
+                "page_kind"
+            ]
+        ),
+        image_context=image_context,
     )
 
     current_data = None
@@ -30978,7 +31325,15 @@ def build_chaos_upscale_face_control_data(
 
         "source": {
             "label": (
-                "Scryfall Source"
+                source_identity[
+                    "source_label"
+                ]
+            ),
+
+            "source_type": (
+                source_identity[
+                    "source_type"
+                ]
             ),
 
             "src": url_for(
@@ -31424,6 +31779,10 @@ def chaos_card_upscale_control(card_uuid):
             "message": "Card not found.",
         }), 404
 
+    image_context = (
+        get_requested_image_context()
+    )
+
     face_data = (
         get_chaos_card_front_back_face_data(
             card_row
@@ -31482,6 +31841,7 @@ def chaos_card_upscale_control(card_uuid):
                 card_row,
                 card_uuid,
                 face_context,
+                image_context=image_context,
             )
         )
 
@@ -32037,6 +32397,7 @@ def run_card_upscale_candidate_batch(
     requested_face="front",
     holofoil_stamp_replacement=None,
     progress_callback=None,
+    image_context=None,
 ):
     total_started = (
         time.perf_counter()
@@ -32138,19 +32499,6 @@ def run_card_upscale_candidate_batch(
                 f"{face_name}."
             )
 
-        if not str(
-            face_context.get(
-                "image_url",
-                "",
-            )
-            or ""
-        ).strip():
-            raise ValueError(
-                "Scryfall image URL was "
-                "not found for "
-                f"{face_name} face."
-            )
-
         face_contexts.append(
             face_context
         )
@@ -32209,30 +32557,14 @@ def run_card_upscale_candidate_batch(
 
     for face_context in face_contexts:
         source_result = (
-            download_chaos_image_to_cache(
-                card_uuid,
-                face_context[
-                    "page_kind"
-                ],
-                face_context[
-                    "face_name"
-                ],
-                face_context[
-                    "image_url"
-                ],
+            load_card_upscale_source(
+                card_row,
+                face_context,
+                image_context=image_context,
             )
         )
 
-        if not source_result:
-            raise ValueError(
-                "The Scryfall source "
-                "image could not be "
-                "loaded for "
-                f"{face_context['requested_face']} "
-                "face."
-            )
-
-        source_path = os.path.abspath(
+        source_path = (
             source_result[
                 "absolute_path"
             ]
@@ -32263,6 +32595,24 @@ def run_card_upscale_candidate_batch(
 
             "source_path": (
                 source_path
+            ),
+
+            "source_type": (
+                source_result[
+                    "source_type"
+                ]
+            ),
+
+            "alternate_source_id": (
+                source_result[
+                    "alternate_source_id"
+                ]
+            ),
+
+            "source_image_scope_id": (
+                source_result[
+                    "source_image_scope_id"
+                ]
             ),
 
             "output_path": (
@@ -32690,6 +33040,26 @@ def run_card_upscale_candidate_batch(
                             pass
 
             plugin_result[
+                "host_source"
+            ] = {
+                "source_type": (
+                    prepared_face[
+                        "source_type"
+                    ]
+                ),
+                "alternate_source_id": (
+                    prepared_face[
+                        "alternate_source_id"
+                    ]
+                ),
+                "source_image_scope_id": (
+                    prepared_face[
+                        "source_image_scope_id"
+                    ]
+                ),
+            }
+
+            plugin_result[
                 "host_generated_bleed"
             ] = bleed_result
 
@@ -32733,6 +33103,21 @@ def run_card_upscale_candidate_batch(
                     source_image_path=(
                         prepared_face[
                             "source_path"
+                        ]
+                    ),
+                    source_type=(
+                        prepared_face[
+                            "source_type"
+                        ]
+                    ),
+                    alternate_source_id=(
+                        prepared_face[
+                            "alternate_source_id"
+                        ]
+                    ),
+                    source_image_scope_id=(
+                        prepared_face[
+                            "source_image_scope_id"
                         ]
                     ),
                     output_image_path=(
@@ -33078,6 +33463,9 @@ def chaos_card_upscale_run(card_uuid):
                 progress_callback=(
                     update_run_progress
                 ),
+                image_context=(
+                    get_requested_image_context()
+                ),
             )
         )
 
@@ -33228,10 +33616,15 @@ def batch_image_context(owner):
             raise RuntimeError("The collection's isolation changed during upscaling. Start a new batch.")
         return context
 
+
 def get_card_upscale_batch_eligibility(
     card_row,
     replace_existing=False,
     image_context=None,
+    include_alternate_images=False,
+    alternate_image_max_bytes=(
+        4 * 1024 * 1024
+    ),
 ):
     if not card_row:
         return {
@@ -33252,6 +33645,33 @@ def get_card_upscale_batch_eligibility(
                 "Scryfall identity."
             ),
         }
+
+    context = (
+        image_context
+        or AlternateImageContext(
+            dict(
+                card_row
+            ).get(
+                "image_scope_id"
+            )
+        )
+    )
+
+    try:
+        clean_alternate_image_max_bytes = max(
+            1,
+            int(
+                alternate_image_max_bytes
+                or (4 * 1024 * 1024)
+            ),
+        )
+    except (
+        TypeError,
+        ValueError,
+    ):
+        clean_alternate_image_max_bytes = (
+            4 * 1024 * 1024
+        )
 
     face_data = (
         get_chaos_card_front_back_face_data(
@@ -33282,7 +33702,96 @@ def get_card_upscale_batch_eligibility(
                 ),
             }
 
-        if not str(
+        source_identity = (
+            get_card_upscale_source_identity(
+                card_row,
+                face_kind=(
+                    face_context[
+                        "page_kind"
+                    ]
+                ),
+                image_context=context,
+            )
+        )
+
+        if (
+            source_identity[
+                "source_type"
+            ]
+            == UPSCALE_SOURCE_ALTERNATE
+        ):
+            if not include_alternate_images:
+                return {
+                    "eligible": False,
+                    "reason": (
+                        "Alternate Image is "
+                        "currently in use."
+                    ),
+                }
+
+            try:
+                cached_source = (
+                    ensure_alternate_source_cached(
+                        source_identity[
+                            "alternate_source"
+                        ]
+                    )
+                )
+            except Exception as exc:
+                return {
+                    "eligible": False,
+                    "reason": str(exc),
+                }
+
+            if (
+                not cached_source
+                or not os.path.isfile(
+                    cached_source[
+                        "absolute_path"
+                    ]
+                )
+            ):
+                return {
+                    "eligible": False,
+                    "reason": (
+                        "Alternate Image file "
+                        "could not be loaded."
+                    ),
+                }
+
+            source_size_bytes = (
+                os.path.getsize(
+                    cached_source[
+                        "absolute_path"
+                    ]
+                )
+            )
+
+            if (
+                source_size_bytes
+                > clean_alternate_image_max_bytes
+            ):
+                source_size_mb = (
+                    source_size_bytes
+                    / (1024.0 * 1024.0)
+                )
+
+                maximum_size_mb = (
+                    clean_alternate_image_max_bytes
+                    / (1024.0 * 1024.0)
+                )
+
+                return {
+                    "eligible": False,
+                    "reason": (
+                        "Alternate Image is "
+                        f"{source_size_mb:.2f} MB; "
+                        "the batch limit is "
+                        f"{maximum_size_mb:.2f} MB."
+                    ),
+                }
+
+        elif not str(
             face_context.get(
                 "image_url",
                 "",
@@ -33297,25 +33806,6 @@ def get_card_upscale_batch_eligibility(
                 ),
             }
 
-        if get_alternate_source_for_card(
-            card_row,
-            image_context=image_context or AlternateImageContext(
-                dict(card_row).get("image_scope_id")
-            ),
-            face_kind=(
-                face_context[
-                    "page_kind"
-                ]
-            ),
-        ):
-            return {
-                "eligible": False,
-                "reason": (
-                    "Alternate Image is "
-                    "currently in use."
-                ),
-            }
-
         if (
             not replace_existing
             and get_current_upscaled_image_for_card(
@@ -33325,13 +33815,28 @@ def get_card_upscale_batch_eligibility(
                         "page_kind"
                     ]
                 ),
+                source_type=(
+                    source_identity[
+                        "source_type"
+                    ]
+                ),
+                alternate_source_id=(
+                    source_identity[
+                        "alternate_source_id"
+                    ]
+                ),
+                source_image_scope_id=(
+                    source_identity[
+                        "source_image_scope_id"
+                    ]
+                ),
             )
         ):
             return {
                 "eligible": False,
                 "reason": (
-                    "Card is already "
-                    "upscaled."
+                    "The active image source "
+                    "is already upscaled."
                 ),
             }
 
@@ -33340,9 +33845,11 @@ def get_card_upscale_batch_eligibility(
         "reason": "",
     }
 
+
 def get_next_upscale_batch_card_uuids(
     limit_value,
     replace_existing=False,
+    include_alternate_images=False,
 ):
     try:
         limit_value = int(
@@ -33362,6 +33869,44 @@ def get_next_upscale_batch_card_uuids(
         ),
     )
 
+    alternate_source_filter_sql = ""
+
+    if not include_alternate_images:
+        alternate_source_filter_sql = """
+          AND NOT EXISTS (
+                SELECT 1
+                FROM alternate_sources alt
+                WHERE alt.is_enabled = 1
+                  AND (
+                        alt.card_uuid = cc.card_uuid
+                        OR (
+                            UPPER(
+                                COALESCE(
+                                    alt.set_code,
+                                    ''
+                                )
+                            ) = UPPER(
+                                COALESCE(
+                                    cc.set_code,
+                                    ''
+                                )
+                            )
+                            AND LOWER(
+                                COALESCE(
+                                    alt.collector_number,
+                                    ''
+                                )
+                            ) = LOWER(
+                                COALESCE(
+                                    cc.collector_number,
+                                    ''
+                                )
+                            )
+                        )
+                      )
+              )
+        """
+
     current_upscale_filter_sql = ""
 
     if not replace_existing:
@@ -33371,6 +33916,19 @@ def get_next_upscale_batch_card_uuids(
                 FROM upscaled_images ui
                 WHERE ui.is_current = 1
                   AND ui.quality_status = 'accepted'
+                  AND (
+                        COALESCE(
+                            ui.source_type,
+                            'scryfall'
+                        ) = 'scryfall'
+                        OR EXISTS (
+                            SELECT 1
+                            FROM alternate_sources current_alt
+                            WHERE current_alt.is_enabled = 1
+                              AND current_alt.alternate_source_id =
+                                  ui.alternate_source_id
+                        )
+                      )
                   AND (
                         ui.card_uuid = cc.card_uuid
                         OR (
@@ -33446,38 +34004,7 @@ def get_next_upscale_batch_card_uuids(
                     ) <> ''
                 )
               )
-          AND NOT EXISTS (
-                SELECT 1
-                FROM alternate_sources alt
-                WHERE alt.is_enabled = 1
-                  AND (
-                        alt.card_uuid = cc.card_uuid
-                        OR (
-                            UPPER(
-                                COALESCE(
-                                    alt.set_code,
-                                    ''
-                                )
-                            ) = UPPER(
-                                COALESCE(
-                                    cc.set_code,
-                                    ''
-                                )
-                            )
-                            AND LOWER(
-                                COALESCE(
-                                    alt.collector_number,
-                                    ''
-                                )
-                            ) = LOWER(
-                                COALESCE(
-                                    cc.collector_number,
-                                    ''
-                                )
-                            )
-                        )
-                      )
-              )
+          {alternate_source_filter_sql}
           {current_upscale_filter_sql}
         ORDER BY
             cc.card_name COLLATE NOCASE ASC,
@@ -33894,6 +34421,10 @@ def run_upscaling_batch_job(
     replace_existing=False,
     holofoil_stamp_replacement=None,
     image_owner=None,
+    include_alternate_images=False,
+    alternate_image_max_bytes=(
+        4 * 1024 * 1024
+    ),
 ):
     try:
         total_cards = len(
@@ -33957,6 +34488,12 @@ def run_upscaling_batch_job(
                     image_context=image_context,
                     replace_existing=(
                         replace_existing
+                    ),
+                    include_alternate_images=(
+                        include_alternate_images
+                    ),
+                    alternate_image_max_bytes=(
+                        alternate_image_max_bytes
                     ),
                 )
             )
@@ -34023,6 +34560,9 @@ def run_upscaling_batch_job(
                         requested_face="front",
                         holofoil_stamp_replacement=(
                             holofoil_stamp_replacement
+                        ),
+                        image_context=(
+                            image_context
                         ),
                     )
                 )
@@ -34198,6 +34738,60 @@ def upscaling_batch_start():
         )
     )
 
+    include_alternate_images = bool(
+        payload.get(
+            "include_alternate_images",
+            False,
+        )
+    )
+
+    try:
+        alternate_image_max_mb = float(
+            payload.get(
+                "alternate_image_max_mb",
+                4.0,
+            )
+            or 4.0
+        )
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Alternate Image maximum "
+                "file size must be a number."
+            ),
+        }), 400
+
+    if (
+        not math.isfinite(
+            alternate_image_max_mb
+        )
+        or alternate_image_max_mb <= 0
+        or alternate_image_max_mb > 256
+    ):
+        return jsonify({
+            "ok": False,
+            "message": (
+                "Alternate Image maximum "
+                "file size must be between "
+                "0.01 and 256 MB."
+            ),
+        }), 400
+
+    alternate_image_max_mb = round(
+        alternate_image_max_mb,
+        2,
+    )
+
+    alternate_image_max_bytes = int(
+        alternate_image_max_mb
+        * 1024
+        * 1024
+    )
+
     try:
         holofoil_stamp_replacement = (
             resolve_upscaling_holofoil_stamp_replacement(
@@ -34272,6 +34866,9 @@ def upscaling_batch_start():
                 raw_limit,
                 replace_existing=(
                     replace_existing
+                ),
+                include_alternate_images=(
+                    include_alternate_images
                 ),
             )
         )
@@ -34368,6 +34965,12 @@ def upscaling_batch_start():
             "replace_existing": (
                 replace_existing
             ),
+            "include_alternate_images": (
+                include_alternate_images
+            ),
+            "alternate_image_max_mb": (
+                alternate_image_max_mb
+            ),
             "holofoil_stamp_replacement": (
                 holofoil_stamp_replacement
             ),
@@ -34420,6 +35023,12 @@ def upscaling_batch_start():
             ),
             "replace_existing": (
                 replace_existing
+            ),
+            "include_alternate_images": (
+                include_alternate_images
+            ),
+            "alternate_image_max_bytes": (
+                alternate_image_max_bytes
             ),
             "holofoil_stamp_replacement": (
                 holofoil_stamp_replacement
@@ -35111,12 +35720,43 @@ def chaos_card_upscale_revert(
             ),
         }), 404
 
+    image_context = (
+        get_requested_image_context()
+    )
+
+    source_identity = (
+        get_card_upscale_source_identity(
+            card_row,
+            face_kind=(
+                face_context[
+                    "page_kind"
+                ]
+            ),
+            image_context=image_context,
+        )
+    )
+
     current_upscaled = (
         get_current_upscaled_image_for_card(
             card_row,
             face_kind=(
                 face_context[
                     "page_kind"
+                ]
+            ),
+            source_type=(
+                source_identity[
+                    "source_type"
+                ]
+            ),
+            alternate_source_id=(
+                source_identity[
+                    "alternate_source_id"
+                ]
+            ),
+            source_image_scope_id=(
+                source_identity[
+                    "source_image_scope_id"
                 ]
             ),
         )
@@ -35144,6 +35784,21 @@ def chaos_card_upscale_revert(
             face_kind=(
                 face_context[
                     "page_kind"
+                ]
+            ),
+            source_type=(
+                source_identity[
+                    "source_type"
+                ]
+            ),
+            alternate_source_id=(
+                source_identity[
+                    "alternate_source_id"
+                ]
+            ),
+            source_image_scope_id=(
+                source_identity[
+                    "source_image_scope_id"
                 ]
             ),
         )
