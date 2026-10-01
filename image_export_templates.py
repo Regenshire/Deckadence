@@ -535,6 +535,7 @@ CARD_EXPORT_FRAME_TEMPLATES = {
 
         # Based on the 1993 frame, but make the export box feel more like a
         # "floating" tag instead of something attached directly to the edge.
+        # text_box "y1": 0.972, "y2": 0.990
         "overlay_box": {
             "x1": 0.285,
             "y1": 0.944,
@@ -543,9 +544,9 @@ CARD_EXPORT_FRAME_TEMPLATES = {
         },
         "text_box": {
             "x1": 0.220,
-            "y1": 0.972,
+            "y1": 0.962,
             "x2": 0.780,
-            "y2": 0.990,
+            "y2": 0.980,
         },
         "text_align": "center",
 
