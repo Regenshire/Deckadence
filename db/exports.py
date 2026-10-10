@@ -6,6 +6,9 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from io import BytesIO
 from contextlib import closing
+from tempfile import TemporaryDirectory
+
+from user_backup_system import UserBackupService as ApplicationBackupService
 from uuid import uuid4
 import json
 
@@ -1808,14 +1811,10 @@ def export_default_campaign_archive(
 
 @isolation_operation
 def export_full_archive(auto_clear_exports_value=None):
-    rows_by_table = build_full_rows_by_table()
+    # Portable user archives are kept separately from disposable print/pack exports.
+    from settings import APP_VERSION
+    return ApplicationBackupService(app_version=APP_VERSION).create_backup()
 
-    return create_export_archive(
-        export_kind=EXPORT_KIND_FULL,
-        rows_by_table=rows_by_table,
-        filename_prefix="imomir_full_backup",
-        auto_clear_exports_value=auto_clear_exports_value,
-    )
 
 
 def load_export_manifest_from_zip(zip_file):
@@ -2987,6 +2986,13 @@ def import_archive_from_path(
             "Export archive was not found."
         )
 
+    if import_scope == EXPORT_KIND_FULL and ApplicationBackupService.is_backup(archive_path):
+        from settings import APP_VERSION
+        return ApplicationBackupService(app_version=APP_VERSION).import_backup(archive_path)
+
+    if import_scope == EXPORT_KIND_FULL:
+        raise ValueError("Legacy full backups cannot be merged safely. Create a portable user-content export in the source installation.")
+
     with zipfile.ZipFile(
         archive_path,
         "r",
@@ -3092,101 +3098,17 @@ def import_archive_from_file_object(
             "No export archive file was provided."
         )
 
-    archive_bytes = file_object.read()
-
-    if not archive_bytes:
-        raise ValueError(
-            "Export archive file was empty."
+    # FileStorage is already disk-spooled by Werkzeug. Copy in bounded chunks;
+    # never create a second, in-memory representation of a multi-gigabyte ZIP.
+    ensure_export_root()
+    with TemporaryDirectory(prefix="import-", dir=EXPORT_ROOT_DIR) as temporary:
+        archive_path = os.path.join(temporary, "archive.zip")
+        with open(archive_path, "wb") as destination:
+            shutil.copyfileobj(file_object, destination, length=4 * 1024 * 1024)
+        if os.path.getsize(archive_path) == 0:
+            raise ValueError("Export archive file was empty.")
+        return import_archive_from_path(
+            archive_path, import_scope,
+            campaign_name_override=campaign_name_override,
+            target_campaign_id=target_campaign_id,
         )
-
-    with zipfile.ZipFile(
-        BytesIO(archive_bytes),
-        "r",
-    ) as zip_file:
-        root = load_export_manifest_from_zip(
-            zip_file
-        )
-
-        manifest_kind = (
-            root.get("kind")
-            or ""
-        ).strip().lower()
-
-        content_mode = (
-            get_archive_content_mode(root)
-        )
-
-        if manifest_kind != import_scope:
-            raise ValueError(
-                "This archive contains "
-                f"{manifest_kind or 'unknown'} data, not "
-                f"{import_scope} data."
-            )
-
-        allowed_tables = (
-            get_allowed_tables_for_import(
-                import_scope
-            )
-        )
-
-        rows_by_table = (
-            prepare_isolated_archive_import(
-                zip_file,
-                root,
-            )
-        )
-
-        portable_metadata = {}
-
-        if import_scope in {
-            EXPORT_KIND_CAMPAIGN,
-            EXPORT_KIND_PACKS,
-        }:
-            validate_portable_pack_integrity(
-                rows_by_table,
-                require_membership=(
-                    import_scope
-                    == EXPORT_KIND_CAMPAIGN
-                ),
-            )
-
-            (
-                rows_by_table,
-                portable_metadata,
-            ) = remap_portable_import_rows(
-                rows_by_table,
-                import_scope,
-                campaign_name_override=(
-                    campaign_name_override
-                ),
-                target_campaign_id=(
-                    target_campaign_id
-                ),
-            )
-
-        extracted_files = (
-            extract_files_from_manifest(
-                zip_file,
-                root,
-            )
-        )
-
-        imported_rows = (
-            insert_or_replace_manifest_rows(
-                rows_by_table,
-                allowed_tables,
-                replace_existing=(
-                    import_scope
-                    == EXPORT_KIND_FULL
-                ),
-            )
-        )
-
-    return {
-        "manifest_kind": manifest_kind,
-        "content_mode": content_mode,
-        "import_scope": import_scope,
-        "imported_rows": imported_rows,
-        "extracted_files": extracted_files,
-        **portable_metadata,
-    }

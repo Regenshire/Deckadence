@@ -1,0 +1,80 @@
+<div
+    id="applicationBackupPanel"
+    class="application-backup-panel"
+    data-status-url="{{ url_for('application_backups.status') }}"
+    data-create-url="{{ url_for('application_backups.create') }}"
+    data-import-url="{{ url_for('application_backups.restore') }}"
+    data-cancel-url="{{ url_for('application_backups.cancel_restore') }}"
+>
+    <p>
+        Export custom sets, saved decks, packs, campaigns, players, history, alternate
+        and isolated artwork, upscaled images, deck art, custom icons and card backs,
+        modified print and cutting templates, and settings.
+        Plugins, AI models, base Scryfall images, application files, and the full database are excluded.
+    </p>
+    <div class="application-backup-fields">
+        <label class="application-backup-field">
+            <span>Backup folder on the Deckadence computer (optional)</span>
+            <input type="text" id="applicationBackupFolder" class="campaign-add-pack-custom-input"
+                   placeholder="Defaults to the Backups folder beside Deckadence" autocomplete="off">
+        </label>
+        <button type="button" id="applicationBackupCreate" class="action-button cleanup-action-button">
+            Export User Content
+        </button>
+        <button type="button" id="applicationBackupShowProgress" class="action-button secondary-button hidden">View Export / Import Status</button>
+    </div>
+    <p class="application-backup-hint">
+        Large backups are saved on disk before downloading. Choose a drive with enough free space.
+        Backups are kept separately from Export cleanup. Other application requests pause while a job runs.
+    </p>
+    <dialog id="applicationBackupModal" class="application-backup-modal" aria-labelledby="applicationBackupModalTitle">
+      <div class="application-backup-modal-header">
+        <h3 id="applicationBackupModalTitle">User Content Export / Import</h3>
+        <button type="button" id="applicationBackupModalClose" class="action-button secondary-button" aria-label="Close status">Close</button>
+      </div>
+      <div class="application-backup-status" role="status" aria-live="polite">
+        <strong id="applicationBackupStage">Idle</strong>
+        <span id="applicationBackupMessage"></span>
+        <progress id="applicationBackupProgress" max="100" value="0" aria-label="Backup or restore progress"></progress>
+        <span id="applicationBackupDetail"></span>
+        <span id="applicationBackupCurrentFile" class="application-backup-hint"></span>
+        <span id="applicationBackupError" class="application-backup-error hidden" role="alert"></span>
+        <a id="applicationBackupDownload" class="action-button secondary-button hidden">Download Exported Archive</a>
+        <span id="applicationBackupSavedPath"></span>
+      </div>
+    </dialog>
+    <hr>
+    <h3>Import user content</h3>
+    <p>
+        Import adds content to your existing database. Decks, packs, campaigns, players,
+        and isolation scopes receive new identifiers; conflicting custom set codes and
+        template names are renamed. Existing content is preserved. Imported settings and
+        custom pack artwork overrides are applied. No restart is required.
+    </p>
+    <label class="application-backup-field">
+        <span>Backup ZIP path on the Deckadence computer</span>
+        <input type="text" id="applicationRestorePath" class="campaign-add-pack-custom-input"
+               placeholder="Example: D:\Backups\deckadence_user_content.zip" autocomplete="off">
+    </label>
+    <p class="application-backup-hint">
+        For 10–100 GB backups, use a local ZIP path to avoid uploading another copy.
+        Import needs free space for extracted custom assets and temporary record processing.
+    </p>
+    <label class="application-backup-field">
+        <span>Or upload a backup ZIP</span>
+        <input type="file" id="applicationRestoreFile" accept=".zip,application/zip">
+    </label>
+    <div class="application-backup-fields">
+        <label class="application-backup-field">
+            <span>Type IMPORT to confirm adding content and applying settings</span>
+            <input type="text" id="applicationRestoreConfirmation" class="campaign-add-pack-custom-input"
+                   autocomplete="off" spellcheck="false" placeholder="IMPORT">
+        </label>
+        <button type="button" id="applicationRestoreStart" class="action-button campaign-danger-button" disabled>
+            Validate and Import
+        </button>
+        <button type="button" id="applicationRestoreCancel" class="action-button secondary-button hidden">
+            Cancel Old Staged Full Restore
+        </button>
+    </div>
+</div>

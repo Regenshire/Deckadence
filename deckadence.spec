@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
 import shutil
+import subprocess
+import sys
 
 from PyInstaller.utils.hooks import collect_submodules
 
@@ -10,12 +12,16 @@ hiddenimports += collect_submodules('modes')
 hiddenimports += collect_submodules('ui')
 hiddenimports += collect_submodules('plugin_system')
 
+# Baseline only tracked shipped resources; portable backups exclude unchanged defaults.
+subprocess.run([sys.executable, os.path.join(SPECPATH, 'tools', 'update_backup_defaults.py')], cwd=SPECPATH, check=True)
+
 
 a = Analysis(
     ['app.py'],
     pathex=['.'],
     binaries=[],
     datas=[
+        ('backup_defaults.json', '.'),
         ('templates', 'templates'),
         ('static', 'static'),
         ('print', 'print'),

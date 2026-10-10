@@ -1,3 +1,8 @@
+from user_backup_system import recover_interrupted_import
+
+# Recover only an interrupted portable import's asset/settings changes.
+recover_interrupted_import()
+
 import copy
 import csv
 import gzip
@@ -276,6 +281,7 @@ from db.deckdb import (
     add_basic_land_to_deck,
     add_card_to_deckbuilder_sideboard,
     archive_deck,
+    archive_decks,
     build_deckbuilder_context_for_deck,
     build_deckbuilder_context_for_draft_test,
     bulk_deckbuilder_card_action,
@@ -451,6 +457,21 @@ app = Flask(
     static_folder=get_static_dir(),
 )
 app.secret_key = APP_SECRET_KEY
+
+from ui.backups import register_backup_routes
+
+application_backup_jobs = register_backup_routes(
+    app,
+    app_version=APP_VERSION,
+    guard=isolation_guard,
+    activity_check=lambda: (
+        get_refresh_status_copy().get("is_running")
+        or get_image_download_status_copy().get("is_running")
+        or get_alternate_bleed_reprocess_status_copy().get("is_running")
+        or get_upscaling_batch_status_copy().get("is_running")
+        or has_active_manual_upscale_runs()
+    ),
+)
 
 DECK_ART_RENDERER = DeckArtRenderer(
     static_root=app.static_folder,
@@ -7681,13 +7702,10 @@ def get_pack_label_set_icon_path(set_code, fallback_set_code=None):
         conn.close()
 
         if row and row["local_icon_svg_path"]:
-            candidate_path = os.path.join(
-                app.static_folder,
-                str(row["local_icon_svg_path"]).replace("/", os.sep),
-            )
-
-            if os.path.exists(candidate_path):
-                return candidate_path
+            for static_folder in (os.path.join(RUNTIME_BASE_DIR, "static"), app.static_folder):
+                candidate_path = os.path.join(static_folder, str(row["local_icon_svg_path"]).replace("/", os.sep))
+                if os.path.isfile(candidate_path):
+                    return candidate_path
 
     except Exception:
         pass
@@ -7706,6 +7724,17 @@ def get_pack_label_set_icon_path(set_code, fallback_set_code=None):
         return get_pack_label_set_icon_path(clean_fallback_set_code)
 
     return ""
+
+
+@app.get("/static/img/set_icons/<path:filename>")
+def runtime_set_icon(filename):
+    from flask import send_from_directory
+    from werkzeug.utils import safe_join
+    runtime_directory = os.path.join(RUNTIME_BASE_DIR, "static", "img", "set_icons")
+    candidate = safe_join(runtime_directory, filename)
+    if candidate and os.path.isfile(candidate):
+        return send_from_directory(runtime_directory, filename)
+    return send_from_directory(os.path.join(app.static_folder, "img", "set_icons"), filename)
 
 
 def get_pack_label_signature_path(template_config=None):
@@ -12330,6 +12359,8 @@ def _run_isolation_maintenance():
 
 @app.before_request
 def maintain_isolated_images():
+    if application_backup_jobs.busy or application_backup_jobs.service.pending.exists():
+        return
     global _isolation_maintenance_next
     global _isolation_maintenance_running
 
@@ -21881,6 +21912,11 @@ def maintenance_import_imomir():
     backup_file = request.files.get("backup_file")
 
     try:
+        if backup_file:
+            from user_backup_system import UserBackupService as ApplicationBackupService
+            if ApplicationBackupService.is_backup(backup_file.stream):
+                raise ValueError("Use the user-content Import controls and type IMPORT to import this archive.")
+            backup_file.stream.seek(0)
         import_result = import_archive_from_file_object(
             backup_file,
             EXPORT_KIND_FULL,
@@ -21890,8 +21926,10 @@ def maintenance_import_imomir():
         return redirect(url_for("config"))
 
     flash(
-        f"Import complete. Imported {import_result['imported_rows']} row(s) "
-        f"and restored {import_result['extracted_files']} file(s)."
+        import_result.get("message") or (
+            f"Import complete. Imported {import_result['imported_rows']} row(s) "
+            f"and restored {import_result['extracted_files']} file(s)."
+        )
     )
 
     return redirect(url_for("config"))
@@ -28464,6 +28502,18 @@ def deckbuilder_export_zip(deck_id):
         download_name=download_filename,
         max_age=0,
     )
+
+@app.route("/deck-builder/delete-selected", methods=["POST"])
+def deckbuilder_delete_selected():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"ok": False, "message": "Invalid deletion request."}), 400
+    if str(payload.get("confirmation") or "").strip().upper() != "DELETE":
+        return jsonify({"ok": False, "message": "Type DELETE to confirm deleting the selected decks."}), 400
+
+    result = archive_decks(payload.get("deck_ids"))
+    return jsonify(result), 200 if result.get("ok") else 400
+
 
 @app.route("/deck-builder/<int:deck_id>/delete", methods=["POST"])
 def deckbuilder_delete(deck_id):
@@ -37817,6 +37867,7 @@ if __name__ == "__main__":
             host="0.0.0.0",
             port=APP_SERVER_PORT,
             threads=8,
+            max_request_body_size=200 * 1024 ** 3,
         )
     else:
         app.run(

@@ -1,6 +1,10 @@
 {% extends "base.html" %} {% block title %}Deckadence - Decks{% endblock %} {%
 block content %}
-<div class="deckbuilder-manage-page">
+<div
+  class="deckbuilder-manage-page"
+  id="deckbuilderManagePage"
+  data-bulk-delete-url="{{ url_for('deckbuilder_delete_selected') }}"
+>
   <header class="deckbuilder-manage-header">
     <div class="deckbuilder-manage-header-copy">
       <h1>Decks</h1>
@@ -128,9 +132,33 @@ block content %}
     Page {{ pagination.page }} of {{ pagination.total_pages }} {% endif %}
   </div>
 
+  {% if decks %}
+  <div class="deckbuilder-manage-selection-toolbar">
+    <span id="deckbuilderManageSelectionCount" role="status" aria-live="polite">
+      0 decks selected
+    </span>
+    <button type="button" id="deckbuilderManageSelectPage" class="action-button secondary-button">
+      Select Page
+    </button>
+    <button type="button" id="deckbuilderManageClearSelection" class="action-button secondary-button" disabled>
+      Clear Selection
+    </button>
+    <button type="button" id="deckbuilderManageDeleteSelected" class="action-button campaign-danger-button" disabled>
+      Delete Selected
+    </button>
+  </div>
+  {% endif %}
+
   <section class="deckbuilder-manage-list">
     {% if decks %} {% for deck in decks %}
-    <article class="deckbuilder-manage-card">
+    <article
+      class="deckbuilder-manage-card"
+      data-deck-id="{{ deck.deck_id }}"
+      data-deck-name="{{ deck.deck_name }}"
+      tabindex="0"
+      role="group"
+      aria-label="{{ deck.deck_name }}. Press Space to select or deselect."
+    >
       <div class="deckbuilder-manage-card-image-column">
         {% if deck.preview_image_url %}
         <img
@@ -516,7 +544,44 @@ block content %}
     gap: 0.75rem;
   }
 
+  .deckbuilder-manage-selection-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .deckbuilder-manage-selection-toolbar .action-button {
+    width: auto;
+  }
+
+  .deckbuilder-manage-selection-toolbar > span {
+    margin-right: auto;
+    color: var(--muted);
+    font-weight: 800;
+  }
+
+  .deckbuilder-manage-card-selected {
+    outline: 3px solid rgba(59, 130, 246, 0.95);
+    outline-offset: 2px;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.55),
+      0 0 18px rgba(59, 130, 246, 0.55);
+  }
+
+  .deckbuilder-manage-card-selected .deckbuilder-manage-card-image {
+    filter: brightness(1.1) saturate(1.08);
+  }
+
+  #deckbuilderManageDeleteDeckName {
+    white-space: pre-line;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
   .deckbuilder-manage-card {
+    position: relative;
+    cursor: pointer;
     display: grid;
     grid-template-columns: 88px minmax(0, 1fr) 326px;
     gap: 1rem;
@@ -780,213 +845,8 @@ block content %}
   }
 </style>
 
-<script>
-  (function () {
-    const deleteModal = document.getElementById(
-      "deckbuilderManageDeleteDeckModal",
-    );
-    const deleteBackdrop = document.getElementById(
-      "deckbuilderManageDeleteDeckBackdrop",
-    );
-    const deleteCloseButton = document.getElementById(
-      "deckbuilderManageDeleteDeckCloseButton",
-    );
-    const deleteDeckName = document.getElementById(
-      "deckbuilderManageDeleteDeckName",
-    );
-    const deleteConfirmInput = document.getElementById(
-      "deckbuilderManageDeleteDeckConfirmInput",
-    );
-    const deleteCancelButton = document.getElementById(
-      "deckbuilderManageDeleteDeckCancelButton",
-    );
-    const deleteConfirmButton = document.getElementById(
-      "deckbuilderManageDeleteDeckConfirmButton",
-    );
 
-    let pendingDeleteForm = null;
-    let deleteInProgress = false;
-
-    function updateDeleteConfirmState() {
-      if (!deleteConfirmButton) {
-        return;
-      }
-
-      const confirmText = String(
-        deleteConfirmInput ? deleteConfirmInput.value : "",
-      )
-        .trim()
-        .toUpperCase();
-
-      deleteConfirmButton.disabled =
-        deleteInProgress || confirmText !== "DELETE";
-    }
-
-    function setDeleteModalVisible(isVisible) {
-      if (!deleteModal) {
-        return;
-      }
-
-      deleteModal.classList.toggle("hidden", !isVisible);
-      deleteModal.setAttribute("aria-hidden", isVisible ? "false" : "true");
-
-      if (isVisible) {
-        const deckName = pendingDeleteForm
-          ? pendingDeleteForm.dataset.deckName || "this deck"
-          : "this deck";
-
-        if (deleteDeckName) {
-          deleteDeckName.textContent = deckName;
-        }
-
-        if (deleteConfirmInput) {
-          deleteConfirmInput.value = "";
-
-          window.setTimeout(function () {
-            deleteConfirmInput.focus();
-          }, 60);
-        }
-      } else {
-        if (deleteConfirmInput) {
-          deleteConfirmInput.value = "";
-        }
-
-        pendingDeleteForm = null;
-      }
-
-      updateDeleteConfirmState();
-    }
-
-    function closeDeleteModal() {
-      if (deleteInProgress) {
-        return;
-      }
-
-      setDeleteModalVisible(false);
-    }
-
-    async function deletePendingDeck() {
-      if (deleteInProgress || !pendingDeleteForm) {
-        return;
-      }
-
-      const confirmText = String(
-        deleteConfirmInput ? deleteConfirmInput.value : "",
-      )
-        .trim()
-        .toUpperCase();
-
-      if (confirmText !== "DELETE") {
-        updateDeleteConfirmState();
-        return;
-      }
-
-      deleteInProgress = true;
-
-      if (deleteConfirmButton) {
-        deleteConfirmButton.disabled = true;
-        deleteConfirmButton.textContent = "Deleting...";
-      }
-
-      try {
-        const response = await fetch(pendingDeleteForm.action, {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-          },
-        });
-
-        let payload = {};
-
-        try {
-          payload = await response.json();
-        } catch (parseError) {
-          payload = {};
-        }
-
-        if (!response.ok || !payload.ok) {
-          throw new Error(payload.message || "Failed to delete deck.");
-        }
-
-        deleteInProgress = false;
-
-        if (deleteConfirmButton) {
-          deleteConfirmButton.textContent = "Delete Deck";
-        }
-
-        setDeleteModalVisible(false);
-
-        if (window.iMomirToast) {
-          window.iMomirToast.success(payload.message || "Deck deleted.");
-        }
-
-        window.setTimeout(function () {
-          window.location.reload();
-        }, 650);
-      } catch (error) {
-        console.error(error);
-
-        deleteInProgress = false;
-
-        if (deleteConfirmButton) {
-          deleteConfirmButton.textContent = "Delete Deck";
-        }
-
-        updateDeleteConfirmState();
-
-        if (window.iMomirToast) {
-          window.iMomirToast.error(error.message || "Failed to delete deck.");
-        } else {
-          window.alert(error.message || "Failed to delete deck.");
-        }
-      }
-    }
-
-    document
-      .querySelectorAll(".deckbuilder-manage-delete-form")
-      .forEach(function (formElement) {
-        formElement.addEventListener("submit", function (event) {
-          event.preventDefault();
-
-          if (deleteInProgress) {
-            return;
-          }
-
-          pendingDeleteForm = formElement;
-          setDeleteModalVisible(true);
-        });
-      });
-
-    if (deleteBackdrop) {
-      deleteBackdrop.addEventListener("click", closeDeleteModal);
-    }
-
-    if (deleteCloseButton) {
-      deleteCloseButton.addEventListener("click", closeDeleteModal);
-    }
-
-    if (deleteCancelButton) {
-      deleteCancelButton.addEventListener("click", closeDeleteModal);
-    }
-
-    if (deleteConfirmInput) {
-      deleteConfirmInput.addEventListener("input", updateDeleteConfirmState);
-
-      deleteConfirmInput.addEventListener("keydown", function (event) {
-        if (
-          event.key === "Enter" &&
-          String(deleteConfirmInput.value || "").trim().toUpperCase() ===
-            "DELETE"
-        ) {
-          event.preventDefault();
-          deletePendingDeck();
-        }
-      });
-    }
-
-    if (deleteConfirmButton) {
-      deleteConfirmButton.addEventListener("click", deletePendingDeck);
-    }
-  })();
-</script>
+{% endblock %}
+{% block page_scripts_after_app %}
+<script src="{{ url_for('static', filename='js/deckbuilder_manage.js') }}"></script>
 {% endblock %}

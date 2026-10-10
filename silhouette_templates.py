@@ -2,6 +2,7 @@ import json
 import os
 import re
 import threading
+from paths import RUNTIME_BASE_DIR, BUNDLE_BASE_DIR
 
 
 STUDIO3_EXTENSION = ".studio3"
@@ -19,6 +20,8 @@ _manifest_lock = threading.Lock()
 
 
 def get_silhouette_studio3_dir(static_folder):
+    if os.path.abspath(RUNTIME_BASE_DIR) != os.path.abspath(BUNDLE_BASE_DIR):
+        return os.path.join(RUNTIME_BASE_DIR, "static", "sil", "Studio3")
     return os.path.join(
         os.path.abspath(static_folder),
         "sil",
@@ -90,10 +93,11 @@ def _read_manifest_document(static_folder):
     )
 
     if not os.path.isfile(manifest_path):
-        return {
-            "version": 1,
-            "templates": [],
-        }
+        bundled_manifest = os.path.join(static_folder, "sil", "Studio3", SILHOUETTE_TEMPLATE_MANIFEST_FILENAME)
+        if os.path.isfile(bundled_manifest):
+            manifest_path = bundled_manifest
+        else:
+            return {"version": 1, "templates": []}
 
     try:
         with open(
@@ -225,7 +229,9 @@ def list_silhouette_templates(
         if not os.path.isfile(
             absolute_path
         ):
-            continue
+            absolute_path = os.path.join(static_folder, "sil", "Studio3", filename)
+            if not os.path.isfile(absolute_path):
+                continue
 
         name = str(
             raw_entry.get("name")

@@ -376,11 +376,10 @@ class ExternalDeckRouletteService:
             )
         )
 
-        if len(candidates) < wheel_size:
+        if not candidates:
             raise ExternalDeckSelectionError(
-                "Deck Roulette found only "
-                f"{len(candidates)} complete "
-                "deck(s) within the selected "
+                "Deck Roulette found no complete "
+                "decks within the selected "
                 "top-result range and filters."
             )
 

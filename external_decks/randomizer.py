@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import math
 import random
+import re
 
 from .core import (
     ExternalDeckProvider,
@@ -13,6 +15,10 @@ from .core import (
 
 
 class ExternalDeckRandomizer:
+    _TITLE_PHRASE_RE = re.compile(
+        r'"([^"]+)"|“([^”]+)”'
+    )
+
     COLOR_ORDER = (
         "W",
         "U",
@@ -43,6 +49,18 @@ class ExternalDeckRandomizer:
             filters
             or ExternalDeckSearchFilters()
         )
+
+        title_search, title_phrases = (
+            self._parse_title_search(
+                filters.deck_name
+            )
+        )
+
+        if title_phrases:
+            filters = replace(
+                filters,
+                deck_name=title_search,
+            )
 
         options = (
             options
@@ -246,6 +264,17 @@ class ExternalDeckRandomizer:
             )
 
             for deck in page.decks:
+                if title_phrases:
+                    normalized_title = " ".join(
+                        str(deck.name or "").split()
+                    ).casefold()
+
+                    if not all(
+                        phrase in normalized_title
+                        for phrase in title_phrases
+                    ):
+                        continue
+
                 if not self._is_allowed(
                     deck,
                     options,
@@ -313,6 +342,29 @@ class ExternalDeckRandomizer:
                 pages_sampled
             ),
         )
+
+    @classmethod
+    def _parse_title_search(
+        cls,
+        value,
+    ):
+        title_search = str(value or "").strip()
+        phrases = tuple(
+            normalized_phrase
+            for match in cls._TITLE_PHRASE_RE.finditer(
+                title_search
+            )
+            if (normalized_phrase := " ".join(
+                match.group(0)[1:-1].split()
+            ).casefold())
+        )
+
+        provider_search = cls._TITLE_PHRASE_RE.sub(
+            lambda match: match.group(0)[1:-1],
+            title_search,
+        )
+
+        return provider_search, phrases
 
     def _sample_page_numbers(
         self,

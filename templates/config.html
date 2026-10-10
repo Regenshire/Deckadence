@@ -796,37 +796,18 @@
             </button>
 
             <div class="collapsible-body cleanup-panel-body">
-                <div class="cleanup-action-row">
-                    <form method="post" action="{{ url_for('maintenance_backup_imomir') }}" target="_blank">
-                        <button type="submit" class="action-button cleanup-action-button">
-                            Backup Deckadence
-                        </button>
-                    </form>
-
-                    <form
-                        method="post"
-                        action="{{ url_for('maintenance_import_imomir') }}"
-                        enctype="multipart/form-data"
-                        class="campaign-inline-import-form"
-                    >
-                        <label class="action-button secondary-button cleanup-action-button cleanup-file-button">
-                            Import Deckadence
-                            <input
-                                type="file"
-                                name="backup_file"
-                                accept=".zip"
-                                class="hidden"
-                                onchange="this.form.submit();"
-                            >
-                        </label>
-                    </form>
-
+                {% include "_application_backup_controls.html" %}
+                <details>
+                    <summary>Individual pack exports</summary>
+                    <p>Full-database and legacy full backups cannot be merged into an existing installation. Use a user-content export for transfers.</p>
+                    <div class="cleanup-action-row">
                     <form method="post" action="{{ url_for('maintenance_backup_all_packs') }}" target="_blank">
                         <button type="submit" class="action-button secondary-button cleanup-action-button">
                             Backup All Packs
                         </button>
                     </form>
                 </div>
+                </details>
             </div>
         </div>
 
@@ -2484,5 +2465,6 @@
 
 {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/application_backups.js') }}"></script>
 {% endblock %}
 

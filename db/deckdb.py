@@ -602,6 +602,55 @@ def archive_deck(deck_id):
     }
 
 
+@isolation_operation
+def archive_decks(deck_ids):
+    if not isinstance(deck_ids, (list, tuple)) or not 1 <= len(deck_ids) <= 100:
+        return {"ok": False, "message": "Select between 1 and 100 decks to delete."}
+
+    parsed_ids = []
+    for value in deck_ids:
+        if isinstance(value, bool) or not isinstance(value, (int, str)):
+            return {"ok": False, "message": "Invalid deck ID."}
+        try:
+            deck_id = int(value)
+        except (TypeError, ValueError):
+            return {"ok": False, "message": "Invalid deck ID."}
+        if deck_id <= 0:
+            return {"ok": False, "message": "Invalid deck ID."}
+        if deck_id not in parsed_ids:
+            parsed_ids.append(deck_id)
+
+    ensure_deck_schema()
+    placeholders = ",".join("?" for _ in parsed_ids)
+    conn = get_db_connection()
+    try:
+        with conn:
+            conn.execute("BEGIN IMMEDIATE")
+            rows = conn.execute(
+                f"SELECT deck_id FROM decks WHERE status = ? AND deck_id IN ({placeholders})",
+                (DECK_STATUS_ACTIVE, *parsed_ids),
+            ).fetchall()
+            if len(rows) != len(parsed_ids):
+                return {
+                    "ok": False,
+                    "message": "One or more selected decks were not found or are already deleted. Refresh the page and try again.",
+                }
+            conn.execute(
+                f"UPDATE decks SET status = ?, updated_at_utc = ? WHERE deck_id IN ({placeholders})",
+                (DECK_STATUS_ARCHIVED, deck_utc_now(), *parsed_ids),
+            )
+    finally:
+        conn.close()
+
+    count = len(parsed_ids)
+    return {
+        "ok": True,
+        "message": f"{count} deck{'s' if count != 1 else ''} deleted.",
+        "deck_ids": parsed_ids,
+        "deleted_count": count,
+    }
+
+
 def get_deckbuilder_basic_land_card_row(cursor, land_name, deck_id=None):
     clean_land_name = normalize_deck_basic_land_name(land_name)
     parsed_deck_id = normalize_deck_optional_int(deck_id)
