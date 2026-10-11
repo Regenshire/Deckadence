@@ -44,3 +44,17 @@ html[data-theme] .campaign-management .ui-list-results-summary { font: 700 13px/
  html[data-theme] .campaign-management .campaign-management-row { padding: 22px 16px; }
  html[data-theme] .campaign-management .campaign-name-heading { font-size: 17px; }
 }
+
+/* Prominent campaign typography and clear interactive count targets. */
+html[data-theme] .campaign-management .campaign-name-heading { font: 700 20px/1.4 Arial,sans-serif; }
+html[data-theme] .campaign-management .campaign-count strong { font: 700 27px/1.2 Arial,sans-serif; }
+html[data-theme] .campaign-management .campaign-count span { font: 700 14px/1.4 Arial,sans-serif; }
+html[data-theme] .campaign-management .campaign-count { transition: background-color .15s ease, border-color .15s ease; }
+html[data-theme] .campaign-management .campaign-count:hover:not(:disabled),
+html[data-theme] .campaign-management .campaign-count:focus-visible {
+ background: var(--panel-2); border-left-color: var(--accent); color: var(--text);
+}
+html[data-theme] .campaign-management .campaign-count:hover:not(:disabled) span,
+html[data-theme] .campaign-management .campaign-count:focus-visible span { color: var(--accent); }
+html[data-theme] .campaign-management .campaign-count:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+html[data-theme] .campaign-management .campaign-status { font: 400 13px/1.4 Arial,sans-serif; }

@@ -1,0 +1,51 @@
+html[data-theme] .campaign-history-themed{font:400 15px/1.4 Arial,sans-serif}
+html[data-theme] .campaign-history-themed .campaign-history-page-heading{background:transparent;border:0;box-shadow:none;padding:8px 4px;margin:0}
+.campaign-history-eyebrow{font:700 11px/1.4 Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
+html[data-theme] .campaign-history-themed .page-title{font:700 32px/1.3 Arial,sans-serif;margin:8px 0}
+html[data-theme] .campaign-history-themed .page-subtitle{font:400 16px/1.5 Arial,sans-serif;margin:0;color:var(--muted)}
+.campaign-history-summary{display:flex;gap:24px;flex-wrap:wrap;margin:0 4px;color:var(--muted);font-size:14px}.campaign-history-summary strong{font-size:20px;color:var(--text);margin-right:5px}
+.campaign-history-frame{border:3px solid var(--insert-frame);border-radius:24px;background:var(--panel);overflow:hidden}
+html[data-theme] .campaign-history-themed .campaign-history-frame .page-panel{border:0;border-radius:0;background:transparent;box-shadow:none;margin:0;padding:0}
+html[data-theme] .campaign-history-themed .campaign-history-frame .campaign-history-filter-panel{padding:22px 24px;border-bottom:1px solid var(--insert-frame)}
+.campaign-history-themed .campaign-history-filter-form{display:grid;grid-template-columns:1.3fr 1.1fr 1fr 1fr auto;gap:16px;align-items:end}
+.campaign-history-themed .campaign-history-filter-field{display:grid;gap:8px;font:700 12px/1.4 Arial,sans-serif;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);min-width:0}
+html[data-theme] .campaign-history-themed .campaign-history-filter-input{font:400 15px/1.4 Arial,sans-serif;min-width:0;width:100%;height:44px;padding:10px 14px;border-radius:10px}
+.campaign-history-themed .campaign-history-filter-actions{display:flex;gap:10px}
+html[data-theme] .campaign-history-themed .action-button{display:inline-flex;align-items:center;justify-content:center;width:auto;min-width:0;margin:0;font:700 15px/1.4 Arial,sans-serif;padding:10px 16px;min-height:44px;border-radius:10px;box-sizing:border-box}
+.campaign-history-themed .campaign-history-form,.campaign-history-themed .campaign-history-list,.campaign-history-themed .campaign-history-row-list{display:flex;flex-direction:column;gap:0}
+html[data-theme] .campaign-history-themed .campaign-history-frame .campaign-bulk-actions-panel{display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px;padding:14px 24px;background:var(--panel-2);border-bottom:1px solid var(--insert-frame)}
+.campaign-history-themed .campaign-selection-tools{order:-1;display:flex;align-items:center;gap:12px;margin:0}.campaign-history-themed .campaign-history-bulk-actions{display:flex;gap:10px;flex-wrap:wrap}
+html[data-theme] .campaign-history-themed .campaign-small-link-button{font:700 14px/1.4 Arial,sans-serif;text-decoration:none;padding:0;color:var(--accent)}
+#campaignHistorySelectionCount{font:400 14px/1.4 Arial,sans-serif;color:var(--muted)}
+html[data-theme] .campaign-history-themed .campaign-history-draft-header{margin:24px 24px 0;padding:0 0 12px;border-bottom:1px solid var(--insert-frame);background:transparent}
+.campaign-history-themed .campaign-history-draft-header>div{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap}
+html[data-theme] .campaign-history-themed .campaign-history-draft-title{font:700 18px/1.4 Arial,sans-serif;margin:0}
+.campaign-history-themed .campaign-history-draft-meta{display:flex;gap:16px;flex-wrap:wrap;font:400 13px/1.5 Arial,sans-serif;color:var(--muted)}
+/* Row measurements match campaign_packs_theme.css: 22x24 padding, 18 gap, 76x112 art. */
+html[data-theme] .campaign-history-themed .campaign-history-row{display:grid;grid-template-columns:24px 76px minmax(0,1fr) auto;gap:18px;align-items:center;padding:22px 24px;margin:0;border:0;border-bottom:1px solid var(--insert-frame);border-radius:0;background:transparent}
+html[data-theme] .campaign-history-themed .campaign-history-row:last-child{border-bottom:0}
+html[data-theme] .campaign-history-themed .campaign-history-row.is-selected{background:color-mix(in srgb,var(--accent) 5%,var(--panel))}
+html[data-theme] .campaign-history-themed .campaign-history-checkbox{appearance:auto;width:20px;height:20px;min-width:20px;min-height:20px;margin:0;accent-color:var(--accent)}
+html[data-theme] .campaign-history-themed .campaign-history-pack-image-wrap{width:76px;height:112px;background:transparent;border-radius:0}
+.campaign-history-themed .campaign-history-pack-image{width:100%;height:100%;object-fit:contain}
+.campaign-history-themed .campaign-history-main{min-width:0;gap:0}.campaign-history-themed .campaign-history-title-row{margin:0 0 8px}
+html[data-theme] .campaign-history-themed .campaign-history-pack-title{font:700 19px/1.4 Arial,sans-serif;margin:0;color:var(--text);text-decoration:none}
+.campaign-history-themed .campaign-history-meta{display:flex;flex-wrap:wrap;gap:6px 12px;font:400 14px/1.5 Arial,sans-serif;color:var(--muted)}
+.campaign-history-themed .campaign-history-player{font-weight:700;color:var(--text)}.campaign-history-themed .campaign-history-tracking{font:400 13px/1.5 monospace}
+.campaign-history-themed .campaign-history-date-row{display:flex;gap:6px 12px;flex-wrap:wrap;margin:8px 0 0;font:400 13px/1.5 Arial,sans-serif;color:var(--muted)}
+.campaign-history-themed .campaign-history-actions{display:flex;gap:10px;flex-wrap:wrap}
+html[data-theme] .campaign-history-themed .campaign-history-actions .action-button{font:700 13px/1.4 Arial,sans-serif;height:42px;min-height:42px;padding:10px 14px}
+html[data-theme] .campaign-history-themed .campaign-history-danger-panel{border:1px solid var(--insert-frame);border-radius:16px;background:var(--panel);padding:18px 24px;box-shadow:none}
+.campaign-history-danger-panel summary{font-size:14px;font-weight:700;color:var(--muted);cursor:pointer}.campaign-history-themed .campaign-history-delete-all-form{padding-top:18px}.campaign-history-themed .campaign-history-danger-copy h2{display:none}
+html[data-theme] .campaign-history-themed .campaign-history-pagination-panel{padding:14px 24px;border-top:1px solid var(--insert-frame)}
+@media(max-width:1100px){.campaign-history-themed .campaign-history-filter-form{grid-template-columns:1fr 1fr}.campaign-history-themed .campaign-history-filter-actions{grid-column:1/-1}}
+@media(max-width:900px){html[data-theme] .campaign-history-themed .campaign-history-row{grid-template-columns:24px 64px minmax(0,1fr)}html[data-theme] .campaign-history-themed .campaign-history-pack-image-wrap{width:64px;height:96px}.campaign-history-themed .campaign-history-actions{grid-column:3;justify-content:flex-start}}
+@media(max-width:600px){html[data-theme] .campaign-history-themed .page-title{font-size:26px}html[data-theme] .campaign-history-themed .campaign-history-row{padding:18px 16px;gap:12px}html[data-theme] .campaign-history-themed .campaign-history-pack-title{font-size:17px}.campaign-history-themed .campaign-history-actions{grid-column:2/-1}html[data-theme] .campaign-history-themed .campaign-history-frame :is(.campaign-history-filter-panel,.campaign-bulk-actions-panel){padding:16px}.campaign-history-themed .chaos-pack-view-header-top{flex-direction:column;align-items:flex-start}.campaign-history-themed .campaign-selection-tools{flex-wrap:wrap}.campaign-history-themed .campaign-history-draft-header>div{gap:8px}.campaign-history-themed .campaign-history-delete-all-form{flex-direction:column;align-items:flex-start}}
+
+/* Header actions align with the full heading rather than its top edge. */
+html[data-theme] .campaign-history-themed .chaos-pack-view-header-top{align-items:center;gap:24px}
+html[data-theme] .campaign-history-themed .chaos-pack-view-header-actions{align-self:center;display:flex;align-items:center;gap:10px;margin:0}
+html[data-theme] .campaign-history-themed .chaos-pack-view-header-actions .action-button{min-width:100px;min-height:48px;font:700 15px/1.4 Arial,sans-serif;padding:12px 22px}
+html[data-theme] .campaign-history-themed .campaign-history-bulk-actions .action-button:disabled,
+html[data-theme] .campaign-history-themed .campaign-history-bulk-actions .action-button:disabled:hover{background:var(--panel-2);color:var(--muted);border:1px solid var(--insert-frame);opacity:.45;cursor:not-allowed;box-shadow:none;transform:none}
+@media(max-width:600px){html[data-theme] .campaign-history-themed .chaos-pack-view-header-top{align-items:flex-start}html[data-theme] .campaign-history-themed .chaos-pack-view-header-actions{align-self:flex-start}}

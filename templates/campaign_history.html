@@ -3,15 +3,18 @@
 {% block title %}Deckadence - Campaign History{% endblock %}
 
 {% block content %}
-<div class="screen screen-wide">
-    <div class="page-panel">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/campaign_history_theme.css', v='2') }}">
+<div class="screen screen-wide campaign-history-themed">
+    <div class="page-panel campaign-history-page-heading">
         <div class="chaos-pack-view-header-top">
             <div class="chaos-pack-view-header-copy">
+                <div class="campaign-history-eyebrow">Chaos Draft / {{ "Pack History" if tracked_pack_context else "Campaign History" }}</div>
                 <h1 class="page-title">
                     {% if tracked_pack_context %}
                         Pack History
                     {% else %}
-                        Campaign History
+                        Remember the past. Or start anew.
                     {% endif %}
                 </h1>
 
@@ -48,6 +51,12 @@
         </div>
     </div>
 
+    {% set totals = namespace(selections=0, cards=0) %}
+    {% for group in grouped_drafts %}{% for row in group.rows %}
+    {% set totals.selections = totals.selections + 1 %}{% set totals.cards = totals.cards + row.total_cards %}
+    {% endfor %}{% endfor %}
+    <div class="campaign-history-summary"><span><strong>{{ grouped_drafts|length }}</strong> drafts on this page</span><span><strong>{{ totals.selections }}</strong> pack selections</span><span><strong>{{ totals.cards }}</strong> cards</span></div>
+    <div class="campaign-history-frame">
     <div class="page-panel campaign-history-filter-panel">
         <form method="get" action="{{ url_for('campaign_chaos_history') }}" class="campaign-history-filter-form">
             <label class="campaign-history-filter-field">
@@ -132,11 +141,11 @@
         <div class="page-panel campaign-bulk-actions-panel">
             <div class="campaign-bulk-actions campaign-history-bulk-actions">
                 <button
-                    type="submit"
+                    type="button"
+                    id="campaignHistoryPrintExportButton"
                     name="bulk_action"
                     value="print"
                     class="action-button"
-                    formtarget="_blank"
                 >
                     Print Selected
                 </button>
@@ -145,6 +154,7 @@
                     name="bulk_action"
                     value="delete"
                     id="campaignHistoryDeleteSelectedButton"
+                    disabled
                     class="action-button secondary-button campaign-danger-button"
                 >
                     Delete Selected History
@@ -157,7 +167,7 @@
                 </button>
                 <button type="button" id="campaignHistoryClearSelectedButton" class="campaign-small-link-button">
                     Clear Selection
-                </button>
+                </button><span id="campaignHistorySelectionCount" aria-live="polite">0 selected</span>
             </div>
         </div>
 
@@ -168,7 +178,7 @@
                     <div>
                         <h2 class="campaign-history-draft-title">{{ draft_group.draft_label }}</h2>
                         <div class="campaign-history-draft-meta">
-                            <span>{{ draft_group.campaign_name }}</span>
+                            {% if not selected_campaign %}<span>{{ draft_group.campaign_name }}</span>{% endif %}
                             {% if draft_group.draft_started_at_utc %}
                             <span>
                                 Started:
@@ -219,14 +229,13 @@
                                     {{ row.pack_display_name }}
                                 </a>
 
-                                <span class="campaign-status-badge campaign-status-enabled">
-                                    {{ row.pack_tracking_code }}
-                                </span>
+
                             </div>
 
                             <div class="campaign-history-meta">
-                                <span>Player: {{ row.player_name }}</span>
-                                <span>Campaign: {{ row.campaign_name }}</span>
+                                <span class="campaign-history-player">{{ row.player_name }}</span>
+                                <span class="campaign-history-tracking">{{ row.pack_tracking_code }}</span>
+                                
                                 <span>{{ row.set_code }}</span>
                                 <span>{{ row.booster_name }}</span>
                                 <span>{{ row.total_cards }} cards</span>
@@ -318,7 +327,8 @@
     </div>
     {% endif %}
 
-    <div class="page-panel campaign-history-danger-panel">
+    </div>
+    <details class="page-panel campaign-history-danger-panel"><summary>History management</summary>
         <form
             method="post"
             action="{{ url_for('campaign_chaos_history_delete_all') }}"
@@ -338,9 +348,12 @@
                 Delete All History
             </button>
         </form>
-    </div>
+    </details>
 </div>
 
+{% set print_export_subject_label = "selected packs" %}
+{% include "_print_export_modal.html" %}
+<script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
 <script>
 (function () {
     const localTimeElements = Array.from(document.querySelectorAll(".js-local-time"));
@@ -440,8 +453,33 @@
         return Array.from(historyForm.querySelectorAll(".campaign-history-checkbox"));
     }
 
+    const printExportModal = window.iMomirPrintExportModal.init({
+        openButtonId: 'campaignHistoryUnusedPrintButton',
+        printUrl: {{ url_for('campaign_chaos_packs_print')|tojson }},
+        exportZipUrl: {{ url_for('campaign_chaos_packs_export_zip')|tojson }},
+        showMessage: showUiMessage
+    });
+    const printExportButton = document.getElementById('campaignHistoryPrintExportButton');
+    if (printExportButton) printExportButton.addEventListener('click', function () {
+        const selected = getHistoryCheckboxes().filter(box => box.checked);
+        if (!selected.length) return;
+        const form = document.getElementById('printExportForm');
+        form.querySelectorAll('input[name="pack_ids"]').forEach(input => input.remove());
+        selected.forEach(box => {
+            const input = document.createElement('input');
+            input.type = 'hidden'; input.name = 'pack_ids'; input.value = box.value;
+            form.appendChild(input);
+        });
+        printExportModal.open();
+    });
+
     function syncHistoryOpeningInputs() {
+        const selected = getHistoryCheckboxes().filter(box => box.checked).length;
+        const count = document.getElementById('campaignHistorySelectionCount');
+        if (count) count.textContent = selected + ' selected';
+        if (historyForm) historyForm.querySelectorAll('button[name="bulk_action"]').forEach(button => button.disabled = selected === 0);
         getHistoryCheckboxes().forEach(function (checkbox) {
+            checkbox.closest('.campaign-history-row').classList.toggle('is-selected', checkbox.checked);
             const rowLabel = checkbox.closest(".campaign-history-select-wrap");
             const openingInput = rowLabel ? rowLabel.querySelector(".campaign-history-opening-id-input") : null;
 
@@ -451,6 +489,7 @@
         });
     }
 
+    syncHistoryOpeningInputs();
     if (selectAllButton) {
         selectAllButton.addEventListener("click", function () {
             getHistoryCheckboxes().forEach(function (checkbox) {

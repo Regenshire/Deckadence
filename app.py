@@ -23233,6 +23233,7 @@ def campaign_chaos_history():
 
     return render_template(
         "campaign_history.html",
+        print_export_defaults=get_print_export_defaults_from_config(get_request_config()),
         selected_campaign=selected_campaign,
         selected_campaign_id=int(selected_filter_campaign_id) if selected_filter_campaign_id else None,
         selected_draft_game_id=int(selected_filter_draft_game_id) if selected_filter_draft_game_id else None,

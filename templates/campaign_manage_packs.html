@@ -4,8 +4,9 @@
   rel="stylesheet"
   href="{{ url_for('static', filename='css/print_export_modal.css') }}"
 />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/campaign_packs_theme.css', v='4') }}">
 {% endblock %} {% block content %}
-<div class="screen screen-wide">
+<div class="screen screen-wide campaign-packs-themed">
   <div
     id="campaignManagePacksConfig"
     hidden
@@ -29,7 +30,7 @@
   <div class="page-panel campaign-manage-packs-header">
     <div class="chaos-pack-view-header-top">
       <div class="chaos-pack-view-header-copy">
-        <h1 class="page-title">Manage Packs</h1>
+        <div class="roulette-eyebrow">Chaos Draft / Campaign Packs</div><h1 class="page-title">The chaos starts with the packs.</h1>
         <p class="page-subtitle">
           View and control saved packs {% if selected_chaos_campaign %} for {{
           selected_chaos_campaign.campaign_name }}. {% else %} that are
@@ -43,7 +44,7 @@
           id="campaignAddPackButton"
           class="action-button campaign-header-action-button"
         >
-          Add Pack
+          + Add Pack
         </button>
 
         <button
@@ -1240,13 +1241,15 @@
     </div>
   </div>
 
-  <div class="page-panel">
+  <div class="campaign-pack-totals"><span><strong>{{ packs|length }}</strong> packs{% if search_text %} matching search{% endif %}</span><span><strong>{{ packs|selectattr('campaign_enabled')|list|length }}</strong> enabled</span><span><strong>{{ packs|sum(attribute='total_cards') }}</strong> cards</span></div>
+  <section class="campaign-packs-frame">
+  <div class="page-panel campaign-packs-filter-panel">
     <form
       method="get"
       action="{{ url_for('campaign_chaos_packs') }}"
       class="campaign-pack-search-form"
     >
-      <input
+      <label class="campaign-packs-search-label">SEARCH<input
         type="text"
         name="q"
         value="{{ search_text }}"
@@ -1255,6 +1258,7 @@
         autocomplete="off"
       />
 
+      </label><label class="campaign-packs-search-label">STATUS<select id="packStatusFilter"><option value="all">All packs</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select></label><label class="campaign-packs-search-label">SORT<select id="packSort"><option value="new">Newest first</option><option value="old">Oldest first</option><option value="name">Name A–Z</option></select></label>
       <button type="submit" class="action-button campaign-pack-search-button">
         Search
       </button>
@@ -1314,7 +1318,7 @@
           </button>
         </div>
 
-        <div
+        <details class="campaign-packs-more"><summary>More ▾</summary><div
           class="campaign-bulk-action-group campaign-bulk-edit-actions"
           aria-label="Row editing"
         >
@@ -1345,7 +1349,7 @@
           >
             Delete Selected
           </button>
-        </div>
+        </div></details>
       </div>
 
       <div class="campaign-selection-tools">
@@ -1361,8 +1365,8 @@
           id="campaignClearSelectedPacksButton"
           class="campaign-small-link-button"
         >
-          Clear Selection
-        </button>
+          Clear
+        </button><span id="campaignPackSelectionCount" aria-live="polite">0 selected</span>
       </div>
     </div>
 
@@ -1372,6 +1376,8 @@
         {% for pack in packs %}
         <div
           class="campaign-pack-row {% if not pack.campaign_enabled %}campaign-pack-row-disabled{% endif %}"
+          data-pack-enabled="{{ 1 if pack.campaign_enabled else 0 }}"
+          data-pack-added="{{ pack.added_at_utc or '' }}"
           data-tracked-pack-id="{{ pack.tracked_pack_id }}"
           data-pack-display-name="{{ pack.pack_display_name }}"
           data-print-labels-enabled-override="{% if pack.print_labels_enabled_override is none %}global{% else %}{{ pack.print_labels_enabled_override }}{% endif %}"
@@ -1403,20 +1409,6 @@
                 {{ pack.pack_display_name }}
               </div>
 
-              {% if pack.campaign_enabled %}
-              <span class="campaign-status-badge campaign-status-enabled"
-                >Campaign</span
-              >
-              {% else %}
-              <span class="campaign-status-badge campaign-status-disabled"
-                >Disabled</span
-              >
-              {% endif %} {% if pack.labels_disabled_for_pack %}
-              <span
-                class="campaign-status-badge campaign-status-disabled campaign-pack-labels-disabled-badge"
-                >Labels Off</span
-              >
-              {% endif %}
             </div>
 
             <div class="campaign-pack-meta">
@@ -1425,6 +1417,21 @@
               <span>{{ pack.booster_name }}</span>
               <span>{{ pack.total_cards }} cards</span>
               <span>Opened {{ pack.opened_count }}x</span>
+              {% if pack.campaign_enabled %}
+              <span class="campaign-status-badge campaign-status-enabled"
+                >Campaign · Enabled</span
+              >
+              {% else %}
+              <span class="campaign-status-badge campaign-status-disabled"
+                >Campaign · Disabled</span
+              >
+              {% endif %} {% if pack.labels_disabled_for_pack %}
+              <span
+                class="campaign-status-badge campaign-status-disabled campaign-pack-labels-disabled-badge"
+                >Labels Off</span
+              >
+              {% endif %}
+
             </div>
 
             <div class="campaign-pack-date-row">
@@ -1468,7 +1475,39 @@
       {% endif %}
     </div>
   </form>
+  <div class="campaign-packs-showing" id="campaignPacksShowing"></div></section>
 
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const more = document.querySelector('.campaign-packs-more');
+    document.addEventListener('click', event => {
+      if (!more.contains(event.target)) more.open = false;
+    });
+    more.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { more.open = false; more.querySelector('summary').focus(); }
+    });
+    const list = document.querySelector('.campaign-packs-themed .campaign-pack-list');
+    const rows = list ? [...list.querySelectorAll('.campaign-pack-row')] : [];
+    const count = document.getElementById('campaignPackSelectionCount');
+    function update() {
+      const selected = rows.filter(r => r.querySelector('.campaign-pack-checkbox').checked).length;
+      count.textContent = selected + ' selected';
+      rows.forEach(r => r.classList.toggle('pack-selected', r.querySelector('.campaign-pack-checkbox').checked));
+    }
+    function filter() {
+      const status = document.getElementById('packStatusFilter').value;
+      const sort = document.getElementById('packSort').value;
+      rows.sort((a,b) => sort === 'name' ? a.dataset.packDisplayName.localeCompare(b.dataset.packDisplayName) : (sort === 'new' ? -1 : 1) * a.dataset.packAdded.localeCompare(b.dataset.packAdded));
+      rows.forEach(r => {r.hidden = status !== 'all' && r.dataset.packEnabled !== (status === 'enabled' ? '1' : '0'); list.append(r);});
+      document.getElementById('campaignPacksShowing').textContent = 'Showing ' + rows.filter(r=>!r.hidden).length + ' of ' + rows.length + ' packs';
+    }
+    document.getElementById('packStatusFilter').addEventListener('change', filter);
+    document.getElementById('packSort').addEventListener('change', filter);
+    document.getElementById('campaignManagePacksForm').addEventListener('change', update);
+    for (const id of ['campaignSelectAllPacksButton','campaignClearSelectedPacksButton']) document.getElementById(id).addEventListener('click',()=>setTimeout(update,0));
+    filter(); update();
+  });
+  </script>
   <div class="campaign-manage-footer-links">
     <a
       href="{{ url_for('campaign_chaos_print_default_back_sheet') }}"
