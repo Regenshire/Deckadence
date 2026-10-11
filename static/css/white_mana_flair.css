@@ -1,0 +1,360 @@
+html[data-theme="dark"] {
+  --insert-frame: #424b58;
+  --insert-edge: #788597;
+  --insert-divider: #586576;
+  --insert-mark: #a9b0be;
+}
+/* White Mana and Dark insert-inspired framing. Presentation only; shared behavior stays in the existing components. */
+html[data-theme="white-mana"] {
+  --insert-mark: #947b4b;
+  --insert-frame: #b5a17b;
+  --insert-edge: #faf4e6;
+  --insert-divider: #ac966a;
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) #homeScreen .home-welcome-panel {
+  border: 6px solid var(--insert-frame);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 2px var(--insert-edge),0 10px 28px #342e2217;
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.home-primary-card-setup) {
+  border: 2px solid var(--insert-frame);
+  border-radius: 20px;
+  background: var(--panel);
+  padding: 24px 24px 0;
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.home-primary-card-setup) .home-card-copy { margin-bottom: 24px; }
+html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.home-primary-card-setup) .home-card-action {
+  position: relative;
+  margin-left: -24px;
+  margin-right: -24px;
+  padding: 16px 20px 16px 72px;
+  min-height: 58px;
+  background: var(--panel-2);
+  color: var(--accent-hover);
+  border-top: 1px solid var(--insert-divider);
+  border-radius: 0 0 18px 18px;
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.home-primary-card-setup) .home-card-action::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  background: var(--insert-mark);
+  mask: url('../img/Logos/deckadence_d.svg') center/contain no-repeat;
+  pointer-events: none;
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.home-primary-card-setup) .home-card-action::after {
+  content: "";
+  position: absolute;
+  left: 57px;
+  top: 15px;
+  bottom: 15px;
+  border-left: 1px solid var(--insert-divider);
+  pointer-events: none;
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) .home-card-icon {
+  border: 1px solid var(--insert-divider);
+  border-radius: 50%;
+  background: var(--panel-2);
+  color: var(--accent);
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) a.home-primary-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px #342e221a;
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+/* Inset framing leaves roulette track measurements and pointer alignment unchanged. */
+html:is([data-theme="white-mana"],[data-theme="dark"]) .chaos-draft-spinner-window {
+  background: var(--panel-2);
+  border-color: var(--insert-frame);
+  border-radius: 24px;
+  box-shadow: inset 0 0 0 5px var(--insert-frame),inset 0 0 0 7px var(--insert-edge),0 8px 24px #342e2217;
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) .chaos-pack-card-winning {
+  background: var(--panel);
+  box-shadow: 0 0 0 2px var(--accent),0 6px 16px #342e2220;
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) .chaos-draft-next-button:not(:disabled) { background: var(--accent); color: #fff; }
+html:is([data-theme="white-mana"],[data-theme="dark"]) .chaos-draft-next-button:not(:disabled) .chaos-draft-next-button-arrow { color: var(--insert-edge); }
+html:is([data-theme="white-mana"],[data-theme="dark"]) .chaos-draft-next-button:hover:not(:disabled) { background: var(--accent-hover); }
+/* Thin builder framing preserves card stacking, drag targets, and resize handles. */
+html:is([data-theme="white-mana"],[data-theme="dark"]) .deckbuilder-main { border-color: var(--insert-divider); background: var(--panel); }
+html:is([data-theme="white-mana"],[data-theme="dark"]) .deckbuilder-zone-header {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--insert-divider);
+  border-radius: 8px 8px 0 0;
+  padding: 7px 10px;
+}
+html:is([data-theme="white-mana"],[data-theme="dark"]) .deckbuilder-zone-header h2 { color: var(--accent-hover); }
+html:is([data-theme="white-mana"],[data-theme="dark"]) .deckbuilder-zone-resize-handle { background: var(--insert-divider); border-color: var(--accent); }
+@media(max-width:620px) {
+  html:is([data-theme="white-mana"],[data-theme="dark"]) #homeScreen .home-welcome-panel { border-width: 4px; border-radius: 20px; }
+}
+
+html[data-theme="dark"] .home-card-action { color: var(--text); }
+html[data-theme="dark"] .deckbuilder-zone-header h2 { color: var(--text); }
+/* Shared editorial guide layout: the entire entry remains the tour trigger. */
+html[data-theme] .home-guides-section { border-top-color: var(--insert-divider,var(--border)); }
+html[data-theme] .home-guide-card {
+  min-height: 0;
+  padding: 8px 16px;
+  border: 0;
+  border-left: 3px solid var(--insert-frame,var(--menuborder));
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-theme] .home-guide-card:is(:hover,:focus-visible) {
+  transform: none;
+  background: var(--panel-2);
+  border-left-color: var(--accent);
+  box-shadow: none;
+}
+html[data-theme] .home-guide-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+html[data-theme] :is(.home-guide-number,.home-guide-icon,.home-guide-action) { display: none; }
+html[data-theme] .home-guide-card h3 { margin: 0 0 10px; color: var(--text); }
+html[data-theme] .home-guide-card p { margin: 0; color: var(--muted); }
+/* Match the approved guide study, overriding legacy theme card surfaces. */
+html[data-theme] #homeScreen .home-welcome-panel .home-guides-section { margin-top: 28px; padding-top: 24px; }
+html[data-theme] #homeScreen .home-welcome-panel .home-section-heading { margin-bottom: 15px; }
+html[data-theme] #homeScreen .home-welcome-panel .home-section-eyebrow { font: 700 11px/1.5 Arial,sans-serif; letter-spacing: 2px; }
+html[data-theme] #homeScreen .home-welcome-panel .home-section-heading h2 { font: 700 24px/1.3 Arial,sans-serif; margin: 12px 0 0; }
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-grid { gap: 16px; }
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-card,
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-card:is(:hover,:focus-visible) {
+  background: transparent;
+  min-height: 84px;
+  padding: 8px 16px;
+  border: 0;
+  border-left: 3px solid var(--insert-frame,var(--menuborder));
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+}
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-card h3 { font: 700 18px/1.5 Arial,sans-serif; margin: 0 0 8px; }
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-card p { font: 400 18px/1.6 Arial,sans-serif; margin: 0; }
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-card:hover { border-left-color: var(--accent); }
+html[data-theme] #homeScreen .home-welcome-panel .home-primary-card:not(.home-primary-card-setup),
+html[data-theme] #homeScreen .home-welcome-panel .home-primary-card:not(.home-primary-card-setup):hover {
+  background: var(--panel);
+  border-color: var(--insert-frame,var(--border));
+}
+html[data-theme="white-mana"] #homeScreen .home-welcome-panel .home-primary-card:not(.home-primary-card-setup) { background: #faf6ec; }
+html[data-theme="white-mana"] #homeScreen .home-welcome-panel { border-color: #b5a17b; }
+.campaign-draft-stage { border: 5px solid var(--insert-frame,var(--border)); border-radius: 28px; background: var(--panel); box-shadow: inset 0 0 0 2px var(--insert-edge,var(--panel)); }
+html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { border: 0; border-radius: 22px 22px 0 0; box-shadow: none; margin: 0; padding: 24px; background: var(--panel); }
+html[data-theme] #chaosDraftScreen .campaign-draft-stage .chaos-draft-spinner-window { border: 0; border-radius: 0; box-shadow: none; background: var(--panel-2); }
+.campaign-stage-eyebrow { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+.campaign-stage-heading .campaign-mode-external-title { font-size: 30px; line-height: 1.2; margin: 0; }
+.campaign-stage-heading { min-width: 0; }
+.campaign-stage-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 16px 24px; background: var(--panel-2); border-top: 1px solid var(--insert-divider,var(--border)); border-radius: 0 0 22px 22px; font-size: 14px; color: var(--text); }
+.campaign-stage-footer strong { margin-left: auto; overflow-wrap: anywhere; }
+.campaign-stage-monogram { width: 40px; height: 24px; border-right: 1px solid var(--insert-divider,var(--border)); background: url('../img/Logos/deckadence_d.svg') left center/24px 24px no-repeat; flex-shrink: 0; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.campaign-opened-heading { flex: 1 1 240px; margin: 0; font-size: 22px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions > .action-button { width: auto; min-width: 100px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .chaos-export-split { width: 190px; }
+@media(max-width:760px) { .campaign-stage-heading .campaign-mode-external-title { font-size: 24px; } .campaign-stage-footer strong { flex-basis: 100%; margin-left: 0; } .campaign-opened-heading { flex-basis: 100%; } }
+/* Campaign composition: match the approved study while retaining all live controls. */
+html[data-theme] #chaosDraftScreen .campaign-mode-title-row {
+  gap: 24px;
+  padding: 8px 0 16px;
+  margin-bottom: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+html[data-theme] #chaosDraftScreen .campaign-stage-heading { flex: 1 1 440px; }
+html[data-theme] #chaosDraftScreen .campaign-stage-eyebrow,
+html[data-theme] #chaosDraftScreen .campaign-current-player-eyebrow {
+  font: 700 11px/1.5 Arial,sans-serif;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+html[data-theme] #chaosDraftScreen .campaign-mode-external-title { font: 700 30px/1.25 Arial,sans-serif; color: var(--text); }
+html[data-theme] #chaosDraftScreen .campaign-selector-wrap { gap: 12px; flex-wrap: wrap; }
+html[data-theme] #chaosDraftScreen .campaign-draft-number-chip { background: var(--panel-2); border-color: var(--insert-divider,var(--border)); color: var(--text); padding: 12px 18px; font: 700 16px/1.4 Arial,sans-serif; }
+html[data-theme] #chaosDraftScreen .campaign-selector { min-height: 48px; font: 400 15px/1.4 Arial,sans-serif; }
+html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 30px; }
+html[data-theme] #chaosDraftScreen .campaign-current-player-card { gap: 20px; }
+html[data-theme] #chaosDraftScreen .campaign-current-player-name { font: 700 22px/1.35 Arial,sans-serif; color: var(--text); }
+html[data-theme] #chaosDraftScreen .campaign-top-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button {
+  width: auto;
+  min-width: 148px;
+  min-height: 50px;
+  padding: 12px 18px;
+  border-radius: 11px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font: 700 16px/1.4 Arial,sans-serif;
+}
+html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button:hover:not(:disabled) { background: var(--accent-hover); }
+html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button:disabled { opacity: .55; cursor: not-allowed; }
+html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button-arrow { color: inherit; }
+html[data-theme] #chaosDraftScreen .chaos-draft-spinner-window::before,
+html[data-theme] #chaosDraftScreen .chaos-draft-spinner-window::after { display: none; }
+html[data-theme] #chaosDraftScreen .campaign-stage-footer { padding: 16px 24px; font: 700 14px/1.5 Arial,sans-serif; color: var(--text); }
+html[data-theme="white-mana"] #chaosDraftScreen .campaign-stage-footer { color: #654c1d; }
+html[data-theme] #chaosDraftScreen .campaign-opened-heading { font: 700 22px/1.4 Arial,sans-serif; color: var(--text); }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions { margin-top: 8px; }
+@media(max-width:900px) {
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row { justify-content: flex-start; }
+  html[data-theme] #chaosDraftScreen .campaign-stage-heading { flex-basis: 100%; }
+  html[data-theme] #chaosDraftScreen .campaign-selector-wrap { width: 100%; }
+  html[data-theme] #chaosDraftScreen .campaign-selector { flex: 1; min-width: 140px; max-width: 100%; }
+}
+@media(max-width:480px) {
+  html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 20px 16px; }
+  html[data-theme] #chaosDraftScreen .campaign-mode-external-title { font-size: 26px; }
+}
+/* Reserve the same stage space before, during, and after selection. */
+html[data-theme] #chaosDraftScreen .chaos-draft-spinner-window { height: 470px; min-height: 470px; }
+html[data-theme] #chaosDraftScreen .chaos-draft-spinner-track { height: 400px; align-items: center; }
+html[data-theme] #chaosDraftScreen .chaos-pack-card { border: 2px solid transparent; }
+html[data-theme] #chaosDraftScreen .chaos-pack-card-winning { border-color: var(--accent); }
+html[data-theme] #chaosDraftScreen .chaos-pack-card-image { height: 280px; margin: 0; }
+html[data-theme] #chaosDraftScreen .chaos-pack-card-winning .chaos-pack-card-image { margin: 0; }
+@media(max-width:700px),(max-height:600px) {
+  html[data-theme] #chaosDraftScreen .chaos-draft-spinner-window { height: 370px; min-height: 370px; padding: 25px 0; }
+  html[data-theme] #chaosDraftScreen .chaos-draft-spinner-track { height: 320px; }
+  html[data-theme] #chaosDraftScreen .chaos-pack-card-image { height: 200px; }
+}
+/* Compact player header and opened-pack tools. */
+html[data-theme] #chaosDraftScreen .campaign-current-player-portrait-wrap { width: 56px; height: 56px; border-radius: 12px; }
+html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 24px 30px; }
+html[data-theme] #chaosDraftScreen .campaign-current-player-eyebrow { margin-bottom: 5px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .chaos-export-split { width: 140px; grid-template-columns: minmax(0,1fr) 38px; flex: 0 0 140px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .campaign-pack-upscale-icon { width: 50px; min-width: 50px; height: 50px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+html[data-theme] #chaosDraftScreen .chaos-pack-inline-view-header[hidden] { display: none; }
+@media(max-width:480px) {
+  html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 20px 16px; }
+}
+/* Match the portrait column to the actual image instead of the legacy 96px slot. */
+html[data-theme] #chaosDraftScreen .campaign-current-player-card {
+  grid-template-columns: 56px minmax(0, 1fr);
+  column-gap: 14px;
+  align-items: center;
+}
+/* Reset inherited minimum widths so the split control cannot overflow into Upscale. */
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .chaos-export-split {
+  width: 140px;
+  min-width: 140px;
+  max-width: 140px;
+  flex: 0 0 140px;
+  grid-template-columns: minmax(0,1fr) 38px;
+}
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions :is(.chaos-export-main-button,.chaos-export-menu-button) {
+  width: 100%; min-width: 0; height: 50px; min-height: 50px; padding: 10px 12px;
+}
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .chaos-export-main-button { border-radius: 11px 0 0 11px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .chaos-export-menu-button { border-radius: 0 11px 11px 0; padding: 0; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions > .action-button { height: 50px; min-height: 50px; border-radius: 11px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .campaign-pack-upscale-icon { flex: 0 0 50px; }
+
+/* Let opened cards sit directly on the Chaos Draft background. */
+html[data-theme] #chaosDraftScreen #chaosDraftInlineViewPanel {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* Mobile player controls: one identity row and one action row. */
+@media (max-width: 700px) {
+  html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 14px 16px; }
+  html[data-theme] #chaosDraftScreen .campaign-chaos-toolbar {
+    display: grid; grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto; gap: 4px 12px; align-items: center;
+  }
+  html[data-theme] #chaosDraftScreen :is(.campaign-current-player-card, .campaign-current-player-copy, .campaign-chaos-controls-wrap, .campaign-top-actions-row) { display: contents; }
+  html[data-theme] #chaosDraftScreen .campaign-current-player-portrait-wrap { grid-column: 1; grid-row: 1 / 3; width: 44px; height: 44px; border-radius: 10px; }
+  html[data-theme] #chaosDraftScreen .campaign-current-player-eyebrow { grid-column: 2 / 4; grid-row: 1; margin: 0; font-size: 10px; }
+  html[data-theme] #chaosDraftScreen .campaign-current-player-name { display: none; }
+  html[data-theme] #chaosDraftScreen #campaignPlayerSelect { grid-column: 2 / 4; grid-row: 2; width: 100%; min-width: 0; max-width: none; height: 36px; padding: 6px 10px; }
+  html[data-theme] #chaosDraftScreen .campaign-icon-actions { grid-column: 1 / 3; grid-row: 3; display: flex; gap: 8px; margin-top: 8px; }
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button { grid-column: 3; grid-row: 3; min-width: 120px; width: auto; height: 42px; min-height: 42px; margin-top: 8px; padding: 8px 14px; font-size: 14px; }
+}
+
+/* Keep mobile focused on the selected player, pack name, and actions. */
+@media (max-width: 700px) {
+  html[data-theme] #chaosDraftScreen :is(.campaign-mode-external-title, .campaign-current-player-eyebrow, .campaign-stage-monogram, #campaignStagePackSummary, .campaign-opened-heading) { display: none; }
+  html[data-theme] #chaosDraftScreen .campaign-chaos-toolbar { grid-template-rows: auto auto; }
+  html[data-theme] #chaosDraftScreen .campaign-current-player-portrait-wrap { grid-row: 1; }
+  html[data-theme] #chaosDraftScreen #campaignPlayerSelect { grid-row: 1; }
+  html[data-theme] #chaosDraftScreen .campaign-icon-actions,
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button { grid-row: 2; }
+  html[data-theme] #chaosDraftScreen .campaign-stage-footer { padding: 12px 16px; gap: 0; }
+}
+
+/* Tablet has room for a single player toolbar, but not a side-by-side title. */
+@media (min-width: 701px) and (max-width: 1100px) {
+  html[data-theme] #chaosDraftScreen .campaign-mode-title-row { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-left: 0; padding-bottom: 8px; }
+  html[data-theme] #chaosDraftScreen .campaign-selector-wrap { display: flex; flex-wrap: nowrap; width: 100%; gap: 10px; }
+  html[data-theme] #chaosDraftScreen .campaign-selector { flex: 1; min-width: 0; max-width: none; }
+  html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 18px 20px; }
+  html[data-theme] #chaosDraftScreen .campaign-chaos-toolbar { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; }
+  html[data-theme] #chaosDraftScreen :is(.campaign-current-player-card, .campaign-current-player-copy, .campaign-chaos-controls-wrap, .campaign-top-actions-row) { display: contents; }
+  html[data-theme] #chaosDraftScreen :is(.campaign-current-player-name, .campaign-current-player-eyebrow) { display: none; }
+  html[data-theme] #chaosDraftScreen .campaign-current-player-portrait-wrap { width: 44px; height: 44px; }
+  html[data-theme] #chaosDraftScreen #campaignPlayerSelect { width: 100%; min-width: 0; max-width: none; }
+  html[data-theme] #chaosDraftScreen .campaign-icon-actions { display: flex; gap: 8px; }
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button { min-width: 128px; min-height: 44px; height: 44px; padding: 8px 12px; }
+  html[data-theme] .app-tabs:not(.app-tabs-collapsed) .app-logo { height: 34px; }
+  html[data-theme] .app-tabs:not(.app-tabs-collapsed) { padding: 12px 16px; }
+  html[data-theme] .app-tabs:not(.app-tabs-collapsed) .app-tabs-nav { flex-wrap: nowrap; margin-left: 0; gap: 4px; }
+}
+
+@media (min-width: 701px) and (max-width: 1100px) {
+  html[data-theme] #chaosDraftScreen .campaign-current-player-portrait-wrap { grid-column: 1; grid-row: 1; }
+  html[data-theme] #chaosDraftScreen #campaignPlayerSelect { grid-column: 2; grid-row: 1; }
+  html[data-theme] #chaosDraftScreen .campaign-icon-actions { grid-column: 3; grid-row: 1; }
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button { grid-column: 4; grid-row: 1; }
+}
+
+/* Trial: insert foil colors behind the roulette; the summary stays solid. */
+html[data-theme] #chaosDraftScreen .campaign-draft-stage .chaos-draft-spinner-window {
+  background: url('../img/themes/roulette-foil.svg?v=4') center / 100% 100% no-repeat var(--panel-2);
+}
+
+html[data-theme][data-theme-scheme="light"] #chaosDraftScreen .campaign-draft-stage .chaos-draft-spinner-window {
+  background-image: url('../img/themes/roulette-foil-light.svg?v=1');
+}
+
+html[data-theme][data-theme-scheme="light"]:is([data-theme="white-mana"], [data-theme="light"]) #chaosDraftScreen .campaign-draft-stage .chaos-draft-spinner-window {
+  background-image: url('../img/themes/roulette-foil-white-light.svg?v=1');
+}
+
+html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { width: 44px; min-width: 44px; height: 44px; gap: 4px; font-size: 14px; }
+@media (min-width: 701px) and (max-width: 1100px) {
+  html[data-theme] #chaosDraftScreen .campaign-chaos-toolbar { grid-template-columns: 44px minmax(0,1fr) auto auto 44px; }
+  html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { grid-column: 5; grid-row: 1; }
+}
+@media (max-width: 700px) {
+  html[data-theme] #chaosDraftScreen .campaign-chaos-toolbar { grid-template-columns: 44px minmax(0,1fr) 100px 44px; column-gap: 6px; }
+  html[data-theme] #chaosDraftScreen #campaignPlayerSelect { grid-column: 2 / 5; }
+  html[data-theme] #chaosDraftScreen .campaign-icon-actions { gap: 4px; }
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button { min-width: 100px; padding: 8px; }
+  html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { grid-column: 4; grid-row: 2; margin-top: 8px; }
+}
+
+/* Keep both next actions equally tall at every breakpoint. */
+html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { height: 50px; min-height: 50px; }
+@media (min-width: 701px) and (max-width: 1100px) {
+  html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { height: 44px; min-height: 44px; }
+}
+@media (max-width: 700px) {
+  html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { height: 42px; min-height: 42px; }
+}

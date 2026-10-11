@@ -232,7 +232,15 @@ function initializeChaosDraftPage() {
     busyOverlay.setAttribute("aria-hidden", "true");
   }
 
+  function setPackOpenedPresentation(opened) {
+    if (viewButton) viewButton.classList.toggle("hidden", opened);
+    const heading = document.querySelector(".campaign-opened-heading");
+    if (heading) heading.textContent = opened
+      ? "Your opened pack" : "Want to Open or Print your pack?";
+  }
+
   function hideInlinePackView() {
+    setPackOpenedPresentation(false);
     if (inlineViewPanel) {
       inlineViewPanel.classList.add("hidden");
     }
@@ -768,7 +776,8 @@ function initializeChaosDraftPage() {
       return;
     }
 
-    const cards = Array.isArray(payload.cards) ? payload.cards : [];
+    // Reveal the end of the pack first without changing its saved/export order.
+    const cards = Array.isArray(payload.cards) ? [...payload.cards].reverse() : [];
     await loadInlinePackFaceMetadata(cards);
 
     if (inlineViewTitle) {
@@ -849,6 +858,75 @@ function initializeChaosDraftPage() {
     inlinePackViewLoaded = true;
   }
 
+  async function setPackRouletteExpanded(expanded) {
+    if (spinnerShell.classList.contains("hidden") !== expanded) return;
+    spinnerShell.classList.remove("hidden");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reducedMotion && typeof spinnerShell.animate === "function") {
+      const previousOverflow = spinnerShell.style.overflow;
+      spinnerShell.style.overflow = "hidden";
+      const full = { height: `${spinnerShell.getBoundingClientRect().height}px`, opacity: 1 };
+      const closed = { height: "0px", opacity: 0 };
+      const transition = spinnerShell.animate(expanded ? [closed, full] : [full, closed],
+        { duration: 360, easing: "cubic-bezier(.4,0,.2,1)", fill: "both" });
+      try {
+        await transition.finished;
+      } finally {
+        spinnerShell.classList.toggle("hidden", !expanded);
+        transition.cancel();
+        spinnerShell.style.overflow = previousOverflow;
+      }
+    } else {
+      spinnerShell.classList.toggle("hidden", !expanded);
+    }
+  }
+
+  // Animate the existing grid, so every card finishes in its normal position.
+  async function animatePackOpening(packImage) {
+    if (!inlineViewGrid || !packImage ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+        typeof Element.prototype.animate !== "function") return;
+
+    const animations = [];
+    const wrapper = packImage.cloneNode(false);
+    wrapper.removeAttribute("id");
+    wrapper.removeAttribute("class");
+    wrapper.alt = "";
+    wrapper.setAttribute("aria-hidden", "true");
+    try {
+      const bounds = inlineViewGrid.getBoundingClientRect();
+      const width = Math.min(300, bounds.width * .8);
+      const height = width * 1.65;
+      const x = bounds.left + bounds.width / 2;
+      const y = Math.min(window.innerHeight * .45, bounds.top + height / 2 + 30);
+      wrapper.style.cssText = `position:fixed;left:${x - width / 2}px;top:${y - height / 2}px;width:${width}px;height:${height}px;object-fit:contain;z-index:1000;pointer-events:none;`;
+      document.body.appendChild(wrapper);
+      animations.push(wrapper.animate([
+        { transform: "rotate(0deg)", opacity: 1 },
+        { transform: "rotate(-5deg)", offset: .12, opacity: 1 },
+        { transform: "rotate(5deg)", offset: .24, opacity: 1 },
+        { transform: "rotate(-3deg)", offset: .36, opacity: 1 },
+        { transform: "translateY(0)", offset: .5, opacity: 1 },
+        { transform: "translateY(90px) scale(.9)", opacity: 0 }
+      ], { duration: 1050, fill: "both", easing: "ease-in-out" }));
+      Array.from(inlineViewGrid.children).forEach((card, index) => {
+        const rect = card.getBoundingClientRect();
+        const dx = x - rect.left - rect.width / 2;
+        const dy = y - rect.top - rect.height / 2;
+        animations.push(card.animate([
+          { transform: `translate(${dx}px, ${dy}px) scale(.2)`, opacity: 0 },
+          { transform: `translate(${dx * .75}px, ${dy - 100}px) scale(.45)`, opacity: 1, offset: .4 },
+          { transform: "translate(0, 0) scale(1)", opacity: 1 }
+        ], { duration: 850, delay: 420 + Math.min(index, 10) * 65,
+             fill: "both", easing: "cubic-bezier(.2,.7,.25,1)" }));
+      });
+      await Promise.allSettled(animations.map(animation => animation.finished));
+    } finally {
+      animations.forEach(animation => animation.cancel());
+      wrapper.remove();
+    }
+  }
+
   async function loadInlinePackView() {
     const response = await fetch(chaosViewDataUrl, {
       method: "GET",
@@ -875,7 +953,7 @@ function initializeChaosDraftPage() {
     if (viewButton) {
       viewButton.disabled = false;
       viewButton.classList.remove("action-button-loading");
-      viewButton.textContent = "View";
+      viewButton.textContent = "Open";
     }
 
     if (openButton) {
@@ -1398,7 +1476,7 @@ function initializeChaosDraftPage() {
     if (viewButton) {
       viewButton.disabled = true;
       viewButton.classList.remove("action-button-loading");
-      viewButton.textContent = "View";
+      viewButton.textContent = "Open";
     }
 
     if (openButton) {
@@ -1432,7 +1510,7 @@ function initializeChaosDraftPage() {
     if (viewButton) {
       viewButton.disabled = false;
       viewButton.classList.remove("action-button-loading");
-      viewButton.textContent = "View";
+      viewButton.textContent = "Open";
     }
 
     if (openButton) {
@@ -1452,7 +1530,16 @@ function initializeChaosDraftPage() {
     }
   }
 
+  function updateStageSummary(selected) {
+    document.dispatchEvent(new CustomEvent('deckadence:pack-summary', { detail: selected ? {
+      name: currentWinningPack?.display_name || '',
+      type: currentWinningPack?.booster_name || '',
+      count: currentSpinResult?.opened_pack_total_cards
+    } : null }));
+  }
+
   function setButtonsForIdle() {
+    updateStageSummary(false);
     spinCtaButton.disabled = openInProgress;
     idleCta.classList.remove("hidden");
     idleCta.classList.remove("chaos-draft-idle-cta-sinking");
@@ -1467,6 +1554,7 @@ function initializeChaosDraftPage() {
   }
 
   function setButtonsForAnimating() {
+    updateStageSummary(false);
     spinCtaButton.disabled = true;
     spinnerTrack.classList.remove("hidden");
     pointer.classList.remove("hidden");
@@ -1479,6 +1567,7 @@ function initializeChaosDraftPage() {
   }
 
   function setButtonsForComplete() {
+    updateStageSummary(true);
     spinCtaButton.disabled = openInProgress;
     idleCta.classList.add("hidden");
     spinnerTrack.classList.remove("hidden");
@@ -1774,11 +1863,23 @@ function initializeChaosDraftPage() {
     }, 180);
   }
 
-  async function runNext() {
+  async function runNext(advancePlayer = false) {
     if (animationInProgress || openInProgress) {
       return;
     }
 
+    animationInProgress = true;
+    if (nextButton) nextButton.disabled = true;
+    if (advancePlayer) {
+      try {
+        await window.advanceChaosCampaignPlayer();
+      } catch (error) {
+        animationInProgress = false;
+        if (nextButton) nextButton.disabled = false;
+        window.alert(error.message || "Failed to select next player.");
+        return;
+      }
+    }
     stopRouletteTicks();
     hideBusyOverlay();
     currentWinningPack = null;
@@ -1796,7 +1897,6 @@ function initializeChaosDraftPage() {
 
     spinnerTrack.innerHTML = "";
     spinnerTrack.style.transform = "translateX(0px)";
-    spinnerShell.classList.remove("hidden");
     idleCta.classList.remove("hidden");
     spinnerTrack.classList.add("hidden");
     pointer.classList.add("hidden");
@@ -1805,7 +1905,23 @@ function initializeChaosDraftPage() {
     hideInlinePackView();
     closePackZoom();
     hideOpenRow();
-    setButtonsForIdle();
+    try {
+      await setPackRouletteExpanded(true);
+    } finally {
+      animationInProgress = false;
+      setButtonsForIdle();
+    }
+  }
+
+  const nextPlayerButton = document.getElementById("chaosNextPlayerButton");
+  if (nextPlayerButton && nextButton) {
+    const syncNextPlayerButton = () => {
+      const players = document.querySelectorAll('#campaignPlayerSelect option[value]:not([value=""])');
+      nextPlayerButton.disabled = nextButton.disabled || !players.length;
+    };
+    new MutationObserver(syncNextPlayerButton).observe(nextButton, { attributes: true, attributeFilter: ["disabled"] });
+    syncNextPlayerButton();
+    nextPlayerButton.addEventListener("click", () => runNext(true));
   }
 
   spinCtaButton.addEventListener("click", function () {
@@ -1881,17 +1997,34 @@ function initializeChaosDraftPage() {
       }
 
       try {
+        animationInProgress = true;
+        if (nextButton) nextButton.disabled = true;
         viewButton.disabled = true;
         viewButton.classList.add("action-button-loading");
         viewButton.textContent = "Loading...";
+        setPackOpenedPresentation(true);
 
+        const packImage = document.querySelector(".chaos-pack-card-winning .chaos-pack-card-image");
+        const alreadyOpen = inlinePackViewLoaded;
         await loadInlinePackView();
+        if (!alreadyOpen) {
+          inlineViewGrid.style.visibility = "hidden";
+          await setPackRouletteExpanded(false);
+          const openingTop = spinnerShell.closest(".campaign-draft-stage") || inlineViewPanel;
+          openingTop.scrollIntoView({ behavior: "instant", block: "start" });
+          inlineViewGrid.style.visibility = "";
+          await animatePackOpening(packImage);
+        }
       } catch (error) {
         window.alert(error.message || "Failed to load pack view.");
       } finally {
+        setPackOpenedPresentation(inlinePackViewLoaded);
+        inlineViewGrid.style.visibility = "";
+        animationInProgress = false;
+        if (nextButton) nextButton.disabled = false;
         viewButton.disabled = false;
         viewButton.classList.remove("action-button-loading");
-        viewButton.textContent = "View";
+        viewButton.textContent = "Open";
       }
     });
   }

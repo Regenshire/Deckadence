@@ -122,7 +122,7 @@
         class="action-button secondary-button chaos-draft-view-button"
         disabled
       >
-        View
+        Open
       </button>
       <button
         type="button"
@@ -197,17 +197,7 @@
         </label>
       </div>
       {% endif %}
-      <div class="chaos-draft-template-links">
-        <button
-          type="button"
-          class="silhouette-template-library-open-button"
-          data-silhouette-template-library-open
-          data-active-print-template="{{ active_print_template }}"
-        >
-          <i class="fa-solid fa-scissors"></i>
-          Card Cutting Machine Templates
-        </button>
-      </div>
+      
     </div>
 
     <div
@@ -278,6 +268,6 @@
 <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
 {% endif %}
-<script src="{{ url_for('static', filename='js/chaos_draft.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chaos_draft.js', v='pack-opening-6') }}"></script>
 
 {% endblock %}

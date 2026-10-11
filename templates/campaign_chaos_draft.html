@@ -26,6 +26,7 @@
     href="{{ url_for('static', filename='css/print_export_modal.css') }}"
 >
 
+<script defer src="{{ url_for('static', filename='js/campaign_stage_summary.js', v='2') }}"></script>
 {% endblock %}
 
 {% block content %}
@@ -60,7 +61,7 @@
     {% endif %}
 
     <div class="campaign-mode-title-row">
-        <h1 class="campaign-mode-external-title">Chaos Draft - Campaign Mode</h1>
+        <div class="campaign-stage-heading"><div class="campaign-stage-eyebrow">Chaos Draft / Campaign Mode</div><h1 class="campaign-mode-external-title">A little chaos. A lot of fun.</h1></div>
 
         <div class="campaign-selector-wrap">
             <div class="campaign-draft-number-chip">
@@ -103,6 +104,7 @@
         </div>
     </div>
 
+    <div class="campaign-draft-stage">
     <div class="page-panel chaos-draft-header-panel campaign-chaos-header-panel">
         <div class="campaign-chaos-toolbar">
             <div
@@ -134,7 +136,7 @@
 
             <div class="campaign-chaos-controls-wrap">
                 <div class="chaos-draft-top-actions campaign-top-actions campaign-top-actions-row">
-                    <select id="campaignPlayerSelect" class="campaign-player-select campaign-player-select-compact" data-help-id="chaos_select_player">
+                    <select id="campaignPlayerSelect" aria-label="Current Player" class="campaign-player-select campaign-player-select-compact" data-help-id="chaos_select_player">
                         <option value="" data-player-name="" data-portrait="">No Player</option>
                         {% for player in campaign_players %}
                         <option
@@ -184,6 +186,9 @@
                     <span class="chaos-draft-next-button-label">Next Pack</span>
                     <span class="chaos-draft-next-button-arrow">▷</span>
                 </button>
+                <button type="button" id="chaosNextPlayerButton" class="campaign-icon-button" title="Next Player" aria-label="Next Player" disabled>
+                    <i class="fa-solid fa-user" aria-hidden="true"></i><i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                </button>
                 </div>
             </div>
         </div>
@@ -227,10 +232,18 @@
         </div>
     </div>
 
+    <div class="campaign-stage-footer">
+        <span class="campaign-stage-monogram" aria-hidden="true"></span>
+        <span id="campaignStagePackName">No pack selected</span>
+        <strong id="campaignStagePackSummary"></strong>
+    </div>
+    </div>
+
     <div id="chaosDraftOpenRow" class="chaos-draft-open-row">
         <div class="chaos-draft-open-actions campaign-chaos-open-actions">
+            <h2 class="campaign-opened-heading">Want to Open or Print your pack?</h2>
             <button type="button" id="chaosViewButton" class="action-button secondary-button chaos-draft-view-button" data-help-id="chaos_view" disabled>
-                View
+                Open
             </button>
             <button type="button" id="chaosOpenButton" class="action-button chaos-draft-open-button" data-help-id="chaos_print" disabled>
                 Print / Export
@@ -266,43 +279,34 @@
             </div>
             {% endif %}
 
+            {% if global_card_upscaling_control_enabled %}
+
+                <button
+                    type="button"
+                    id="chaosPackInlineUpscaleButton"
+                    class="action-button secondary-button chaos-pack-inline-upscale-pack-button campaign-pack-upscale-icon"
+                    disabled
+                    title="Upscale Pack"
+                    aria-label="Upscale all cards in this pack"
+                >
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+
+                </button>
+
+            {% endif %}
         </div>
 
-        <div class="chaos-draft-template-links">
-            <button
-                type="button"
-                class="silhouette-template-library-open-button"
-                data-silhouette-template-library-open
-                data-active-print-template="{{ active_print_template }}"
-                data-help-id="chaos_silhouette_template"
-            >
-                <i class="fa-solid fa-scissors"></i>
-                Card Cutting Machine Templates
-            </button>
-        </div>
+        
     </div>
 
     <div id="chaosDraftInlineViewPanel" class="page-panel chaos-pack-inline-view-panel hidden">
-        <div class="chaos-pack-inline-view-header">
+        <div class="chaos-pack-inline-view-header" hidden>
             <div class="chaos-pack-inline-view-header-copy">
                 <h2 id="chaosPackInlineTitle" class="page-title">Pack contents</h2>
                 <p id="chaosPackInlineSubtitle" class="page-subtitle"></p>
             </div>
 
-            {% if global_card_upscaling_control_enabled %}
-            <div class="chaos-pack-inline-view-header-actions">
-                <button
-                    type="button"
-                    id="chaosPackInlineUpscaleButton"
-                    class="action-button secondary-button chaos-pack-inline-upscale-pack-button"
-                    title="Upscale Pack"
-                    aria-label="Upscale all cards in this pack"
-                >
-                    <i class="fa-solid fa-wand-magic-sparkles"></i>
-                    <span>Upscale Pack</span>
-                </button>
-            </div>
-            {% endif %}
+
         </div>
 
         <div id="chaosPackInlineGrid" class="chaos-pack-inline-grid"></div>
@@ -344,7 +348,7 @@
 <script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
 {% endif %}
-<script src="{{ url_for('static', filename='js/chaos_draft.js') }}"></script>
-<script src="{{ url_for('static', filename='js/campaign_chaos_draft.js') }}"></script>
+<script src="{{ url_for('static', filename='js/chaos_draft.js', v='next-player-1') }}"></script>
+<script src="{{ url_for('static', filename='js/campaign_chaos_draft.js', v='next-player-1') }}"></script>
 
 {% endblock %}

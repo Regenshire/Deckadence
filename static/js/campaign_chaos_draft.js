@@ -200,6 +200,16 @@
         );
     }
 
+    window.advanceChaosCampaignPlayer = async function () {
+        const players = Array.from(playerSelect?.options || []).filter(option => option.value && !option.disabled);
+        if (!players.length) throw new Error("Add a player to this campaign first.");
+        const index = players.findIndex(option => option.value === playerSelect.value);
+        const next = players[(index + 1) % players.length];
+        await postJson(screen.dataset.playerSelectUrl, { player_id: next.value }, "Failed to select next player.");
+        playerSelect.value = next.value;
+        renderCurrentPlayer();
+    };
+
     if (playerSelect) {
         playerSelect.addEventListener(
             "change",

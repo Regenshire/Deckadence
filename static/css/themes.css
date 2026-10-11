@@ -493,3 +493,13 @@ html .theme-menu-select option:checked {
 }
 html[data-theme-scheme="light"] .theme-menu-select { color-scheme: light; }
 html[data-theme-scheme="dark"] .theme-menu-select { color-scheme: dark; }
+
+/* Collapsed navigation is a floating logo, without a themed panel. */
+html[data-theme] .app-shell .app-frame .app-tabs.app-tabs-collapsed,
+html[data-theme] .app-shell .app-frame .app-tabs.app-tabs-collapsed .app-menu-toggle-button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
