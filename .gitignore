@@ -33,6 +33,7 @@ static/img/set_icons/
 static/img/*.psd
 static/img/*.PSD
 Utility/
+static/img/concepts/
 
 # OS
 .DS_Store

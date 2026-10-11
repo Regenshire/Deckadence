@@ -22217,6 +22217,17 @@ def campaign_chaos_campaigns():
         include_disabled=True
     )
 
+    # Aggregate independently so players and packs do not multiply each other.
+    conn = get_db_connection()
+    try:
+        player_counts = dict(conn.execute("SELECT campaign_id, COUNT(*) FROM chaos_players GROUP BY campaign_id").fetchall())
+        pack_counts = dict(conn.execute("SELECT campaign_id, COUNT(DISTINCT tracked_pack_id) FROM tracked_chaos_pack_campaigns GROUP BY campaign_id").fetchall())
+    finally:
+        conn.close()
+    for campaign in all_campaigns:
+        campaign["player_count"] = player_counts.get(campaign["campaign_id"], 0)
+        campaign["pack_count"] = pack_counts.get(campaign["campaign_id"], 0)
+
     campaign_list_result = (
         ui_list_filter.filter_rows(
             all_campaigns,
@@ -22242,7 +22253,9 @@ def campaign_chaos_campaigns():
                 or "status_name_asc"
             ),
             sort_options=(
-                CAMPAIGN_UI_SORT_OPTIONS
+                {**CAMPAIGN_UI_SORT_OPTIONS,
+                 "players_desc": {"field": "player_count", "type": "number", "reverse": True},
+                 "packs_desc": {"field": "pack_count", "type": "number", "reverse": True}}
             ),
             default_sort_option=(
                 "status_name_asc"

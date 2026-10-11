@@ -53,6 +53,10 @@
                 </option>
                 {% endif %}
 
+                {% if request.endpoint == 'campaign_chaos_campaigns' %}
+                <option value="players_desc" {% if selected_campaign_sort == 'players_desc' %}selected{% endif %}>Most players</option>
+                <option value="packs_desc" {% if selected_campaign_sort == 'packs_desc' %}selected{% endif %}>Most packs</option>
+                {% endif %}
                 <option value="name_asc" {% if selected_campaign_sort == "name_asc" %}selected{% endif %}>
                     Name A-Z
                 </option>

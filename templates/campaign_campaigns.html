@@ -4,18 +4,21 @@ endblock %} {% block page_styles %}
   rel="stylesheet"
   href="{{ url_for('static', filename='css/print_export_modal.css') }}"
 />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/campaign_management.css', v='2') }}">
 {% endblock %} {% block content %}
-<div class="screen screen-wide">
+<div class="screen screen-wide campaign-management">
   <div class="page-panel">
     <div class="chaos-pack-view-header-top">
       <div class="chaos-pack-view-header-copy">
-        <h1 class="page-title">Manage Campaigns</h1>
+        <div class="roulette-eyebrow">Chaos Draft / Campaigns</div><h1 class="page-title">Good company. Great chaos.</h1>
         <p class="page-subtitle">
-          Add, rename, disable, delete, and select Campaign Mode campaign saves.
+          Your campaigns, players, and packs. Ready for the next round.
         </p>
       </div>
 
       <div class="chaos-pack-view-header-actions">
+        <button type="button" id="campaignImportOpenButton" class="action-button secondary-button">Import Campaign</button>
+        <button type="button" class="action-button" onclick="document.getElementById('campaignAddDialog').showModal()">+ Add Campaign</button>
         <a
           class="action-button secondary-button chaos-pack-view-back-button"
           href="{{ ui_navigation.back_fallback_url }}"
@@ -331,60 +334,65 @@ endblock %} {% block page_styles %}
     </div>
   </div>
 
-  <div class="page-panel">
+  <dialog id="campaignAddDialog" class="campaign-management-dialog">
     <h2>Add Campaign</h2>
+    <form id="campaignAddForm" method="post" action="{{ url_for('campaign_chaos_campaigns_add') }}">
+      <input type="hidden" id="campaignHelpEventInput" name="help_event" value="">
+      <label class="campaign-save-field">Campaign Name<input id="campaignAddNameInput" class="campaign-save-input" name="campaign_name" required autocomplete="off"></label>
+      <div class="campaign-row-actions"><button type="button" class="action-button secondary-button" onclick="this.closest('dialog').close()">Cancel</button><button class="action-button">Add Campaign</button></div>
+    </form>
+  </dialog>
 
-    <div class="campaign-save-add-form">
-      <form
-        id="campaignAddForm"
-        method="post"
-        action="{{ url_for('campaign_chaos_campaigns_add') }}"
-        class="campaign-save-add-form"
-      >
-        <input
-          type="hidden"
-          id="campaignHelpEventInput"
-          name="help_event"
-          value=""
-        />
-
-        <label class="campaign-save-field">
-          <span>Campaign Name</span>
-          <input
-            type="text"
-            id="campaignAddNameInput"
-            name="campaign_name"
-            class="campaign-save-input"
-            placeholder="Campaign name"
-            autocomplete="off"
-            required
-          />
-        </label>
-
-        <button type="submit" class="action-button campaign-save-add-button">
-          Add Campaign
-        </button>
-      </form>
-
-      <button
-        type="button"
-        id="campaignImportOpenButton"
-        class="action-button secondary-button campaign-save-add-button"
-      >
-        Import Campaign
-      </button>
-    </div>
-  </div>
-
-  <div class="page-panel">
-    <h2>Campaign Saves</h2>
+  <div class="page-panel campaign-list-panel">
 
     {% set campaign_filter_action_url = url_for('campaign_chaos_campaigns') %}
     {% set campaign_filter_show_status = true %} {% set
     campaign_filter_default_sort = "status_name_asc" %} {% include
     "_campaign_list_filter.html" %}
 
-    <div class="campaign-save-row campaign-save-default-row">
+    {% if campaigns %}
+    <div class="campaign-save-list">
+      {% for campaign in campaigns %}
+      <article class="campaign-management-row" data-campaign-id="{{ campaign.campaign_id }}">
+        <form id="campaignEdit{{ campaign.campaign_id }}" method="post" action="{{ url_for('campaign_chaos_campaigns_update', campaign_id=campaign.campaign_id) }}" class="campaign-identity">
+          <h2 class="campaign-name-heading">{{ campaign.campaign_name }}</h2>
+          <input hidden aria-label="Campaign name" name="campaign_name" value="{{ campaign.campaign_name }}" required readonly class="campaign-name-display">
+          <label class="campaign-status"><input type="checkbox" name="is_active" {% if campaign.is_active %}checked{% endif %} onchange="this.form.requestSubmit()"> {{ 'Active campaign' if campaign.is_active else 'Inactive campaign' }}</label>
+          <button class="action-button campaign-rename-save" hidden>Save name</button>
+        </form>
+        <form id="campaignShortcutForm{{ campaign.campaign_id }}" method="post" action="{{ url_for('campaign_chaos_campaign_open', campaign_id=campaign.campaign_id) }}" class="campaign-counts">
+          <button name="destination" value="players" class="campaign-count" title="Manage Players" {% if not campaign.is_active %}disabled{% endif %}><strong>{{ campaign.player_count }}</strong><span>Players ↗</span></button>
+          <button name="destination" value="packs" class="campaign-count" title="Manage Packs" {% if not campaign.is_active %}disabled{% endif %}><strong>{{ campaign.pack_count }}</strong><span>Packs ↗</span></button>
+        </form>
+        <div class="campaign-row-actions">
+          <button form="campaignShortcutForm{{ campaign.campaign_id }}" name="destination" value="history" class="action-button secondary-button">↶ History</button>
+          <button form="campaignShortcutForm{{ campaign.campaign_id }}" name="destination" value="draft" class="action-button" {% if not campaign.is_active %}disabled{% endif %}>Draft Packs →</button>
+          <details class="campaign-row-more"><summary aria-label="More actions for {{ campaign.campaign_name }}">•••</summary><div class="campaign-row-menu">
+            <button type="button" class="campaign-rename-button">Rename</button>
+            <button type="button" class="campaign-export-open-button" data-export-url="{{ url_for('campaign_chaos_campaigns_export', campaign_id=campaign.campaign_id) }}" data-campaign-name="{{ campaign.campaign_name }}">Export</button>
+            <form method="post" action="{{ url_for('campaign_chaos_campaigns_delete', campaign_id=campaign.campaign_id) }}" class="campaign-save-delete-form" data-campaign-name="{{ campaign.campaign_name }}"><input type="hidden" name="delete_confirmation" value=""><button class="campaign-danger-button">Delete</button></form>
+          </div></details>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% elif campaign_total_count > 0 %}
+    <div class="card-placeholder">
+      No campaigns match the current search and filter settings.
+    </div>
+
+    <div class="config-button-row">
+      <a
+        href="{{ url_for('campaign_chaos_campaigns') }}"
+        class="action-button secondary-button"
+      >
+        Clear Filters
+      </a>
+    </div>
+    {% else %}
+    <div class="card-placeholder">No campaign saves have been added yet.</div>
+    {% endif %} {% include "_campaign_list_pagination.html" %}
+<details class="campaign-default-settings"><summary>No Campaign · Save / Export</summary>    <div class="campaign-save-row campaign-save-default-row">
       <form
         method="post"
         action="{{ url_for('campaign_chaos_campaigns_default_save') }}"
@@ -421,180 +429,20 @@ endblock %} {% block page_styles %}
 
     </div>
 
-    {% if campaigns %}
-    <div class="campaign-save-list">
-      {% for campaign in campaigns %}
-      <div
-        class="campaign-save-row {% if not campaign.is_active %}campaign-save-row-disabled{% endif %}"
-        data-campaign-id="{{ campaign.campaign_id }}"
-      >
-        <form
-          method="post"
-          action="{{ url_for('campaign_chaos_campaigns_update', campaign_id=campaign.campaign_id) }}"
-          class="campaign-save-edit-form"
-        >
-          <label class="campaign-save-field">
-            <span>Campaign Name</span>
-            <input
-              type="text"
-              name="campaign_name"
-              class="campaign-save-input"
-              value="{{ campaign.campaign_name }}"
-              autocomplete="off"
-              required
-            />
-          </label>
-
-          <label class="campaign-save-active-toggle">
-            <input
-              type="checkbox"
-              name="is_active"
-              {%
-              if
-              campaign.is_active
-              %}checked{%
-              endif
-              %}
-            />
-            <span>Active</span>
-          </label>
-
-          <div
-            class="campaign-icon-actions campaign-save-shortcuts"
-            aria-label="Campaign shortcuts for {{ campaign.campaign_name }}"
-          >
-            <button
-              type="submit"
-              form="campaignShortcutForm{{ campaign.campaign_id }}"
-              name="destination"
-              value="players"
-              class="campaign-icon-button"
-              aria-label="Edit Players for {{ campaign.campaign_name }}"
-              title="Edit Players"
-              {%
-              if
-              not
-              campaign.is_active
-              %}disabled{%
-              endif
-              %}
-            >
-              <i class="fa-solid fa-users" aria-hidden="true"></i>
-            </button>
-
-            <button
-              type="submit"
-              form="campaignShortcutForm{{ campaign.campaign_id }}"
-              name="destination"
-              value="packs"
-              class="campaign-icon-button"
-              aria-label="Manage Packs for {{ campaign.campaign_name }}"
-              title="Manage Packs"
-              {%
-              if
-              not
-              campaign.is_active
-              %}disabled{%
-              endif
-              %}
-            >
-              <i class="fa-solid fa-box-open" aria-hidden="true"></i>
-            </button>
-
-            <button
-              type="submit"
-              form="campaignShortcutForm{{ campaign.campaign_id }}"
-              name="destination"
-              value="history"
-              class="campaign-icon-button"
-              aria-label="View History for {{ campaign.campaign_name }}"
-              title="History"
-            >
-              <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
-            </button>
-
-            <button
-              type="submit"
-              form="campaignShortcutForm{{ campaign.campaign_id }}"
-              name="destination"
-              value="draft"
-              class="campaign-icon-button"
-              aria-label="Draft Packs for {{ campaign.campaign_name }}"
-              title="Draft Packs"
-              {%
-              if
-              not
-              campaign.is_active
-              %}disabled{%
-              endif
-              %}
-            >
-              <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
-            </button>
-          </div>
-
-          <div class="campaign-save-row-actions">
-            <button
-              type="submit"
-              class="action-button secondary-button campaign-save-row-button"
-            >
-              Save
-            </button>
-
-            <button
-              type="button"
-              class="action-button secondary-button campaign-save-row-button campaign-export-open-button"
-              data-export-url="{{ url_for('campaign_chaos_campaigns_export', campaign_id=campaign.campaign_id) }}"
-              data-campaign-name="{{ campaign.campaign_name }}"
-            >
-              Export
-            </button>
-          </div>
-        </form>
-
-        <form
-          id="campaignShortcutForm{{ campaign.campaign_id }}"
-          method="post"
-          action="{{ url_for('campaign_chaos_campaign_open', campaign_id=campaign.campaign_id) }}"
-          class="hidden"
-        ></form>
-
-        <form
-          method="post"
-          action="{{ url_for('campaign_chaos_campaigns_delete', campaign_id=campaign.campaign_id) }}"
-          class="campaign-save-delete-form"
-          data-campaign-name="{{ campaign.campaign_name }}"
-        >
-          <input type="hidden" name="delete_confirmation" value="" />
-          <button
-            type="submit"
-            class="action-button secondary-button campaign-danger-button campaign-save-row-button"
-          >
-            Delete
-          </button>
-        </form>
-      </div>
-      {% endfor %}
-    </div>
-    {% elif campaign_total_count > 0 %}
-    <div class="card-placeholder">
-      No campaigns match the current search and filter settings.
-    </div>
-
-    <div class="config-button-row">
-      <a
-        href="{{ url_for('campaign_chaos_campaigns') }}"
-        class="action-button secondary-button"
-      >
-        Clear Filters
-      </a>
-    </div>
-    {% else %}
-    <div class="card-placeholder">No campaign saves have been added yet.</div>
-    {% endif %} {% include "_campaign_list_pagination.html" %}
+</details>
   </div>
 </div>
 
+<script>
+document.querySelectorAll('.campaign-rename-button').forEach(button => button.addEventListener('click', () => {
+ const row = button.closest('.campaign-management-row');
+ const input = row.querySelector('.campaign-name-display');
+ row.querySelector('.campaign-name-heading').hidden = true;
+ input.hidden = false; input.readOnly = false; input.focus(); input.select();
+ row.querySelector('.campaign-rename-save').hidden = false;
+ button.closest('details').open = false;
+}));
+</script>
 <script>
   (function () {
     class CampaignTransferModalController {
@@ -953,3 +801,4 @@ endblock %} {% block page_styles %}
   })();
 </script>
 {% endblock %}
+
