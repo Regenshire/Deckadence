@@ -3,13 +3,14 @@
 {% block title %}Deckadence - Result{% endblock %}
 
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/momir.css') }}">
-<script src="{{ url_for('static', filename='js/momir_layout.js') }}"></script>
-<script src="{{ url_for('static', filename='js/deckadence_message_cards.js') }}"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/momir.css', v='theme-3') }}">
+<script src="{{ url_for('static', filename='js/momir_layout.js', v='theme-3') }}"></script>
+<script src="{{ url_for('static', filename='js/deckadence_message_cards.js', v='inserts-3') }}"></script>
 {% endblock %}
 
 {% block content %}
 <div class="screen screen-result screen-medium{% if current_game_mode != "tower_of_power" %} momir-result{% endif %}">
+{% if current_game_mode != "tower_of_power" %}{% include "_momir_page_heading.html" %}{% endif %}
     {% if current_game_mode == "momir_select" and enabled_type_options %}
     <div class="page-panel momir-select-top-panel">
         <form method="get" action="{{ url_for('result') }}" class="momir-select-top-form">
@@ -34,6 +35,7 @@
     {% endif %}
 
     <div class="result-panel">
+        {% if current_game_mode != "tower_of_power" %}{% include "_momir_heading.html" %}{% endif %}
         {% if current_game_mode == "tower_of_power" %}
         <div class="result-main">
             <div class="result-label">Tower of Power</div>
@@ -142,6 +144,7 @@
                         {% else %}
                             <script>
                                 document.currentScript.parentElement.append(deckadenceMessageCards({
+                                    themed: true,
                                     title: ['Oh', 'No!'],
                                     subtitle: ['No cards have that', 'mana cost, Sorry!'],
                                     number: '0404', category: 'NO', edition: 'SORRY * EN',
@@ -197,6 +200,13 @@
         </div>
         {% endif %}
 
+        {% if current_game_mode != "tower_of_power" %}
+        <div class="momir-status-bar">
+          <img src="{{ url_for('static', filename='img/Logos/deckadence_d.svg') }}" alt="">
+          <strong>{% if card %}{{ card['name'] }}{% elif not card_database_ready %}Card database required{% else %}No matching card{% endif %}</strong>
+          <span>Mana value · {{ mana_value }}</span>
+        </div>
+        {% endif %}
         {% if card %}
         <div id="cardZoomOverlay" class="card-zoom-overlay hidden" aria-hidden="true">
             <div id="cardZoomBackdrop" class="card-zoom-backdrop"></div>

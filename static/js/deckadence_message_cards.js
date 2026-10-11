@@ -1,7 +1,7 @@
 /* Reusable layered message card. Text is assigned as textContent, never HTML. */
 function deckadenceMessageCards({
     title = [], subtitle = [], number = '', category = '', edition = '', footer = '',
-    baseUrl, overlayUrl, titleSize = 108,
+    baseUrl, overlayUrl, titleSize = 108, themed = false,
 }) {
     const ns = 'http://www.w3.org/2000/svg';
     const element = (name, attributes = {}, text) => {
@@ -13,7 +13,8 @@ function deckadenceMessageCards({
     const card = element('svg', {viewBox: '0 0 431 600', width: '100%', height: '100%',
         preserveAspectRatio: 'none', role: 'img', 'aria-label': [...title, ...subtitle].join(' ')});
     const layer = url => element('image', {href: url, width: 431, height: 600});
-    card.append(layer(baseUrl));
+    const artwork = layer(baseUrl);
+    card.append(artwork);
     const headline = element('g', {'font-family': 'Arial Black, Arial, sans-serif',
         'font-weight': 900, 'font-size': titleSize, fill: '#fff4c9', 'text-anchor': 'middle'});
     const lineHeight = titleSize * 1.02;
@@ -29,6 +30,28 @@ function deckadenceMessageCards({
         element('text', {x: 76, y: 568}, category),
         element('text', {x: 22, y: 579}, edition),
         element('text', {x: 411, y: 579, 'text-anchor': 'end'}, footer));
-    card.append(small, layer(overlayUrl));
+    card.append(small);
+    card.append(layer(overlayUrl));
+    if (themed) {
+        // Use the authored inserts intact: only choose the artwork and legible ink.
+        const inserts = {
+            'white-mana': 'white', light: 'white', colorless: 'white',
+            'blue-mana': 'blue', 'black-mana': 'black', dark: 'black', backup: 'black',
+            'red-mana': 'red', 'green-mana': 'green', 'multi-mana': 'gold',
+        };
+        const applyTheme = () => {
+            const insert = inserts[document.documentElement.dataset.theme] || 'gold';
+            artwork.setAttribute('href', new URL(`deckadence-${insert}-no-foil.svg`, new URL(baseUrl, document.baseURI)).href);
+            headline.setAttribute('fill', insert === 'gold' ? '#fff4c9' : '#342e22');
+            subtext.setAttribute('fill', '#49412b');
+            small.setAttribute('fill', ['white', 'gold'].includes(insert) ? '#242218' : '#f2f4f8');
+        };
+        applyTheme();
+        const observer = new MutationObserver(() => {
+            if (!card.isConnected) { observer.disconnect(); return; }
+            applyTheme();
+        });
+        observer.observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+    }
     return card;
 }

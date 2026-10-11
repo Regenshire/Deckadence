@@ -20,12 +20,8 @@
   <div class="page-panel deck-roulette-header-panel">
     <div class="deck-roulette-header-layout">
       <div>
-        <h1 class="page-title">Deck Roulette</h1>
-
-        <p class="page-subtitle">
-          Spin the Roulette wheel for a chance to try a deck, any deck, from
-          Moxfield!
-        </p>
+        <div class="roulette-eyebrow">Play / Deck Roulette</div>
+        <h1 class="page-title">A new deck. A new experience.</h1>
       </div>
 
       <div class="deck-roulette-source-badge">
@@ -181,6 +177,14 @@
     role="alert"
   ></div>
 
+  <section class="roulette-stage">
+    <div class="roulette-stage-header"><div><div class="roulette-eyebrow">Your next deck</div><h2>Let the wheel decide.</h2><p id="rouletteWheelCount">Ready to spin</p></div>        <button
+          type="button"
+          id="deckRouletteSpinAgainButton"
+          class="action-button" disabled
+        >
+          Spin Again
+        </button></div>
   <div id="deckRouletteSpinner" class="chaos-draft-spinner-shell">
     <div class="chaos-draft-spinner-window">
       <div id="deckRoulettePointer" class="chaos-draft-pointer hidden">
@@ -227,6 +231,8 @@
     </div>
   </div>
 
+    <div class="roulette-stage-footer"><img src="{{ url_for('static', filename='img/Logos/deckadence_d.svg') }}" alt=""><span id="rouletteStageName">No deck selected</span><strong id="rouletteStageMeta"></strong></div>
+  </section>
   <div id="deckRouletteWinnerPanel" class="deck-roulette-winner-browser hidden">
     <button
       type="button"
@@ -266,13 +272,7 @@
           View on Moxfield
         </a>
 
-        <button
-          type="button"
-          id="deckRouletteSpinAgainButton"
-          class="action-button secondary-button"
-        >
-          Spin Again
-        </button>
+
 
         <button
           type="button"
@@ -322,5 +322,5 @@
   </div>
 </div>
 {% endblock %} {% block page_scripts_after_app %}
-<script src="{{ url_for('static', filename='js/deck_roulette.js') }}"></script>
+<script src="{{ url_for('static', filename='js/deck_roulette.js', v='roulette-filters-2') }}"></script>
 {% endblock %}

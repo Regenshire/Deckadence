@@ -117,9 +117,7 @@ class DeckRouletteController {
     }
 
     if (this.spinAgainButton) {
-      this.spinAgainButton.addEventListener("click", () =>
-        this.spinCurrentWheel(),
-      );
+      this.spinAgainButton.addEventListener("click", () => this.spin());
     }
 
     if (this.newWheelButton) {
@@ -836,6 +834,7 @@ class DeckRouletteController {
     const winningStopIndex = Number(spinResult.winning_stop_index || 0);
 
     this.currentWheelDecks = displayDecks.slice();
+    document.getElementById("rouletteWheelCount").textContent = `${displayDecks.length} decks on this wheel`;
     this.currentWinnerIndex = winningStopIndex;
     this.currentWinner = spinResult.winning_deck;
 
@@ -1025,6 +1024,8 @@ class DeckRouletteController {
     const winner = this.currentWinner;
 
     this.winnerName.textContent = winner.deck_name || "Untitled Deck";
+    document.getElementById("rouletteStageName").textContent = this.winnerName.textContent;
+    document.getElementById("rouletteStageMeta").textContent = [winner.format_label, Number.isFinite(Number(winner.playable_card_count)) ? `${winner.playable_card_count} cards` : ""].filter(Boolean).join(" · ");
 
     if (winner.commander_name) {
       this.winnerCommander.textContent = `Commander: ${winner.commander_name}`;

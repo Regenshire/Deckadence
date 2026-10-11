@@ -1,30 +1,37 @@
+/* Shared insert framing follows each theme's existing palette. */
+html[data-theme] {
+  --insert-frame: color-mix(in srgb, var(--border) 75%, var(--accent) 25%);
+  --insert-edge: var(--panel);
+  --insert-divider: var(--border);
+  --insert-mark: var(--muted);
+}
 html[data-theme="dark"] {
   --insert-frame: #424b58;
   --insert-edge: #788597;
   --insert-divider: #586576;
   --insert-mark: #a9b0be;
 }
-/* White Mana and Dark insert-inspired framing. Presentation only; shared behavior stays in the existing components. */
+/* Preserve the approved White Mana palette. */
 html[data-theme="white-mana"] {
   --insert-mark: #947b4b;
   --insert-frame: #b5a17b;
   --insert-edge: #faf4e6;
   --insert-divider: #ac966a;
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) #homeScreen .home-welcome-panel {
+html[data-theme] #homeScreen .home-welcome-panel {
   border: 6px solid var(--insert-frame);
   border-radius: 28px;
   background: var(--panel);
   box-shadow: inset 0 0 0 2px var(--insert-edge),0 10px 28px #342e2217;
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.home-primary-card-setup) {
+html[data-theme] .home-primary-card:not(.home-primary-card-setup) {
   border: 2px solid var(--insert-frame);
   border-radius: 20px;
   background: var(--panel);
   padding: 24px 24px 0;
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.home-primary-card-setup) .home-card-copy { margin-bottom: 24px; }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.home-primary-card-setup) .home-card-action {
+html[data-theme] .home-primary-card:not(.home-primary-card-setup) .home-card-copy { margin-bottom: 24px; }
+html[data-theme] .home-primary-card:not(.home-primary-card-setup) .home-card-action {
   position: relative;
   margin-left: -24px;
   margin-right: -24px;
@@ -35,7 +42,7 @@ html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.h
   border-top: 1px solid var(--insert-divider);
   border-radius: 0 0 18px 18px;
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.home-primary-card-setup) .home-card-action::before {
+html[data-theme] .home-primary-card:not(.home-primary-card-setup) .home-card-action::before {
   content: "";
   position: absolute;
   left: 20px;
@@ -47,7 +54,7 @@ html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.h
   mask: url('../img/Logos/deckadence_d.svg') center/contain no-repeat;
   pointer-events: none;
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.home-primary-card-setup) .home-card-action::after {
+html[data-theme] .home-primary-card:not(.home-primary-card-setup) .home-card-action::after {
   content: "";
   position: absolute;
   left: 57px;
@@ -56,43 +63,43 @@ html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:not(.h
   border-left: 1px solid var(--insert-divider);
   pointer-events: none;
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .home-card-icon {
+html[data-theme] .home-card-icon {
   border: 1px solid var(--insert-divider);
   border-radius: 50%;
   background: var(--panel-2);
   color: var(--accent);
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) a.home-primary-card:hover {
+html[data-theme] a.home-primary-card:hover {
   border-color: var(--accent);
   box-shadow: 0 8px 20px #342e221a;
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .home-primary-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+html[data-theme] .home-primary-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 /* Inset framing leaves roulette track measurements and pointer alignment unchanged. */
-html:is([data-theme="white-mana"],[data-theme="dark"]) .chaos-draft-spinner-window {
+html[data-theme] .chaos-draft-spinner-window {
   background: var(--panel-2);
   border-color: var(--insert-frame);
   border-radius: 24px;
   box-shadow: inset 0 0 0 5px var(--insert-frame),inset 0 0 0 7px var(--insert-edge),0 8px 24px #342e2217;
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .chaos-pack-card-winning {
+html[data-theme] .chaos-pack-card-winning {
   background: var(--panel);
   box-shadow: 0 0 0 2px var(--accent),0 6px 16px #342e2220;
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .chaos-draft-next-button:not(:disabled) { background: var(--accent); color: #fff; }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .chaos-draft-next-button:not(:disabled) .chaos-draft-next-button-arrow { color: var(--insert-edge); }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .chaos-draft-next-button:hover:not(:disabled) { background: var(--accent-hover); }
+html[data-theme] .chaos-draft-next-button:not(:disabled) { background: var(--accent); color: #fff; }
+html[data-theme] .chaos-draft-next-button:not(:disabled) .chaos-draft-next-button-arrow { color: var(--insert-edge); }
+html[data-theme] .chaos-draft-next-button:hover:not(:disabled) { background: var(--accent-hover); }
 /* Thin builder framing preserves card stacking, drag targets, and resize handles. */
-html:is([data-theme="white-mana"],[data-theme="dark"]) .deckbuilder-main { border-color: var(--insert-divider); background: var(--panel); }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .deckbuilder-zone-header {
+html[data-theme] .deckbuilder-main { border-color: var(--insert-divider); background: var(--panel); }
+html[data-theme] .deckbuilder-zone-header {
   background: var(--panel-2);
   border-bottom: 1px solid var(--insert-divider);
   border-radius: 8px 8px 0 0;
   padding: 7px 10px;
 }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .deckbuilder-zone-header h2 { color: var(--accent-hover); }
-html:is([data-theme="white-mana"],[data-theme="dark"]) .deckbuilder-zone-resize-handle { background: var(--insert-divider); border-color: var(--accent); }
+html[data-theme] .deckbuilder-zone-header h2 { color: var(--accent-hover); }
+html[data-theme] .deckbuilder-zone-resize-handle { background: var(--insert-divider); border-color: var(--accent); }
 @media(max-width:620px) {
-  html:is([data-theme="white-mana"],[data-theme="dark"]) #homeScreen .home-welcome-panel { border-width: 4px; border-radius: 20px; }
+  html[data-theme] #homeScreen .home-welcome-panel { border-width: 4px; border-radius: 20px; }
 }
 
 html[data-theme="dark"] .home-card-action { color: var(--text); }
@@ -357,4 +364,114 @@ html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { height: 50px; min-he
 }
 @media (max-width: 700px) {
   html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { height: 42px; min-height: 42px; }
+}
+
+/* Dark palettes need light labels on inset surfaces. */
+html[data-theme-scheme="dark"] #homeScreen .home-card-action,
+html[data-theme-scheme="dark"] .deckbuilder-zone-header h2 { color: var(--text); }
+
+/* Deck section bar and ruled group headings. */
+html[data-theme] .deckbuilder-zone-deck > .deckbuilder-zone-header { padding: 12px 16px; border-radius: 0; border-block: 1px solid var(--insert-divider); background: var(--panel-2); }
+html[data-theme] .deckbuilder-stack-column-title { padding: 0 0 9px; margin-bottom: 12px; border-bottom: 1px solid var(--insert-divider); color: var(--muted); font: 700 13px/1.4 Arial,sans-serif; text-transform: uppercase; }
+.deckbuilder-group-control { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.deckbuilder-group-control select { min-height: 34px; padding: 6px 10px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; font: 700 14px Arial,sans-serif; }
+html[data-theme] .deckbuilder-zone-deck .deckbuilder-zone-header-actions { flex-wrap: wrap; }
+
+/* Full-bleed section bars match the approved builder study. */
+html[data-theme] .deckbuilder-main > .deckbuilder-zone { padding: 0 12px 10px; }
+html[data-theme] .deckbuilder-main .deckbuilder-zone > .deckbuilder-zone-header {
+  margin: 0 -12px 16px; padding: 12px 20px; min-height: 56px;
+  border: 0; border-bottom: 1px solid var(--insert-divider);
+  border-radius: 0; background: var(--panel-2);
+}
+html[data-theme] .deckbuilder-main .deckbuilder-zone-header h2 { font: 700 18px/1.4 Arial,sans-serif; color: var(--text); }
+html[data-theme] .deckbuilder-main > .deckbuilder-zone-resize-handle {
+  position: relative; flex-basis: 1px; min-height: 1px;
+  border: 0; background: var(--insert-divider); z-index: 2;
+}
+html[data-theme] .deckbuilder-main > .deckbuilder-zone-resize-handle::after {
+  content: ""; position: absolute; left: 0; right: 0; top: -4px; height: 9px; cursor: row-resize;
+}
+@media (max-width: 760px) {
+  html[data-theme] .deckbuilder-main .deckbuilder-zone > .deckbuilder-zone-header { padding: 10px 12px; flex-wrap: wrap; gap: 8px; }
+}
+
+/* Deck Roulette: approved heading and wheel frame; existing filters stay intact. */
+html[data-theme] #deckRouletteScreen .deck-roulette-header-panel { background: transparent; border: 0; box-shadow: none; padding: 8px 0; }
+html[data-theme] #deckRouletteScreen .page-title { font: 700 30px/1.25 Arial,sans-serif; margin: 10px 0 0; }
+.roulette-eyebrow { font: 700 11px/1.5 Arial,sans-serif; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
+.roulette-stage { border: 5px solid var(--insert-frame); border-radius: 28px; overflow: hidden; background: var(--panel); }
+.roulette-stage-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 22px 26px; }
+.roulette-stage-header h2 { font: 700 22px/1.4 Arial,sans-serif; margin: 6px 0; }
+.roulette-stage-header p { font-size: 14px; color: var(--muted); margin: 0; }
+html[data-theme] #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window { border: 0; border-radius: 0; box-shadow: none; background: url('../img/themes/roulette-foil.svg?v=4') center/100% 100% no-repeat var(--panel-2); }
+html[data-theme-scheme="light"] #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window { background-image: url('../img/themes/roulette-foil-light.svg'); }
+html:is([data-theme="white-mana"],[data-theme="light"]) #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window { background-image: url('../img/themes/roulette-foil-white-light.svg'); }
+html[data-theme] #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window::before,
+html[data-theme] #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window::after { display: none; }
+.roulette-stage-footer { display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-top: 1px solid var(--insert-divider); background: var(--panel-2); font: 700 14px/1.5 Arial,sans-serif; }
+.roulette-stage-footer img { width: 24px; height: 24px; }
+.roulette-stage-footer strong { margin-left: auto; }
+@media(max-width:700px) { .roulette-stage-header { padding: 16px; } .roulette-stage-footer { flex-wrap: wrap; padding: 12px 16px; } html[data-theme] #deckRouletteScreen .page-title { font-size: 24px; } }
+
+/* Prevent the shared full-width button rule from squeezing the wheel heading. */
+html[data-theme] #deckRouletteScreen .roulette-stage-header > div { flex: 1 1 auto; min-width: 0; }
+html[data-theme] #deckRouletteScreen .roulette-stage-header #deckRouletteSpinAgainButton {
+  flex: 0 0 auto; width: auto; min-width: 148px; min-height: 50px; padding: 12px 20px;
+}
+@media(max-width:480px) {
+  html[data-theme] #deckRouletteScreen .roulette-stage-header { flex-wrap: wrap; }
+  html[data-theme] #deckRouletteScreen .roulette-stage-header #deckRouletteSpinAgainButton { margin-left: auto; }
+}
+
+/* Size a populated roulette to its decks instead of the larger idle placeholder. */
+html[data-theme] #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window:has(#deckRouletteSpinnerTrack:not(.hidden)) {
+  height: auto; min-height: 0; max-height: none; padding: 36px 0;
+}
+
+/* Always-visible roulette filters share the wheel's frame and typography. */
+html[data-theme] #deckRouletteScreen .deck-roulette-filter-panel {
+  padding: 22px 26px; border: 2px solid var(--insert-frame);
+  border-radius: 24px; background: var(--panel); box-shadow: none;
+}
+html[data-theme] #deckRouletteScreen .deck-roulette-filter-grid {
+  grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 18px 16px;
+}
+html[data-theme] #deckRouletteScreen .deck-roulette-field { grid-column: span 2; font: 400 14px/1.4 Arial,sans-serif; }
+html[data-theme] #deckRouletteScreen .deck-roulette-field:nth-child(-n+4) { grid-column: span 3; }
+html[data-theme] #deckRouletteScreen .deck-roulette-field:nth-child(6) { grid-column: span 4; }
+html[data-theme] #deckRouletteScreen .deck-roulette-field > span {
+  color: var(--muted); font: 700 11px/1.5 Arial,sans-serif; letter-spacing: 1px; text-transform: uppercase;
+}
+html[data-theme] #deckRouletteScreen .deck-roulette-field :is(select,input:not([type="checkbox"]),summary) { font: 400 14px/1.4 Arial,sans-serif; min-height: 44px; }
+html[data-theme] #deckRouletteScreen .deck-roulette-color-options { min-height: 44px; }
+html[data-theme] #deckRouletteScreen .deck-roulette-color-chip { border-color: var(--insert-frame); }
+html[data-theme] #deckRouletteScreen .deck-roulette-color-input:focus-visible + .deck-roulette-color-chip { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* Preserve winner content and controls, with the same quiet framed surface. */
+html[data-theme] #deckRouletteScreen .deck-roulette-winner-panel {
+  border: 3px solid var(--insert-frame); border-radius: 24px;
+  background: var(--panel); box-shadow: none; padding: 22px 26px;
+}
+html[data-theme] #deckRouletteScreen .deck-roulette-winner-label { font: 700 11px/1.5 Arial,sans-serif; letter-spacing: 2px; color: var(--accent); }
+html[data-theme] #deckRouletteScreen .deck-roulette-winner-name { font: 700 22px/1.4 Arial,sans-serif; color: var(--text); margin: 6px 0; }
+html[data-theme] #deckRouletteScreen .deck-roulette-browse-button {
+  color: var(--roulette-arrow-color, color-mix(in srgb, var(--insert-frame) 25%, var(--accent))); background: transparent; border: 0; box-shadow: none;
+}
+html[data-theme] #deckRouletteScreen .deck-roulette-browse-button:hover:not(:disabled) { color: var(--roulette-arrow-hover, var(--accent)); }
+@media(max-width:1100px) {
+  html[data-theme] #deckRouletteScreen .deck-roulette-filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  html[data-theme] #deckRouletteScreen .deck-roulette-filter-grid > .deck-roulette-field { grid-column: span 1; }
+  html[data-theme] #deckRouletteScreen .deck-roulette-field:nth-child(6) { grid-column: span 2; }
+}
+@media(max-width:560px) {
+  html[data-theme] #deckRouletteScreen :is(.deck-roulette-filter-panel,.deck-roulette-winner-panel) { padding: 16px; border-radius: 20px; }
+  html[data-theme] #deckRouletteScreen .deck-roulette-filter-grid { grid-template-columns: minmax(0,1fr); gap: 14px; }
+  html[data-theme] #deckRouletteScreen .deck-roulette-filter-grid > .deck-roulette-field { grid-column: span 1; }
+  html[data-theme] #deckRouletteScreen .deck-roulette-multiselect-menu { min-width: 0; width: 100%; }
+}
+
+/* Emphasize the gold hue instead of washing it out with white. */
+html[data-theme="white-mana"] #deckRouletteScreen {
+  --roulette-arrow-color: #bd8b20;
+  --roulette-arrow-hover: #a8730b;
 }

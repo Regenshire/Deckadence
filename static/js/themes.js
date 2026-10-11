@@ -50,12 +50,12 @@
     root.style.setProperty("--theme-highlight", theme.scheme === "light" ? theme.colors.accent : theme.colors.menuborder);
     const constellation = state.backgroundType === "constellation";
     const asset = constellation
-      ? `card-constellation-${theme.scheme}.svg`
+      ? `card-constellation-${theme.scheme}.svg?v=2`
       : `${theme.id}.svg`;
     root.style.setProperty("--theme-tile", `url("${tileBase}${asset}")`);
-    root.style.setProperty("--theme-tile-static", `url("${tileBase}${constellation ? `card-constellation-${theme.scheme}.svg` : asset}")`);
+    root.style.setProperty("--theme-tile-static", `url("${tileBase}${constellation ? `card-constellation-${theme.scheme}.svg?v=2` : asset}")`);
     root.style.setProperty("--theme-background-opacity", state.backgroundIntensity / 100);
-    root.style.setProperty("--theme-background-size", `${(constellation ? 1600 : 348) * state.backgroundSize / 100}px ${(constellation ? 1100 : 232) * state.backgroundSize / 100}px`);
+    root.style.setProperty("--theme-background-size", `${(constellation ? 2240 : 348) * state.backgroundSize / 100}px ${(constellation ? 1540 : 232) * state.backgroundSize / 100}px`);
     document.querySelectorAll("[data-background-setting]").forEach((control) => {
       const value = state[control.dataset.backgroundSetting];
       if (control.type === "checkbox") control.checked = value;

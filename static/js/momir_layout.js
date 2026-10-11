@@ -17,12 +17,21 @@ class MomirViewportController {
         const shell = this.screen.closest('.app-shell');
         const bottom = shell ? parseFloat(getComputedStyle(shell).paddingBottom) : 12;
         const selector = this.screen.querySelector('.momir-select-top-panel');
-        const availableHeight = Math.max(200, height - top - bottom - (selector ? selector.offsetHeight + 8 : 0) - 26);
-        const availableWidth = Math.max(200, this.screen.clientWidth - 26);
+        const compact = matchMedia('(max-width: 600px)').matches;
+        const frameSpace = compact ? 30 : 48;
+        const heading = this.screen.querySelector('.momir-game-heading');
+        const headingSpace = heading ? heading.offsetHeight + parseFloat(getComputedStyle(heading).marginBottom) : 0;
+        const pageHeading = this.screen.querySelector('.momir-page-heading');
+        const pageHeadingSpace = pageHeading ? pageHeading.offsetHeight + 28 : 0;
+        const footer = this.screen.querySelector('.momir-status-bar');
+        const footerSpace = footer ? footer.offsetHeight + (compact ? 12 : 20) : 0;
+        const availableHeight = Math.max(200, height - top - bottom - (selector ? selector.offsetHeight + 8 : 0) - frameSpace - headingSpace - pageHeadingSpace - footerSpace);
+        const availableWidth = Math.max(200, this.screen.clientWidth - frameSpace);
         const landscape = matchMedia('(orientation: landscape) and (max-height: 650px)').matches;
         const rows = landscape ? 3 : 9;
         const columns = landscape ? 3 : 1;
-        const gap = 8;
+        const gap = compact ? 12 : 18;
+        const actionSpace = 48 + gap;
         const ratio = 63 / 88; // Fixed card proportions, independent of image/cache state.
         let key = 44;
         let cardHeight;
@@ -31,12 +40,12 @@ class MomirViewportController {
         for (let pass = 0; pass < 3; pass++) {
             const bank = columns * key + (columns - 1) * 4;
             cardWidth = Math.min(480, Math.max(100, availableWidth - 2 * bank - 2 * gap));
-            cardHeight = Math.min(cardWidth / ratio, availableHeight - 56);
+            cardHeight = Math.min(cardWidth / ratio, availableHeight - actionSpace);
             cardWidth = cardHeight * ratio;
-            key = Math.max(44, Math.min(80, (cardHeight + 56 - (rows - 1) * 4) / rows));
+            key = Math.max(44, Math.min(80, (cardHeight + actionSpace - (rows - 1) * 4) / rows));
         }
         const bank = columns * key + (columns - 1) * 4;
-        const boardHeight = Math.max(cardHeight + 56, rows * key + (rows - 1) * 4);
+        const boardHeight = Math.max(cardHeight + actionSpace, rows * key + (rows - 1) * 4);
         const values = {
             '--mana-size': key,
             '--mana-bank-width': bank,

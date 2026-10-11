@@ -855,6 +855,12 @@
         </div>
 
         <div class="deckbuilder-zone-header-actions">
+          <label class="deckbuilder-group-control">Group By
+            <select id="deckbuilderGroupBySelect" aria-label="Group deck by">
+              <option value="mana">Mana Cost</option><option value="rarity">Rarity</option>
+              <option value="color">Color</option><option value="type">Type</option>
+            </select>
+          </label>
           <button
             type="button"
             id="deckbuilderDeckSelectAllButton"
@@ -1514,7 +1520,7 @@
 <script src="{{ url_for('static', filename='js/card_back_selector.js') }}"></script>
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js') }}"></script>
-<script src="{{ url_for('static', filename='js/deckbuilder.js') }}"></script>
+<script src="{{ url_for('static', filename='js/deckbuilder.js', v='group-by-1') }}"></script>
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}

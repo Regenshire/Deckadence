@@ -503,3 +503,25 @@ html[data-theme] .app-shell .app-frame .app-tabs.app-tabs-collapsed .app-menu-to
   box-shadow: none;
   backdrop-filter: none;
 }
+
+/* Custom set editor: pair surfaces and labels with the active palette. */
+html[data-theme] :is(.custom-draft-current-card-tools, .custom-draft-current-selection-toolbar) {
+  background: var(--panel-2); color: var(--text); border-color: var(--border);
+}
+html[data-theme] :is(.custom-draft-card-count, .custom-draft-pack-icon-button) {
+  background: var(--panel-2); color: var(--text); border-color: var(--border);
+}
+html[data-theme] .custom-draft-pack-icon-button:hover:not(:disabled) {
+  background: var(--button-hover); border-color: var(--accent);
+}
+html[data-theme] .custom-draft-header-icon-button-active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+html[data-theme] .custom-draft-generate-status {
+  background: color-mix(in srgb,var(--theme-success) 8%,var(--panel));
+  color: var(--theme-success); border-color: var(--theme-success);
+}
+html[data-theme] .custom-draft-generate-status-error {
+  background: color-mix(in srgb,var(--theme-error) 8%,var(--panel));
+  color: var(--theme-error); border-color: var(--theme-error);
+}

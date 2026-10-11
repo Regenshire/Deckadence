@@ -1,11 +1,13 @@
 {% extends "base.html" %} {% block title %}Deckadence - Home{% endblock %} {%
 block content %}
 <div class="screen screen-home screen-medium momir-input">
+{% if current_game_mode != "tower_of_power" %}{% include "_momir_page_heading.html" %}{% endif %}
   {% if not card_database_ready %} {% set setup_title = "Initial Setup Required"
   %} {% set setup_message = "Download the card database before drawing cards or
   using game modes." %} {% include "_setup_required_panel.html" %} {% endif %}
 
   <div class="mana-panel" data-help-id="momir-panel">
+    {% if current_game_mode != "tower_of_power" %}{% include "_momir_heading.html" %}{% endif %}
     {% if current_game_mode == "tower_of_power" %}
     <div class="mana-label">Tower of Power</div>
 
@@ -112,7 +114,7 @@ block content %}
   </div>
 </div>
 {% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/momir.css') }}">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/momir.css', v='theme-3') }}">{% endblock %}
 {% block page_scripts_before_app %}
 <script src="{{ url_for('static', filename='js/momir.js') }}"></script>
 {% endblock %}

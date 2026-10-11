@@ -6,6 +6,7 @@ p=Path('static/img/themes/concepts');out=p/'card-constellations';out.mkdir(exist
 W,H=1600,1100
 # x, y, width, height, rotation: one coordinate system for cards and connections.
 nodes=[(95,120,68,96,-13),(315,245,58,82,12),(165,475,80,112,-8),(410,650,66,94,16),(95,865,58,82,-16),(370,970,78,110,9),(650,100,64,90,-9),(775,355,82,116,8),(700,810,60,86,-15),(1030,625,76,108,-10),(1110,150,78,110,15),(1420,345,66,92,-12),(1340,775,82,116,12),(1500,1000,58,82,-8)]
+symbols="WUBRGCCRWUGBUB"
 edges=[(0,1),(1,2),(2,3),(2,4),(3,5),(6,7),(7,9),(8,9),(9,12),(10,11),(11,12)]
 # Anchors are exact perimeter intersections in each rotated card's local space.
 def anchor(n,target):
@@ -61,7 +62,7 @@ body+='<g id="cards">'
 for i,(x,y,w,h,rot) in enumerate(nodes):
  body+=f'<g id="card-{i+1}" transform="translate({x} {y}) rotate({rot})"><rect x="{-w/2}" y="{-h/2}" width="{w}" height="{h}" rx="3" fill="#101114" fill-opacity=".82" stroke="#b4ac9f" stroke-opacity=".28" stroke-width=".9"/>'
  # Mana-inspired star maps, enlarged to 76% of the card width.
- mana='WUBRGC'[i%6]
+ mana=symbols[i]
  size=w*.76
  glyph=mana_constellation(mana,size)
  body+=f'<g id="mana-{i+1}-{mana}">{glyph}</g>'
@@ -90,7 +91,7 @@ events.extend([(2,4,34,88,-18),(9,8,51,106,-49)])
 for n,(src,dst,start,cycle,delay) in enumerate(events):
  na,nb=nodes[src],nodes[dst];a=anchor(na,nb);b=anchor(nb,na)
  length=math.dist(a,b);angle=math.degrees(math.atan2(b[1]-a[1],b[0]-a[0]));tail=length*.19
- c1=mana_colors['WUBRGC'[src%6]];c2=mana_colors['WUBRGC'[dst%6]]
+ c1=mana_colors[symbols[src]];c2=mana_colors[symbols[dst]]
  # Head reaches the perimeter at 14 seconds; the tapered tail clears at 16.66.
  anim=f'flow-{n}'
  frames=[(0,f'opacity:0;transform:translateX(0px);color:{c1}'),(start/cycle*100,f'opacity:0;transform:translateX(0px);color:{c1}'),((start+.6)/cycle*100,'opacity:1'),((start+14)/cycle*100,f'opacity:1;transform:translateX({length}px);color:{c2}'),((start+16.66)/cycle*100,f'opacity:1;transform:translateX({length+tail}px);color:{c2}'),((start+16.67)/cycle*100,'opacity:0'),(100,f'opacity:0;transform:translateX({length+tail}px);color:{c2}')]
@@ -102,8 +103,8 @@ for n,(src,dst,start,cycle,delay) in enumerate(events):
  frames=[(0,'opacity:0'),((start+14)/cycle*100,'opacity:0'),((start+14.22)/cycle*100,'opacity:1'),((start+14.65)/cycle*100,'opacity:.85'),((start+16.66)/cycle*100,'opacity:0'),(100,'opacity:0')]
  styles.append('@keyframes '+anim+' {'+''.join(f'{t:.3f}%'+'{'+v+'}' for t,v in frames)+'}')
  x,y,w,h,rot=nb
- emblem_color={'W':'#efdaa0','U':'#83c9f2','B':'#c39aee','R':'#f0a08c','G':'#a1dfb0','C':'#dae6ef'}['WUBRGC'[dst%6]]
- glyph=mana_constellation('WUBRGC'[dst%6],w*.76).replace('#a8bfd1',emblem_color).replace('#c3d6e5',emblem_color)
+ emblem_color={'W':'#efdaa0','U':'#83c9f2','B':'#c39aee','R':'#f0a08c','G':'#a1dfb0','C':'#dae6ef'}[symbols[dst]]
+ glyph=mana_constellation(symbols[dst],w*.76).replace('#a8bfd1',emblem_color).replace('#c3d6e5',emblem_color)
  # Full-strength colored lines and stars replace the dim neutral motif during arrival.
  glyph=glyph.replace('opacity=".3"','opacity="1"').replace('opacity="0.64"','opacity="1"').replace('opacity="0.43"','opacity="1"')
  glyph=re.sub(r'stroke-width="[0-9.]+"',f'stroke-width="{w*.017:.3f}"',glyph)
@@ -146,11 +147,11 @@ for scheme in ('dark', 'light'):
 for scheme in ('dark', 'light'):
  content=f'<svg xmlns="http://www.w3.org/2000/svg" width="1792" height="144">'
  for i,(x,y,w,h,rot) in enumerate(nodes):
-  color=({'W':'#efdaa0','U':'#83c9f2','B':'#c39aee','R':'#f0a08c','G':'#a1dfb0','C':'#dae6ef'} if scheme=='dark' else {'W':'#967020','U':'#2878ae','B':'#8250b3','R':'#b8543e','G':'#397e4b','C':'#536776'})['WUBRGC'[i%6]]
-  glyph=mana_constellation('WUBRGC'[i%6],w*.76).replace('#a8bfd1',color).replace('#c3d6e5',color)
+  color=({'W':'#efdaa0','U':'#83c9f2','B':'#c39aee','R':'#f0a08c','G':'#a1dfb0','C':'#dae6ef'} if scheme=='dark' else {'W':'#967020','U':'#2878ae','B':'#8250b3','R':'#b8543e','G':'#397e4b','C':'#536776'})[symbols[i]]
+  glyph=mana_constellation(symbols[i],w*.76).replace('#a8bfd1',color).replace('#c3d6e5',color)
   glyph=glyph.replace('opacity=".3"','opacity="1"').replace('opacity="0.64"','opacity="1"').replace('opacity="0.43"','opacity="1"')
   glyph=re.sub(r'stroke-width="[0-9.]+"',f'stroke-width="{w*.017:.3f}"',glyph)
   content+=f'<g transform="translate({i*128+64} 72)"><rect x="{-w/2}" y="{-h/2}" width="{w}" height="{h}" rx="3" fill="none" stroke="{color}" stroke-width="1.6"/>{glyph}</g>'
  content+='</svg>'
  cairosvg.svg2png(bytestring=content.encode(),write_to=str(p.parent/f'constellation-arrivals-{scheme}.png'))
-(p.parent/'constellation-motion.json').write_text(json.dumps({'nodes':nodes,'events':[{'src':src,'dst':dst,'start':start,'cycle':cycle,'delay':delay,'a':anchor(nodes[src],nodes[dst]),'b':anchor(nodes[dst],nodes[src])} for src,dst,start,cycle,delay in events],'colors':[mana_colors[m] for m in 'WUBRGC']}))
+(p.parent/'constellation-motion.json').write_text(json.dumps({'nodes':nodes,'events':[{'src':src,'dst':dst,'start':start,'cycle':cycle,'delay':delay,'a':anchor(nodes[src],nodes[dst]),'b':anchor(nodes[dst],nodes[src])} for src,dst,start,cycle,delay in events],'colors':[mana_colors[m] for m in symbols]}))

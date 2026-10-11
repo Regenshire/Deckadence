@@ -15,13 +15,13 @@
   }
   function load() {
     if (!loaded) loaded = Promise.all([
-      fetch(base + 'constellation-motion.json').then(r => { if (!r.ok) throw Error('Motion data unavailable'); return r.json(); }).then(value => {
+      fetch(base + 'constellation-motion.json?v=2').then(r => { if (!r.ok) throw Error('Motion data unavailable'); return r.json(); }).then(value => {
         data = value; colors.length = 0;
         value.colors.forEach(hex => colors.push([1,3,5].map(i => parseInt(hex.slice(i,i+2),16))));
       }),
       ...['dark','light'].map(scheme => new Promise((resolve,reject) => {
         const img = new Image(); img.onload = () => { atlases[scheme] = img; resolve(); }; img.onerror = reject;
-        img.src = base + `constellation-arrivals-${scheme}.png`;
+        img.src = base + `constellation-arrivals-${scheme}.png?v=2`;
       }))
     ]).catch(() => { loaded = null; throw Error('Background animation unavailable'); });
     return loaded;
@@ -36,7 +36,7 @@
   function frame() {
     if (!enabled() || !ctx) { stop(); return; }
     const begin = performance.now();
-    const t = begin / 1000, scale = state.backgroundSize / 100;
+    const t = begin / 1000, scale = 1.4 * state.backgroundSize / 100;
     ctx.clearRect(0,0,innerWidth,innerHeight);
     const alpha = Math.min(1,state.backgroundIntensity / 100);
     for (let ty=0;ty<innerHeight;ty+=1100*scale) for (let tx=0;tx<innerWidth;tx+=1600*scale) {
@@ -46,7 +46,7 @@
         if (age < 0 || age > 16.66) continue;
         const [ax,ay]=e.a,[bx,by]=e.b, dx=bx-ax,dy=by-ay,length=Math.hypot(dx,dy),tail=length*.19;
         if (age<=16.66) {
-          const mix=Math.min(1,age/14), c=colors[e.src%6].map((v,i)=>Math.round(v+(colors[e.dst%6][i]-v)*mix));
+          const mix=Math.min(1,age/14), c=colors[e.src].map((v,i)=>Math.round(v+(colors[e.dst][i]-v)*mix));
           ctx.save();ctx.translate(ax,ay);ctx.rotate(Math.atan2(dy,dx));
           ctx.beginPath();ctx.rect(0,-12,length,24);ctx.clip();ctx.translate(length*age/14,0);
           const breathe=.85-.15*Math.cos((t+index*.43)*Math.PI*2/3.6);

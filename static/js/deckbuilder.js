@@ -9,6 +9,8 @@
   const zoneResizeHandle = document.getElementById(
     "deckbuilderZoneResizeHandle",
   );
+  let deckGroupBy = "mana";
+  const groupBySelect = document.getElementById("deckbuilderGroupBySelect");
   const sortSelect = document.getElementById("deckbuilderSortSelect");
   const cardSizeSelect = document.getElementById("deckbuilderCardSizeSelect");
   const basicLandPaletteTemplate = document.getElementById(
@@ -3986,6 +3988,14 @@
   }
 
   function getDeckbuilderStackColumnDefs() {
+    const special = [{ key: "commander", label: "Commander" }, { key: "partner", label: "Partner" }];
+    const groups = {
+      rarity: [["mythic", "Mythic"], ["rare", "Rare"], ["uncommon", "Uncommon"], ["common", "Common"], ["other", "Other"]],
+      color: [["W", "White"], ["U", "Blue"], ["B", "Black"], ["R", "Red"], ["G", "Green"], ["multi", "Multicolor"], ["colorless", "Colorless"]],
+      type: [["creature", "Creatures"], ["instant", "Instants"], ["sorcery", "Sorceries"], ["artifact", "Artifacts"], ["enchantment", "Enchantments"], ["planeswalker", "Planeswalkers"], ["battle", "Battles"], ["land", "Lands"], ["other", "Other"]]
+    };
+    if (groups[deckGroupBy]) return special.concat(groups[deckGroupBy].map(([key, label]) => ({ key, label })));
+
     return [
       { key: "commander", label: "Commander" },
       { key: "partner", label: "Partner" },
@@ -4064,6 +4074,20 @@
       return "partner";
     }
 
+    if (deckGroupBy === "rarity") {
+      const rarity = String(cardElement.dataset.cardRarity || "").toLowerCase();
+      return ["mythic", "rare", "uncommon", "common"].includes(rarity) ? rarity : "other";
+    }
+    if (deckGroupBy === "color") {
+      let colors = [];
+      try { colors = JSON.parse(cardElement.dataset.cardColorIdentity || "[]"); } catch (_) {}
+      colors = Array.isArray(colors) ? [...new Set(colors.filter(c => ["W", "U", "B", "R", "G"].includes(c)))] : [];
+      return colors.length > 1 ? "multi" : colors[0] || "colorless";
+    }
+    if (deckGroupBy === "type") {
+      const types = String(cardElement.dataset.cardTypeLine || "").toLowerCase().split(/[—–]/)[0];
+      return ["land", "creature", "planeswalker", "instant", "sorcery", "artifact", "enchantment", "battle"].find(type => new RegExp("\\b" + type + "\\b").test(types)) || "other";
+    }
     const inferredColumn = inferDeckbuilderStackColumnKey(cardElement);
 
     if (inferredColumn === "land") {
@@ -4431,7 +4455,7 @@
       columnElement.classList.toggle("hidden", !hasCards);
     });
 
-    bindStackColumnDropTargets();
+    if (deckGroupBy === "mana") bindStackColumnDropTargets();
     bindDragSources();
     bindHoverPreviews();
     bindCardContextMenus();
@@ -5398,6 +5422,13 @@
       "aria-expanded",
       isOpen ? "true" : "false",
     );
+  }
+
+  if (groupBySelect) {
+    groupBySelect.addEventListener("change", () => {
+      deckGroupBy = groupBySelect.value;
+      setViewMode("stack");
+    });
   }
 
   if (sortSelect) {
