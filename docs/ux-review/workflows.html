@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Deckadence · Workflow proposals</title><link rel="stylesheet" href="review.css"><script src="patterns.js" defer></script><script src="workflows.js" defer></script></head>
+<body><main class="shell">
+<header class="brand"><strong>Deckadence</strong><nav aria-label="Review"><a href="index.html">Findings</a><a href="demos.html">Shared controls</a><a href="#home">Home proposal</a><a href="#set">Set proposal</a></nav></header>
+<p class="muted">Interactive review · sample content · saves affect this page only.</p>
+<section id="home" class="panel">
+  <div class="eyebrow">05 / A shorter starting point</div><h1>What are you making?</h1>
+  <p class="muted">Build a deck, prepare a draft, or jump into a game.</p>
+  <div class="grid">
+    <article><h2>Decks</h2><p>Pick up a saved deck and get it ready to print.</p><a class="button primary" href="demos.html#collections">My decks</a></article>
+    <article><h2>Custom sets</h2><p>Choose cards and build your pack layouts.</p><a class="button" href="#set">Open sample set</a></article>
+    <article><h2>Draft</h2><p>Prepare packs for your next draft.</p><a class="button" href="demos.html#output">Try output controls</a></article>
+    <article><h2>Play</h2><p>Draw a Momir card by mana value.</p><a class="button" href="demos.html#keyboard">Try Momir controls</a></article>
+  </div>
+</section>
+<section id="set" class="panel">
+  <nav aria-label="Breadcrumb"><a href="#home">Home</a><span aria-hidden="true">/</span><span>Custom sets</span><span aria-hidden="true">/</span><span aria-current="page">Friday favorites</span></nav>
+  <header class="row between" style="margin-top:20px"><div><div class="eyebrow">06 / Cards first</div><h1>Friday favorites</h1><p class="muted">3 cards · 1 pack layout</p></div><button type="button" id="add-card" class="primary">Add cards</button></header>
+  <form id="set-details">
+    <details><summary>Set details &amp; pack rules</summary>
+      <div class="grid"><label for="set-name">Set name<input id="set-name" name="name" value="Friday favorites" required></label><label for="set-code">Set code<input id="set-code" name="code" value="FRI" required></label></div>
+      <details><summary>Pack layout · 1 sample slot</summary><div class="grid"><label for="slot-1-rarity">Slot 1 rarity<select id="slot-1-rarity" name="rarity"><option>Any rarity</option><option>Rare or mythic</option><option>Uncommon</option><option>Common</option></select></label><label for="slot-1-count">Slot 1 card count<input id="slot-1-count" name="count" type="number" min="1" max="15" value="1" required></label></div></details>
+    </details>
+      <p class="status" data-save-status role="status">All changes saved</p>
+      <div class="savebar row between" data-savebar hidden><strong>Unsaved set details</strong><div class="row"><button type="button" data-discard>Discard</button><button class="primary" type="submit">Save set details</button></div></div>
+  </form>
+  <h2>Cards</h2>
+  <div id="sample-cards"><article class="result-row"><div class="copy"><h3>Sol Ring</h3><span class="muted">Artifact · Uncommon</span></div></article><article class="result-row"><div class="copy"><h3>Lightning Bolt</h3><span class="muted">Instant · Common</span></div></article><article class="result-row"><div class="copy"><h3>Serra Angel</h3><span class="muted">Creature · Uncommon</span></div></article></div>
+  <p class="status" id="card-status" role="status"></p>
+</section>
+<dialog id="add-dialog" aria-labelledby="add-title"><h2 id="add-title">Add cards</h2><p class="muted">Sample picker. The production picker retains search and advanced filters.</p><p><strong>Llanowar Elves</strong> · Creature · Common</p><div class="actions"><button type="button" data-close autofocus>Close</button><button type="button" class="primary" id="add-sample">Add Llanowar Elves</button></div></dialog>
+<footer class="muted">Both pages reuse the same styling. The set form and picker reuse DirtyFormController and DialogController from the controls demonstration. Sample pack fields illustrate contextual labels, not a replacement pack editor.</footer>
+</main></body></html>

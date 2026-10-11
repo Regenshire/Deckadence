@@ -57,7 +57,7 @@ function initializeManaKeypad() {
 
         if (value === "") {
             event.preventDefault();
-            alert("Please enter a mana value.");
+            manaInput.reportValidity();
         }
     });
 }

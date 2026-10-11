@@ -50,29 +50,57 @@ software/model files must be installed separately on a destination.
 
 ## Export
 
-1. Finish card refresh, image downloads, bleed processing and upscaling first.
-2. Open Configuration → Backup. Optionally choose an output folder on the
-   computer running Deckadence. The default is `Backups/` beside the application.
-3. Click **Export User Content**. The status modal shows collection/export stages,
-   progress, the current file and any error.
-4. When complete, use **Download Exported Archive**, or copy the ZIP from the
-   displayed saved path. **View Export / Import Status** reopens the modal.
+1. Exports can run while you use the application; changing or unavailable assets are skipped with warnings.
+2. Open Configuration → Backup.
+3. Click **Export** to open the modal. Open **Settings** to choose Categories to
+   Export, Assets to Include and Settings. Everything starts selected. Group
+   checkboxes select or clear their children and show a mixed state when needed.
+4. Click **Export to Zip** to start. **Cancel Export** stops the running export
+   and removes its unfinished ZIP and temporary job files.
+5. When the archive is ready, a normal browser download starts with the ZIP filename.
+   The browser uses its download folder or Save As dialog according to its settings.
+   **Download Exported Archive** lets you download again. No browser filesystem API
+   or localhost restriction is required. The application also retains its generated
+   archive in `Export/`, named `Deckadence_Backup_YYYYMMDD_ID.zip` using the
+   computer's local date and an eight-character unique ID.
 
-The application pauses other requests during an export/import. Large assets are
+Temporary export/import files, the operation lock and import recovery journal
+live under `Export/backup-work/`. Export cleanup preserves that workspace to
+protect recovery data; completed ZIPs use the ordinary Export cleanup policy.
+The former root `.backup-work` is relocated on the next operation when the new
+workspace does not yet exist.
+
+`ExportSelection` defines the reusable content policy. The create endpoint accepts
+`selection` boolean options and optional `entities` (`deck_ids`, `pack_ids`,
+`set_codes`) for future individual-content sharing. Partial exports include
+required card catalogue records without exporting the full database. Campaign
+history also retains minimal pack records when its schema requires them. Modified
+art is restricted to cards in the selected categories/entities. References to
+omitted campaigns, packs, image scopes and custom backs are cleared. Import only
+applies configuration settings if they are included in the archive.
+
+Exports run in the background without blocking application requests or image jobs.
+Imports pause other requests while merging records and settings. Browser navigation
+during an import shows its progress controls rather than a JSON error. Large assets are
 streamed in 4 MiB chunks with SHA-256 verification, ZIP64 and no image recompression.
 Record inventories are streamed to disk; import stages them in a temporary SQLite
 workspace. Memory scales with file metadata and user identity maps, not image bytes
 or the full catalogue. The output ZIP is published only after completion.
 
-A missing custom asset fails export with its path rather than silently producing
-an incomplete backup. Symlinks/junctions are rejected. Allow free space for the
-archive and temporary record processing; no full database snapshot is created.
+Missing, unreadable, changing or linked custom assets are skipped. The completed
+modal reports the skipped files; the archive manifest contains the full warning
+list. Available assets and records are still exported, with unavailable file
+references cleared for import. Each asset is staged separately before ZIP writing,
+so a failed source read cannot leave a truncated archive entry. Allow free space
+for the archive, the largest individual asset and temporary record processing;
+no full database snapshot is created.
 
 ## Import and conflict behavior
 
 1. Open Configuration → Backup → **Import user content** on the destination.
-2. Enter a local ZIP path, or choose a ZIP to upload. A local path is recommended
-   for 10–100 GB archives because it avoids an extra uploaded copy.
+2. Use **Import ZIP file** to choose your backup archive. The file is uploaded
+   with progress before validation; allow disk space for this temporary copy as
+   well as the extracted assets.
 3. Type **IMPORT**, then click **Validate and Import**.
 4. Wait for completion in the status modal. The import runs against the existing
    database and does not require a restart to merge content.

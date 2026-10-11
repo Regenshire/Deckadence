@@ -1,0 +1,8 @@
+/* Apply only to the outer body. Paths are relative to this file. */
+body {
+  background-color: #101114;
+  background-image: url("stars.svg"), url("connections.svg"), url("cards.svg");
+  background-size: 900px 620px, 900px 620px, 760px 680px;
+  background-position: 80px 40px, 80px 40px, 0 0;
+  background-repeat: repeat;
+}

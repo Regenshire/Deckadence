@@ -1,80 +1,75 @@
-<div
-    id="applicationBackupPanel"
-    class="application-backup-panel"
+<div id="applicationBackupPanel" class="application-backup-panel"
     data-status-url="{{ url_for('application_backups.status') }}"
     data-create-url="{{ url_for('application_backups.create') }}"
     data-import-url="{{ url_for('application_backups.restore') }}"
     data-cancel-url="{{ url_for('application_backups.cancel_restore') }}"
->
-    <p>
-        Export custom sets, saved decks, packs, campaigns, players, history, alternate
-        and isolated artwork, upscaled images, deck art, custom icons and card backs,
-        modified print and cutting templates, and settings.
-        Plugins, AI models, base Scryfall images, application files, and the full database are excluded.
-    </p>
-    <div class="application-backup-fields">
-        <label class="application-backup-field">
-            <span>Backup folder on the Deckadence computer (optional)</span>
-            <input type="text" id="applicationBackupFolder" class="campaign-add-pack-custom-input"
-                   placeholder="Defaults to the Backups folder beside Deckadence" autocomplete="off">
-        </label>
-        <button type="button" id="applicationBackupCreate" class="action-button cleanup-action-button">
-            Export User Content
-        </button>
-        <button type="button" id="applicationBackupShowProgress" class="action-button secondary-button hidden">View Export / Import Status</button>
+    data-cancel-export-url="{{ url_for('application_backups.cancel_export') }}">
+  <p>Back up your custom content and settings. Choose what to include under Settings in the export modal.</p>
+  <div class="application-backup-fields">
+    <button type="button" id="applicationBackupOpen" class="action-button cleanup-action-button">Export</button>
+    <button type="button" id="applicationBackupShowProgress" class="action-button secondary-button hidden">View Export / Import Status</button>
+  </div>
+  <p class="application-backup-hint">Your browser saves the ZIP using its normal download settings. You can continue using Deckadence while it exports.</p>
+  <dialog id="applicationBackupModal" class="campaign-add-pack-dialog print-export-dialog application-backup-modal" aria-labelledby="applicationBackupModalTitle">
+    <div class="campaign-add-pack-header">
+      <h2 id="applicationBackupModalTitle" class="campaign-add-pack-title">Backup Export / Import</h2>
+      <button type="button" id="applicationBackupModalClose" class="campaign-add-pack-close-button" aria-label="Close status">&times;</button>
     </div>
-    <p class="application-backup-hint">
-        Large backups are saved on disk before downloading. Choose a drive with enough free space.
-        Backups are kept separately from Export cleanup. Other application requests pause while a job runs.
-    </p>
-    <dialog id="applicationBackupModal" class="application-backup-modal" aria-labelledby="applicationBackupModalTitle">
-      <div class="application-backup-modal-header">
-        <h3 id="applicationBackupModalTitle">User Content Export / Import</h3>
-        <button type="button" id="applicationBackupModalClose" class="action-button secondary-button" aria-label="Close status">Close</button>
-      </div>
-      <div class="application-backup-status" role="status" aria-live="polite">
-        <strong id="applicationBackupStage">Idle</strong>
-        <span id="applicationBackupMessage"></span>
-        <progress id="applicationBackupProgress" max="100" value="0" aria-label="Backup or restore progress"></progress>
-        <span id="applicationBackupDetail"></span>
-        <span id="applicationBackupCurrentFile" class="application-backup-hint"></span>
-        <span id="applicationBackupError" class="application-backup-error hidden" role="alert"></span>
-        <a id="applicationBackupDownload" class="action-button secondary-button hidden">Download Exported Archive</a>
-        <span id="applicationBackupSavedPath"></span>
-      </div>
-    </dialog>
-    <hr>
-    <h3>Import user content</h3>
-    <p>
-        Import adds content to your existing database. Decks, packs, campaigns, players,
-        and isolation scopes receive new identifiers; conflicting custom set codes and
-        template names are renamed. Existing content is preserved. Imported settings and
-        custom pack artwork overrides are applied. No restart is required.
-    </p>
-    <label class="application-backup-field">
-        <span>Backup ZIP path on the Deckadence computer</span>
-        <input type="text" id="applicationRestorePath" class="campaign-add-pack-custom-input"
-               placeholder="Example: D:\Backups\deckadence_user_content.zip" autocomplete="off">
-    </label>
-    <p class="application-backup-hint">
-        For 10–100 GB backups, use a local ZIP path to avoid uploading another copy.
-        Import needs free space for extracted custom assets and temporary record processing.
-    </p>
-    <label class="application-backup-field">
-        <span>Or upload a backup ZIP</span>
-        <input type="file" id="applicationRestoreFile" accept=".zip,application/zip">
-    </label>
-    <div class="application-backup-fields">
-        <label class="application-backup-field">
-            <span>Type IMPORT to confirm adding content and applying settings</span>
-            <input type="text" id="applicationRestoreConfirmation" class="campaign-add-pack-custom-input"
-                   autocomplete="off" spellcheck="false" placeholder="IMPORT">
-        </label>
-        <button type="button" id="applicationRestoreStart" class="action-button campaign-danger-button" disabled>
-            Validate and Import
-        </button>
-        <button type="button" id="applicationRestoreCancel" class="action-button secondary-button hidden">
-            Cancel Old Staged Full Restore
-        </button>
+    <div class="print-export-main-actions application-backup-modal-actions">
+      <button type="button" id="applicationBackupCreate" class="action-button print-export-primary-button">Export to Zip</button>
+      <button type="button" id="applicationBackupCancelExport" class="action-button secondary-button" disabled>Cancel Export</button>
     </div>
+    <details id="applicationBackupSettings" class="print-export-settings-panel application-backup-settings">
+      <summary class="print-export-settings-toggle"><span aria-hidden="true">&#9881;</span> Settings</summary>
+      {% for group, title, all_label, options in [
+        ('categories', 'Categories to Export', 'All Cards', [('custom_sets', 'Custom Sets'), ('decks', 'Decks'), ('packs', 'Packs')]),
+        ('assets', 'Assets to Include', 'All Assets', [('modified_cards', 'Modified Cards'), ('deck_art', 'Deck Art'), ('custom_set_icons', 'Custom Set Icons')]),
+        ('settings', 'Settings', 'All Settings', [('campaigns', 'All Chaos Draft Campaign, Players, History'), ('print_templates', 'Print Templates'), ('cutting_templates', 'Card Cutting Machine Templates'), ('card_backs', 'Card Backs'), ('config_settings', 'Config Settings')])
+      ] %}
+      <fieldset class="application-backup-selection-group">
+        <legend>{{ title }}</legend>
+        <label><input type="checkbox" data-export-all="{{ group }}" checked> {{ all_label }}</label>
+        <div class="application-backup-selection-children">
+          {% for key, label in options %}
+          <label><input type="checkbox" data-export-option="{{ key }}" data-export-group="{{ group }}" checked> {{ label }}</label>
+          {% endfor %}
+        </div>
+        {% if group == 'settings' %}<p class="application-backup-hint">Campaign history includes the pack records required to restore it.</p>{% endif %}
+        {% if group == 'assets' %}<p class="application-backup-hint">Modified cards include uploaded alternate art and upscaled images matching the selected categories.</p>{% endif %}
+      </fieldset>
+      {% endfor %}
+    </details>
+    <div id="applicationBackupStatusPanel" class="print-export-status-panel application-backup-status hidden" role="status" aria-live="polite">
+      <div class="print-export-status-header">
+        <div class="print-export-status-spinner" aria-hidden="true"></div>
+        <div>
+          <div id="applicationBackupStage" class="print-export-status-title">Preparing request</div>
+          <div id="applicationBackupMessage" class="print-export-status-message"></div>
+        </div>
+      </div>
+      <div class="print-export-status-steps">
+        <div class="print-export-status-step" data-backup-step="prepare">Preparing request</div>
+        <div class="print-export-status-step" data-backup-step="generate">Generating file</div>
+        <div class="print-export-status-step" data-backup-step="deliver">Delivering file</div>
+        <div class="print-export-status-step" data-backup-step="complete">Complete</div>
+      </div>
+      <progress id="applicationBackupProgress" max="100" value="0" aria-label="Backup or restore progress"></progress>
+      <span id="applicationBackupDetail"></span>
+      <span id="applicationBackupCurrentFile" class="application-backup-hint"></span>
+      <span id="applicationBackupError" class="application-backup-error hidden" role="alert"></span>
+      <a id="applicationBackupDownload" class="action-button secondary-button hidden">Download Exported Archive</a>
+      <span id="applicationBackupSavedPath"></span>
+      <details id="applicationBackupWarnings" class="hidden"><summary>Skipped files</summary><pre id="applicationBackupWarningList" class="application-backup-warning-list"></pre></details>
+    </div>
+  </dialog>
+  <hr>
+  <h3>Import user content</h3>
+  <p>Import adds content to your existing database using new identifiers. Existing content is preserved; imported config settings are applied when included in the archive.</p>
+  <label class="application-backup-field"><span>Import ZIP file</span><input type="file" id="applicationRestoreFile" accept=".zip,application/zip"></label>
+  <p class="application-backup-hint">Choose your Deckadence backup ZIP. Import needs free space for the uploaded archive, extracted custom assets, and temporary record processing.</p>
+  <div class="application-backup-fields">
+    <label class="application-backup-field"><span>Type IMPORT to confirm adding content and applying included settings</span><input type="text" id="applicationRestoreConfirmation" class="campaign-add-pack-custom-input" autocomplete="off" spellcheck="false" placeholder="IMPORT"></label>
+    <button type="button" id="applicationRestoreStart" class="action-button campaign-danger-button" disabled>Validate and Import</button>
+    <button type="button" id="applicationRestoreCancel" class="action-button secondary-button hidden">Cancel Old Staged Full Restore</button>
+  </div>
 </div>

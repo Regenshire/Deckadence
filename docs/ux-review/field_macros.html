@@ -1,0 +1,23 @@
+{# Reference macros only. Not loaded by production templates.
+   Caller supplies unique IDs and plain-text labels; option values remain route-owned.
+   Preserve existing IDs, names and data attributes when migrating real controls. #}
+{% macro select_field(id, name, label, options, selected='', hint='', disabled=false) -%}
+<div class="ux-field">
+    <label for="{{ id }}">{{ label }}</label>
+    <select id="{{ id }}" name="{{ name }}"{% if hint %} aria-describedby="{{ id }}-hint"{% endif %}{% if disabled %} disabled{% endif %}>
+        {% for value, text in options %}
+        <option value="{{ value }}"{% if value|string == selected|string %} selected{% endif %}>{{ text }}</option>
+        {% endfor %}
+    </select>
+    {% if hint %}
+    <p id="{{ id }}-hint" class="muted">{{ hint }}</p>
+    {% endif %}
+</div>
+{%- endmacro %}
+
+{% macro row_selection(id, name, value, label, checked=false) -%}
+<label class="check" for="{{ id }}">
+    <input id="{{ id }}" name="{{ name }}" value="{{ value }}" type="checkbox"{% if checked %} checked{% endif %}>
+    <span class="sr-only">{{ label }}</span>
+</label>
+{%- endmacro %}

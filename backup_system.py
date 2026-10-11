@@ -75,12 +75,22 @@ class ArchiveOperations:
         self.root = Path(runtime_root or RUNTIME_BASE_DIR).resolve()
         self.bundle = Path(bundle_root or BUNDLE_BASE_DIR).resolve()
         self.app_version = app_version
-        self.work = self.root / ".backup-work"
-        self.backups = self.root / "Backups"
+        self.work = self.root / "Export" / "backup-work"
+        self.backups = self.root / "Export"
         self.pending = self.work / "pending-restore.json"
 
     @contextmanager
     def _operation_lock(self):
+        # Preserve interrupted-import recovery data from the former location.
+        legacy = self.root / ".backup-work"
+        if legacy.is_dir() and not self.work.exists():
+            # Both migration targets must stay within this installation.
+            if legacy.parent != self.root or self.root not in self.work.parents:
+                raise ValueError("Invalid backup workspace migration path.")
+            self.work.parent.mkdir(parents=True, exist_ok=True)
+            if _is_link(legacy) or _is_link(self.work.parent):
+                raise ValueError("The backup staging directory cannot be linked.")
+            os.replace(legacy, self.work)
         self.work.mkdir(parents=True, exist_ok=True)
         if _is_link(self.work):
             raise ValueError("The backup staging directory cannot be linked.")

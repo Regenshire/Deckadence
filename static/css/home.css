@@ -1,102 +1,11 @@
 .home-screen {
   position: relative;
-  min-height: calc(100vh - 130px);
-  overflow: hidden;
-  border: 1px solid rgba(120, 132, 153, 0.2);
-  border-radius: 24px;
-  isolation: isolate;
+  width: 100%;
 }
 
-.home-background {
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  overflow: hidden;
-
-  background:
-    radial-gradient(
-      circle at 15% 20%,
-      rgba(58, 122, 254, 0.12),
-      transparent 36%
-    ),
-    radial-gradient(
-      circle at 82% 78%,
-      rgba(66, 205, 111, 0.1),
-      transparent 34%
-    ),
-    linear-gradient(145deg, #11141a, #0d1015 52%, #11151b);
-}
-
-.home-background-grid {
-  position: absolute;
-  inset: -80px;
-
-  opacity: 0.16;
-
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-
-  background-size: 46px 46px;
-
-  transform: rotate(-4deg) scale(1.08);
-
-  animation: home-grid-drift 28s linear infinite;
-}
-
-.home-background-glow {
-  position: absolute;
-
-  width: 460px;
-  height: 460px;
-
-  border-radius: 999px;
-
-  filter: blur(90px);
-
-  opacity: 0.2;
-
-  animation: home-glow-drift 15s ease-in-out infinite alternate;
-}
-
-.home-background-glow-one {
-  top: -180px;
-  left: 4%;
-
-  background: rgba(58, 122, 254, 0.7);
-}
-
-.home-background-glow-two {
-  right: -120px;
-  bottom: -220px;
-
-  background: rgba(66, 205, 111, 0.62);
-
-  animation-delay: -7s;
-}
-
-@keyframes home-grid-drift {
-  from {
-    transform: translate3d(0, 0, 0) rotate(-4deg) scale(1.08);
-  }
-
-  to {
-    transform: translate3d(46px, 46px, 0) rotate(-4deg) scale(1.08);
-  }
-}
-
-@keyframes home-glow-drift {
-  from {
-    transform: translate3d(-18px, -12px, 0) scale(0.96);
-  }
-
-  to {
-    transform: translate3d(30px, 24px, 0) scale(1.08);
-  }
-}
 .home-welcome-panel {
-  width: min(1180px, calc(100% - 48px));
-  margin: 42px auto;
+  width: 100%;
+  margin: 0;
 
   padding: 38px;
 
@@ -532,9 +441,9 @@ a.home-primary-card:hover {
   }
 
   .home-welcome-panel {
-    width: calc(100% - 16px);
+    width: 100%;
 
-    margin: 8px auto;
+    margin: 0;
 
     padding: 22px 16px;
 

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import sqlite3
@@ -58,7 +59,9 @@ class UserBackupService(ArchiveOperations):
         replacements = state.get("replacements", [])
         allowed = {self.root / "settings.json", self.root / "static/sil/Studio3/templates.json"}
         for record in replacements:
-            if _checked(record["path"]) not in allowed or type(record.get("existed")) is not bool:
+            path = _checked(record["path"])
+            deck_art = path.parent == self.root / "data/deck_art_generated" and re.fullmatch(r"deck_art_[1-9][0-9]*\.png", path.name)
+            if (path not in allowed and not deck_art) or type(record.get("existed")) is not bool:
                 raise ValueError("Invalid recovery settings path.")
         database = sqlite3.connect((self.root / "cards.db").as_uri() + "?mode=ro", uri=True)
         try:
@@ -89,61 +92,111 @@ class UserBackupService(ArchiveOperations):
         self._recover_import()
 
     @_exclusive
-    def create_backup(self, output_directory=None, progress=None):
+    def create_backup(self, output_directory=None, progress=None, selection=None):
         from portable_content import UserContentExporter
         progress = progress or (lambda **state: None)
         self._recover_import()
         if self.pending.exists():
             raise ValueError("Cancel the old staged full restore before exporting user content.")
         output = Path(output_directory or self.backups).expanduser().resolve()
-        for name in ("data", "print", "static", "plugins", ".backup-work"):
+        for name in ("data", "print", "static", "plugins", "Export/backup-work"):
             managed = self.root / name
             if output == managed or managed in output.parents:
                 raise ValueError("Choose a backup folder outside managed content folders.")
         output.mkdir(parents=True, exist_ok=True)
-        destination = output / ("deckadence_user_content_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S") + "_" + uuid4().hex[:8] + ".zip")
+        destination = output / ("Deckadence_Backup_" + datetime.now().strftime("%Y%m%d") + "_" + uuid4().hex[:8] + ".zip")
         partial = destination.with_suffix(".zip.partial")
         try:
             with tempfile.TemporaryDirectory(prefix="export-", dir=self.work) as temporary:
                 temporary = Path(temporary)
-                metadata, assets = UserContentExporter(self, temporary, progress).collect()
-                files = {RECORDS: temporary / RECORDS, **assets}
-                total = sum(path.stat().st_size for path in files.values())
+                exporter = UserContentExporter(self, temporary, progress, selection)
+                metadata, assets = exporter.collect()
+                total = (temporary / RECORDS).stat().st_size
+                for path in assets.values():
+                    try:
+                        total += _disk_path(path).stat().st_size
+                    except OSError as error:
+                        exporter.skip_asset(path, error)
                 self._space(output, total + max(CHUNK_SIZE, total // 100))
                 completed = 0
+                included = set()
                 inventory_path = temporary / INVENTORY
                 with zipfile.ZipFile(partial, "w", allowZip64=True) as archive:
                     with inventory_path.open("w", encoding="utf-8") as inventory:
-                        for index, (name, path) in enumerate(files.items()):
+                        def write_entry(name, reader):
+                            nonlocal completed
                             _safe_name(name)
-                            before = path.stat()
                             digest = hashlib.sha256()
                             written = 0
                             info = zipfile.ZipInfo("payload/" + name)
                             info.compress_type = zipfile.ZIP_DEFLATED if name == RECORDS else zipfile.ZIP_STORED
-                            with _disk_path(path).open("rb") as reader, archive.open(info, "w", force_zip64=True) as writer:
+                            with archive.open(info, "w", force_zip64=True) as writer:
                                 while chunk := reader.read(CHUNK_SIZE):
                                     writer.write(chunk)
                                     digest.update(chunk)
                                     written += len(chunk)
                                     completed += len(chunk)
-                                    progress(stage="Exporting user content", current_file=path.name,
-                                             completed_bytes=completed, total_bytes=total, completed_files=index)
-                            if written != before.st_size or before.st_mtime_ns != path.stat().st_mtime_ns:
-                                raise ValueError(f"A file changed during export: {path.name}. Retry after image jobs finish.")
+                                    progress(stage="Exporting user content", current_file=Path(name).name,
+                                             completed_bytes=completed, total_bytes=total, completed_files=len(included))
                             inventory.write(json.dumps({"path": name, "size": written, "sha256": digest.hexdigest()}) + "\n")
+
+                        for name, path in assets.items():
+                            # Stage one file at a time: a failed source read must never leave
+                            # a truncated ZIP member or a reference to a nonexistent asset.
+                            with tempfile.TemporaryFile(dir=temporary) as staged:
+                                try:
+                                    before = _disk_path(path).stat()
+                                    source = _disk_path(path).open("rb")
+                                except OSError as error:
+                                    exporter.skip_asset(path, error)
+                                    continue
+                                readable = True
+                                size = 0
+                                with source:
+                                    while True:
+                                        try:
+                                            chunk = source.read(CHUNK_SIZE)
+                                        except OSError as error:
+                                            exporter.skip_asset(path, error)
+                                            readable = False
+                                            break
+                                        if not chunk:
+                                            break
+                                        staged.write(chunk)
+                                        size += len(chunk)
+                                        progress(stage="Reading asset", current_file=path.name,
+                                                 completed_bytes=completed, total_bytes=total, completed_files=len(included))
+                                if not readable:
+                                    continue
+                                try:
+                                    after = _disk_path(path).stat()
+                                except OSError as error:
+                                    exporter.skip_asset(path, error)
+                                    continue
+                                if size != before.st_size or before.st_mtime_ns != after.st_mtime_ns:
+                                    exporter.skip_asset(path, "File changed while being read")
+                                    continue
+                                staged.seek(0)
+                                write_entry(name, staged)
+                                included.add(name)
+                        exporter.finalize(metadata, included)
+                        with (temporary / RECORDS).open("rb") as reader:
+                            write_entry(RECORDS, reader)
                     archive.write(inventory_path, INVENTORY, compress_type=zipfile.ZIP_DEFLATED)
                     metadata.update(format=FORMAT, version=VERSION, app_version=self.app_version,
                                     created_at_utc=datetime.now(timezone.utc).isoformat(), source_root=str(self.root),
-                                    file_count=len(files), total_bytes=completed)
+                                    file_count=len(included) + 1, total_bytes=completed)
                     archive.writestr(MANIFEST, json.dumps(metadata, ensure_ascii=False))
                 with partial.open("r+b") as handle:
                     os.fsync(handle.fileno())
+                progress(stage="Finalizing export", completed_bytes=completed, total_bytes=completed, completed_files=len(included) + 1)
                 os.replace(partial, destination)
-                progress(stage="Complete", completed_bytes=completed, total_bytes=completed, completed_files=len(files))
                 return {"zip_path": str(destination), "zip_filename": destination.name, "export_kind": "user_content",
-                        "file_count": len(files), "total_bytes": completed, "row_counts": metadata["row_counts"],
-                        "message": "User content exported. Download the archive or copy it from the saved location."}
+                        "file_count": len(included) + 1, "total_bytes": completed, "row_counts": metadata["row_counts"],
+                        "warning_count": len(metadata["warnings"]), "warnings": metadata["warnings"][:20],
+                        "message": (f"Export complete. {len(metadata['warnings'])} unavailable asset(s) skipped. "
+                                    "All available content is included; skipped files are listed in the archive manifest."
+                                    if metadata["warnings"] else "User content exported. Your archive is ready to download.")}
         finally:
             partial.unlink(missing_ok=True)
 

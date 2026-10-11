@@ -72,10 +72,12 @@ UPDATE custom_draft_sets SET icon_svg_path='img/set_icons/custom.svg';
 UPDATE sets SET local_icon_svg_path='img/set_icons/custom.svg' WHERE set_code='MY^';
 """)
         connection.commit()
+    # Exercise unavailable assets against the real NOT NULL upscaling schema.
+    upscale.unlink()
     client = app.app.test_client()
     response = client.get("/config")
     assert response.status_code == 200, response.status_code
-    assert b'applicationBackupModal' in response.data and b'Export User Content' in response.data
+    assert b'applicationBackupModal' in response.data and b'applicationBackupCreate' in response.data
     response = client.post("/maintenance/backups/create", json={})
     assert response.status_code == 202, response.json
     jobs = app.application_backup_jobs
@@ -84,6 +86,7 @@ UPDATE sets SET local_icon_svg_path='img/set_icons/custom.svg' WHERE set_code='M
         time.sleep(0.05)
     status = jobs.status()
     assert status['state'] == 'complete', status
+    assert status['result']['warning_count'] == 1, status
     archive = status['result']['zip_path']
     with zipfile.ZipFile(archive) as handle:
         assert not any(name.endswith('cards.db') or name.endswith('.js') or name.endswith('.css') for name in handle.namelist())
@@ -101,6 +104,7 @@ UPDATE sets SET local_icon_svg_path='img/set_icons/custom.svg' WHERE set_code='M
         assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
         assert connection.execute('SELECT COUNT(*) FROM custom_draft_sets').fetchone()[0] == 2
         assert connection.execute('SELECT source_image_scope_id FROM upscaled_images WHERE upscaled_image_id=2').fetchone()[0] != 'scope-fixture'
+        assert connection.execute('SELECT output_image_path FROM upscaled_images WHERE upscaled_image_id=2').fetchone()[0] == ''
         assert connection.execute('SELECT source_id FROM decks WHERE deck_id=2').fetchone()[0] == 2
         assert connection.execute('SELECT source_id,source_item_id FROM deck_cards WHERE deck_card_id=2').fetchone() == (2,2)
         assert connection.execute('SELECT current_human_pack_id FROM draft_test_sessions WHERE draft_test_id=2').fetchone()[0] == 2
@@ -116,7 +120,24 @@ UPDATE sets SET local_icon_svg_path='img/set_icons/custom.svg' WHERE set_code='M
     assert served.status_code == 200 and served.data == icon.read_bytes(), (served.status_code, icon_path)
     served.close()
     assert Path(app.get_pack_label_set_icon_path('MY_IMP2^')).read_bytes() == icon.read_bytes()
-    print(json.dumps({'real_schema_imported_rows': imported['imported_rows'], 'archive_bytes': Path(archive).stat().st_size, 'archive_files': manifest['file_count'], 'config_http_status': response.status_code}))
+    # Partial archives must merge using the application's real constraints.
+    from export_selection import ExportSelection
+    import itertools
+    subset_count = 0
+    for categories in itertools.product((False, True), repeat=3):
+        enabled = {name for name, selected in zip(("custom_sets", "decks", "packs"), categories) if selected}
+        for assets in (False, True):
+            options = {key: key in enabled or assets and key == "modified_cards" for key in ExportSelection.OPTIONS}
+            partial = UserBackupService(root, Path(repository)).create_backup(selection=ExportSelection(options))
+            UserBackupService(target, Path(repository)).import_backup(partial['zip_path'])
+            subset_count += 1
+    for option in ("campaigns", "config_settings"):
+        partial = UserBackupService(root, Path(repository)).create_backup(selection=ExportSelection({key: key == option for key in ExportSelection.OPTIONS}))
+        UserBackupService(target, Path(repository)).import_backup(partial['zip_path'])
+        subset_count += 1
+    with closing(sqlite3.connect(target / 'cards.db')) as connection:
+        assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
+    print(json.dumps({'real_schema_imported_rows': imported['imported_rows'], 'partial_combinations': subset_count, 'archive_bytes': Path(archive).stat().st_size, 'archive_files': manifest['file_count'], 'config_http_status': response.status_code}))
 
 
 if __name__ == '__main__':

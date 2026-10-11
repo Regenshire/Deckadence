@@ -8,6 +8,12 @@ from flask import Blueprint, g, jsonify, request, send_file, url_for
 
 from backup_system import CHUNK_SIZE
 from user_backup_system import UserBackupService as ApplicationBackupService
+from export_selection import ExportSelection
+
+
+
+class ExportCancelled(RuntimeError):
+    """Cooperative cancellation, after the archive service cleans its work files."""
 
 
 class BackupJobManager:
@@ -17,6 +23,7 @@ class BackupJobManager:
         self.activity_check = activity_check or (lambda: False)
         self.condition = threading.Condition()
         self.active_requests = 0
+        self.cancel_event = threading.Event()
         self.state = {"state": "idle", "stage": "Idle", "message": "", "error": ""}
 
     @property
@@ -28,6 +35,7 @@ class BackupJobManager:
         with self.condition:
             if self.busy or self.service.pending.exists():
                 raise ValueError("A backup or staged restore already exists. Wait for it to finish, or cancel the staged restore.")
+            self.cancel_event = threading.Event()
             self.state = {"job_id": uuid4().hex, "operation": operation, "state": "running", "stage": "Starting",
                           "completed_bytes": 0, "total_bytes": 0, "completed_files": 0, "error": "", "message": ""}
             return self.state["job_id"]
@@ -35,6 +43,19 @@ class BackupJobManager:
     def update(self, **changes):
         with self.condition:
             self.state.update(changes)
+
+    def cancel_export(self, job_id):
+        with self.condition:
+            if not self.busy or self.state.get("operation") != "backup" or self.state.get("job_id") != job_id:
+                raise ValueError("There is no matching export to cancel.")
+            self.cancel_event.set()
+            self.state.update(cancelling=True, stage="Cancelling export", message="Removing unfinished export files.")
+            self.condition.notify_all()
+
+    def report_progress(self, **changes):
+        if self.state.get("operation") == "backup" and self.cancel_event.is_set():
+            raise ExportCancelled()
+        self.update(**changes)
 
     def status(self):
         with self.condition:
@@ -44,7 +65,7 @@ class BackupJobManager:
 
     def enter_request(self):
         with self.condition:
-            if self.busy:
+            if self.busy and self.state.get("operation") != "backup":
                 return False
             self.active_requests += 1
             return True
@@ -57,15 +78,21 @@ class BackupJobManager:
     def run(self, task, cleanup=None):
         def worker():
             try:
-                with self.condition:
-                    if not self.condition.wait_for(lambda: self.active_requests == 0, timeout=60):
-                        raise ValueError("Other requests are still running. Wait for them to finish and try again.")
-                if self.activity_check():
+                importing = self.state.get("operation") != "backup"
+                if importing:
+                    with self.condition:
+                        if not self.condition.wait_for(lambda: self.active_requests == 0, timeout=60):
+                            raise ValueError("Other requests are still running. Wait for them to finish and try again.")
+                self.report_progress()
+                if importing and self.activity_check():
                     raise ValueError("Finish card refresh, image downloads, bleed processing, and upscaling jobs before backing up or restoring.")
-                with self.guard():
-                    result = task(self.update)
+                with self.guard() if importing else nullcontext():
+                    result = task(self.report_progress)
                 self.update(state="complete", stage="Complete", result=result,
                             message=result.get("message") or "Backup saved. You can download it or copy it from the backup folder.")
+            except ExportCancelled:
+                self.update(state="cancelled", stage="Export cancelled", cancelling=False, error="", current_file="",
+                            message="Export cancelled. Unfinished ZIP and temporary files removed.")
             except Exception as error:
                 self.update(state="failed", stage="Failed", error=str(error), message="The operation did not complete.")
             finally:
@@ -93,7 +120,10 @@ def register_backup_routes(app, *, app_version="", guard=None, activity_check=No
         if service.pending.exists() and request.method not in {"GET", "HEAD", "OPTIONS"}:
             return jsonify(ok=False, message="A restore is staged. Restart Deckadence or cancel the staged restore before making changes."), 503
         if not jobs.enter_request():
-            if request.endpoint == "config" and request.method == "GET":
+            document_request = (request.headers.get("Sec-Fetch-Dest") == "document"
+                                or request.accept_mimetypes["text/html"] > request.accept_mimetypes["application/json"]
+                                or request.endpoint == "config")
+            if document_request and request.method == "GET":
                 # Render without configuration context processors/database queries.
                 return app.jinja_env.get_template("backup_in_progress.html").render(url_for=url_for)
             return jsonify(ok=False, message="A backup or restore is running. Other application requests are paused until it finishes."), 503
@@ -122,11 +152,23 @@ def register_backup_routes(app, *, app_version="", guard=None, activity_check=No
             directory = payload.get("output_directory") or None
             if directory is not None and not isinstance(directory, str):
                 raise ValueError("Enter a valid backup folder path.")
+            selection = ExportSelection(payload.get("selection"), payload.get("entities"))
+            if not any(selection.options.values()):
+                raise ValueError("Select at least one category or setting to export.")
             job_id = jobs.reserve("backup")
-            jobs.run(lambda progress: service.create_backup(directory, progress))
+            jobs.run(lambda progress: service.create_backup(directory, progress, selection=selection))
         except ValueError as error:
             return jsonify(ok=False, message=str(error)), 409
         return jsonify(ok=True, job_id=job_id), 202
+
+    @blueprint.post("/cancel-export")
+    def cancel_export():
+        payload = request.get_json(silent=True)
+        try:
+            jobs.cancel_export(payload.get("job_id") if isinstance(payload, dict) else None)
+        except ValueError as error:
+            return jsonify(ok=False, message=str(error)), 409
+        return jsonify(ok=True), 202
 
     @blueprint.post("/import")
     def restore():

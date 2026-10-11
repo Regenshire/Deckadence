@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Deckadence · UX demonstrations</title><link rel="stylesheet" href="review.css"><script src="patterns.js" defer></script><script src="demo.js" defer></script></head>
+<body><main class="shell">
+  <header class="brand"><strong>Deckadence <span class="muted">/ UX review</span></strong><nav aria-label="Review"><a href="index.html">Findings</a><a href="workflows.html">Home &amp; set editor</a><a href="#collections">Collections</a><a href="#saving">Saving</a><a href="#output">Print &amp; export</a></nav></header>
+  <div class="hero"><div class="eyebrow">Interactive proposals · sample data</div><h1>Less setup. More making.</h1><p class="muted">Try filtering, selecting rows, changing settings, and opening a dialog. These demonstrations change only this page; they do not edit your decks or settings.</p></div>
+
+  <section id="collections" class="panel" data-collection>
+    <header class="row between"><div><div class="eyebrow">01 / Shared collection toolbar</div><h2>Decks</h2></div><span class="chip">Also for sets, packs &amp; campaigns</span></header>
+    <form data-filter-form>
+      <div class="toolbar"><label for="deck-query">Search decks<input id="deck-query" name="query" type="search" placeholder="Name or format" autocomplete="off"></label><button type="submit">Search</button><button type="button" data-filter-toggle aria-controls="deck-filters" aria-expanded="false">Filters <span data-filter-count></span></button></div>
+      <div id="deck-filters" class="filters" hidden><div class="grid"><label>Format<select name="format"><option value="">All formats</option><option>Commander</option><option>Standard</option><option>Pauper</option></select></label><label>Sort<select name="sort"><option value="recent">Recently updated</option><option value="name">Name A–Z</option></select></label></div><div class="row" style="margin-top:12px"><button type="submit">Apply filters</button><button type="button" data-clear>Clear filters</button></div></div>
+    </form>
+    <div class="row between"><span data-results role="status" aria-live="polite">3 decks</span><label class="check"><input type="checkbox" data-select-page>Select this page</label></div>
+    <div data-rows>
+      <article class="result-row" data-name="Tyranid Swarm" data-format="Commander" data-order="3"><label class="check"><input type="checkbox" data-select aria-label="Select Tyranid Swarm"></label><div class="copy"><h3>Tyranid Swarm</h3><span class="muted">Commander · 100 cards</span></div><button type="button" data-open aria-label="Open Tyranid Swarm">Open</button></article>
+      <article class="result-row" data-name="Princess Takes Flight" data-format="Standard" data-order="2"><label class="check"><input type="checkbox" data-select aria-label="Select Princess Takes Flight"></label><div class="copy"><h3>Princess Takes Flight</h3><span class="muted">Standard · 60 cards</span></div><button type="button" data-open aria-label="Open Princess Takes Flight">Open</button></article>
+      <article class="result-row" data-name="Mindrazer" data-format="Commander" data-order="1"><label class="check"><input type="checkbox" data-select aria-label="Select Mindrazer"></label><div class="copy"><h3>Mindrazer</h3><span class="muted">Commander · 100 cards</span></div><button type="button" data-open aria-label="Open Mindrazer">Open</button></article>
+    </div>
+    <div class="empty" data-empty hidden><h3>No matching decks</h3><p class="muted">Try another name or clear your filters.</p><button type="button" data-clear>Clear filters</button></div>
+    <div class="selection row between" data-selection hidden><strong data-selected-count></strong><div class="row"><button type="button" data-clear-selection>Clear selection</button><button type="button" class="danger" data-delete>Delete selected</button></div></div>
+    <p class="status" data-collection-status role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="saving" class="panel">
+    <div class="eyebrow">02 / Shared edit state</div><h2>Print defaults</h2><p class="muted">Change a value to reveal save controls. Advanced options remain one click away.</p>
+    <form data-dirty-form>
+      <div class="grid"><label>Paper<select name="paper"><option>US Letter</option><option>A4</option></select></label><label>Layout<select name="layout"><option>9 cards per sheet</option><option>1 card per sheet</option></select></label></div>
+      <details><summary>Advanced print settings</summary><div class="grid"><label>Bleed (mm)<input type="number" name="bleed" value="3" min="0" max="6" step="0.5" required></label><label class="check"><input type="checkbox" name="guides" checked>Show cutting guides</label></div></details>
+      <div class="row"><span class="status" data-save-status role="status" aria-live="polite">All changes saved</span></div>
+      <div class="savebar row between" data-savebar hidden><strong>Unsaved changes</strong><div class="row"><button type="button" data-discard>Discard</button><button type="submit" class="primary" data-save>Save changes</button></div></div>
+    </form>
+    <details><summary>Demo scenarios</summary><label class="check"><input type="checkbox" id="fail-save">Simulate the next save failing</label><p class="muted">The failed save keeps your values and offers another attempt. Saving here is simulated.</p></details>
+  </section>
+
+  <section id="output" class="panel">
+    <div class="eyebrow">03 / Shared dialog &amp; job feedback</div><h2>Know what you are about to print.</h2><p class="muted">Keep the existing simple Print / Export entry point. Add a compact summary of the selected cards and effective output settings.</p><button type="button" class="primary" id="open-output">Print / Export</button>
+    <p class="status" id="output-result" role="status" aria-live="polite"></p>
+  </section>
+
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-message"><h2 id="confirm-title">Delete selected decks?</h2><p id="confirm-message"></p><div class="actions"><button type="button" data-cancel autofocus>Cancel</button><button type="button" class="danger" data-confirm>Delete decks</button></div></dialog>
+  <dialog id="detail-dialog" aria-labelledby="detail-title"><h2 id="detail-title"></h2><p class="muted">Row actions such as Duplicate, Export, and Delete can live here or in a consistently labeled More menu. Keep Open as the row’s primary action.</p><div class="actions"><button type="button" data-close autofocus>Close</button></div></dialog>
+  <dialog id="output-dialog" aria-labelledby="output-title"><header class="row between"><h2 id="output-title">Print / Export</h2><button type="button" data-close aria-label="Close Print / Export">Close</button></header><p><strong>Tyranid Swarm</strong><br><span class="muted">100 cards · Deck only</span></p><p id="output-summary">US Letter · 9 cards per sheet · 12 sheets · No backs</p><details><summary>Settings</summary><label>Paper<select id="output-paper"><option>US Letter</option><option>A4</option></select></label><p class="muted">These settings apply to this export.</p></details><div id="job-state" hidden><p id="job-message" role="status" aria-live="polite"></p><progress id="job-progress" aria-label="Preparing output"></progress></div><div class="actions"><button type="button" data-close>Close</button><button type="button" class="primary" id="generate-output">Create PDF</button></div><details><summary>Demo scenarios</summary><label class="check"><input type="checkbox" id="fail-output">Simulate a generation failure</label></details></dialog>
+  <section id="keyboard" class="panel">
+    <div class="eyebrow">04 / Named controls · keyboard and touch</div><h2>Draw a Momir card</h2>
+    <form id="mana-demo" novalidate style="max-width:360px">
+      <label for="demo-mana">Mana value</label><input id="demo-mana" name="mana" type="text" inputmode="numeric" pattern="[0-9]{1,2}" maxlength="2" required aria-describedby="mana-hint mana-error" autocomplete="off">
+      <p id="mana-hint" class="muted">Type a number or use the keypad.</p><p id="mana-error" class="error" role="alert" hidden></p>
+      <div class="numeric-keypad" aria-label="Mana keypad">
+        <button type="button" data-digit="1">1</button><button type="button" data-digit="2">2</button><button type="button" data-digit="3">3</button>
+        <button type="button" data-digit="4">4</button><button type="button" data-digit="5">5</button><button type="button" data-digit="6">6</button>
+        <button type="button" data-digit="7">7</button><button type="button" data-digit="8">8</button><button type="button" data-digit="9">9</button>
+        <button type="button" data-clear-number>Clear</button><button type="button" data-digit="0">0</button><button type="button" data-backspace aria-label="Delete last digit">⌫</button>
+      </div><button type="submit" class="primary" style="width:100%;margin-top:12px">Draw card</button><p id="mana-result" class="status" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+  <footer class="muted">Reusable controllers: CollectionController · DirtyFormController · DialogController · JobController · NumericEntryController. <a href="index.html#integration">Integration plan</a></footer>
+</main></body></html>

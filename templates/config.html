@@ -3,6 +3,7 @@
 {% block title %}Deckadence - Config{% endblock %}
 
 {% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css') }}">
 <link
     rel="stylesheet"
     href="{{ url_for('static', filename='css/upscale_batch.css') }}"
@@ -38,6 +39,7 @@
 
 
     <form id="configForm" method="post" class="config-form">
+        {% include "_theme_settings.html" %}
         <div id="section_reminders" class="page-panel collapsible-panel {% if global_reminder_state and global_reminder_state['has_reminders'] %}is-open{% endif %}" data-section="reminders">
             {% set release_update_state = global_reminder_state.release_update_state if global_reminder_state else {} %}
             {% set release_has_update = release_update_state.update_available %}
@@ -2465,6 +2467,6 @@
 
 {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
-<script src="{{ url_for('static', filename='js/application_backups.js') }}"></script>
+<script src="{{ url_for('static', filename='js/application_backups.js', v='selective-backup-4') }}"></script>
 {% endblock %}
 

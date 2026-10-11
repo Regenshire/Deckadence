@@ -2,7 +2,7 @@
 block page_styles %}
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/home.css') }}"
+  href="{{ url_for('static', filename='css/home.css', v='full-width-1') }}"
 />
 {% endblock %} {% block content %}
 {% macro render_home_primary_card(title, icon_class, href, action_label, enabled) %}
@@ -44,12 +44,6 @@ block page_styles %}
 {% endmacro %}
 
 <main class="home-screen">
-  <div class="home-background" aria-hidden="true">
-    <div class="home-background-glow home-background-glow-one"></div>
-    <div class="home-background-glow home-background-glow-two"></div>
-    <div class="home-background-grid"></div>
-  </div>
-
   <section class="home-welcome-panel">
     <header class="home-hero">
       <img

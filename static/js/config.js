@@ -285,6 +285,7 @@ function initializeSettingsConsole() {
   screen.classList.add("settings-console-screen");
 
   const sectionMetadata = {
+    theme: { description: "Choose your colors and an optional Deckadence background.", showSave: false },
     reminders: {
       description:
         "Release checks, reminder status, and notification preferences.",
@@ -358,7 +359,7 @@ function initializeSettingsConsole() {
       description:
         "Application-wide reminders, release information, and notification preferences.",
       iconClass: "fa-solid fa-sliders",
-      sections: ["reminders"],
+      sections: ["theme", "reminders"],
       parent: "form",
     },
     {

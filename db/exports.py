@@ -266,6 +266,8 @@ def clear_export_root():
     removed_count = 0
 
     for item_name in os.listdir(EXPORT_ROOT_DIR):
+        if item_name == "backup-work":
+            continue
         item_path = os.path.join(EXPORT_ROOT_DIR, item_name)
 
         try:
@@ -311,6 +313,8 @@ def auto_clear_export_root(auto_clear_exports_value):
     removed_count = 0
 
     for item_name in os.listdir(EXPORT_ROOT_DIR):
+        if item_name == "backup-work":
+            continue
         item_path = os.path.join(EXPORT_ROOT_DIR, item_name)
 
         try:

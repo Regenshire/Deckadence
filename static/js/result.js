@@ -95,3 +95,24 @@ function initializeMomirSelectResultLinks() {
 
     updateResultLinks();
 }
+
+
+
+class MomirManaDialogController {
+    constructor(dialog, trigger) {
+        const form = dialog.querySelector('form');
+        const input = form.elements.mana_value;
+        trigger.addEventListener('click', () => {
+            form.elements.selected_type.value = document.getElementById('resultSelectedType')?.value || form.elements.selected_type.defaultValue;
+            dialog.showModal();
+            input.focus();
+            input.select();
+        });
+        document.getElementById('resultCustomManaCancel').addEventListener('click', () => dialog.close());
+        dialog.addEventListener('close', () => trigger.focus({preventScroll: true}));
+    }
+}
+document.addEventListener('DOMContentLoaded', () => {
+    const dialog = document.getElementById('resultCustomManaDialog');
+    if (dialog) new MomirManaDialogController(dialog, document.getElementById('resultCustomManaButton'));
+});

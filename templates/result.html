@@ -2,8 +2,14 @@
 
 {% block title %}Deckadence - Result{% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/momir.css') }}">
+<script src="{{ url_for('static', filename='js/momir_layout.js') }}"></script>
+<script src="{{ url_for('static', filename='js/deckadence_message_cards.js') }}"></script>
+{% endblock %}
+
 {% block content %}
-<div class="screen screen-result screen-medium">
+<div class="screen screen-result screen-medium{% if current_game_mode != "tower_of_power" %} momir-result{% endif %}">
     {% if current_game_mode == "momir_select" and enabled_type_options %}
     <div class="page-panel momir-select-top-panel">
         <form method="get" action="{{ url_for('result') }}" class="momir-select-top-form">
@@ -108,8 +114,6 @@
 
             <!-- CENTER CONTENT -->
             <div class="result-main">
-                <div class="result-label">Mana Value</div>
-                <div class="result-mana">{{ mana_value }}</div>
 
                 {% if card %}
                     <div class="card-display" data-card-key="{{ card['card_key'] }}">
@@ -130,17 +134,22 @@
                             </div>
                         {% endif %}
 
-                        <div class="card-info">
-                            <div class="card-name">{{ card["name"] }}</div>
-                            <div class="card-type">{{ card["type_line"] }}</div>
-                        </div>
                     </div>
                 {% else %}
-                    <div class="card-placeholder">
+                    <div class="momir-empty-card{% if card_database_ready %} momir-message-card{% endif %}">
                         {% if not card_database_ready %}
                             Card database not loaded yet.
                         {% else %}
-                            No matching card found.
+                            <script>
+                                document.currentScript.parentElement.append(deckadenceMessageCards({
+                                    title: ['Oh', 'No!'],
+                                    subtitle: ['No cards have that', 'mana cost, Sorry!'],
+                                    number: '0404', category: 'NO', edition: 'SORRY * EN',
+                                    footer: 'Deckadence iMomir Mode',
+                                    baseUrl: {{ url_for('static', filename='img/inserts/deckadence-gold-no-foil.svg') | tojson }},
+                                    overlayUrl: {{ url_for('static', filename='img/inserts/deckadence-foil-overlay.svg') | tojson }}
+                                }));
+                            </script>
                         {% endif %}
                     </div>
                 {% endif %}
@@ -163,10 +172,8 @@
                       {% endfor %}
                   </div>
               </div>
-          </div>
 
         <div class="result-actions result-actions-bottom">
-            <a class="action-button secondary-button" href="{{ url_for('index') }}">Back</a>
             {% if card_database_ready %}
                 <a id="resultAgainButton" class="action-button" href="{{ url_for('result', mana_value=mana_value, selected_type=selected_type_value if current_game_mode == 'momir_select' else None) }}">Again</a>
             {% else %}
@@ -183,6 +190,10 @@
             {% else %}
                 <button type="button" class="action-button print-button" disabled>Print</button>
             {% endif %}
+            <button type="button" id="resultCustomManaButton" class="action-button momir-calculator-button" aria-label="Enter mana value" title="Enter mana value">
+                <i class="fa-solid fa-calculator" aria-hidden="true"></i>
+            </button>
+        </div>
         </div>
         {% endif %}
 
@@ -201,6 +212,24 @@
         {% endif %}
     </div>
 </div>
+{% if current_game_mode != "tower_of_power" %}
+<script>
+    // The head-loaded controller sizes the parsed game area before the first paint.
+    new MomirViewportController(document.querySelector('.momir-result'));
+</script>
+<dialog id="resultCustomManaDialog" class="momir-mana-dialog" aria-labelledby="resultCustomManaTitle">
+    <form method="get" action="{{ url_for('result') }}" id="resultCustomManaForm">
+        <h2 id="resultCustomManaTitle">Draw by mana value</h2>
+        <input type="hidden" name="selected_type" value="{{ selected_type_value }}">
+        <label for="resultCustomManaInput">Mana value</label>
+        <input id="resultCustomManaInput" name="mana_value" type="text" inputmode="numeric" pattern="[0-9]+" required autocomplete="off" autofocus>
+        <div class="momir-mana-dialog-actions">
+            <button type="button" id="resultCustomManaCancel" class="action-button secondary-button">Cancel</button>
+            <button type="submit" class="action-button">Draw</button>
+        </div>
+    </form>
+</dialog>
+{% endif %}
 {% if card %}
 <style>
 .card-display,

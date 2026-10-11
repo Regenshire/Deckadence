@@ -1,0 +1,30 @@
+Approved implementation checks
+
+Production changes: shared dialog focus lifecycle; standalone pack badge repair;
+editable Momir mana entry; scoped responsive Momir input/result styles.
+Excluded unnamed-control and pack-layout-label changes were not made.
+
+Browser checks (isolated copied runtime):
+- Stats: focus enters close button, Tab wraps, close restores opener.
+- Print/Export: focus enters close button, Escape restores opener.
+- Card Back: keyboard wraps and closing restores opener.
+- QR: focus enters close button and Escape restores opener.
+- Add Cards: existing search focus retained inside overlay.
+- Nested print-template picker: child close restores Browse Print Templates;
+  parent close restores deck Print/Export trigger.
+- Momir typing accepts digits, Enter submits /result?mana_value=3.
+- Invalid letters blocked by native form validation; touch keypad still enters22.
+- Result fixture: no page overflow at1024x768,768x1024,390x844.
+- Momir Select fixture: no page overflow at375x667 and844x390.
+- Input page: fits375x667.
+- All18 mana shortcuts retained as direct links; print link behavior unchanged.
+
+44 templates parse. Three modified/new JavaScript files pass node --check.
+12 fixture HTTP checks pass (four badge combinations included).
+
+Limitations: real random draw hit blocked external artwork fetching in the isolated
+server, so live end-to-end latency and actual printing were not benchmarked.
+Screenshot uses local cached card art in a result fixture, not a live draw.
+Very short screens/large text can still require scrolling to preserve controls.
+
+Requested Momir revision: square mana keys; removed Back, mana heading and card caption; centered Again/Print/calculator baseline matches8/17. Card image uses intrinsic aspect ratio and corner clipping. Calculator accepts123 and preserves selected_type=artifact on real GET navigation. Escape restores calculator focus. Browser:768x1024,375x667,844x390; no page overflow, square dimensions and action alignment measured. Updated screenshot: momir-tablet-revised.png.

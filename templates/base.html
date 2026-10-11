@@ -10,6 +10,9 @@
     />
     <link
       rel="stylesheet"
+      id="appBaseStyles"
+      data-default-href="{{ url_for('static', filename='css/style.css') }}"
+      data-backup-href="{{ url_for('static', filename='css/backup-theme.css') }}"
       href="{{ url_for('static', filename='css/style.css') }}"
     />
 
@@ -31,6 +34,10 @@
     {% endif %}
 
     {% block page_styles %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css', v='theme-surfaces-14') }}">
+    <script src="{{ url_for('static', filename='js/theme_catalog.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/background_motion.js', v='1') }}" data-tile-base="{{ url_for('static', filename='img/themes/') }}"></script>
+    <script src="{{ url_for('static', filename='js/themes.js', v='logo-size-145') }}" data-tile-base="{{ url_for('static', filename='img/themes/') }}"></script>
   </head>
   <body{% if global_personal_use_agreement_required %} class="personal-use-agreement-active"{% endif %}>
     <div class="app-shell">
@@ -250,6 +257,18 @@
               </button>
 
               <div class="app-nav-dropdown app-settings-dropdown" role="menu">
+                <div class="theme-menu-controls" role="none">
+                  <div class="app-nav-dropdown-item theme-menu-row">
+                    <span class="app-nav-item-icon"><i class="fa-solid fa-palette" aria-hidden="true"></i></span>
+                    <label for="menuThemeSelect">Theme</label>
+                    <select id="menuThemeSelect" class="theme-menu-select" data-theme-select aria-label="Choose theme"></select>
+                  </div>
+                  <a class="app-nav-dropdown-item" href="{{ url_for('config') }}?open=theme&scroll=theme" role="menuitem" data-theme-settings-link>
+                    <span class="app-nav-item-icon"><i class="fa-solid fa-sliders" aria-hidden="true"></i></span>
+                    <span>Theme Settings</span>
+                  </a>
+                </div>
+                <div class="app-nav-dropdown-divider" role="separator"></div>
                 <button
                   type="button"
                   class="app-nav-dropdown-item app-nav-dropdown-button app-nav-mobile-qr-item"
@@ -524,6 +543,7 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dialog_focus.js') }}"></script>
 
     <script src="{{ url_for('static', filename='js/print_template_selector.js') }}"></script>
     <script src="{{ url_for('static', filename='js/silhouette_template_library.js') }}"></script>
@@ -541,3 +561,7 @@
   </body>
   </body>
 </html>
+
+
+
+

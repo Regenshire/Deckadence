@@ -10,6 +10,7 @@ import shutil
 import sqlite3
 from uuid import uuid4
 
+from export_selection import ExportSelection
 from backup_system import _disk_path, _is_link, _quote, _safe_name, _write_json, CHUNK_SIZE
 
 # Catalogue rows are dependencies, not an export of the base catalogue.
@@ -89,10 +90,12 @@ def _json_value(value):
 
 
 class UserContentExporter:
-    def __init__(self, service, temporary, progress):
+    def __init__(self, service, temporary, progress, selection=None):
         self.service, self.root, self.bundle = service, service.root, service.bundle
         self.temporary, self.progress = temporary, progress
+        self.selection = selection or ExportSelection()
         self.assets, self.asset_info, self.by_path = {}, {}, {}
+        self.warnings = {}
         self.card_ids, self.card_keys, self.set_codes = set(), set(), set()
         self.printing_keys, self.scryfall_ids = set(), set()
         self.custom_codes = set()
@@ -100,15 +103,26 @@ class UserContentExporter:
         self.default_cutting = {}
         baseline = self.bundle / "backup_defaults.json"
         if baseline.is_file():
-            document = json.loads(baseline.read_text(encoding="utf-8"))
-            self.defaults = document.get("files", {})
-            self.default_cutting = document.get("cutting_templates", {})
+            try:
+                document = json.loads(baseline.read_text(encoding="utf-8"))
+                self.defaults = document.get("files", {})
+                self.default_cutting = document.get("cutting_templates", {})
+            except (OSError, ValueError) as error:
+                self.skip_asset(baseline, error)
         self.static = self.bundle / "static"
 
     def asset(self, path, kind, relative=None, style="absolute"):
-        path = _checked(path)
-        if not path.is_file():
-            raise ValueError(f"A custom asset is missing: {path}. Repair its reference before exporting.")
+        option = {"alternate": "modified_cards", "isolated": "modified_cards", "upscale": "modified_cards", "deck_source": "deck_art", "deck_generated": "deck_art", "icon": "custom_set_icons", "card_back": "card_backs", "print": "print_templates", "cutting": "cutting_templates", "portrait": "campaigns", "pack_art": "custom_sets"}[kind]
+        if not self.selection.enabled(option) and not (kind == "pack_art" and self.selection.enabled("packs")):
+            return None
+        self.progress(stage="Selecting custom content", current_file=Path(path).name)
+        try:
+            path = _checked(path)
+            if not path.is_file():
+                raise FileNotFoundError("File is missing")
+        except (OSError, ValueError) as error:
+            self.skip_asset(path, error)
+            return None
         key = (str(path).casefold(), kind)
         if key not in self.by_path:
             name = "assets/" + hashlib.sha256((str(path) + kind).encode()).hexdigest()[:24] + "/" + path.name
@@ -119,6 +133,59 @@ class UserContentExporter:
             if kind == "card_back":
                 self.asset_info[name]["back_prefix"] = "builtin:" if self.static / "img/card_backs" in path.parents else "custom:"
         return {"$asset": self.by_path[key], "style": style}
+
+    def skip_asset(self, path, error):
+        self.warnings.setdefault(str(path), {"path": str(path), "reason": str(error)})
+
+    def finalize(self, metadata, included):
+        """Remove unavailable references, including those inside serialized JSON."""
+        def clean(value):
+            parsed, was_json = _json_value(value)
+            if was_json:
+                return json.dumps(clean(parsed), ensure_ascii=False)
+            if isinstance(value, dict):
+                if "$asset" in value and value["$asset"] not in included:
+                    return None
+                return {key: clean(item) for key, item in value.items()}
+            if isinstance(value, list):
+                return [clean(item) for item in value]
+            return value
+
+        records = self.temporary / "records.jsonl"
+        replacement = records.with_suffix(".filtered")
+        with records.open(encoding="utf-8") as reader, replacement.open("w", encoding="utf-8") as writer:
+            for line in reader:
+                record = clean(json.loads(line))
+                # The upscaling schema requires a string; an empty path means
+                # no usable upscale, allowing normal card artwork to be used.
+                if record["table"] == "upscaled_images" and record["row"].get("output_image_path") is None:
+                    record["row"]["output_image_path"] = ""
+                writer.write(json.dumps(record, ensure_ascii=False) + "\n")
+        os.replace(replacement, records)
+        metadata["assets"] = {name: info for name, info in self.asset_info.items() if name in included}
+        for info in metadata["assets"].values():
+            if "references" in info:
+                info["references"] = {value: name if name in included else None for value, name in info["references"].items()}
+        metadata["cutting_templates"] = [entry for entry in metadata["cutting_templates"] if entry["asset"] in included]
+        metadata["warnings"] = list(self.warnings.values())
+
+    def _files(self, folder, recursive=False):
+        try:
+            _checked(folder)
+            if recursive:
+                for directory, folders, files in os.walk(folder, onerror=lambda error: self.skip_asset(error.filename, error)):
+                    for child in folders[:]:
+                        try:
+                            _checked(Path(directory) / child)
+                        except (OSError, ValueError) as error:
+                            self.skip_asset(Path(directory) / child, error)
+                            folders.remove(child)
+                    for filename in files:
+                        yield Path(directory) / filename
+            else:
+                yield from folder.iterdir()
+        except (OSError, ValueError) as error:
+            self.skip_asset(folder, error)
 
     def _base_image(self, path):
         return any(path == self.root / folder or self.root / folder in path.parents for folder in BASE_FOLDERS)
@@ -176,29 +243,34 @@ class UserContentExporter:
     def _is_custom_file(self, path, relative):
         expected = self.defaults.get(relative)
         bundled = self.bundle / relative
-        if expected:
-            return _hash(path) != expected
-        if self.root != self.bundle and bundled.is_file() and path != bundled:
-            return _hash(path) != _hash(bundled)
-        return True
+        try:
+            _checked(path)
+            if expected:
+                return _hash(path) != expected
+            if self.root != self.bundle and bundled.is_file() and path != bundled:
+                return _hash(path) != _hash(bundled)
+            return True
+        except (OSError, ValueError) as error:
+            self.skip_asset(path, error)
+            return False
 
     def _collect_directories(self):
         for kind in ("icon", "card_back", "pack_art", "deck_source", "deck_generated", "print"):
+            if not self.selection.enabled({"icon": "custom_set_icons", "card_back": "card_backs", "pack_art": "custom_sets", "deck_source": "deck_art", "deck_generated": "deck_art", "print": "print_templates"}[kind]):
+                continue
+            # Partial exports collect category-specific art from selected records.
+            if kind in {"icon", "deck_source", "deck_generated", "pack_art"} and (not all(self.selection.enabled(key) for key in ("custom_sets", "decks", "packs")) or self.selection.entities):
+                continue
             folder = self.root / KINDS[kind]
             if not folder.is_dir():
                 continue
-            _checked(folder)
-            for directory, folders, files in os.walk(folder):
-                for child in folders:
-                    _checked(Path(directory) / child)
-                for filename in files:
-                    path = _checked(Path(directory) / filename)
-                    allowed = IMAGE_EXTENSIONS | ({".ini"} if kind == "print" else set())
-                    if path.suffix.lower() in allowed and self._is_custom_file(path, path.relative_to(self.root).as_posix()):
-                        self.asset(path, kind, path.relative_to(folder).as_posix())
-        if self.root != self.bundle:
+            for path in self._files(folder, recursive=True):
+                allowed = IMAGE_EXTENSIONS | ({".ini"} if kind == "print" else set())
+                if path.suffix.lower() in allowed and self._is_custom_file(path, path.relative_to(self.root).as_posix()):
+                    self.asset(path, kind, path.relative_to(folder).as_posix())
+        if self.root != self.bundle and self.selection.enabled("print_templates"):
             folder = self.bundle / KINDS["print"]
-            for path in folder.rglob("*"):
+            for path in self._files(folder, recursive=True):
                 if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS | {".ini"}:
                     relative = path.relative_to(folder).as_posix()
                     if not (self.root / KINDS["print"] / relative).is_file() and self._is_custom_file(path, KINDS["print"] + "/" + relative):
@@ -208,20 +280,28 @@ class UserContentExporter:
             if self.asset_info[name]["kind"] != "print" or path.suffix.lower() != ".ini":
                 continue
             parser = configparser.ConfigParser(interpolation=None)
-            parser.read(path, encoding="utf-8-sig")
+            try:
+                with _disk_path(path).open(encoding="utf-8-sig") as handle:
+                    parser.read_file(handle)
+            except (OSError, UnicodeError, configparser.Error) as error:
+                self.skip_asset(path, error)
+                del self.assets[name]
+                del self.asset_info[name]
+                continue
             references = {}
             for section in parser.sections():
                 for field, value in parser.items(section):
                     if Path(value).suffix.lower() not in IMAGE_EXTENSIONS or not value or value.startswith(("http:", "https:")):
                         continue
                     candidate = Path(os.path.abspath(path.parent / value))
-                    if not candidate.is_file():
-                        raise ValueError(f"A print-template asset is missing: {candidate}")
                     prefix = next((base for base in (self.root, self.bundle) if base in candidate.parents), None)
-                    if prefix and not self._is_custom_file(candidate, candidate.relative_to(prefix).as_posix()):
+                    if candidate.is_file() and prefix and not self._is_custom_file(candidate, candidate.relative_to(prefix).as_posix()):
+                        if str(candidate) in self.warnings:
+                            references[value] = None
                         continue
                     relative = "assets/" + hashlib.sha256(str(candidate).encode()).hexdigest()[:12] + "/" + candidate.name
-                    references[value] = self.asset(candidate, "print", relative)["$asset"]
+                    token = self.asset(candidate, "print", relative)
+                    references[value] = token["$asset"] if token else None
             self.asset_info[name]["references"] = references
         cutting_entries = []
         manifest = self.root / "static/sil/Studio3/templates.json"
@@ -229,20 +309,23 @@ class UserContentExporter:
             manifest = self.static / "sil/Studio3/templates.json"
         registered = {}
         if manifest.is_file():
-            registered = {item["filename"]: item for item in json.loads(manifest.read_text(encoding="utf-8")).get("templates", [])}
-        for directory in dict.fromkeys((self.static / "sil", self.static / "sil/Studio3", self.root / "static/sil/Studio3")):
+            try:
+                registered = {item["filename"]: item for item in json.loads(manifest.read_text(encoding="utf-8")).get("templates", [])}
+            except (OSError, ValueError) as error:
+                self.skip_asset(manifest, error)
+        for directory in dict.fromkeys((self.static / "sil", self.static / "sil/Studio3", self.root / "static/sil/Studio3")) if self.selection.enabled("cutting_templates") else ():
             if not directory.is_dir():
                 continue
-            for path in directory.iterdir():
+            for path in self._files(directory):
                 if path.is_file() and path.suffix.lower() in CUTTING_EXTENSIONS:
                     relative = "static/sil/" + ("Studio3/" if directory.name == "Studio3" else "") + path.name
                     modified_registration = path.name in registered and registered[path.name] != self.default_cutting.get(path.name)
                     if self._is_custom_file(path, relative) or modified_registration:
                         token = self.asset(path, "cutting")
-                        if path.suffix.lower() in {".studio3", ".svg", ".dxf", ".fcm"}:
+                        if token and path.suffix.lower() in {".studio3", ".svg", ".dxf", ".fcm"}:
                             cutting_entries.append({**registered.get(path.name, {"filename": path.name, "name": path.stem}), "asset": token["$asset"]})
         # Modified bundled backs become custom backs on import.
-        for path in (self.static / "img/card_backs").glob("*"):
+        for path in self._files(self.static / "img/card_backs") if self.selection.enabled("card_backs") and (self.static / "img/card_backs").is_dir() else ():
             if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
                 relative = "static/img/card_backs/" + path.name
                 if self._is_custom_file(path, relative):
@@ -257,12 +340,20 @@ class UserContentExporter:
             connection.row_factory = sqlite3.Row
             connection.execute("BEGIN")
             existing = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-            if "custom_draft_sets" in existing:
-                self.custom_codes = {row[0] for row in connection.execute("SELECT set_code FROM custom_draft_sets")}
+            self.selection.prepare(connection, existing, TABLES, INTEGER_IDS, REFERENCES, self.progress)
+            if self.selection.enabled("deck_art"):
+                for deck_id in self.selection.ids["deck_id"]:
+                    path = self.root / KINDS["deck_generated"] / f"deck_art_{deck_id}.png"
+                    if path.is_file():
+                        token = self.asset(path, "deck_generated")
+                        if token:
+                            self.asset_info[token["$asset"]]["deck_id"] = deck_id
+            if "custom_draft_sets" in existing and self.selection.enabled("custom_sets"):
+                self.custom_codes = self.selection.ids["set_code"]
             with (self.temporary / "records.jsonl").open("w", encoding="utf-8") as writer:
                 # Discover dependencies while streaming user rows, then export only those catalogue rows.
                 for table in (*[name for name in TABLES if name not in DEPENDENCIES], "chaos_cards", "cards", "sets"):
-                    if table not in existing:
+                    if table not in existing or table not in DEPENDENCIES and not self.selection.includes_table(table):
                         continue
                     schemas[table] = [row["name"] for row in connection.execute("PRAGMA table_info(" + _quote(table) + ")")]
                     query = "SELECT * FROM " + _quote(table)
@@ -291,6 +382,9 @@ class UserContentExporter:
                             continue
                     for raw in connection.execute(query):
                         row = dict(raw)
+                        if table not in DEPENDENCIES and not self.selection.allows(table, row):
+                            continue
+                        row = self.selection.clean(row, REFERENCES, SCOPE_FIELDS, table=table)
                         if table == "chaos_session_state" and str(row.get("state_key", "")).startswith("pending_"):
                             continue
                         if table.startswith("chaos_booster_") and row.get("set_code") not in self.custom_codes:
@@ -319,10 +413,16 @@ class UserContentExporter:
                         if counts[table] % 250 == 0:
                             self.progress(stage="Selecting custom content", current_file=table, completed_files=len(self.assets))
                 settings = self.root / "settings.json"
-                if settings.is_file():
-                    writer.write(json.dumps({"table": "@settings", "row": self._encode(json.loads(settings.read_text(encoding="utf-8-sig")))}, ensure_ascii=False) + "\n")
-                    counts["@settings"] = 1
-        return {"schemas": schemas, "row_counts": counts, "assets": self.asset_info, "cutting_templates": cutting}, self.assets
+                if self.selection.enabled("config_settings") and settings.is_file():
+                    try:
+                        settings_row = self._encode(self.selection.clean(json.loads(settings.read_text(encoding="utf-8-sig")), REFERENCES, SCOPE_FIELDS))
+                    except (OSError, ValueError) as error:
+                        self.skip_asset(settings, error)
+                    else:
+                        writer.write(json.dumps({"table": "@settings", "row": settings_row}, ensure_ascii=False) + "\n")
+                        counts["@settings"] = 1
+        return {"schemas": schemas, "row_counts": counts, "assets": self.asset_info, "cutting_templates": cutting, "selection": self.selection.options, "entities": self.selection.entities,
+                "required_dependencies": {table: sorted(ids) for table, ids in self.selection.required.items() if not self.selection.enabled(self.selection.group(table))}}, self.assets
 
 
 class UserContentImporter:
@@ -332,6 +432,7 @@ class UserContentImporter:
         self.token = uuid4().hex
         self.maps, self.asset_paths, self.strings = {}, {}, {}
         self.icon_paths = {}
+        self.deck_art_paths = {}
         self.static = self.bundle / "static"
 
     def _rows(self, table):
@@ -517,6 +618,11 @@ class UserContentImporter:
                 raise ValueError("An import asset filename unexpectedly exists. Retry the import.")
             planned.add(str(destination).casefold())
             self.asset_paths[name] = destination
+            if kind == "deck_generated" and "deck_id" in info:
+                if type(info["deck_id"]) is not int:
+                    raise ValueError("Invalid deck artwork identity.")
+                deck_id = self._map("decks", info["deck_id"])
+                self.deck_art_paths[name] = self.root / KINDS["deck_generated"] / f"deck_art_{deck_id}.png"
             if kind == "icon":
                 mirror = self.root / "static/img/set_icons" / ("import_" + self.token) / asset_key / destination.name
                 _checked(mirror)
@@ -531,10 +637,10 @@ class UserContentImporter:
             destination.parent.mkdir(parents=True, exist_ok=True)
             source = self.temporary.joinpath(*_safe_name(name).parts)
             os.replace(_disk_path(source), _disk_path(destination))
-            if name in self.icon_paths:
-                mirror = self.icon_paths[name]
-                mirror.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(_disk_path(destination), _disk_path(mirror))
+            for mirror in (self.icon_paths.get(name), self.deck_art_paths.get(name)):
+                if mirror is not None:
+                    mirror.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(_disk_path(destination), _disk_path(mirror))
             self.progress(stage="Installing custom assets", completed_files=index + 1,
                           completed_bytes=index + 1, total_bytes=len(self.asset_paths), progress_unit="files", current_file=destination.name)
         # Remap template IDs as well as filenames and registration backgrounds.
@@ -555,7 +661,11 @@ class UserContentImporter:
             parser.set("Template", "Template_ID", new)
             for section in parser.sections():
                 for field, value in parser.items(section):
-                    reference = self.metadata["assets"][name].get("references", {}).get(value)
+                    references = self.metadata["assets"][name].get("references", {})
+                    reference = references.get(value)
+                    if value in references and reference is None:
+                        parser.set(section, field, "")
+                        continue
                     if reference:
                         if reference not in self.asset_paths:
                             raise ValueError("A print-template asset is missing from the archive.")
@@ -650,13 +760,13 @@ class UserContentImporter:
         connection = None
         try:
             counts = self._read_records()
-            self._plan_assets()
             connection = sqlite3.connect(self.root / "cards.db", timeout=30)
             connection.execute("PRAGMA foreign_keys=ON")
             connection.execute("BEGIN IMMEDIATE")
             self._allocate(connection, counts)
+            self._plan_assets()
             connection.execute("CREATE TABLE IF NOT EXISTS _user_backup_imports(import_token TEXT PRIMARY KEY, imported_at_utc TEXT NOT NULL)")
-            replacements = []
+            replacements = list(self.deck_art_paths.values())
             if self.metadata.get("cutting_templates"):
                 replacements.append(self.root / "static/sil/Studio3/templates.json")
             if counts.get("@settings"):

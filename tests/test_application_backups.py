@@ -11,8 +11,10 @@ import zipfile
 
 from flask import Flask
 from user_backup_system import UserBackupService, MANIFEST, INVENTORY
-from portable_content import UserContentImporter
-from ui.backups import register_backup_routes
+from portable_content import UserContentImporter, UserContentExporter
+from ui.backups import register_backup_routes, ExportCancelled
+from export_selection import ExportSelection
+import threading
 
 
 SCHEMA = """
@@ -114,6 +116,225 @@ INSERT INTO unrelated_table VALUES (1);
         with closing(sqlite3.connect(self.target / "cards.db")) as connection:
             connection.row_factory = sqlite3.Row
             return dict(connection.execute(query).fetchone())
+
+    def _selection_backup(self, enabled, entities=None):
+        selection = ExportSelection({key: key in enabled for key in ExportSelection.OPTIONS}, entities)
+        result = self.exporter.create_backup(selection=selection)
+        with zipfile.ZipFile(result["zip_path"]) as archive:
+            metadata = json.loads(archive.read(MANIFEST))
+        return result, metadata
+
+    def test_decks_only_export_is_self_contained_and_does_not_apply_settings(self):
+        result, metadata = self._selection_backup({"decks", "modified_cards"})
+        self.assertRegex(result["zip_filename"], r"^Deckadence_Backup_\d{8}_[0-9a-f]{8}\.zip$")
+        self.assertEqual(Path(result["zip_path"]).parent, self.source / "Export")
+        self.assertNotIn("custom_draft_sets", metadata["row_counts"])
+        self.assertNotIn("tracked_chaos_packs", metadata["row_counts"])
+        self.assertNotIn("app_config", metadata["row_counts"])
+        self.assertNotIn("chaos_campaigns", metadata["row_counts"])
+        self.importer.import_backup(result["zip_path"])
+        deck = self._row("SELECT * FROM decks WHERE deck_id=2")
+        self.assertEqual(deck["deck_name"], "Source")
+        self.assertIsNone(deck["campaign_id"])
+        self.assertIsNone(deck["player_id"])
+        self.assertEqual(deck["card_back_key"], "")
+        self.assertEqual(self._row("SELECT * FROM app_config WHERE config_key='selected_deck_id'")["config_value"], "1")
+
+    def test_individual_deck_selection_only_includes_matching_modified_cards(self):
+        extra = self._file(self.source, "data/alternate_sources/unrelated.png", b"unrelated")
+        with closing(sqlite3.connect(self.source / "cards.db")) as connection:
+            connection.execute("INSERT INTO decks(deck_id,deck_name) VALUES (2,'Other')")
+            connection.execute("INSERT INTO chaos_cards VALUES ('other','TST','Other card','2','other-scryfall',NULL)")
+            connection.execute("INSERT INTO deck_cards VALUES (2,2,'other',1)")
+            connection.execute("INSERT INTO alternate_sources VALUES (2,'other',?,NULL)", (str(extra),))
+            connection.commit()
+        result, metadata = self._selection_backup({"decks", "modified_cards"}, {"deck_ids": [1]})
+        self.assertEqual(metadata["row_counts"]["decks"], 1)
+        self.assertEqual(metadata["row_counts"]["alternate_sources"], 1)
+        with zipfile.ZipFile(result["zip_path"]) as archive:
+            self.assertFalse(any(name.endswith("unrelated.png") for name in archive.namelist()))
+        self.importer.import_backup(result["zip_path"])
+        self.assertEqual(self._row("SELECT COUNT(*) AS total FROM decks")["total"], 2)
+
+    def test_category_combinations_and_no_modified_assets_import(self):
+        import itertools
+        for choices in itertools.product((False, True), repeat=3):
+            enabled = {name for name, chosen in zip(("custom_sets", "decks", "packs"), choices) if chosen}
+            with self.subTest(enabled=enabled):
+                result, metadata = self._selection_backup(enabled)
+                self.assertFalse(any(info["kind"] in {"alternate", "isolated", "upscale"} for info in metadata["assets"].values()))
+                self.importer.import_backup(result["zip_path"])
+
+    def test_settings_without_categories_import(self):
+        for option in ("campaigns", "config_settings", "card_backs", "print_templates", "cutting_templates"):
+            with self.subTest(option=option):
+                result, metadata = self._selection_backup({option})
+                self.assertNotIn("decks", metadata["row_counts"])
+                self.assertNotIn("custom_draft_sets", metadata["row_counts"])
+                self.assertNotIn("tracked_chaos_packs", metadata["row_counts"])
+                self.importer.import_backup(result["zip_path"])
+
+    def test_cancellation_removes_unfinished_archive_and_temporary_files(self):
+        def progress(**state):
+            if state.get("stage") == "Reading asset":
+                raise ExportCancelled()
+        with self.assertRaises(ExportCancelled):
+            self.exporter.create_backup(progress=progress)
+        self.assertEqual(list((self.source / "Export").glob("*.zip*")), [])
+        self.assertEqual(list(self.exporter.work.glob("export-*")), [])
+
+    def test_cancel_export_api_waits_for_cleanup_and_allows_a_new_job(self):
+        app = Flask(__name__)
+        jobs = register_backup_routes(app, service=self.exporter)
+        client = app.test_client()
+        reached, release = threading.Event(), threading.Event()
+        original = self.exporter.create_backup
+        def export(*args, **kwargs):
+            report = args[1]
+            def progress(**state):
+                if state.get("stage") == "Reading asset":
+                    reached.set()
+                    release.wait(5)
+                report(**state)
+            return original(progress=progress, selection=kwargs.get("selection"))
+        with patch.object(self.exporter, "create_backup", export):
+            response = client.post("/maintenance/backups/create", json={})
+            self.assertTrue(reached.wait(5))
+            self.assertEqual(client.post("/maintenance/backups/cancel-export", json={"job_id": "wrong"}).status_code, 409)
+            self.assertEqual(client.post("/maintenance/backups/cancel-export", json={"job_id": response.json["job_id"]}).status_code, 202)
+            self.assertTrue(jobs.busy)
+            release.set()
+            deadline = time.monotonic() + 5
+            while jobs.busy and time.monotonic() < deadline:
+                time.sleep(0.01)
+        self.assertEqual(jobs.status()["state"], "cancelled", jobs.status())
+        self.assertEqual(list((self.source / "Export").glob("*.zip*")), [])
+        self.assertEqual(list(self.exporter.work.glob("export-*")), [])
+        self.assertEqual(client.post("/maintenance/backups/cancel-export", json={"job_id": response.json["job_id"]}).status_code, 409)
+        self.assertEqual(client.post("/maintenance/backups/create", json={}).status_code, 202)
+        deadline = time.monotonic() + 5
+        while jobs.busy and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(jobs.status()["state"], "complete", jobs.status())
+
+    def test_old_workspace_moves_under_export_preserving_contents(self):
+        old = self._file(self.source, ".backup-work/kept.txt", b"keep recovery data")
+        self.exporter.recover_import()
+        self.assertEqual((self.exporter.work / "kept.txt").read_bytes(), b"keep recovery data")
+        self.assertFalse(old.parent.exists())
+
+    def test_export_cleanup_preserves_recovery_workspace(self):
+        from db import exports
+        self._file(self.source, "Export/backup-work/recovery-abc/saved-settings.json", b"keep")
+        archive = self._file(self.source, "Export/old.zip", b"remove")
+        with patch.object(exports, "EXPORT_ROOT_DIR", str(self.source / "Export")), patch("db.exports.time.time", return_value=time.time() + 10 * 86400):
+            exports.auto_clear_export_root("1")
+            self.assertFalse(archive.exists())
+            exports.clear_export_root()
+        self.assertTrue((self.exporter.work / "recovery-abc/saved-settings.json").is_file())
+
+    def test_invalid_selection_is_rejected_before_starting_job(self):
+        app = Flask(__name__)
+        jobs = register_backup_routes(app, service=self.exporter)
+        client = app.test_client()
+        for selection in ({"decks": "false"}, {"invalid": True}, {key: False for key in ExportSelection.OPTIONS}):
+            self.assertEqual(client.post("/maintenance/backups/create", json={"selection": selection}).status_code, 409)
+            self.assertFalse(jobs.busy)
+
+    def test_pack_only_export_keeps_custom_pack_art(self):
+        art = self._file(self.source, "data/img/pack_art/art.png", b"custom pack art")
+        for root in (self.source, self.target):
+            with closing(sqlite3.connect(root / "cards.db")) as connection:
+                connection.execute("CREATE TABLE chaos_pack_art(set_code TEXT,booster_name TEXT,image_path TEXT,PRIMARY KEY(set_code,booster_name))")
+                connection.commit()
+        with closing(sqlite3.connect(self.source / "cards.db")) as connection:
+            connection.execute("INSERT INTO chaos_pack_art VALUES ('MY^','play',?)", (str(art),))
+            connection.commit()
+        result, metadata = self._selection_backup({"packs"})
+        self.assertEqual(metadata["row_counts"]["chaos_pack_art"], 1)
+        self.assertTrue(any(info["kind"] == "pack_art" for info in metadata["assets"].values()))
+        self.importer.import_backup(result["zip_path"])
+        self.assertEqual(Path(self._row("SELECT * FROM chaos_pack_art")["image_path"]).read_bytes(), b"custom pack art")
+
+    def test_selected_deck_art_is_restored_using_new_deck_id(self):
+        self._file(self.source, "data/deck_art_generated/deck_art_1.png", b"deck cover")
+        self._file(self.source, "data/deck_art_generated/deck_art_999.png", b"unrelated cover")
+        result, metadata = self._selection_backup({"decks", "deck_art"}, {"deck_ids": [1]})
+        self.assertTrue(any(info.get("deck_id") == 1 for info in metadata["assets"].values()))
+        with zipfile.ZipFile(result["zip_path"]) as archive:
+            self.assertFalse(any(name.endswith("deck_art_999.png") for name in archive.namelist()))
+        self.importer.import_backup(result["zip_path"])
+        self.assertEqual((self.target / "data/deck_art_generated/deck_art_2.png").read_bytes(), b"deck cover")
+
+    def test_failed_import_restores_existing_deck_art_and_removes_new_assets(self):
+        self._file(self.source, "data/deck_art_generated/deck_art_1.png", b"source cover")
+        self._file(self.target, "data/deck_art_generated/deck_art_2.png", b"old orphaned cover")
+        result, metadata = self._selection_backup({"decks", "deck_art"})
+        with patch.object(UserContentImporter, "_import_rows", side_effect=ValueError("simulated failure")):
+            with self.assertRaisesRegex(ValueError, "simulated"):
+                self.importer.import_backup(result["zip_path"])
+        self.assertEqual((self.target / "data/deck_art_generated/deck_art_2.png").read_bytes(), b"old orphaned cover")
+        self.assertEqual(self._row("SELECT COUNT(*) AS total FROM decks")["total"], 1)
+
+    def test_export_does_not_block_pages_writes_or_image_jobs(self):
+        app = Flask(__name__)
+        @app.get("/")
+        def home():
+            return "Deckadence home"
+        @app.post("/save-deck")
+        def save_deck():
+            with closing(sqlite3.connect(self.source / "cards.db", timeout=1)) as connection:
+                connection.execute("UPDATE decks SET deck_name='Still usable' WHERE deck_id=1")
+                connection.commit()
+            return "Saved"
+        def unexpected_guard():
+            raise AssertionError("Export must not acquire the application's image lock")
+        jobs = register_backup_routes(app, service=self.exporter, guard=unexpected_guard, activity_check=lambda: True)
+        client = app.test_client()
+        reached, release = threading.Event(), threading.Event()
+        original = self.exporter.create_backup
+        def export(*args, **kwargs):
+            report = args[1]
+            def progress(**state):
+                if state.get("stage") == "Reading asset":
+                    reached.set()
+                    release.wait(5)
+                report(**state)
+            return original(progress=progress, selection=kwargs.get("selection"))
+        with patch.object(self.exporter, "create_backup", export):
+            self.assertEqual(client.post("/maintenance/backups/create", json={}).status_code, 202)
+            self.assertTrue(reached.wait(5))
+            try:
+                home = client.get("/", headers={"Accept": "text/html", "Sec-Fetch-Dest": "document"})
+                self.assertEqual(home.status_code, 200)
+                self.assertEqual(home.data, b"Deckadence home")
+                self.assertEqual(client.post("/save-deck").status_code, 200)
+            finally:
+                release.set()
+            deadline = time.monotonic() + 5
+            while jobs.busy and time.monotonic() < deadline:
+                time.sleep(0.01)
+        self.assertEqual(jobs.status()["state"], "complete", jobs.status())
+        self.assertEqual(jobs.active_requests, 0)
+
+    def test_import_browser_navigation_shows_progress_instead_of_json(self):
+        app = Flask(__name__, template_folder=str(Path(__file__).resolve().parents[1] / "templates"))
+        @app.get("/")
+        def home():
+            return "Home"
+        @app.get("/config")
+        def config():
+            return "Config"
+        jobs = register_backup_routes(app, service=self.importer)
+        jobs.reserve("restore")
+        client = app.test_client()
+        response = client.get("/", headers={"Accept": "text/html", "Sec-Fetch-Dest": "document"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"applicationBackupModal", response.data)
+        self.assertEqual(response.mimetype, "text/html")
+        api = client.get("/", headers={"Accept": "application/json"})
+        self.assertEqual(api.status_code, 503)
+        self.assertEqual(api.mimetype, "application/json")
 
     def test_merge_remaps_ids_json_scopes_and_custom_codes(self):
         result = self.importer.import_backup(self._backup())
@@ -229,7 +450,7 @@ INSERT INTO unrelated_table VALUES (1);
         token = "a" * 32
         path = self.target / "data/alternate_sources/imports" / token / "art.png"
         settings = self._file(self.target, "settings.json", b'{"before":true}')
-        self.importer.work.mkdir()
+        self.importer.work.mkdir(parents=True)
         self.importer.begin_import_journal(token, [path], [settings])
         path.parent.mkdir(parents=True)
         path.write_bytes(b"interrupted asset")
@@ -243,7 +464,7 @@ INSERT INTO unrelated_table VALUES (1);
         token = "b" * 32
         path = self.target / "data/alternate_sources/imports" / token / "art.png"
         settings = self._file(self.target, "settings.json", b'{"before":true}')
-        self.importer.work.mkdir()
+        self.importer.work.mkdir(parents=True)
         self.importer.begin_import_journal(token, [path], [settings])
         path.parent.mkdir(parents=True)
         path.write_bytes(b"committed asset")
@@ -302,7 +523,7 @@ INSERT INTO unrelated_table VALUES (1);
             with self.assertRaisesRegex(ValueError, "simulated"):
                 self.importer.import_backup(archive)
         self.assertEqual(self._row("SELECT COUNT(*) AS total FROM decks")["total"], 1)
-        after = {path.relative_to(self.target).as_posix(): path.read_bytes() for path in self.target.rglob("*") if path.is_file() and ".backup-work" not in path.parts}
+        after = {path.relative_to(self.target).as_posix(): path.read_bytes() for path in self.target.rglob("*") if path.is_file() and "backup-work" not in path.parts}
         self.assertEqual(before, after)
 
     def _rewrite_zip(self, source, transform):
@@ -324,17 +545,94 @@ INSERT INTO unrelated_table VALUES (1);
         with self.assertRaisesRegex(ValueError, "unsafe"):
             self.importer.import_backup(archive)
 
-    def test_missing_custom_asset_fails_export_without_partial_archive(self):
-        (self.source / "data/alternate_sources/custom.png").unlink()
-        with self.assertRaisesRegex(ValueError, "missing"):
-            self._backup()
-        self.assertEqual(list((self.source / "Backups").glob("*.partial")), [])
+    def test_missing_custom_asset_is_skipped_and_backup_imports(self):
+        missing = self.source / "data/alternate_sources/custom.png"
+        missing.unlink()
+        result = self.exporter.create_backup()
+        self.assertEqual(result["warning_count"], 1)
+        self.assertEqual(result["warnings"][0]["path"], str(missing))
+        self.importer.import_backup(result["zip_path"])
+        self.assertIsNone(self._row("SELECT * FROM alternate_sources WHERE alternate_source_id=2")["local_image_path"])
+        self.assertEqual(self._row("SELECT * FROM decks WHERE deck_id=2")["deck_name"], "Source")
+        self.assertEqual(list((self.source / "Export").glob("*.partial")), [])
+
+    def test_missing_print_background_imports_with_empty_reference(self):
+        missing = self.source / "missing/background.png"
+        self._file(self.source, "print/templates/Custom.ini", f"[Template]\nTemplate_ID=custom\n[Silhouette]\nRegistration_Background={missing}\n".encode())
+        result = self.exporter.create_backup()
+        self.assertEqual(result["warning_count"], 1)
+        self.importer.import_backup(result["zip_path"])
+        import configparser
+        parser = configparser.ConfigParser()
+        parser.read(next((self.target / "print/templates").glob("*.ini")))
+        self.assertEqual(parser.get("Silhouette", "Registration_Background"), "")
+
+    def test_asset_disappearing_after_collection_clears_nested_references(self):
+        missing = self.source / "data/alternate_sources/custom.png"
+        with closing(sqlite3.connect(self.source / "cards.db")) as connection:
+            connection.execute("UPDATE decks SET deck_art_json=?", (json.dumps({"nested": [{"image_path": str(missing)}]}),))
+            connection.commit()
+        original = UserContentExporter.collect
+        def collect(exporter):
+            result = original(exporter)
+            missing.unlink()
+            return result
+        with patch.object(UserContentExporter, "collect", collect):
+            result = self.exporter.create_backup()
+        self.assertEqual(result["warning_count"], 1)
+        with zipfile.ZipFile(result["zip_path"]) as archive:
+            self.assertFalse(any(name.endswith("custom.png") for name in archive.namelist()))
+        self.importer.import_backup(result["zip_path"])
+        row = self._row("SELECT * FROM decks WHERE deck_id=2")
+        self.assertIsNone(json.loads(row["deck_art_json"])["nested"][0]["image_path"])
+
+    def test_unreadable_asset_does_not_leave_partial_zip_member(self):
+        missing = self.source / "data/alternate_sources/custom.png"
+        original_open = Path.open
+        class FailingReader:
+            def __enter__(self):
+                self.reads = 0
+                return self
+            def __exit__(self, *args):
+                pass
+            def read(self, size):
+                self.reads += 1
+                if self.reads == 1:
+                    return b"partial content"
+                raise PermissionError("Asset became unreadable")
+        def open_file(path, *args, **kwargs):
+            if path.name == missing.name and args and args[0] == "rb":
+                return FailingReader()
+            return original_open(path, *args, **kwargs)
+        with patch.object(Path, "open", open_file):
+            result = self.exporter.create_backup()
+        self.assertEqual(result["warning_count"], 1)
+        with zipfile.ZipFile(result["zip_path"]) as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertFalse(any(name.endswith("custom.png") for name in archive.namelist()))
+        self.importer.import_backup(result["zip_path"])
+        self.assertIsNone(self._row("SELECT * FROM alternate_sources WHERE alternate_source_id=2")["local_image_path"])
+
+    def test_asset_changing_during_read_is_skipped(self):
+        changed = self.source / "data/alternate_sources/custom.png"
+        modified = False
+        def progress(**state):
+            nonlocal modified
+            if not modified and state.get("stage") == "Reading asset" and state.get("current_file") == changed.name:
+                modified = True
+                with changed.open("ab") as writer:
+                    writer.write(b"changed")
+        result = self.exporter.create_backup(progress=progress)
+        self.assertTrue(modified)
+        self.assertEqual(result["warning_count"], 1)
+        self.importer.import_backup(result["zip_path"])
+        self.assertIsNone(self._row("SELECT * FROM alternate_sources WHERE alternate_source_id=2")["local_image_path"])
 
     def test_low_disk_space_fails_without_partial_archive(self):
         with patch("backup_system.shutil.disk_usage", return_value=type("Usage", (), {"free": 0})()):
             with self.assertRaisesRegex(ValueError, "space"):
                 self._backup()
-        self.assertEqual(list((self.source / "Backups").glob("*.partial")), [])
+        self.assertEqual(list((self.source / "Export").glob("*.partial")), [])
 
     def test_zip64_is_used_for_large_assets(self):
         self._file(self.source, "data/deck_art_generated/large.png", b"x" * 8192)
@@ -376,6 +674,7 @@ INSERT INTO unrelated_table VALUES (1);
         downloaded = client.get(status["download_url"], headers={"Range": "bytes=0-31"})
         self.assertEqual(downloaded.status_code, 206)
         self.assertEqual(len(downloaded.data), 32)
+        self.assertIn("attachment;", downloaded.headers["Content-Disposition"])
         downloaded.close()
 
 

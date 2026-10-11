@@ -1,0 +1,415 @@
+{
+  "templates": [
+    {
+      "template": "_advanced_image_upscaling.html",
+      "status": "pass"
+    },
+    {
+      "template": "_alternate_image_modal.html",
+      "status": "pass"
+    },
+    {
+      "template": "_application_backup_controls.html",
+      "status": "pass"
+    },
+    {
+      "template": "_campaign_list_filter.html",
+      "status": "pass"
+    },
+    {
+      "template": "_campaign_list_pagination.html",
+      "status": "pass"
+    },
+    {
+      "template": "_card_back_selector_modal.html",
+      "status": "pass"
+    },
+    {
+      "template": "_card_collection.html",
+      "status": "pass"
+    },
+    {
+      "template": "_card_search_modal.html",
+      "status": "pass"
+    },
+    {
+      "template": "_deck_image_generator.html",
+      "status": "pass"
+    },
+    {
+      "template": "_help_layer.html",
+      "status": "pass"
+    },
+    {
+      "template": "_moxfield_sync_modal.html",
+      "status": "pass"
+    },
+    {
+      "template": "_personal_use_agreement_modal.html",
+      "status": "pass"
+    },
+    {
+      "template": "_print_export_modal.html",
+      "status": "pass"
+    },
+    {
+      "template": "_print_template_selector_modal.html",
+      "status": "pass"
+    },
+    {
+      "template": "_scoped_print_settings_fields.html",
+      "status": "pass"
+    },
+    {
+      "template": "_setup_required_panel.html",
+      "status": "pass"
+    },
+    {
+      "template": "_silhouette_template_library_modal.html",
+      "status": "pass"
+    },
+    {
+      "template": "_stats_modal.html",
+      "status": "pass"
+    },
+    {
+      "template": "backup_in_progress.html",
+      "status": "pass"
+    },
+    {
+      "template": "base.html",
+      "status": "pass"
+    },
+    {
+      "template": "campaign_campaigns.html",
+      "status": "pass"
+    },
+    {
+      "template": "campaign_chaos_draft.html",
+      "status": "pass"
+    },
+    {
+      "template": "campaign_history.html",
+      "status": "pass"
+    },
+    {
+      "template": "campaign_manage_packs.html",
+      "status": "pass"
+    },
+    {
+      "template": "campaign_manage_packs_select.html",
+      "status": "pass"
+    },
+    {
+      "template": "campaign_pack_detail.html",
+      "status": "pass"
+    },
+    {
+      "template": "campaign_placeholder.html",
+      "status": "pass"
+    },
+    {
+      "template": "campaign_players.html",
+      "status": "pass"
+    },
+    {
+      "template": "campaign_test_draft.html",
+      "status": "pass"
+    },
+    {
+      "template": "card_search.html",
+      "status": "pass"
+    },
+    {
+      "template": "chaos_draft.html",
+      "status": "pass"
+    },
+    {
+      "template": "chaos_pack_view.html",
+      "status": "pass"
+    },
+    {
+      "template": "config.html",
+      "status": "pass"
+    },
+    {
+      "template": "custom_draft_pack_layout.html",
+      "status": "pass"
+    },
+    {
+      "template": "custom_draft_set.html",
+      "status": "pass"
+    },
+    {
+      "template": "deck_roulette.html",
+      "status": "pass"
+    },
+    {
+      "template": "deckbuilder.html",
+      "status": "pass"
+    },
+    {
+      "template": "deckbuilder_manage.html",
+      "status": "pass"
+    },
+    {
+      "template": "home.html",
+      "status": "pass"
+    },
+    {
+      "template": "index.html",
+      "status": "pass"
+    },
+    {
+      "template": "preprint_chaos_draft.html",
+      "status": "pass"
+    },
+    {
+      "template": "print.html",
+      "status": "pass"
+    },
+    {
+      "template": "result.html",
+      "status": "pass"
+    },
+    {
+      "template": "sets.html",
+      "status": "pass"
+    }
+  ],
+  "page_routes": {
+    "print.html": [
+      {
+        "function": "render_print_page",
+        "routes": [],
+        "line": 7643
+      }
+    ],
+    "home.html": [
+      {
+        "function": "index",
+        "routes": [
+          "/"
+        ],
+        "line": 18899
+      }
+    ],
+    "chaos_draft.html": [
+      {
+        "function": "play_draft",
+        "routes": [
+          "/play/draft"
+        ],
+        "line": 18918
+      }
+    ],
+    "campaign_chaos_draft.html": [
+      {
+        "function": "play_draft",
+        "routes": [
+          "/play/draft"
+        ],
+        "line": 18955
+      }
+    ],
+    "preprint_chaos_draft.html": [
+      {
+        "function": "play_draft",
+        "routes": [
+          "/play/draft"
+        ],
+        "line": 18980
+      }
+    ],
+    "index.html": [
+      {
+        "function": "play_momir",
+        "routes": [
+          "/play/momir"
+        ],
+        "line": 19009
+      }
+    ],
+    "result.html": [
+      {
+        "function": "result",
+        "routes": [
+          "/result"
+        ],
+        "line": 19073
+      },
+      {
+        "function": "result",
+        "routes": [
+          "/result"
+        ],
+        "line": 19039
+      },
+      {
+        "function": "result",
+        "routes": [
+          "/result"
+        ],
+        "line": 19052
+      }
+    ],
+    "card_search.html": [
+      {
+        "function": "card_search",
+        "routes": [
+          "/card-search"
+        ],
+        "line": 19495
+      }
+    ],
+    "config.html": [
+      {
+        "function": "config",
+        "routes": [
+          "/config"
+        ],
+        "line": 21248
+      }
+    ],
+    "campaign_campaigns.html": [
+      {
+        "function": "campaign_chaos_campaigns",
+        "routes": [
+          "/campaign-chaos/campaigns"
+        ],
+        "line": 22265
+      }
+    ],
+    "campaign_players.html": [
+      {
+        "function": "campaign_chaos_players",
+        "routes": [
+          "/campaign-chaos/players"
+        ],
+        "line": 22634
+      }
+    ],
+    "campaign_manage_packs_select.html": [
+      {
+        "function": "campaign_chaos_packs_manage",
+        "routes": [
+          "/campaign-chaos/packs/manage"
+        ],
+        "line": 23048
+      }
+    ],
+    "campaign_manage_packs.html": [
+      {
+        "function": "campaign_chaos_packs",
+        "routes": [
+          "/campaign-chaos/packs"
+        ],
+        "line": 23157
+      }
+    ],
+    "campaign_history.html": [
+      {
+        "function": "campaign_chaos_history",
+        "routes": [
+          "/campaign-chaos/history"
+        ],
+        "line": 23221
+      }
+    ],
+    "campaign_pack_detail.html": [
+      {
+        "function": "campaign_chaos_pack_detail",
+        "routes": [
+          "/campaign-chaos/packs/<int:tracked_pack_id>"
+        ],
+        "line": 23394
+      },
+      {
+        "function": "campaign_chaos_pack_preview_view",
+        "routes": [
+          "/campaign-chaos/packs/preview/view"
+        ],
+        "line": 23974
+      }
+    ],
+    "campaign_test_draft.html": [
+      {
+        "function": "campaign_chaos_test_draft",
+        "routes": [
+          "/campaign-chaos/test-draft/<int:draft_test_id>"
+        ],
+        "line": 24876
+      }
+    ],
+    "deckbuilder.html": [
+      {
+        "function": "campaign_chaos_test_draft_deck_builder",
+        "routes": [
+          "/campaign-chaos/test-draft/<int:draft_test_id>/deck-builder"
+        ],
+        "line": 24944
+      },
+      {
+        "function": "deckbuilder_open",
+        "routes": [
+          "/deck-builder/<int:deck_id>"
+        ],
+        "line": 28132
+      }
+    ],
+    "deck_roulette.html": [
+      {
+        "function": "deck_roulette",
+        "routes": [
+          "/deck-roulette"
+        ],
+        "line": 27469
+      }
+    ],
+    "deckbuilder_manage.html": [
+      {
+        "function": "deckbuilder_index",
+        "routes": [
+          "/deck-builder"
+        ],
+        "line": 28023
+      }
+    ],
+    "chaos_pack_view.html": [
+      {
+        "function": "chaos_draft_view",
+        "routes": [
+          "/chaos-draft/view"
+        ],
+        "line": 36015
+      }
+    ],
+    "custom_draft_set.html": [
+      {
+        "function": "custom_draft_set_manage",
+        "routes": [
+          "/custom-draft-sets/<path:set_code>"
+        ],
+        "line": 36509
+      }
+    ],
+    "custom_draft_pack_layout.html": [
+      {
+        "function": "custom_draft_set_layout_edit",
+        "routes": [
+          "/custom-draft-sets/<path:set_code>/layouts/<booster_name>"
+        ],
+        "line": 36924
+      }
+    ],
+    "sets.html": [
+      {
+        "function": "sets",
+        "routes": [
+          "/sets"
+        ],
+        "line": 37813
+      }
+    ]
+  }
+}

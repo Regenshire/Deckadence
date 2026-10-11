@@ -1,0 +1,17 @@
+--- a/templates/chaos_pack_view.html
++++ b/templates/chaos_pack_view.html
+@@ -82,11 +82,11 @@
+                     {% endif %}
+                 </div>
+ 
+-                {% if card.sheet_is_foil %}
++                {% if card.sheet_is_foil or card.special_badges %}
+                 <div class="chaos-pack-view-badges">
++                    {% if card.sheet_is_foil %}
+                     <span class="chaos-pack-view-badge">Foil</span>
+-                </div>
+-                {% endif %}
++                    {% endif %}
+                     {% for badge in card.special_badges %}
+                     <span class="chaos-pack-view-badge">{{ badge }}</span>
+                     {% endfor %}
