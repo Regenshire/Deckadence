@@ -458,6 +458,7 @@
             const identifier = getCardIdentifier(hostElement);
             const metadata = getCachedMetadata(identifier);
 
+            window.DeckadenceCardEffects?.applyMetadata(getCardImageForHost(hostElement), metadata);
             if (!metadata || !metadata.is_dual_faced) {
                 return;
             }

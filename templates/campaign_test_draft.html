@@ -225,7 +225,7 @@
                     data-card-collector-number="{{ card.collector_number or '' }}"
                     data-card-visible="1"
                 >
-                    <div class="campaign-test-draft-card-image-shell">
+                    <div class="campaign-test-draft-card-image-shell" data-card-effects data-is-foil="{{ 1 if card.is_foil else 0 }}">
                         <img
                             src="{{ url_for('chaos_card_image', card_uuid=card.card_uuid) }}"
                             alt="{{ card.card_name }}"
@@ -742,7 +742,7 @@
 
 </div>
 
-<script src="{{ url_for('static', filename='js/card_flip.js') }}"></script>
+<script src="{{ url_for('static', filename='js/card_flip.js', v='card-effects-1') }}"></script>
 <script>
 (function () {
     const workspace = document.getElementById("campaignTestDraftWorkspace");
@@ -914,7 +914,7 @@
                 'data-card-set-code="' + escapeHtml(card.set_code || "") + '" ' +
                 'data-card-collector-number="' + escapeHtml(card.collector_number || "") + '" ' +
                 'data-card-visible="1">' +
-                '<div class="campaign-test-draft-card-image-shell">' +
+                '<div class="campaign-test-draft-card-image-shell" data-card-effects data-is-foil="' + (card.is_foil ? '1' : '0') + '">' +
                     '<img src="' + escapeHtml(card.image_src) + '" alt="' + escapeHtml(card.card_name) + '" class="campaign-test-draft-card-image">' +
                 '</div>' +
                 '<div class="campaign-test-draft-card-footer">' +
@@ -1132,6 +1132,7 @@
 
         zoomImage.src = imageElement.src || "";
         zoomImage.alt = imageElement.alt || "";
+        window.DeckadenceCardEffects?.copyToZoom(imageElement, zoomImage);
 
         zoomOverlay.classList.remove("hidden");
         zoomOverlay.setAttribute("aria-hidden", "false");

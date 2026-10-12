@@ -34,6 +34,8 @@
     {% endif %}
 
     {% block page_styles %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_effects.css', v='1') }}">
+    <script src="{{ url_for('static', filename='js/card_effects.js', v='2') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css', v='theme-surfaces-17') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/white_mana_flair.css', v='32') }}">
     <script src="{{ url_for('static', filename='js/theme_catalog.js') }}"></script>

@@ -1,0 +1,48 @@
+/* Opt-in artwork-only effects; controls and card rules stay with their screen. */
+.card-effects {
+  --card-rx: 0deg; --card-ry: 0deg; --card-scale: 1;
+  --card-mx: 50%; --card-my: 50%; --card-shift: 50%;
+  --card-light: 0; --card-hue: 0deg;
+  position: relative;
+  isolation: isolate;
+  border-radius: 13px;
+  transform: perspective(850px) rotateX(var(--card-rx)) rotateY(var(--card-ry)) scale(var(--card-scale));
+  transform-origin: center;
+}
+.card-effects-moving { will-change: transform; }
+.card-effects .card-effect-layer {
+  position: absolute; inset: 0; border-radius: inherit;
+  pointer-events: none; user-select: none; opacity: 0;
+}
+.card-effect-rainbow {
+  background: linear-gradient(115deg, #6be6fc 0%, #8159d4 18%, #fd86d1 32%, #ffd169 48%, #8ad8a4 63%, #51caf2 78%, #b78ced 100%);
+  background-size: 260% 260%;
+  background-position: var(--card-shift) var(--card-my);
+  mix-blend-mode: color-dodge;
+}
+.card-effect-surge {
+  background: url("../img/card-effects/surge-foil.png") center / 100% 100% no-repeat;
+  mix-blend-mode: hard-light;
+  filter: saturate(1.65) contrast(1.25) brightness(1.05) hue-rotate(var(--card-hue));
+  mask-image: radial-gradient(ellipse at var(--card-mx) var(--card-my), #000 5%, #000b 48%, #0003 100%);
+}
+.card-effects .card-effect-glare {
+  background: radial-gradient(ellipse at var(--card-mx) var(--card-my), #fff7 0%, #fff1 25%, transparent 65%);
+  mix-blend-mode: screen;
+  opacity: calc(var(--card-light) * .30);
+}
+.card-effects[data-card-effect-finish="foil"] .card-effect-rainbow { opacity: calc(.10 + var(--card-light) * .25); }
+.card-effects[data-card-effect-finish="surge"] .card-effect-rainbow { opacity: calc(.04 + var(--card-light) * .06); }
+.card-effects[data-card-effect-finish="surge"] .card-effect-surge { opacity: calc(.22 + var(--card-light) * .43); }
+.card-effects-zoom { display: inline-block; flex: 0 1 auto; line-height: 0; border-radius: 16px; }
+.chaos-pack-view-card:hover .card-effects > .chaos-pack-view-image,
+.chaos-pack-inline-card:hover .card-effects > .chaos-pack-inline-image:not(.chaos-pack-inline-card-flipping) { transform: none; }
+.imomir-card-flip-animating .card-effect-layer,
+.card-effects:has(.chaos-pack-inline-card-flipping) .card-effect-layer { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .card-effects { transform: none; }
+}
+@media print {
+  .card-effects { transform: none; }
+  .card-effect-layer { display: none; }
+}

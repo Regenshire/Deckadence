@@ -630,6 +630,7 @@
     zoomableImages.forEach(function (imageElement) {
       const cardUuid = getCardUuidForCampaignPackImage(imageElement);
       const metadata = campaignPackFaceMetadataByUuid[cardUuid];
+      window.DeckadenceCardEffects?.applyMetadata(imageElement, metadata);
 
       if (metadata && metadata.is_dual_faced && metadata.back_src) {
         imageElement.dataset.currentFace = "front";
@@ -664,6 +665,7 @@
 
       zoomImage.src = imageSrc;
       zoomImage.alt = imageAlt;
+      window.DeckadenceCardEffects?.copyToZoom(imageElement, zoomImage);
       zoomImage.dataset.cardUuid =
         getCardUuidForCampaignPackImage(imageElement);
       zoomImage.dataset.currentFace = currentFace;

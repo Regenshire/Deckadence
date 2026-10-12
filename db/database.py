@@ -1279,6 +1279,7 @@ def initialize_database():
     ensure_column_exists(cursor, "chaos_cards", "color_identity_json", "TEXT")
     ensure_column_exists(cursor, "chaos_cards", "edhrec_rank", "INTEGER")
     ensure_column_exists(cursor, "chaos_cards", "edhrec_saltiness", "REAL")
+    ensure_column_exists(cursor, "chaos_cards", "promo_types_json", "TEXT")
 
     cursor.execute(
         """

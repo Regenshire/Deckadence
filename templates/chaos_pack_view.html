@@ -47,7 +47,7 @@
             data-tracked-pack-card-id="{{ card.tracked_pack_card_id }}"
             data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
         >
-            <div class="chaos-pack-view-image-wrap" data-card-uuid="{{ card.card_uuid }}">
+            <div class="chaos-pack-view-image-wrap" data-card-effects data-card-uuid="{{ card.card_uuid }}">
                 <img
                     src="{{ url_for('chaos_card_image', card_uuid=card.card_uuid) }}"
                     alt="{{ card.card_name }}"
@@ -65,7 +65,7 @@
                         data-card-uuid="{{ card.card_uuid }}"
                         data-card-name="{{ card.card_name }}"
                         data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
-                        data-foil-update-url="{{ url_for('campaign_chaos_pack_card_update_foil', tracked_pack_card_id=card.tracked_pack_card_id) }}"
+                        data-foil-update-url="{{ url_for('campaign_chaos_pack_card_update_foil', tracked_pack_card_id=card.tracked_pack_card_id) if card.tracked_pack_card_id else '' }}"
                         title="Alternate image settings"
                         aria-label="Alternate image settings for {{ card.card_name }}"
                     >
@@ -337,6 +337,7 @@
         imageElements.forEach(function (imageElement) {
             const cardUuid = getCardUuidForImage(imageElement);
             const metadata = metadataByUuid[cardUuid];
+            window.DeckadenceCardEffects?.applyMetadata(imageElement, metadata);
 
             if (!metadata || !metadata.is_dual_faced || !metadata.back_src) {
                 return;
@@ -390,6 +391,7 @@
 
         zoomImage.src = imageElement.src || "";
         zoomImage.alt = imageElement.alt || "";
+        window.DeckadenceCardEffects?.copyToZoom(imageElement, zoomImage);
         zoomImage.dataset.face = imageElement.dataset.face || "front";
 
         removeZoomFlipButton();

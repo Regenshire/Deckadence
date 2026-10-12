@@ -478,6 +478,7 @@ function initializeChaosDraftPage() {
 
     packZoomImage.src = imageSrc;
     packZoomImage.alt = imageAlt;
+    window.DeckadenceCardEffects?.copyToZoom(imageElement, packZoomImage);
     packZoomImage.dataset.cardUuid = getInlinePackCardUuid(imageElement);
     packZoomImage.dataset.currentFace = currentFace;
 
@@ -808,7 +809,7 @@ function initializeChaosDraftPage() {
       const upscaleButtonMarkup = buildInlinePackUpscaleButtonMarkup(cardData);
 
       cardElement.innerHTML = `
-                <div class="chaos-pack-inline-image-wrap" data-card-uuid="${cardData.card_uuid || ""}">
+                <div class="chaos-pack-inline-image-wrap" data-card-effects data-is-foil="${Number(cardData.sheet_is_foil) === 1 || cardData.finish_type === 'foil' ? 1 : 0}" data-card-uuid="${cardData.card_uuid || ""}">
                     <img
                         src="${cardData.image_src}"
                         alt="${cardData.card_name}"
@@ -832,6 +833,8 @@ function initializeChaosDraftPage() {
       );
       if (imageElement) {
         imageElement.dataset.currentFace = "front";
+        window.DeckadenceCardEffects?.attach(imageElement.parentElement,
+          inlinePackFaceMetadataByUuid[cardData.card_uuid] || {});
 
         imageElement.addEventListener("click", function () {
           openPackZoom(imageElement);

@@ -158,6 +158,7 @@ from db.pricing import (
     enrich_pack_cards_with_prices,
     import_all_prices_today_into_database,
 )
+from db.card_finishes import backfill_finish_metadata, card_promo_types
 
 from image_export_templates import (
     get_card_export_template_options,
@@ -3180,9 +3181,10 @@ def import_chaos_cards_from_all_printings():
                     colors_json,
                     color_identity_json,
                     edhrec_rank,
-                    edhrec_saltiness
+                    edhrec_saltiness,
+                    promo_types_json
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     card_uuid,
@@ -3214,6 +3216,7 @@ def import_chaos_cards_from_all_printings():
                     color_identity_json,
                     edhrec_rank,
                     edhrec_saltiness,
+                    json.dumps(safe_list(card_obj.get("promoTypes"))),
                 ),
             )
 
@@ -24601,6 +24604,7 @@ def serialize_draft_test_card(row):
         "card_order": row["card_order"],
         "card_uuid": row["card_uuid"] or "",
         "card_name": row["card_name"] or "",
+        "is_foil": bool(row["is_foil"]),
         "set_code": row["set_code"] or "",
         "collector_number": row["collector_number"] or "",
         "rarity": row["rarity"] or "",
@@ -30795,10 +30799,12 @@ def get_chaos_card_face_metadata(card_uuid):
     if not face_data:
         return {
             "is_dual_faced": False,
+            "promo_types": card_promo_types(card_row),
         }
 
     return {
         "is_dual_faced": True,
+        "promo_types": card_promo_types(card_row),
         "front_src": url_for("chaos_card_image", card_uuid=clean_card_uuid, face="front"),
         "back_src": url_for("chaos_card_image", card_uuid=clean_card_uuid, face="back"),
         "front_alt": face_data["front_face_name"] or card_row["card_name"] or "",
@@ -36141,6 +36147,7 @@ def chaos_draft_view_data():
             "card_name": card.get("card_name"),
             "image_src": url_for("chaos_card_image", card_uuid=card.get("card_uuid")),
             "finish_type": card.get("finish_type"),
+            "sheet_is_foil": int(card.get("sheet_is_foil") or 0),
             "special_badges": card.get("special_badges") or [],
             "price": card.get("price_info", {}).get("price"),
             "currency": card.get("price_info", {}).get("currency") or "USD",
@@ -37995,6 +38002,7 @@ def sets():
 
 if __name__ == "__main__":
     initialize_database()
+    backfill_finish_metadata()
     ensure_draft_testing_schema()
     ensure_deck_schema()
     ensure_upscaling_schema()
