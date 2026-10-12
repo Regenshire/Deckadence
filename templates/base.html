@@ -34,8 +34,10 @@
     {% endif %}
 
     {% block page_styles %}{% endblock %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_effects.css', v='1') }}">
-    <script src="{{ url_for('static', filename='js/card_effects.js', v='2') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_effects.css', v='4') }}">
+    <script src="{{ url_for('static', filename='js/card_effects.js', v='3') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_prices.css', v='compact-2') }}">
+    <script src="{{ url_for('static', filename='js/card_prices.js', v='compact-3') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css', v='theme-surfaces-17') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/white_mana_flair.css', v='32') }}">
     <script src="{{ url_for('static', filename='js/theme_catalog.js') }}"></script>
@@ -93,7 +95,7 @@
             </div>
 
             <div
-              class="app-nav-menu {% if request.endpoint in ['play_draft', 'play_momir', 'result', 'campaign_chaos_test_draft'] %}app-nav-menu-active{% endif %}"
+              class="app-nav-menu {% if request.endpoint in ['play_draft', 'play_momir', 'result', 'campaign_chaos_test_draft', 'pack_simulator'] %}app-nav-menu-active{% endif %}"
             >
               <div
                 class="app-nav-main-control"
@@ -127,6 +129,12 @@
                     <i class="fa-solid fa-shuffle"></i>
                   </span>
                   <span>Chaos Draft</span>
+                </a>
+
+                <a class="app-nav-dropdown-item {% if request.endpoint == 'pack_simulator' %}app-nav-dropdown-item-active{% endif %}"
+                  href="{{ url_for('pack_simulator') }}" role="menuitem">
+                  <span class="app-nav-item-icon" aria-hidden="true"><i class="fa-solid fa-box-open"></i></span>
+                  <span>Pack Simulator</span>
                 </a>
 
                 <a

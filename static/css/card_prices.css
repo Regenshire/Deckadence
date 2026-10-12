@@ -1,0 +1,21 @@
+/* Keep the original price typography and placement; details live off the card. */
+button.card-price-trigger {
+  appearance: none; background: none; border: 0; border-radius: 3px;
+  padding: 0; cursor: pointer; line-height: inherit; font-family: inherit;
+  min-height: 0; min-width: 0; box-shadow: none;
+}
+button.card-price-trigger:focus-visible { outline: 2px solid var(--accent, #b986ef); outline-offset: 4px; }
+.card-price-popover {
+  position: fixed; z-index: 20000; box-sizing: border-box;
+  width: min(300px, calc(100vw - 24px)); padding: 14px;
+  border: 1px solid var(--border, #495064); border-radius: 10px;
+  background: var(--panel, #202738); color: var(--text, #fff);
+  box-shadow: 0 8px 30px #0006; font-size: .85rem; line-height: 1.4;
+}
+.card-price-popover[hidden] { display: none; }
+.card-price-popover-heading { font-weight: 600; margin-bottom: 8px; }
+.card-price-popover-row { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; }
+.card-price-popover-row + .card-price-popover-row { margin-top: 10px; }
+.card-price-popover-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.card-price-popover-status { grid-column: 1 / -1; color: var(--muted, #adb4c5); font-size: .75rem; }
+@media print { .card-price-popover { display: none !important; } }

@@ -141,94 +141,44 @@ def import_all_prices_today_into_database():
     return inserted_count
 
 
-def get_card_price_by_uuid(card_uuid, finish_type="normal", price_source="tcgplayer-retail"):
-    normalized_finish = (finish_type or "normal").strip().lower()
+def get_card_price_by_uuid(card_uuid, finish_type="normal", price_source=None):
+    """Compatibility entry point returning two independent vendor quotes."""
+    from db.market_prices import lookup_card_price
+    return lookup_card_price(card_uuid, finish_type)
 
-    if normalized_finish not in {"normal", "foil", "etched"}:
-        normalized_finish = "normal"
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        SELECT
-            tcgplayer_normal_price,
-            tcgplayer_foil_price,
-            tcgplayer_etched_price,
-            currency,
-            price_date
-        FROM card_prices
-        WHERE card_uuid = ?
-        """,
-        ((card_uuid or "").strip(),),
-    )
-
-    row = cursor.fetchone()
-    conn.close()
-
-    if not row:
-        return {
-            "price": None,
-            "currency": "USD",
-            "price_date": None,
-            "source": price_source,
-            "finish": normalized_finish,
-        }
-
-    price_value = None
-    if normalized_finish == "foil":
-        price_value = row["tcgplayer_foil_price"]
-    elif normalized_finish == "etched":
-        price_value = row["tcgplayer_etched_price"]
-    else:
-        price_value = row["tcgplayer_normal_price"]
-
-    return {
-        "price": price_value,
-        "currency": row["currency"] or "USD",
-        "price_date": row["price_date"],
-        "source": price_source,
-        "finish": normalized_finish,
-    }
+def get_pack_price_preferences(config):
+    source = str(config.get("pack_price_source") or "manapool").strip().lower()
+    if source not in {"manapool", "cardkingdom", "none"}:
+        source = "manapool"
+    enabled = source != "none" and str(config.get("display_pack_prices", "1")) == "1"
+    return enabled, source
 
 
 def get_finish_type_for_pack_card(card_entry):
-    if int(card_entry.get("sheet_is_foil") or 0) == 1:
+    from db.market_prices import normalize_finish
+    explicit = normalize_finish(card_entry.get("finish_type"))
+    if explicit == "etched":
+        return explicit
+    if int(card_entry.get("sheet_is_foil") or card_entry.get("is_foil") or 0) == 1:
         return "foil"
+    if "sheet_is_foil" not in card_entry and "is_foil" not in card_entry:
+        return explicit
     return "normal"
 
 
-def enrich_pack_cards_with_prices(cards, display_prices=True, price_source="tcgplayer-retail"):
-    enriched_cards = []
-
-    for card_entry in cards or []:
-        enriched_entry = dict(card_entry)
-
-        finish_type = get_finish_type_for_pack_card(card_entry)
-
-        enriched_entry["finish_type"] = finish_type
-        enriched_entry["special_badges"] = []
-
-        if finish_type == "foil":
-            enriched_entry["special_badges"].append("Foil")
-
-        if display_prices:
-            price_info = get_card_price_by_uuid(
-                card_entry.get("card_uuid"),
-                finish_type=finish_type,
-                price_source=price_source,
-            )
-        else:
-            price_info = {
-                "price": None,
-                "currency": "USD",
-                "price_date": None,
-                "source": price_source,
-                "finish": finish_type,
-            }
-
-        enriched_entry["price_info"] = price_info
-        enriched_cards.append(enriched_entry)
-
-    return enriched_cards
+def enrich_pack_cards_with_prices(cards, display_prices=True, price_source=None):
+    from db.market_prices import lookup_card_prices
+    entries = [dict(card) for card in cards or []]
+    requests = [{"card_uuid": c.get("card_uuid"), "scryfall_id": c.get("scryfall_id"),
+                 "finish": get_finish_type_for_pack_card(c)} for c in entries]
+    # Page rendering uses cached values only. The browser independently requests
+    # missing/expired prices after cards and controls have rendered.
+    prices = lookup_card_prices(requests, refresh=False) if display_prices and requests else []
+    for index, entry in enumerate(entries):
+        entry["finish_type"] = requests[index]["finish"]
+        entry["special_badges"] = list(entry.get("special_badges") or [])
+        if entry["finish_type"] == "foil" and "Foil" not in entry["special_badges"]:
+            entry["special_badges"].append("Foil")
+        entry["prices"] = prices[index]["prices"] if prices else {}
+    return entries

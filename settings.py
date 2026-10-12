@@ -322,7 +322,8 @@ DEFAULT_CONFIG = {
 
     "display_pack_prices": "1",
     "check_new_releases": "1",
-    "pack_price_source": "tcgplayer-retail",
+    "pack_price_source": "manapool",
+    "simulator_value_source": "lower",
 }
 
 REPEAT_MODE_OPTIONS = [
@@ -394,7 +395,9 @@ CHAOS_DRAFT_EXPORT_FORMAT_OPTIONS = [
 ]
 
 PACK_PRICE_SOURCE_OPTIONS = [
-    ("tcgplayer-retail", "TCGPlayer Retail"),
+    ("manapool", "Mana Pool"),
+    ("cardkingdom", "Card Kingdom"),
+    ("none", "None"),
 ]
 
 PRINT_COLOR_MODE_OPTIONS = [

@@ -646,11 +646,19 @@
 
                     <label class="toggle-row" for="pack_price_source">
                         <span>Pack Price Source</span>
+                        {% set price_source = config.get('pack_price_source', 'manapool') %}
+                        {% if price_source not in ['manapool', 'cardkingdom', 'none'] %}{% set price_source = 'manapool' %}{% endif %}
                         <select id="pack_price_source" name="pack_price_source">
                             {% for value, label in pack_price_source_options %}
-                                <option value="{{ value }}" {% if config.get("pack_price_source", "tcgplayer-retail") == value %}selected{% endif %}>
-                                    {{ label }}
-                                </option>
+                            <option value="{{ value }}" {% if price_source == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="toggle-row" for="simulator_value_source">
+                        <span>Simulator Profit / Loss Value</span>
+                        <select id="simulator_value_source" name="simulator_value_source">
+                            {% for value, label in [('lower', 'Lower vendor total (default)'), ('manapool', 'Mana Pool'), ('cardkingdom', 'Card Kingdom')] %}
+                            <option value="{{ value }}" {% if config.get('simulator_value_source', 'lower') == value %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
                     </label>

@@ -73,19 +73,13 @@
                     </button>
 
                     {% if display_pack_prices %}
-                    <div class="chaos-pack-view-price">
-                        {% if card.price_info.price is not none %}
-                            ${{ "%.2f"|format(card.price_info.price) }}
-                        {% else %}
-                            Price unavailable
-                        {% endif %}
-                    </div>
+                    {% include '_card_prices.html' %}
                     {% endif %}
                 </div>
 
                 {% if card.sheet_is_foil or card.special_badges %}
                 <div class="chaos-pack-view-badges">
-                    {% if card.sheet_is_foil %}
+                    {% if card.sheet_is_foil and 'Foil' not in card.special_badges %}
                     <span class="chaos-pack-view-badge">Foil</span>
                     {% endif %}
                     {% for badge in card.special_badges %}

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}Deckadence - Pack Simulator{% endblock %}
+{% block page_styles %}
+<link rel="stylesheet" href="/static/css/card_views.css">
+<link rel="stylesheet" href="/static/css/chaos_draft.css">
+<link rel="stylesheet" href="/static/css/basic_chaos_theme.css?v=3">
+<link rel="stylesheet" href="/static/css/sets_theme.css?v=3">
+<link rel="stylesheet" href="/static/css/pack_simulator.css?v=11">
+<script src="/static/js/pack_opening.js?v=2"></script>
+{% endblock %}
+{% block content %}
+<main id="chaosDraftScreen" class="screen screen-wide basic-chaos-screen pack-simulator" data-price-source="{{ price_source }}" data-value-source="{{ value_source }}" data-card-back="/static/img/mtg_back_custom_1.jpg">
+  <div class="campaign-mode-title-row sim-title-row">
+    <div class="campaign-stage-heading basic-chaos-heading"><div class="campaign-stage-eyebrow">Play / Pack Simulator</div><h1 class="campaign-mode-external-title">Pick a pack. See what’s inside.</h1></div>
+    <button class="sim-text-button" type="button" data-dialog="historyDialog"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Recent openings</button>
+  </div>
+
+  <section class="campaign-draft-stage" aria-label="Selected pack">
+    <div class="page-panel chaos-draft-header-panel"><div class="chaos-draft-header-layout">
+      <div class="chaos-draft-header-copy"><div class="campaign-stage-eyebrow" id="productType">Your next pack</div><h2 class="page-title" id="productName">Choose a product</h2></div>
+      <button type="button" id="chooseProduct" class="action-button secondary-button"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Change product</button>
+    </div></div>
+    <div class="chaos-draft-spinner-shell" id="packStage"><div class="chaos-draft-spinner-window sim-pack-stage">
+      <button type="button" id="packArtworkButton" class="sim-pack-art" aria-label="Open selected pack"><img id="packArtwork" class="chaos-pack-card-image" src="/static/img/pack_art/_fallback/booster_default.png" alt="Choose a product Collector Booster"><span class="sim-art-hint">Click to open</span></button>
+    </div></div>
+    <div class="campaign-stage-footer"><span class="campaign-stage-monogram" aria-hidden="true"></span><span id="productDescription">Loading products…</span><button type="button" id="sealedPrice" class="sim-text-button" {% if price_source == "none" %}hidden{% endif %} aria-label="Show sealed-product prices"></button><button type="button" id="packLayoutButton" class="sim-text-button"><i class="fa-regular fa-circle-question" aria-hidden="true"></i> Pack Layout</button></div>
+  </section>
+
+  <div class="chaos-draft-open-row chaos-draft-open-row-visible">
+    <div class="chaos-draft-open-actions campaign-chaos-open-actions">
+      <h2 class="campaign-opened-heading" id="openingHeading">Ready to crack a pack?</h2><button id="skipAnimation" type="button" class="sim-text-button" hidden>Skip animation</button>
+      <button id="detailsButton" type="button" class="action-button secondary-button" aria-expanded="false" aria-controls="priceSidebar" {% if price_source == "none" %}hidden{% endif %}><i class="fa-solid fa-chart-simple" aria-hidden="true"></i> Prices</button>
+      <button id="saveButton" type="button" class="action-button secondary-button" hidden><i class="fa-regular fa-floppy-disk" aria-hidden="true"></i> Save</button>
+      <button id="openButton" type="button" class="action-button" disabled><i class="fa-solid fa-box-open" aria-hidden="true"></i> <span>Open pack</span></button>
+    </div>
+    <p class="sim-status" id="simStatus" role="status" hidden></p>
+    <section id="openedCards" hidden>
+      <div class="sim-card-toolbar">
+        <div id="singlePackSummary" class="sim-muted"></div>
+        <div class="sim-pack-navigation" id="packNavigation" hidden><button class="sim-icon" id="previousPack" aria-label="Previous pack">‹</button><select id="packPosition" aria-label="Pack to view"></select><button class="sim-icon" id="nextPack" aria-label="Next pack">›</button><button class="sim-text-button" id="openRest">Open remaining packs</button></div>
+        <button id="revealPack" class="sim-text-button" hidden>Reveal this pack</button><label class="sim-all-toggle" id="allCardsLabel" hidden><input id="showAllCards" type="checkbox"> All opened cards</label><div class="sim-sort"><label for="cardSort">Sort</label><select id="cardSort"><option value="pack">Pack order</option>{% if price_source != "none" %}<option value="price">Price</option>{% endif %}<option value="rarity">Rarity</option><option value="name">Name</option></select></div>
+      </div>
+      <div id="chaosDraftInlineViewPanel" class="page-panel chaos-pack-inline-view-panel"><div id="previewCards" class="chaos-pack-inline-grid"></div></div>
+    </section>
+  </div>
+  <div id="simPriceCache" hidden></div>
+
+  <dialog id="productDialog" class="sim-dialog sim-product-dialog sets-page" aria-labelledby="productDialogTitle">
+    <header class="sim-dialog-header"><div><div class="campaign-stage-eyebrow">Choose your next opening</div><h2 id="productDialogTitle">Find a pack</h2></div><button class="sim-icon" data-close aria-label="Close product selection">×</button></header>
+    <div class="sets-compact-filters sim-find-filters"><label>Search<input id="productSearch" type="search" placeholder="Set name, code, or booster…" autocomplete="off"></label><label>Booster type<select id="boosterFilter"><option value="">All boosters</option></select></label><label>Sort<select id="productSort"><option value="recent">Newest first</option><option value="name">Set name</option></select></label></div>
+    <div class="sim-product-body"><div><p id="productCount" class="sim-muted"></p><div id="productResults" class="sim-product-results"></div></div>
+      <aside class="sim-selection"><img id="selectionArt" src="/static/img/pack_art/_fallback/booster_default.png" alt=""><h3 id="selectionName">Choose a product</h3><p id="selectionType" class="sim-muted">Collector Booster</p>
+        <label class="sim-field">Open<select id="openingSize"><option value="packs">Packs</option></select></label>
+        <label class="sim-field" id="quantityField">Quantity<input id="packQuantity" type="number" min="1" max="36" value="1" step="1"></label><label class="sim-reveal-choice" id="individualBoxChoice" hidden><input type="checkbox" id="openIndividualPack"> Open Individual Pack</label><label class="sim-reveal-choice"><input type="checkbox" id="revealIndividually"> Reveal cards one at a time</label><button id="useProduct" class="action-button" type="button">Use this product</button>
+        <p class="sim-muted sim-small" id="selectionSummary" aria-live="polite"></p>
+      </aside>
+    </div>
+  </dialog>
+
+  <dialog id="layoutDialog" class="sim-dialog sim-layout-dialog" aria-labelledby="layoutTitle">
+    <header class="sim-dialog-header"><div><div class="campaign-stage-eyebrow" id="layoutProduct"></div><h2 id="layoutTitle">Pack Layout</h2></div><button class="sim-icon" data-close aria-label="Close Pack Layout">×</button></header>
+    <p class="sim-muted sim-layout-intro">Select a slot to see the cards it can contain. Counts show cards per pack; chance shows how often the slot appears.</p>
+    <div class="sim-layout-body"><nav id="slotList" class="sim-slot-list" aria-label="Pack slots"></nav><section class="sim-slot-content"><div class="sim-pool-heading"><div><h3 id="slotTitle"></h3><p id="slotDescription" class="sim-muted"></p></div></div><div class="sim-pool-filters"><input type="search" id="poolSearch" placeholder="Find a card in this slot…" aria-label="Search slot cards"><select id="poolRarity" aria-label="Filter card rarity"><option value="">All rarities</option><option value="mythic">Mythic</option><option value="rare">Rare</option><option value="uncommon">Uncommon</option><option value="common">Common</option></select></div><div id="poolCards" class="chaos-pack-inline-grid"></div><button id="poolMore" class="sim-text-button" type="button">Show more cards</button></section></div>
+    <footer class="sim-dialog-footnote">Based on the imported booster rules. Special slots may replace other slots; counts are not always additive.</footer>
+  </dialog>
+
+  <aside id="priceSidebar" class="sim-price-sidebar" hidden aria-label="Pricing sidebar">
+    <header class="sim-sidebar-header"><div><div class="campaign-stage-eyebrow">Market & pulls</div><h2>Prices</h2></div><select id="valueScope" aria-label="Price summary scope"><option value="pack">This pack</option><option value="opening">Entire opening</option></select><button class="sim-icon" id="closePrices" type="button" aria-label="Collapse pricing sidebar">×</button></header>
+    <div class="sim-sidebar-body"><p id="detailsProduct" class="sim-product-title"></p><div id="detailStats" class="sim-sidebar-stats" hidden></div><button id="resetOpenings" class="sim-reset-openings" type="button" hidden>Reset consecutive openings</button>
+      <section><h3 id="sealedPriceHeading">Current pack price</h3><div id="sealedValues"></div></section>
+      <section id="pullsSection" hidden>
+        <div id="marketValues"></div>
+        <div class="sim-profit-panel" id="profitPanel" aria-live="polite"><h3>Profit / Loss</h3><strong id="profitValue">—</strong><p id="profitBasis" class="sim-muted sim-small"></p></div>
+        <div class="sim-exclude-control"><label for="excludeLowCards"><input type="checkbox" role="switch" id="excludeLowCards"> Exclude cards below</label><span>$<input id="excludeBelow" type="number" min="0" max="1000000" step="0.01" value="2" aria-label="Minimum card value"></span></div>
+        <div class="sim-highlights-heading"><h3>Top pulls</h3><select id="detailSource" aria-label="Top pulls price source"><option value="manapool">Mana Pool</option><option value="cardkingdom">Card Kingdom</option></select></div><div id="topPulls"></div>
+        <details class="sim-price-list"><summary>All card prices</summary><div class="sim-price-table-wrap"><table><thead><tr><th>Card</th><th>MP</th><th>CK</th></tr></thead><tbody id="priceRows"></tbody></table></div></details>
+      </section><p class="sim-muted sim-small">USD · Card prices are near mint. Marketplace prices exclude shipping and tax.</p>
+    </div>
+  </aside>
+
+  <dialog id="historyDialog" class="sim-dialog sim-history-dialog" aria-labelledby="historyTitle"><header class="sim-dialog-header"><div><div class="campaign-stage-eyebrow">Saved openings</div><h2 id="historyTitle">Recent openings</h2></div><button class="sim-icon" data-close aria-label="Close recent openings">×</button></header><p class="sim-muted">Continue an opening saved on this app.</p><div id="historyItems"></div></dialog>
+
+  <dialog id="zoomDialog" class="sim-dialog sim-zoom-dialog" aria-label="Card preview"><button class="sim-icon sim-zoom-close" data-close aria-label="Close card">×</button><div id="zoomSurface"><img id="zoomImage" class="card-zoom-image" alt=""></div><p id="zoomLabel"></p><button class="sim-text-button" id="flipZoom" hidden>Flip card</button></dialog>
+
+  <dialog id="saveDialog" class="sim-dialog sim-save-dialog" aria-labelledby="saveTitle">
+    <header class="sim-dialog-header"><div><div class="campaign-stage-eyebrow">Keep your pulls</div><h2 id="saveTitle">Save pack</h2></div><button class="sim-icon" data-close aria-label="Close save dialog">×</button></header>
+    <p id="savePackSummary" class="sim-muted"></p>
+    <label class="sim-field">Save to<select id="saveKind"><option value="campaign">Chaos Draft campaign</option><option value="set">Custom draft set</option></select></label>
+    <label class="sim-field"><span id="saveDestinationLabel">Campaign</span><select id="saveDestination"></select></label>
+    <p id="saveDescription" class="sim-muted"></p><p id="saveStatus" class="sim-muted" role="status"></p>
+    <div class="sim-save-actions"><button id="saveRetry" class="sim-text-button" type="button" hidden>Reload destinations</button><button id="confirmSave" class="action-button" type="button" disabled>Save pack</button></div>
+  </dialog>
+</main>
+{% endblock %}
+{% block page_scripts_after_app %}<script src="/static/js/sealed_effects.js?v=5"></script><script src="/static/js/profit_effects.js?v=1"></script><script src="/static/js/pack_simulator.js?v=11"></script>{% endblock %}

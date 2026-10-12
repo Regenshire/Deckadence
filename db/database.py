@@ -4710,7 +4710,7 @@ def bulk_add_most_recent_cards_to_custom_draft_set(set_code, import_items):
         "unresolved": unresolved_cards,
     }
 
-def bulk_add_cards_to_custom_draft_set(set_code, search_rows):
+def bulk_add_cards_to_custom_draft_set(set_code, search_rows, preserve_finish=False):
     clean_set_code = normalize_custom_draft_set_code(set_code)
 
     if not clean_set_code:
@@ -4884,7 +4884,7 @@ def bulk_add_cards_to_custom_draft_set(set_code, search_rows):
                 clean_set_code,
                 card_uuid,
                 0,
-                0,
+                int(bool(selected_row.get('sheet_is_foil'))) if preserve_finish else 0,
                 card_name,
                 now_utc,
             ),

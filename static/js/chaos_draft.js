@@ -320,6 +320,15 @@ function initializeChaosDraftPage() {
       return;
     }
 
+    if (window.DeckadenceCardEffects?.flip) {
+      return window.DeckadenceCardEffects.flip(imageElement, () => {
+        imageElement.src = targetSrc;
+        imageElement.alt = targetAlt || imageElement.alt || "";
+        imageElement.dataset.currentFace = targetFace;
+        updateInlinePackFlipButtonFace(flipButton, targetFace);
+      });
+    }
+
     imageElement.classList.add("chaos-pack-inline-card-flipping");
 
     window.setTimeout(function () {
@@ -531,34 +540,8 @@ function initializeChaosDraftPage() {
     document.body.style.overflow = "";
   }
 
-  function formatPackCardPrice(priceValue) {
-    if (priceValue === null || priceValue === undefined || priceValue === "") {
-      return "Price unavailable";
-    }
-
-    const numericPrice = Number(priceValue);
-    if (!Number.isFinite(numericPrice)) {
-      return "Price unavailable";
-    }
-
-    return `$${numericPrice.toFixed(2)}`;
-  }
-
   function buildPackBadgeMarkup(cardData) {
     const badges = [];
-
-    if (
-      cardData.price !== null &&
-      cardData.price !== undefined &&
-      Number.isFinite(Number(cardData.price))
-    ) {
-      const numericPrice = Number(cardData.price);
-      const priceClass =
-        numericPrice > 2 ? " chaos-pack-inline-price-high" : "";
-      badges.push(
-        `<span class="chaos-pack-inline-price${priceClass}">${formatPackCardPrice(numericPrice)}</span>`,
-      );
-    }
 
     const specialBadges = Array.isArray(cardData.special_badges)
       ? cardData.special_badges
@@ -851,6 +834,13 @@ function initializeChaosDraftPage() {
       }
 
       inlineViewGrid.appendChild(cardElement);
+      if (payload.display_pack_prices) {
+        const prices = document.createElement("button");
+        prices.type = "button";
+        prices.className = "chaos-pack-inline-price";
+        cardElement.querySelector(".chaos-pack-inline-meta-row").prepend(prices);
+        window.DeckadencePrices?.mount(prices, cardData, cardData.prices, payload.pack_price_source);
+      }
     });
 
     if (inlineViewUpscaleButton) {

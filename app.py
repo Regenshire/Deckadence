@@ -156,6 +156,7 @@ from print_template_registry import (
 from db.pricing import (
     download_all_prices_today_json,
     enrich_pack_cards_with_prices,
+    get_pack_price_preferences,
     import_all_prices_today_into_database,
 )
 from db.card_finishes import backfill_finish_metadata, card_promo_types
@@ -478,6 +479,10 @@ application_backup_jobs = register_backup_routes(
         or has_active_manual_upscale_runs()
     ),
 )
+from ui.card_prices import register_card_price_routes
+register_card_price_routes(app)
+from ui.pack_simulator import register_pack_simulator_routes
+register_pack_simulator_routes(app, lambda: get_request_config())
 
 DECK_ART_RENDERER = DeckArtRenderer(
     static_root=app.static_folder,
@@ -2892,9 +2897,11 @@ def update_config_from_form(form_data):
     )
 
     submitted_pack_price_source = (form_data.get("pack_price_source") or "").strip().lower()
-    if submitted_pack_price_source not in {"tcgplayer-retail"}:
-        submitted_pack_price_source = "tcgplayer-retail"
+    if submitted_pack_price_source not in {"manapool", "cardkingdom", "none"}:
+        submitted_pack_price_source = "manapool"
     updated_config["pack_price_source"] = submitted_pack_price_source
+    simulator_value_source = (form_data.get("simulator_value_source") or "lower").strip().lower()
+    updated_config["simulator_value_source"] = simulator_value_source if simulator_value_source in {"lower", "manapool", "cardkingdom"} else "lower"
 
     submitted_momir_variant = (form_data.get("momir_default_token_variant") or "").strip().lower()
     if submitted_momir_variant not in {"dark", "light", "retro", "mtgo"}:
@@ -3046,6 +3053,9 @@ def import_chaos_cards_from_all_printings():
 
     if not isinstance(all_sets, dict) or not all_sets:
         raise ValueError("AllPrintings.json did not contain a valid non-empty 'data' object.")
+
+    from db.pack_simulator import import_simulator_metadata
+    import_simulator_metadata(all_sets)
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -18708,18 +18718,22 @@ def run_refresh_job(force_download=False):
             sets_represented=summary["sets_represented"],
         )
 
-        download_all_prices_today_json()
-
-        set_refresh_status(
-            stage="Importing Price Data",
-            message="Importing card prices into SQLite...",
-            cards_processed=summary["cards_imported"],
-            cards_imported=summary["cards_imported"],
-            sets_represented=summary["sets_represented"],
-        )
-
-        imported_price_rows = import_all_prices_today_into_database()
-        set_import_metadata("card_prices_imported", imported_price_rows)
+        # Legacy price-based search sorting still uses this snapshot. Its
+        # optional refresh must never fail the card/booster database refresh.
+        # Pack prices use the independent market-price cache instead.
+        try:
+            download_all_prices_today_json()
+            set_refresh_status(
+                stage="Importing Price Data",
+                message="Importing legacy search price data into SQLite...",
+                cards_processed=summary["cards_imported"],
+                cards_imported=summary["cards_imported"],
+                sets_represented=summary["sets_represented"],
+            )
+            imported_price_rows = import_all_prices_today_into_database()
+            set_import_metadata("card_prices_imported", imported_price_rows)
+        except Exception as exc:
+            append_refresh_detail_line(f"Optional legacy search prices unavailable: {exc}")
 
         refresh_finished_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -23501,8 +23515,7 @@ def campaign_chaos_pack_detail(tracked_pack_id):
         return "Tracked pack not found.", 404
 
     config = get_request_config()
-    display_pack_prices = (config.get("display_pack_prices") or "1").strip() == "1"
-    pack_price_source = (config.get("pack_price_source") or "tcgplayer-retail").strip().lower()
+    display_pack_prices, pack_price_source = get_pack_price_preferences(config)
 
     cards = add_upscaled_state_to_cards(
         enrich_pack_cards_with_prices(
@@ -24081,8 +24094,7 @@ def campaign_chaos_pack_preview_view():
         return "No generated pack preview is available.", 404
 
     config = get_request_config()
-    display_pack_prices = (config.get("display_pack_prices") or "1").strip() == "1"
-    pack_price_source = (config.get("pack_price_source") or "tcgplayer-retail").strip().lower()
+    display_pack_prices, pack_price_source = get_pack_price_preferences(config)
 
     cards = add_upscaled_state_to_cards(
         enrich_pack_cards_with_prices(
@@ -36122,8 +36134,7 @@ def chaos_draft_view_data():
         }), 404
 
     config = get_request_config()
-    display_pack_prices = (config.get("display_pack_prices") or "1").strip() == "1"
-    pack_price_source = (config.get("pack_price_source") or "tcgplayer-retail").strip().lower()
+    display_pack_prices, pack_price_source = get_pack_price_preferences(config)
 
     cards = enrich_pack_cards_with_prices(
         opened_pack.get("cards") or [],
@@ -36149,8 +36160,8 @@ def chaos_draft_view_data():
             "finish_type": card.get("finish_type"),
             "sheet_is_foil": int(card.get("sheet_is_foil") or 0),
             "special_badges": card.get("special_badges") or [],
-            "price": card.get("price_info", {}).get("price"),
-            "currency": card.get("price_info", {}).get("currency") or "USD",
+            "prices": card.get("prices") or {},
+            "currency": "USD",
             "has_upscaled_image": bool(
                 card.get("has_upscaled_image")
             ),
@@ -36171,6 +36182,7 @@ def chaos_draft_view_data():
         "pack_total_cards": int(opened_pack.get("total_cards") or 0),
         "bonus_pack_opened": bool(opened_pack.get("bonus_pack_opened")),
         "display_pack_prices": display_pack_prices,
+        "pack_price_source": pack_price_source,
         "cards": serialized_cards,
     })
 
@@ -36182,8 +36194,7 @@ def chaos_draft_view():
         return "No opened Chaos Draft pack is available.", 404
 
     config = get_request_config()
-    display_pack_prices = (config.get("display_pack_prices") or "1").strip() == "1"
-    pack_price_source = (config.get("pack_price_source") or "tcgplayer-retail").strip().lower()
+    display_pack_prices, pack_price_source = get_pack_price_preferences(config)
 
     cards = enrich_pack_cards_with_prices(
         opened_pack.get("cards") or [],

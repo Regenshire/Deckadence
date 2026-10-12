@@ -393,11 +393,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
             </svg>
           </button>
           {% endif %} {% if display_pack_prices %}
-          <div class="chaos-pack-view-price">
-            {% if card.price_info.price is not none %} ${{
-            "%.2f"|format(card.price_info.price) }} {% else %} Price unavailable
-            {% endif %}
-          </div>
+          {% include '_card_prices.html' %}
           {% endif %}
         </div>
 

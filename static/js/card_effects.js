@@ -178,7 +178,42 @@
       }
     }).observe(document.body, {childList:true, subtree:true});
   }
-  window.DeckadenceCardEffects = {attach, enhance, applyMetadata, copyToZoom, reset:resetAll};
+  async function flip(image, changeFace) {
+    if (!image || image.dataset.cardFlipping) return;
+    if (reduced.matches || typeof image.animate !== "function") { changeFace(); return; }
+    let face = image;
+    const animations = [];
+    face.dataset.cardFlipping = "1";
+    face.classList.add("chaos-pack-inline-card-flipping");
+    // The same 280ms edge-on flip used by Chaos Draft's double-faced cards.
+    // WAAPI takes precedence over the CSS class, which hides foil overlays.
+    try {
+      const out = face.animate([
+        {transform:"rotateY(0deg) scale(1)",filter:"brightness(1)"},
+        {transform:"rotateY(88deg) scale(.985)",filter:"brightness(1.15)"}
+      ], {duration:140,fill:"both",easing:"ease-in"});
+      animations.push(out); await out.finished.catch(() => {});
+      const next = changeFace();
+      face.classList.remove("chaos-pack-inline-card-flipping");
+      delete face.dataset.cardFlipping;
+      face = next || image;
+      face.dataset.cardFlipping = "1";
+      face.classList.add("chaos-pack-inline-card-flipping");
+      out.cancel();
+      const back = face.animate([
+        {transform:"rotateY(88deg) scale(.985)",filter:"brightness(1.15)"},
+        {transform:"rotateY(0deg) scale(1)",filter:"brightness(1)"}
+      ], {duration:140,fill:"both",easing:"ease-out"});
+      animations.push(back); await back.finished.catch(() => {});
+    } finally {
+      animations.forEach(a => a.cancel());
+      for (const el of new Set([image,face])) {
+        el.classList.remove("chaos-pack-inline-card-flipping");
+        delete el.dataset.cardFlipping;
+      }
+    }
+  }
+  window.DeckadenceCardEffects = {attach, enhance, applyMetadata, copyToZoom, flip, reset:resetAll};
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, {once:true});
   else start();
 })();
