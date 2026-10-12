@@ -45,7 +45,7 @@ class PackFaceComposer:
         result.putalpha(wrapper.getchannel('A'))
         return png_bytes(result)
 
-    DESIGN_VERSION = 3
+    DESIGN_VERSION = 7
     STYLES = {'auto': 'Automatic — release year', 'classic': '1993–94 · Paper oval',
               'vintage': '1995–2002 · Framed foil', '2000s': '2003–14 · Dark foil',
               'modern': '2015 onward · Full art', 'specialty': 'Specialty · Minimal paper'}
@@ -74,10 +74,13 @@ class PackFaceComposer:
     def _font(self, size, name='Gotham-Medium.otf'):
         return ImageFont.truetype(str(self.font_dir / name), size)
 
-    def _text(self, image, text, box, fill, maximum=34, font='BelerenProxy-Bold.ttf'):
-        """Wrap/shrink a complete title inside a bounded area."""
+    def _text(self, image, text, box, fill, maximum=34, font='BelerenProxy-Bold.ttf', *, grow_to=None):
+        """Fit bounded text, optionally enlarging short titles to use spare width."""
         draw = ImageDraw.Draw(image)
         x0, y0, x1, y1 = box
+        if grow_to is not None:
+            width = draw.textlength(text, font=self._font(maximum, font))
+            maximum = min(grow_to, max(maximum, int(maximum * (x1-x0) / max(1, width))))
         for size in range(maximum, 7, -1):
             face = self._font(size, font)
             lines, line = [], ''
@@ -96,7 +99,7 @@ class PackFaceComposer:
             draw.text(((x0+x1)/2, y), line, fill=fill, font=face, anchor='mm')
             y += size+6
 
-    def _magic(self, image, box, classic=False, subtitle='#fbfaf5'):
+    def _magic(self, image, box, classic=False):
         x0, y0, x1, y1 = box
         draw = ImageDraw.Draw(image)
         # The bundled title font provides lettering, not a rasterized official logo.
@@ -105,12 +108,21 @@ class PackFaceComposer:
             face = self._font(size, 'MagicTheGathering.TTF')
             if draw.textlength(text, font=face) <= x1-x0:
                 break
-        draw.text(((x0+x1)/2, y0+34), text, font=face, anchor='mm',
+        face = self._font(round(size * .92), 'MagicTheGathering.TTF')
+        draw.text(((x0+x1)/2, y0+34+round(image.height*.03)), text, font=face, anchor='mm',
                   fill='#f5d89b' if classic else '#fbfaf5', stroke_width=2,
                   stroke_fill='#812e29' if classic else '#171c28')
-        if subtitle is not None:
-            self._text(image, 'THE GATHERING', (x0, y1, x1, y1+24),
-                       subtitle, 13, 'Gotham-Medium.otf')
+
+    @staticmethod
+    def _center_icon(image, icon, box, maximum=176):
+        """Center the visible SVG shape, including icons with padded viewBoxes."""
+        bounds = icon.getchannel('A').getbbox()
+        if not bounds:
+            return
+        x0, y0, x1, y1 = box
+        symbol = ImageOps.contain(icon.crop(bounds), (min(maximum, x1-x0), min(maximum, y1-y0)),
+                                 Image.Resampling.LANCZOS)
+        image.alpha_composite(symbol, (round((x0+x1-symbol.width)/2), round((y0+y1-symbol.height)/2)))
 
     @staticmethod
     def _gradient(size, top, bottom):
@@ -143,9 +155,10 @@ class PackFaceComposer:
         face = self._gradient((400, 694), color, tuple(round(c*.43) for c in color))
         draw = ImageDraw.Draw(face)
         title_box = (36, 446, 364, 565)
+        icon_box = (24, 200, 376, 446)
         if style == 'classic':
             draw.ellipse((28, 91, 372, 610), fill=pale, outline='#c69481', width=4)
-            self._magic(face, (38, 94, 362, 197), classic=True, subtitle=ink)
+            self._magic(face, (38, 94, 362, 197), classic=True)
             self._text(face, 'BOOSTER PACK', (80, 218, 320, 318), ink, 42, 'MagicTheGathering.TTF')
             title_box = (64, 320, 336, 475)
             self._text(face, 'TRADING CARD GAME', (52, 558, 348, 593), ink, 13)
@@ -157,14 +170,16 @@ class PackFaceComposer:
                 for y in (83,611):
                     draw.ellipse((x-4,y-4,x+4,y+4), fill='#e3ece5')
             window = (52, 191, 348, 489)
+            icon_box = window
             draw.rounded_rectangle(window, radius=80, fill='#d3e4dc', outline='#e9eee4', width=3)
             if artwork:
                 face.alpha_composite(ImageOps.fit(artwork, (288,290), Image.Resampling.LANCZOS), (56,195))
-            self._magic(face, (42, 97, 358, 195), classic=True, subtitle=ink)
+            self._magic(face, (42, 97, 358, 195), classic=True)
             title_box = (48, 484, 352, 576)
         elif style == '2000s':
             draw.rectangle((13, 49, 387, 645), fill='#292927')
             window = (34, 184, 366, 542)
+            icon_box = window
             draw.ellipse(window, fill=color, outline='#bba67b', width=4)
             if artwork:
                 picture = ImageOps.fit(artwork, (326,352), Image.Resampling.LANCZOS)
@@ -172,14 +187,19 @@ class PackFaceComposer:
                 ImageDraw.Draw(mask).ellipse((0,0,325,351), fill=255)
                 picture.putalpha(mask)
                 face.alpha_composite(picture, (37,187))
-            self._magic(face, (27, 72, 373, 172), classic=True)
-            title_box = (31, 510, 369, 605)
+            self._magic(face, (27, 92, 373, 192), classic=True)
+            title_box = (31, 499, 369, 594)
         elif style == 'specialty':
             draw.rectangle((12, 45, 388, 649), fill='#efede3', outline=ink, width=2)
-            self._text(face, 'SECRET LAIR' if code == 'SLZ' else 'MAGIC', (32, 85, 368, 150), ink, 34)
-            self._text(face, 'THE GATHERING' if code != 'SLZ' else '× MSCHF', (32, 146, 368, 183), ink, 17)
+            if code == 'SLZ':
+                self._text(face, 'SECRET LAIR', (32, 85, 368, 150), ink, 34)
+                self._text(face, '× MSCHF', (32, 146, 368, 183), ink, 17)
+            else:
+                offset = round(face.height*.03)
+                self._text(face, 'MAGIC', (32, 85+offset, 368, 150+offset), ink, 31)
             draw.line((44,202,356,202), fill=ink, width=2)
             title_box = (38, 287, 362, 485)
+            icon_box = (38, 212, 362, 365)
         else:
             if artwork:
                 face.alpha_composite(ImageOps.fit(artwork, (380,602), Image.Resampling.LANCZOS), (10,46))
@@ -190,15 +210,15 @@ class PackFaceComposer:
                 opacity = max(0, round(225*(y-400)/210), round(140*(180-y)/132))
                 od.line((10,y,389,y), fill=(7,10,19,min(235,opacity)))
             face = Image.alpha_composite(face, overlay)
-            self._magic(face, (74, 105, 326, 177), subtitle=None)
+            self._magic(face, (74, 105, 326, 177))
             if 'Collector' in label:
                 stripe = Image.new('RGBA', (572,32), color+(255,))
                 self._text(stripe, label.upper(), (8,0,564,32), '#ffffff', 17, 'Gotham-Medium.otf')
                 face.alpha_composite(stripe.rotate(90, expand=True), (358,61))
                 title_box = (28, 454, 344, 586)
+                icon_box = (24, 200, 348, 454)
         if icon and not artwork and style != 'classic':
-            symbol = ImageOps.contain(icon, (120,120) if style == 'specialty' else (176,176), Image.Resampling.LANCZOS)
-            face.alpha_composite(symbol, ((400-symbol.width)//2, 228))
+            self._center_icon(face, icon, icon_box, 120 if style == 'specialty' else 176)
             if style == 'specialty':
                 title_box = (38, 365, 362, 545)
         if logo and style != 'classic':
@@ -206,7 +226,8 @@ class PackFaceComposer:
             mark = ImageOps.contain(logo, (x1-x0, y1-y0), Image.Resampling.LANCZOS)
             face.alpha_composite(mark, ((x0+x1-mark.width)//2,(y0+y1-mark.height)//2))
         else:
-            self._text(face, name or code, title_box, ink if style in {'classic','specialty'} else pale, 38)
+            # Short names fill the width; longer names retain their wrapped sizing.
+            self._text(face, name or code, title_box, ink if style in {'classic','specialty'} else pale, 46, grow_to=72)
         # Modern collector wrappers put their product label on the side.
         if not ((style == 'modern' and 'Collector' in label) or (style == 'classic' and label == 'Draft Booster')):
             draw = ImageDraw.Draw(face)

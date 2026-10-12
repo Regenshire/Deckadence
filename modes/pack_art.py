@@ -796,6 +796,7 @@ class PackArtJobs:
         self.lock = threading.RLock()
         self.cancel_event = threading.Event()
         self.worker = None
+        self.clear_plan = None
         self.results = []
         self.state = {'state': 'idle', 'job_id': '', 'stage': 'Ready', 'message': 'Choose products and start a download.',
                       'total_sets': 0, 'completed_sets': 0, 'downloaded': 0, 'existing': 0,
@@ -821,6 +822,87 @@ class PackArtJobs:
         with self.lock:
             self.state['bytes_received'] += bytes_received
 
+    def preview_clear_generated(self, set_codes=None, product_types=None):
+        """Prepare a specific, reviewable selection; photos and user edits are protected."""
+        if not isinstance(set_codes, (list, type(None))) or len(set_codes or []) > 1000 or any(
+                not isinstance(code, str) for code in (set_codes or [])):
+            raise ValueError('Choose a valid list of set codes.')
+        codes = {_set_code(code) for code in (set_codes or [])}
+        if not isinstance(product_types, list) or not product_types or any(
+                not isinstance(key, str) or key not in PRODUCT_TYPES for key in product_types):
+            raise ValueError('Choose at least one supported product type.')
+        with self.lock:
+            if self.busy:
+                raise ValueError('Wait for the pack download to finish before clearing generated faces.')
+            downloader = PackArtDownloader(self.output_dir, None, bundled_dir=self.bundled_dir)
+            root = self.output_dir.resolve()
+            entries = []
+            for sidecar in sorted(self.output_dir.glob('*/*.source.json')):
+                code, key = sidecar.parent.name.upper(), sidecar.name.removesuffix('.source.json')
+                if (codes and code not in codes) or key not in product_types or key not in PACK_TYPES:
+                    continue
+                try:
+                    info = downloader.upgrade_info(code, key)
+                    if (not info or info['method'] not in {'created', 'label'}
+                            or info['path'].with_suffix('.source.json') != sidecar
+                            or info['path'].is_symlink() or sidecar.is_symlink()
+                            or info['path'].resolve().parent.parent != root or sidecar.resolve().parent.parent != root):
+                        continue
+                    entries.append({**info, 'sidecar_sha256': hashlib.sha256(sidecar.read_bytes()).hexdigest()})
+                except (OSError, ValueError):
+                    continue
+            token = uuid4().hex
+            self.clear_plan = {'token': token, 'created': time.monotonic(), 'entries': entries}
+            return {'count': len(entries), 'token': token}
+
+    def clear_generated(self, token):
+        """Move only the confirmed, unchanged generated faces out of active use."""
+        with self.lock:
+            if self.busy:
+                raise ValueError('Wait for the pack download to finish before clearing generated faces.')
+            plan = self.clear_plan
+            if not plan or token != plan['token'] or time.monotonic()-plan['created'] > 600:
+                raise ValueError('The selection expired. Preview the generated faces again.')
+            self.clear_plan = None
+            downloader = PackArtDownloader(self.output_dir, None, bundled_dir=self.bundled_dir)
+            root = self.output_dir.resolve()
+            archive = root / '.cleared' / uuid4().hex
+            if not archive.resolve().is_relative_to(root):
+                raise ValueError('The cleared-image archive must be inside the pack artwork folder.')
+            cleared, skipped, failed = 0, 0, 0
+            for entry in plan['entries']:
+                path = entry['path']
+                sidecar = path.with_suffix('.source.json')
+                destination = archive / path.parent.name / path.name
+                moved = False
+                try:
+                    current = downloader.upgrade_info(path.parent.name, path.stem)
+                    if (not current or current['method'] not in {'created', 'label'}
+                            or current['sha256'] != entry['sha256']
+                            or hashlib.sha256(sidecar.read_bytes()).hexdigest() != entry['sidecar_sha256']
+                            or path.is_symlink() or sidecar.is_symlink()
+                            or path.resolve().parent.parent != root or sidecar.resolve().parent.parent != root):
+                        skipped += 1
+                        continue
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    os.replace(path, destination)
+                    moved = True
+                    os.replace(sidecar, destination.with_suffix('.source.json'))
+                    cleared += 1
+                except OSError:
+                    # Keep the pair active if moving its source record fails.
+                    if moved and not path.exists():
+                        os.replace(destination, path)
+                    failed += 1
+            self.results = []
+            message = f'{cleared} generated faces cleared. Download again to rebuild them.'
+            if skipped or failed:
+                message += f' {skipped} changed files kept; {failed} files could not be cleared.'
+            self.state = {'state': 'idle', 'job_id': uuid4().hex, 'stage': 'Generated faces cleared',
+                          'message': message, 'total_sets': 0, 'completed_sets': 0, 'downloaded': 0,
+                          'existing': 0, 'unavailable': 0, 'bytes_received': 0, 'error': ''}
+            return {'cleared': cleared, 'skipped': skipped, 'failed': failed}
+
     def start(self, set_codes=None, product_types=None, pack_style='auto', base_color=None):
         PackFaceComposer.design(style=pack_style, base_color=base_color)
         if not isinstance(set_codes, (list, type(None))) or (set_codes and len(set_codes) > 1000):
@@ -843,6 +925,7 @@ class PackArtJobs:
         with self.lock:
             if self.busy:
                 raise ValueError('A pack download is already running.')
+            self.clear_plan = None
             self.cancel_event = threading.Event()
             self.results = []
             self.state = {'state': 'running', 'job_id': uuid4().hex, 'stage': 'Starting', 'message': 'Checking existing artwork…',

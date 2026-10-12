@@ -248,6 +248,13 @@ Please support your local game stores and the creators whose games and artwork m
 
 Open **Settings → Card Database → Pack Downloader** to download missing art and
 check generated fallbacks for upgrades.
+**Clear generated faces** previews how many constructed faces match the selected
+set codes and pack types, then asks for confirmation. It keeps original photos,
+reconstructed photos, bundled art, and images edited since generation. Cleared
+PNG/source-record pairs move into `data/img/pack_art/.cleared/<batch>/<SET>/` for
+recovery; they are no longer used by the app. Download again to rebuild them, or
+restore a pair to its original set folder to undo a clear. Clearing is disabled
+during a download. Normal design updates do not require clearing first.
 The modal shows progress, transfer size, image previews, and any unavailable
 products. Booster packs are selected by default; optionally select Play,
 Collector, Set, and Draft booster boxes, plus Bundles, Gift Bundles, and Holiday

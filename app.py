@@ -22188,6 +22188,27 @@ def pack_art_download_cancel():
         return jsonify(ok=False, message=str(error)), 409
     return jsonify(ok=True), 202
 
+
+@app.post("/pack-art/download/clear-generated")
+def pack_art_clear_generated():
+    if get_refresh_status_copy().get("is_running"):
+        return jsonify(ok=False, message="Wait for the card database download to finish first."), 409
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(ok=False, message="Choose the generated faces to clear."), 400
+    try:
+        if payload.get("action") == "preview":
+            result = pack_art_jobs.preview_clear_generated(payload.get("set_codes"), payload.get("product_types"))
+        elif payload.get("action") == "clear":
+            result = pack_art_jobs.clear_generated(payload.get("token"))
+        else:
+            raise ValueError("Preview the generated faces before clearing them.")
+    except ValueError as error:
+        return jsonify(ok=False, message=str(error)), 409
+    except OSError:
+        return jsonify(ok=False, message="Could not clear the generated faces. Check the artwork folder permissions."), 409
+    return jsonify(ok=True, **result)
+
 @app.route("/download-card-images/start", methods=["POST"])
 def download_card_images_start():
     current_status = get_image_download_status_copy()

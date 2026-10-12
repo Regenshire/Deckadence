@@ -13,6 +13,7 @@ function initializePackDownloader() {
   const get = (name) => document.getElementById(name);
   const start = get("startPackDownload");
   const cancel = get("cancelPackDownload");
+  const clearGenerated = get("clearGeneratedPackArt");
   const options = get("packDownloaderOptions");
   const results = get("packDownloaderResults");
   const error = get("packDownloaderError");
@@ -92,6 +93,7 @@ function initializePackDownloader() {
     running = state.state === "running" || state.state === "cancelling";
     options.disabled = running;
     start.disabled = running;
+    clearGenerated.disabled = running;
     cancel.disabled = state.state !== "running";
     cancel.textContent = state.state === "cancelling" ? "Cancelling…" : "Cancel download";
     get("packDownloaderStage").textContent = state.stage;
@@ -145,6 +147,7 @@ function initializePackDownloader() {
     revision += 1;
     clearTimeout(timer);
     start.disabled = true;
+    clearGenerated.disabled = true;
     options.disabled = true;
     showError("");
     try {
@@ -154,8 +157,33 @@ function initializePackDownloader() {
       showError(e.message);
       options.disabled = running;
       start.disabled = running;
+      clearGenerated.disabled = running;
       // Reconcile a possibly successful request whose response was interrupted.
       if (modal.open) timer = setTimeout(refresh, 3000);
+    }
+  });
+  clearGenerated.addEventListener("click", async () => {
+    const types = [...options.querySelectorAll('input[name="pack_art_type"]:checked')].map((input) => input.value);
+    if (!types.length) { showError("Choose at least one pack type."); return; }
+    const codes = get("packDownloaderSets").value.trim().split(/[\s,;]+/).filter(Boolean).map((code) => code.toUpperCase());
+    revision += 1;
+    clearTimeout(timer);
+    clearGenerated.disabled = start.disabled = options.disabled = true;
+    showError("");
+    try {
+      const preview = await api("clear-generated", {action: "preview", set_codes: codes, product_types: types});
+      if (!modal.open) return;
+      if (!preview.count) {
+        get("packDownloaderMessage").textContent = "No unchanged generated faces match these sets and pack types.";
+        return;
+      }
+      if (!window.confirm(`Clear ${preview.count} generated pack face${preview.count === 1 ? "" : "s"}?\n\nOriginal photos, reconstructed photos, and handmade art will be kept. Cleared faces are moved to a recovery folder and can be rebuilt by downloading again.`)) return;
+      await api("clear-generated", {action: "clear", token: preview.token});
+      await refresh();
+    } catch (e) {
+      showError(e.message);
+    } finally {
+      clearGenerated.disabled = start.disabled = options.disabled = running;
     }
   });
   cancel.addEventListener("click", async () => {

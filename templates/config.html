@@ -1346,6 +1346,7 @@
             <label class="pack-downloader-set-label" for="packDownloaderColor">Wrapper color <span>(optional)</span></label>
             <input id="packDownloaderColor" type="text" placeholder="Automatic, or #454474" maxlength="7" pattern="#[0-9a-fA-F]{6}" autocomplete="off" spellcheck="false">
             <p class="pack-downloader-hint">Design and color affect generated fallbacks only. Original photos and handmade packs are kept. Specialty boosters include the Zeta pack; MBC uses its Commander Edition source.</p>
+            <p class="pack-downloader-hint">Clear generated faces removes constructed images for the selected sets and pack types. Original photos, reconstructed photos, and handmade art are kept.</p>
             <div class="pack-downloader-types">
                 {% for group in ["Booster packs", "Booster boxes", "Bundles"] %}
                 <fieldset>
@@ -1374,6 +1375,7 @@
     <div class="pack-downloader-footer">
         <p>Closing this window lets downloads continue. Cancel keeps completed images.</p>
         <div class="config-button-row">
+            <button type="button" id="clearGeneratedPackArt" class="action-button secondary-button">Clear generated faces</button>
             <button type="button" id="startPackDownload" class="action-button">Download / upgrade images</button>
             <button type="button" id="cancelPackDownload" class="action-button secondary-button" disabled>Cancel download</button>
         </div>
@@ -2533,7 +2535,7 @@
 {% endblock %}
 
 {% block page_scripts_before_app %}
-<script src="{{ url_for('static', filename='js/config.js', v='pack-downloader-4') }}"></script>
+<script src="{{ url_for('static', filename='js/config.js', v='pack-downloader-5') }}"></script>
 {% endblock %}
 
 {% block page_scripts_after_app %}
