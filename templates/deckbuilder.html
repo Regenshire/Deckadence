@@ -2,7 +2,7 @@
 %} {% block page_styles %} {% if global_card_upscaling_control_enabled %}
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/image_compare.css') }}"
+  href="{{ url_for('static', filename='css/image_compare.css', v='viewport-2') }}"
 />
 <link
   rel="stylesheet"
@@ -1524,7 +1524,7 @@
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}
-<script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
+<script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/deck_image_generator.js') }}"></script>

@@ -157,11 +157,20 @@
 
     holofoilSelect.appendChild(holofoilKeepOption);
 
+
+
+    const deckadanceOption = document.createElement("option");
+    deckadanceOption.value = "deckadance";
+    deckadanceOption.textContent = "Deckadance Holofoil";
+    holofoilSelect.appendChild(deckadanceOption);
     holofoilSelect.appendChild(holofoilBackgroundOption);
+    const customOption = new Option("Custom Emblem", "custom");
+    holofoilSelect.appendChild(customOption);
 
     holofoilWrap.appendChild(holofoilLabel);
 
     holofoilWrap.appendChild(holofoilSelect);
+    window.HolofoilOptions.attach(holofoilSelect);
 
     replaceWrap = document.createElement("label");
 
@@ -530,7 +539,8 @@
         .toLowerCase();
 
       holofoilSelect.value =
-        defaultHolofoilReplacement === "background" ? "background" : "none";
+        ["background", "deckadance", "custom"].includes(defaultHolofoilReplacement)
+        ? defaultHolofoilReplacement : "none";
 
       holofoilWrap.classList.toggle("hidden", !holofoilEnabled);
 
@@ -779,6 +789,7 @@
 
     saveAlternateSettings();
 
+    payload.holofoil_emblem_options = window.HolofoilOptions.value(holofoilSelect);
     payload.holofoil_stamp_replacement = holofoilEnabled
       ? String(holofoilSelect.value || "none")
           .trim()

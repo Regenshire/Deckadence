@@ -309,6 +309,15 @@ DEFAULT_CONFIG = {
     "upscaling_add_button_to_card_view": "1",
     "upscaling_holofoil_stamp_enabled": "0",
     "upscaling_holofoil_stamp_replacement": "none",
+    "upscaling_emblem_color": "silver",
+    "upscaling_deckadance_position": '{"center_mode":"card","custom_x":0,"custom_y":0,"baseline_version":1}',
+    "upscaling_emblem_custom_color": "#3a8dff",
+    "upscaling_custom_emblem_id": "",
+    "upscaling_custom_emblem_center_mode": "card",
+    "upscaling_custom_emblem_x": "0",
+    "upscaling_custom_emblem_y": "0",
+    "upscaling_custom_emblems": "[]",
+
     "upscaling_dev_feedback_system": "0",
 
     "display_pack_prices": "1",

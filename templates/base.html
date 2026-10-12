@@ -549,6 +549,9 @@
     <script src="{{ url_for('static', filename='js/print_template_selector.js') }}"></script>
     <script src="{{ url_for('static', filename='js/silhouette_template_library.js') }}"></script>
 
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/holofoil_options.css', v='viewport-1') }}">
+    <script src="{{ url_for('static', filename='js/holofoil_options.js', v='viewport-1') }}"></script>
+
     {% block page_scripts_before_app %}{% endblock %}
 
     <script src="{{ url_for('static', filename='js/app.js', v='themed-confirm-1') }}"></script>

@@ -61,7 +61,7 @@
 
                     {% set holofoil_stamp_enabled = config.get("upscaling_holofoil_stamp_enabled", "0") == "1" %}
                     {% set holofoil_stamp_replacement = config.get("upscaling_holofoil_stamp_replacement", "none") %}
-                    {% if holofoil_stamp_replacement not in ["none", "background"] %}
+                    {% if holofoil_stamp_replacement not in ["none", "background", "deckadance", "custom"] %}
                         {% set holofoil_stamp_replacement = "none" %}
                     {% endif %}
 
@@ -113,13 +113,16 @@
                                     >
                                         None / Holofoil Keep
                                     </option>
+                                    <option value="deckadance" {% if holofoil_stamp_replacement == "deckadance" %}selected{% endif %}>Deckadance Holofoil</option>
                                     <option
                                         value="background"
                                         {% if holofoil_stamp_replacement == "background" %}selected{% endif %}
                                     >
                                         Background Color
                                     </option>
+                                <option value="custom" {% if holofoil_stamp_replacement == "custom" %}selected{% endif %}>Custom Emblem</option>
                                 </select>
+                                <small>Use the gear to set default foil colors, manage saved SVG emblems, and adjust custom positioning.</small>
                             </label>
                         </div>
                     </section>

@@ -13,6 +13,8 @@
   let outputImage = null;
   let outputLabel = null;
   let outputMeta = null;
+  let outputResolution = null;
+  let outputEmpty = null;
 
   let statusContainer = null;
   let statusElement = null;
@@ -859,7 +861,15 @@
 
     holofoilStampSelect.appendChild(holofoilKeepOption);
 
+
+
+    const deckadanceOption = document.createElement("option");
+    deckadanceOption.value = "deckadance";
+    deckadanceOption.textContent = "Deckadance Holofoil";
+    holofoilStampSelect.appendChild(deckadanceOption);
     holofoilStampSelect.appendChild(holofoilBackgroundOption);
+    const customOption = new Option("Custom Emblem", "custom");
+    holofoilStampSelect.appendChild(customOption);
 
     runButton = document.createElement("button");
 
@@ -869,8 +879,22 @@
     runButton.innerHTML =
       '<i class="fa-solid fa-wand-magic-sparkles"></i> Run Upscale';
 
-    controls.appendChild(modelSelect);
+    const modelField = document.createElement("label");
+    modelField.className = "imomir-upscale-field";
+    modelField.textContent = "Upscale model";
+    modelField.appendChild(modelSelect);
+    controls.appendChild(modelField);
     controls.appendChild(holofoilStampSelect);
+    window.HolofoilOptions.attach(holofoilStampSelect, false, () => sourceImage && sourceImage.src);
+    const foilField = document.createElement("div");
+    foilField.className = "imomir-upscale-field imomir-upscale-foil-field";
+    const foilLabel = document.createElement("label");
+    holofoilStampSelect.id = "imageCompareHolofoilReplacement";
+    foilLabel.htmlFor = holofoilStampSelect.id;
+    foilLabel.textContent = "Holofoil replacement";
+    foilField.appendChild(foilLabel);
+    foilField.appendChild(holofoilStampSelect.closest(".holofoil-select-wrap"));
+    controls.appendChild(foilField);
     controls.appendChild(runButton);
 
     const grid = document.createElement("div");
@@ -895,9 +919,13 @@
 
     sourceMeta.className = "imomir-image-compare-meta";
 
-    sourcePanel.appendChild(sourceLabelElement);
-    sourcePanel.appendChild(sourceImage);
-    sourcePanel.appendChild(sourceMeta);
+    const sourceHeading = document.createElement("div");
+    sourceHeading.className = "imomir-compare-panel-heading";
+    sourceHeading.append(sourceLabelElement, sourceMeta);
+    const sourceCaption = document.createElement("div");
+    sourceCaption.className = "imomir-compare-caption";
+    sourceCaption.textContent = "Click image to inspect";
+    sourcePanel.append(sourceHeading, sourceImage, sourceCaption);
 
     bindImageZoomTrigger(sourceImage);
 
@@ -917,9 +945,16 @@
 
     outputMeta.className = "imomir-image-compare-meta";
 
-    outputPanel.appendChild(outputLabel);
-    outputPanel.appendChild(outputImage);
-    outputPanel.appendChild(outputMeta);
+    const outputHeading = document.createElement("div");
+    outputHeading.className = "imomir-compare-panel-heading";
+    outputResolution = document.createElement("span");
+    outputResolution.className = "imomir-image-compare-meta";
+    outputHeading.append(outputLabel, outputResolution);
+    outputEmpty = document.createElement("div");
+    outputEmpty.className = "imomir-compare-empty";
+    outputEmpty.innerHTML = "<strong>Ready for an upscale</strong><p>Choose a model, then run an upscale.<br>Review the result here before accepting.</p>";
+    outputMeta.classList.add("imomir-compare-caption");
+    outputPanel.append(outputHeading, outputImage, outputEmpty, outputMeta);
 
     bindImageZoomTrigger(outputImage);
 
@@ -1011,9 +1046,12 @@
 
     dialog.appendChild(header);
     dialog.appendChild(controls);
-    dialog.appendChild(grid);
+    const workspace = document.createElement("div");
+    workspace.className = "imomir-upscale-workspace";
+    workspace.appendChild(grid);
+    workspace.appendChild(devFeedbackPanel);
+    dialog.appendChild(workspace);
     dialog.appendChild(statusContainer);
-    dialog.appendChild(devFeedbackPanel);
     dialog.appendChild(footer);
 
     overlay.appendChild(dialog);
@@ -1455,11 +1493,14 @@
 
       outputLabel.textContent = "Upscaled Output";
 
-      outputMeta.textContent = "No accepted upscale.";
+      outputResolution.textContent = "Not generated";
+      outputEmpty.hidden = false;
+      outputMeta.textContent = "Your current image stays in place until you accept.";
 
       return;
     }
 
+    outputEmpty.hidden = true;
     outputImage.classList.remove("hidden");
 
     outputImage.src = output.src;
@@ -1467,9 +1508,10 @@
     outputLabel.textContent = label;
 
     const metaParts = [];
+    outputResolution.textContent = output.width && output.height ? output.width + " × " + output.height : "";
 
     if (!output.showing_generated_bleed && output.width && output.height) {
-      metaParts.push(output.width + " × " + output.height);
+      // Resolution is displayed in the panel heading.
     }
 
     if (output.showing_generated_bleed) {
@@ -1506,7 +1548,12 @@
       );
     }
 
-    outputMeta.textContent = metaParts.join(" • ");
+    if (holofoilStamp && ["deckadance", "custom"].includes(holofoilStamp.replacement)) {
+      metaParts.push(holofoilStamp.emblem_applied
+        ? "Emblem applied" : "Emblem not applied");
+    }
+
+    outputMeta.textContent = ["Click image to inspect", ...metaParts].join(" • ");
   }
 
   function renderControl(data) {
@@ -1533,14 +1580,15 @@
       .toLowerCase();
 
     holofoilStampSelect.value =
-      defaultHolofoilReplacement === "background" ? "background" : "none";
+      ["background", "deckadance", "custom"].includes(defaultHolofoilReplacement)
+        ? defaultHolofoilReplacement : "none";
 
     holofoilStampSelect.classList.toggle("hidden", !holofoilStampEnabled);
 
     holofoilStampSelect.disabled = !holofoilStampEnabled;
 
-    if (holofoilStampSelect.parentElement) {
-      holofoilStampSelect.parentElement.classList.toggle(
+    if (holofoilStampSelect.closest(".imomir-upscale-controls")) {
+      holofoilStampSelect.closest(".imomir-upscale-controls").classList.toggle(
         "imomir-upscale-controls-no-holofoil",
         !holofoilStampEnabled,
       );
@@ -1658,6 +1706,7 @@
           model_id: modelId,
           face: currentData.face,
           run_id: activeRunId,
+          holofoil_emblem_options: window.HolofoilOptions.value(holofoilStampSelect),
           holofoil_stamp_replacement: holofoilStampEnabled
             ? holofoilStampSelect.value || "none"
             : "none",

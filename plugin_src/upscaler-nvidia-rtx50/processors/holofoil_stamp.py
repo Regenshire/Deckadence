@@ -1,3 +1,6 @@
+import base64
+import io
+import re
 import os
 import time
 
@@ -7,15 +10,30 @@ from PIL import (
     ImageDraw,
     ImageFilter,
     ImageStat,
+    ImageOps,
 )
+
+
+# Deckadance silver emblem placement � edit these values to tune the logo.
+# Position anchors the D outline center, not the full logo's visible bounds.
+# X and size are percentages of card width; Y is a percentage of card height.
+# Lower X moves left; lower Y moves up. Positive tilt rotates clockwise.
+DECKADANCE_EMBLEM_CENTER_X_PERCENT = 50.9
+DECKADANCE_EMBLEM_CENTER_Y_PERCENT = 94.0
+DECKADANCE_EMBLEM_WIDTH_PERCENT = 6.4
+CUSTOM_EMBLEM_WIDTH_PERCENT = 6.4
+DECKADANCE_EMBLEM_TILT_DEGREES = 16.5
 
 
 REPLACEMENT_NONE = "none"
 REPLACEMENT_BACKGROUND = "background"
+REPLACEMENT_DECKADANCE = "deckadance"
 
 SUPPORTED_REPLACEMENTS = {
     REPLACEMENT_NONE,
     REPLACEMENT_BACKGROUND,
+    REPLACEMENT_DECKADANCE,
+    "custom",
 }
 
 HOLOFOIL_SUPPORTED_FRAME_VERSIONS = {
@@ -252,13 +270,15 @@ class HolofoilStampProcessor:
                 )
             )
 
-        (
-            restored_image,
-            normalized_box,
-        ) = self._restore_background(
-            output_image,
-            security_stamp=security_stamp,
-        )
+        if replacement in (REPLACEMENT_DECKADANCE, "custom"):
+            restored_image, normalized_box = self._replace_stamp_interior(
+                output_image, security_stamp_shape,
+                replacement=replacement, options=payload.get("holofoil_emblem_options") or {},
+            )
+        else:
+            restored_image, normalized_box = self._restore_background(
+                output_image, security_stamp=security_stamp,
+            )
 
         detected = (
             normalized_box
@@ -277,6 +297,7 @@ class HolofoilStampProcessor:
             "replacement": replacement,
             "detected": detected,
             "background_restored": detected,
+            "emblem_applied": detected and replacement in (REPLACEMENT_DECKADANCE, "custom"),
             "normalized_box": (
                 list(
                     normalized_box
@@ -299,6 +320,155 @@ class HolofoilStampProcessor:
         }
 
         return result
+
+    def _replace_stamp_interior(self, image, shape, replacement="deckadance", options=None):
+        """Keep the original frame/housing; replace only its enclosed foil island."""
+        width, height = image.size
+        roi_box = self._normalized_box_to_pixels(
+            image.size, (0.44, 0.895, 0.56, 0.965),
+        )
+        roi = image.crop(roi_box).convert("L")
+        # Estimate the dark housing from this card, not a fixed black value.
+        histogram = roi.histogram()
+        target = roi.width * roi.height * 0.25
+        cumulative = 0
+        housing_luma = 0
+        for value, count in enumerate(histogram):
+            cumulative += count
+            if cumulative >= target:
+                housing_luma = value
+                break
+        threshold = min(160, max(30, housing_luma + 20))
+        binary = roi.point(lambda value: 255 if value > threshold else 0)
+        pixels = binary.load()
+        seen = set()
+        candidates = []
+        # The foil is enclosed by a dark housing. Frame/text components that
+        # touch the search boundary must never be used as replacement targets.
+        for y in range(binary.height):
+            for x in range(binary.width):
+                if not pixels[x, y] or (x, y) in seen:
+                    continue
+                pending = [(x, y)]
+                seen.add((x, y))
+                points = []
+                boundary = False
+                while pending:
+                    px, py = pending.pop()
+                    points.append((px, py))
+                    boundary |= px in (0, binary.width - 1) or py in (0, binary.height - 1)
+                    for nx, ny in ((px-1, py), (px+1, py), (px, py-1), (px, py+1)):
+                        if (0 <= nx < binary.width and 0 <= ny < binary.height
+                                and pixels[nx, ny] and (nx, ny) not in seen):
+                            seen.add((nx, ny))
+                            pending.append((nx, ny))
+                if boundary or len(points) < width * height * 0.0002:
+                    continue
+                left = min(p[0] for p in points) + roi_box[0]
+                top = min(p[1] for p in points) + roi_box[1]
+                right = max(p[0] for p in points) + roi_box[0] + 1
+                bottom = max(p[1] for p in points) + roi_box[1] + 1
+                if (0.045 * width <= right-left <= 0.11 * width
+                        and 0.012 * height <= bottom-top <= 0.05 * height
+                        and abs((left+right)/2 - width/2) < width*0.02):
+                    candidates.append((len(points), (left, top, right, bottom), points))
+        if not candidates:
+            return image, None
+        _, box, points = max(candidates, key=lambda item: item[0])
+        # Follow the detected scan contour, including its asymmetric edges.
+        # Fill enclosed dark print in the foil by joining each detected row.
+        local_mask = Image.new("L", roi.size, 0)
+        draw = ImageDraw.Draw(local_mask)
+        rows = {}
+        for x, y in points:
+            rows.setdefault(y, []).append(x)
+        for y, xs in rows.items():
+            draw.line((min(xs), y, max(xs), y), fill=255)
+        pad = max(1, round(width / 672))
+        # Cover antialias fringes without replacing the outer card-frame rim.
+        local_mask = local_mask.filter(ImageFilter.MaxFilter(2 * pad + 1))
+        ring = ImageChops.subtract(
+            local_mask.filter(ImageFilter.MaxFilter(6 * pad + 1)), local_mask,
+        )
+        dark_ring = ImageChops.multiply(
+            ring, roi.point(lambda value: 255 if value <= threshold else 0),
+        )
+        if not dark_ring.getbbox():
+            return image, None
+        housing_color = tuple(int(value) for value in ImageStat.Stat(
+            image.crop(roi_box), dark_ring,
+        ).median)
+        mask = Image.new("L", image.size, 0)
+        mask.paste(local_mask, roi_box[:2])
+        output = Image.composite(
+            Image.new(image.mode, image.size, housing_color), image, mask,
+        )
+        # Artwork placement is independent of scan detection. These are the
+        # user's approved values; never refit or recenter it to the foil mask.
+        output = self._apply_deckadance_emblem(
+            output, options, replacement,
+            stamp_center=((box[0]+box[2])/2/width*100, (box[1]+box[3])/2/height*100),
+        )
+        left, top, right, bottom = mask.getbbox()
+        return output, (left/width, top/height, right/width, bottom/height)
+
+    @staticmethod
+    def _apply_deckadance_emblem(image, options=None, replacement="deckadance", stamp_center=None):
+        options = options or {}
+        if replacement == "custom":
+            data = base64.b64decode(options.get("custom_png", ""), validate=True)
+            if not data:
+                raise ValueError("No custom emblem has been uploaded.")
+            with Image.open(io.BytesIO(data)) as source:
+                emblem = source.convert("RGBA")
+            mode = options.get("center_mode", "card")
+            if mode not in ("card", "holofoil"):
+                raise ValueError("Invalid emblem centering mode.")
+            if mode == "holofoil" and stamp_center is None:
+                raise ValueError("Holofoil center was not detected.")
+            origin_x, origin_y = stamp_center if mode == "holofoil" else (50.0, 95.0)
+            center_x = origin_x + max(-100.0, min(100.0, float(options.get("custom_x", 0)))) * 0.02
+            center_y = origin_y + max(-100.0, min(100.0, float(options.get("custom_y", 0)))) * 0.02
+            tilt = 0.0
+        else:
+            color = options.get("color", "silver")
+            if color not in ("silver", "gold", "white", "blue", "rainbow", "red", "green", "purple", "custom"):
+                raise ValueError("Invalid foil color.")
+            filename = "deckadance-foil-" + ("silver" if color == "custom" else color) + ".png"
+            with Image.open(os.path.join(os.path.dirname(__file__), filename)) as source:
+                emblem = source.convert("RGBA")
+            if color == "custom":
+                hex_color = options.get("custom_color", "#3a8dff")
+                if not re.fullmatch(r"#[0-9a-fA-F]{6}", hex_color):
+                    raise ValueError("Invalid custom foil color.")
+                rgb = tuple(int(hex_color[i:i+2], 16) for i in (1, 3, 5))
+                shadow = tuple(round(c * 0.3) for c in rgb)
+                shine = tuple(round(c + (255-c) * 0.92) for c in rgb)
+                tinted = ImageOps.colorize(emblem.convert("L"), shadow, shine, mid=rgb, midpoint=175)
+                tinted.putalpha(emblem.getchannel("A"))
+                emblem = tinted
+            center_x = DECKADANCE_EMBLEM_CENTER_X_PERCENT
+            center_y = DECKADANCE_EMBLEM_CENTER_Y_PERCENT
+            if "center_mode" in options:
+                mode = options["center_mode"]
+                if mode not in ("card", "holofoil"):
+                    raise ValueError("Invalid emblem centering mode.")
+                if mode == "holofoil" and stamp_center is None:
+                    raise ValueError("Holofoil center was not detected.")
+                origin_x, origin_y = stamp_center if mode == "holofoil" else (DECKADANCE_EMBLEM_CENTER_X_PERCENT, DECKADANCE_EMBLEM_CENTER_Y_PERCENT)
+                center_x = origin_x + float(options.get("custom_x", 0)) * 0.02
+                center_y = origin_y + float(options.get("custom_y", 0)) * 0.02
+            tilt = DECKADANCE_EMBLEM_TILT_DEGREES
+        width_percent = CUSTOM_EMBLEM_WIDTH_PERCENT if replacement == "custom" else DECKADANCE_EMBLEM_WIDTH_PERCENT
+        size = max(1, round(image.width * width_percent / 100.0))
+        emblem = emblem.resize((size, size), Image.Resampling.LANCZOS)
+        emblem = emblem.rotate(-tilt, resample=Image.Resampling.BICUBIC, expand=True)
+        output = image.convert("RGBA")
+        output.alpha_composite(emblem, (
+            round(image.width * center_x / 100.0 - emblem.width / 2),
+            round(image.height * center_y / 100.0 - emblem.height / 2),
+        ))
+        return output.convert(image.mode)
 
     @staticmethod
     def _resolve_output_path(

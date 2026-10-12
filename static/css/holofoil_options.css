@@ -1,0 +1,129 @@
+.holofoil-gear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.holofoil-select-wrap { display: flex; align-items: center; min-width: 0; gap: 8px; }
+.holofoil-select-wrap > select { flex: 1; min-width: 0; width: 0; }
+.holofoil-select-wrap > .holofoil-gear { margin: 0; }
+.holofoil-gear[hidden], .holofoil-select-wrap[hidden], .holofoil-options-dialog [hidden] { display: none !important; }
+.holofoil-options-dialog {
+  box-sizing: border-box;
+  width: min(540px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  padding: 0;
+  border: 2px solid var(--insert-frame, var(--border));
+  border-radius: 20px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 12px 36px rgb(0 0 0 / 22%);
+  font: 400 14px/1.5 Arial, Helvetica, sans-serif;
+}
+.holofoil-options-dialog::backdrop { background: rgb(0 0 0 / 48%); }
+.holofoil-options-dialog form { margin: 0; }
+.holofoil-options-dialog header, .holofoil-options-dialog footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--panel-2);
+}
+.holofoil-options-dialog header { justify-content: space-between; border-bottom: 1px solid var(--border); }
+.holofoil-options-dialog h2 { margin: 0; font: 700 22px/1.3 Arial, Helvetica, sans-serif; }
+.holofoil-options-dialog section { padding: 18px 20px 0; }
+.holofoil-options-dialog label { display: block; margin: 0 0 14px; font-weight: 600; }
+.holofoil-options-dialog input:not([type=checkbox]):not([type=color]):not([type=range]),
+.holofoil-options-dialog select {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  margin-top: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: 400 14px/1.4 Arial, Helvetica, sans-serif;
+}
+.holofoil-options-dialog input[type=range] { display: block; width: 100%; margin: 10px 0; accent-color: var(--accent); cursor: pointer; }
+.holofoil-options-dialog input[type=color] { width: 44px; height: 40px; padding: 3px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); }
+.holofoil-options-dialog button {
+  width: auto;
+  min-height: 38px;
+  margin: 0;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: 700 14px/1.4 Arial, Helvetica, sans-serif;
+  cursor: pointer;
+}
+.holofoil-options-dialog header button { width: 34px; min-height: 34px; padding: 4px; font-size: 22px; line-height: 1; }
+.holofoil-options-dialog button:hover:not(:disabled), .holofoil-gear:hover:not(:disabled) { background: var(--button-hover); }
+.holofoil-options-dialog button[name=apply] { background: var(--accent); border-color: var(--accent); color: #fff; min-width: 90px; }
+.holofoil-options-dialog button[name=apply]:hover:not(:disabled) { background: var(--accent-hover); }
+.holofoil-options-dialog button[name=delete] { color: var(--danger); }
+.holofoil-options-dialog button:disabled, .holofoil-gear:disabled { opacity: .5; cursor: not-allowed; }
+.holofoil-options-dialog :is(button,input,select):focus-visible, .holofoil-gear:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.holofoil-options-dialog fieldset { margin: 18px 0; padding: 14px; border: 1px solid var(--border); border-radius: 12px; min-width: 0; }
+.holofoil-options-dialog legend { padding: 0 6px; font-weight: 700; }
+.holofoil-options-dialog small { display: block; margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.holofoil-options-dialog .web-color { display: flex; align-items: center; gap: 12px; }
+.holofoil-options-dialog .web-color label { flex: 1; min-width: 0; }
+.holofoil-options-dialog output { float: right; color: var(--muted); font-weight: 400; }
+.holofoil-options-dialog .save-defaults { display: flex; align-items: center; gap: 8px; margin: 0; padding: 4px 20px 18px; font-weight: 400; }
+.holofoil-options-dialog input[type=checkbox] { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.holofoil-options-dialog .status { margin: 0; padding: 0 20px 16px; color: var(--text); }
+.holofoil-options-dialog .status:empty { display: none; }
+.holofoil-options-dialog footer { justify-content: flex-end; border-top: 1px solid var(--border); }
+.holofoil-options-dialog.has-placement-preview { width: min(1040px, calc(100vw - 32px)); }
+.holofoil-editor-layout { min-width: 0; }
+.has-placement-preview .holofoil-editor-layout { display: grid; grid-template-columns: minmax(300px, 0.9fr) minmax(320px, 1.2fr); align-items: start; gap: 18px; padding: 20px; }
+.holofoil-preview-panel { padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2); min-width: 0; position: sticky; top: 10px; }
+.holofoil-preview-panel h3 { margin: 0 0 12px; font-size: 12px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+.holofoil-placement { display: block; width: 100%; height: auto; background: #171714; border-radius: 10px; cursor: move; touch-action: none; box-shadow: 0 6px 16px #0003; }
+.holofoil-options-dialog .preview-caption { margin: 12px 0; font-size: 12px; color: var(--text-muted); }
+.holofoil-position-controls { margin-top: 16px; }
+.holofoil-options-dialog .holofoil-preview-panel button { width: 100%; }
+.holofoil-settings-panel { min-width: 0; }
+.has-placement-preview .holofoil-settings-panel section { padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2); }
+.holofoil-options-dialog button[name=expandUpload] { display: block; width: 100%; margin: 14px 0; }
+.holofoil-options-dialog .holofoil-settings-panel .save-defaults { margin: 16px 0 0; }
+@media(max-width: 760px) {
+  .has-placement-preview .holofoil-editor-layout { grid-template-columns: minmax(0,1fr); padding: 14px; }
+  .holofoil-preview-panel { position: static; }
+}
+
+/* Preview and settings follow the deck-art editor; actions stay outside the scroll area. */
+.holofoil-options-dialog[open] { overflow: hidden; }
+.holofoil-options-dialog form { display: flex; flex-direction: column; max-height: calc(100dvh - 52px); }
+.holofoil-options-dialog header, .holofoil-options-dialog footer { flex: 0 0 auto; }
+.holofoil-editor-layout { min-height: 0; overflow: auto; }
+.has-placement-preview .holofoil-editor-layout { grid-template-columns: minmax(0,.9fr) minmax(0,1.1fr); }
+.holofoil-preview-panel { position: static; }
+.holofoil-preview-panel h3, .holofoil-section-label { margin: 0 0 12px; color: var(--muted); font: 700 11px/1.4 Arial,sans-serif; letter-spacing: 1px; text-transform: uppercase; }
+.holofoil-settings-panel { display: flex; flex-direction: column; gap: 16px; }
+.has-placement-preview .holofoil-settings-panel section { background: var(--panel); padding: 16px; }
+.holofoil-options-dialog .holofoil-source-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+.holofoil-options-dialog .holofoil-source-tabs button { flex: 1; width: auto; margin: 0; }
+.holofoil-options-dialog .holofoil-source-tabs button[aria-pressed=true] { background: var(--accent); color: #fff; border-color: var(--accent); }
+.holofoil-options-dialog .holofoil-settings-panel .save-defaults { padding: 0; margin: 0; }
+.holofoil-options-dialog .preview-caption { color: var(--muted); }
+.holofoil-options-dialog #holofoilUploadFields { margin: 0; padding: 0; border: 0; }
+.holofoil-options-dialog #holofoilUploadFields legend { display: none; }
+@media(max-width:760px) { .has-placement-preview .holofoil-editor-layout { grid-template-columns: minmax(0,1fr); } }
+
+.holofoil-options-dialog .holofoil-center-mode{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:10px}.holofoil-options-dialog .holofoil-center-mode label{margin:0;display:flex;align-items:center;gap:5px}.holofoil-options-dialog .holofoil-center-mode input[type=radio]{width:auto;min-height:0;margin:0}

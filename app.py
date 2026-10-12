@@ -3,6 +3,8 @@ from user_backup_system import recover_interrupted_import
 # Recover only an interrupted portable import's asset/settings changes.
 recover_interrupted_import()
 
+from upscaling.emblems import FOIL_COLORS, render_custom_svg, catalog, resolve_options, emblem_position, deckadance_position
+
 import copy
 import csv
 import gzip
@@ -20039,6 +20041,8 @@ def get_upscaling_holofoil_stamp_default_replacement():
     if replacement not in {
         "none",
         "background",
+        "deckadance",
+        "custom",
     }:
         return "none"
 
@@ -20069,6 +20073,8 @@ def resolve_upscaling_holofoil_stamp_replacement(
     if replacement not in {
         "none",
         "background",
+        "deckadance",
+        "custom",
     }:
         raise ValueError(
             "Invalid Holofoil Stamp "
@@ -20252,6 +20258,93 @@ def config_upscaling_active_plugin():
     })
 
 
+@app.route("/config/upscaling/deckadance-preview.png")
+def deckadance_color_preview():
+    from upscaling.emblems import web_color
+    try:
+        color = web_color(request.args.get("color", "#3a8dff"))
+    except ValueError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+    import io
+    import cairosvg
+    raw = cairosvg.svg2png(url=os.path.join(app.static_folder, "img", "Logos", "deckadance-foil-silver.svg"), output_width=512, output_height=512)
+    emblem = Image.open(io.BytesIO(raw)).convert("RGBA")
+    rgb = tuple(int(color[i:i+2], 16) for i in (1, 3, 5))
+    tinted = ImageOps.colorize(emblem.convert("L"), tuple(round(c*.3) for c in rgb), tuple(round(c+(255-c)*.92) for c in rgb), mid=rgb, midpoint=175)
+    tinted.putalpha(emblem.getchannel("A"))
+    output = io.BytesIO()
+    tinted.save(output, format="PNG")
+    output.seek(0)
+    return send_file(output, mimetype="image/png", max_age=0)
+
+
+@app.route("/config/upscaling/emblems/<emblem_id>/preview.png")
+def custom_emblem_preview(emblem_id):
+    entry = next((item for item in catalog(get_config()) if item["id"] == emblem_id), None)
+    if not entry:
+        return jsonify({"ok": False, "message": "Emblem not found."}), 404
+    import base64
+    import io
+    return send_file(io.BytesIO(base64.b64decode(entry["png"])), mimetype="image/png", max_age=0)
+
+
+@app.route("/config/upscaling/emblems", methods=["GET", "POST"])
+def config_upscaling_emblems():
+    config = get_config()
+    entries = catalog(config)
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        try:
+            action = payload.get("action", "defaults")
+            if action == "upload":
+                if len(entries) >= 20:
+                    raise ValueError("Delete a saved emblem before adding another (maximum 20).")
+                name = str(payload.get("name", "Custom Emblem")).strip()[:80]
+                if not name:
+                    raise ValueError("Enter a name for the emblem.")
+                import uuid
+                entries.append({"id": uuid.uuid4().hex, "name": name, "png": render_custom_svg(payload.get("svg", "")), "svg": payload.get("svg", ""), "position": {"center_mode": "card", "custom_x": 0, "custom_y": 0}})
+                set_config_value("upscaling_custom_emblems", json.dumps(entries))
+            elif action == "deckadance_position":
+                options = payload.get("options")
+                if not isinstance(options, dict):
+                    raise ValueError("Invalid emblem position.")
+                values = resolve_options(config, options, "deckadance")
+                set_config_value("upscaling_deckadance_position", json.dumps({**{key: values[key] for key in ("center_mode", "custom_x", "custom_y")}, "baseline_version": 1}))
+            elif action == "position":
+                entry = next((item for item in entries if item["id"] == payload.get("id")), None)
+                if not entry:
+                    raise ValueError("Saved emblem not found.")
+                options = payload.get("options")
+                if not isinstance(options, dict):
+                    raise ValueError("Invalid emblem position.")
+                values = resolve_options(config, {**options, "custom_id": entry["id"]}, "custom")
+                entry["position"] = {key: values[key] for key in ("center_mode", "custom_x", "custom_y")}
+                set_config_value("upscaling_custom_emblems", json.dumps(entries))
+            elif action == "delete":
+                deleted_id = payload.get("id")
+                entries = [item for item in entries if item["id"] != deleted_id]
+                set_config_value("upscaling_custom_emblems", json.dumps(entries))
+                if config.get("upscaling_custom_emblem_id") == deleted_id:
+                    set_config_value("upscaling_custom_emblem_id", "")
+                    if config.get("upscaling_holofoil_stamp_replacement") == "custom":
+                        set_config_value("upscaling_holofoil_stamp_replacement", "none")
+            elif action == "defaults":
+                values = resolve_options(config, payload.get("options"), payload.get("replacement", "deckadance"))
+                mapping = {"color": "upscaling_emblem_color", "custom_color": "upscaling_emblem_custom_color", "custom_id": "upscaling_custom_emblem_id"}
+                for key, config_key in mapping.items():
+                    set_config_value(config_key, str(values[key]))
+            else:
+                raise ValueError("Unknown emblem action.")
+        except ValueError as exc:
+            return jsonify({"ok": False, "message": str(exc)}), 400
+    config = get_config()
+    defaults = resolve_options(config)
+    defaults.pop("custom_png", None)
+    return jsonify({"ok": True, "defaults": defaults, "colors": list(FOIL_COLORS), "deckadance_position": deckadance_position(config),
+                    "emblems": [{"id": item["id"], "name": item["name"], "position": emblem_position(item, config)} for item in catalog(config)]})
+
+
 @app.route(
     "/config/upscaling/holofoil-stamp",
     methods=["POST"],
@@ -20282,6 +20375,8 @@ def config_upscaling_holofoil_stamp():
     if replacement not in {
         "none",
         "background",
+        "deckadance",
+        "custom",
     }:
         return jsonify({
             "ok": False,
@@ -20290,6 +20385,11 @@ def config_upscaling_holofoil_stamp():
                 "Replacement option."
             ),
         }), 400
+
+    try:
+        resolve_options(get_config())
+    except ValueError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
 
     set_config_value(
         "upscaling_holofoil_stamp_enabled",
@@ -32507,6 +32607,7 @@ def run_card_upscale_candidate_batch(
     model_id,
     requested_face="front",
     holofoil_stamp_replacement=None,
+    holofoil_emblem_options=None,
     progress_callback=None,
     image_context=None,
 ):
@@ -32560,6 +32661,9 @@ def run_card_upscale_candidate_batch(
         resolve_upscaling_holofoil_stamp_replacement(
             holofoil_stamp_replacement
         )
+    )
+    resolved_emblem_options = resolve_options(
+        get_config(), holofoil_emblem_options, resolved_holofoil_stamp_replacement,
     )
 
     clean_requested_face = str(
@@ -32812,6 +32916,7 @@ def run_card_upscale_candidate_batch(
                 "holofoil_stamp_replacement": (
                     resolved_holofoil_stamp_replacement
                 ),
+                "holofoil_emblem_options": resolved_emblem_options,
                 "host_assets": {
                     "fonts_dir": os.path.abspath(
                         os.path.join(
@@ -33566,6 +33671,7 @@ def chaos_card_upscale_run(card_uuid):
                 requested_face=(
                     requested_face
                 ),
+                holofoil_emblem_options=payload.get("holofoil_emblem_options"),
                 holofoil_stamp_replacement=(
                     payload.get(
                         "holofoil_stamp_replacement"
@@ -34531,6 +34637,7 @@ def run_upscaling_batch_job(
     source_label="Batch Upscale",
     replace_existing=False,
     holofoil_stamp_replacement=None,
+    holofoil_emblem_options=None,
     image_owner=None,
     include_alternate_images=False,
     alternate_image_max_bytes=(
@@ -34669,6 +34776,7 @@ def run_upscaling_batch_job(
                             ]
                         ),
                         requested_face="front",
+                        holofoil_emblem_options=holofoil_emblem_options,
                         holofoil_stamp_replacement=(
                             holofoil_stamp_replacement
                         ),
@@ -34912,6 +35020,8 @@ def upscaling_batch_start():
             )
         )
 
+        resolve_options(get_config(), payload.get("holofoil_emblem_options"), holofoil_stamp_replacement)
+
     except ValueError as exc:
         return jsonify({
             "ok": False,
@@ -35141,6 +35251,7 @@ def upscaling_batch_start():
             "alternate_image_max_bytes": (
                 alternate_image_max_bytes
             ),
+            "holofoil_emblem_options": payload.get("holofoil_emblem_options"),
             "holofoil_stamp_replacement": (
                 holofoil_stamp_replacement
             ),
