@@ -1,0 +1,322 @@
+{% extends "base.html" %} {% block title %}Deckadence - Deck Roulette{% endblock
+%} {% block page_styles %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/deck_roulette.css') }}"
+/>
+{% endblock %} {% block content %}
+<div
+  class="screen screen-wide"
+  id="deckRouletteScreen"
+  data-spin-url="{{ url_for('deck_roulette_spin') }}"
+  data-open-url="{{ url_for('deck_roulette_open') }}"
+  data-fallback-image="{{ url_for('static', filename='img/Logos/deckadence_d.svg') }}"
+>
+  {% if not card_database_ready %} {% set setup_title = "Deck Roulette Setup
+  Required" %} {% set setup_message = "Download the card database before
+  importing Moxfield decks into Deck Builder." %} {% include
+  "_setup_required_panel.html" %} {% endif %}
+
+  <div class="page-panel deck-roulette-header-panel">
+    <div class="deck-roulette-header-layout">
+      <div>
+        <div class="roulette-eyebrow">Play / Deck Roulette</div>
+        <h1 class="page-title">A new deck. A new experience.</h1>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="page-panel deck-roulette-filter-panel">
+    <div class="deck-roulette-filter-grid">
+      <label class="deck-roulette-field">
+        <span>Format</span>
+
+        <select id="deckRouletteFormat">
+          {% for group in deck_roulette_format_groups %}
+          <optgroup label="{{ group.label }}">
+            {% for option in group.options %} {% if option.value == "commander"
+            %}
+            <option value="{{ option.value }}" selected>
+              {{ option.label }}
+            </option>
+            {% else %}
+            <option value="{{ option.value }}">{{ option.label }}</option>
+            {% endif %} {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="deck-roulette-field deck-roulette-field-wide">
+        <span>Title Search</span>
+
+        <input
+          type="text"
+          id="deckRouletteTitleSearch"
+          placeholder="Search part of a deck title"
+          autocomplete="off"
+        />
+      </label>
+
+      <label
+        class="deck-roulette-field deck-roulette-field-wide"
+        id="deckRouletteCommanderField"
+      >
+        <span id="deckRouletteCommanderLabel">Commander</span>
+
+        <input
+          type="text"
+          id="deckRouletteCommander"
+          placeholder="Any Commander"
+          autocomplete="off"
+        />
+      </label>
+
+      <div class="deck-roulette-field" id="deckRouletteBracketField">
+        <span>Commander Bracket</span>
+
+        <details
+          class="deck-roulette-multiselect"
+          id="deckRouletteBracketDropdown"
+        >
+          <summary id="deckRouletteBracketSummary">Any</summary>
+
+          <div class="deck-roulette-multiselect-menu">
+            {% for bracket_value, bracket_label in deck_roulette_bracket_options
+            %}
+            <label class="deck-roulette-multiselect-option">
+              <input
+                type="checkbox"
+                class="deck-roulette-bracket-input"
+                value="{{ bracket_value }}"
+              />
+              <span>{{ bracket_label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </details>
+      </div>
+
+      <label class="deck-roulette-field">
+        <span>Wheel Size</span>
+
+        <select id="deckRouletteWheelSize">
+          {% for wheel_size in deck_roulette_wheel_size_options %} {% if
+          wheel_size == 8 %}
+          <option value="{{ wheel_size }}" selected>
+            {{ wheel_size }} Decks
+          </option>
+          {% else %}
+          <option value="{{ wheel_size }}">{{ wheel_size }} Decks</option>
+          {% endif %} {% endfor %}
+        </select>
+      </label>
+
+      <div class="deck-roulette-field deck-roulette-field-wide">
+        <span>Color Identity</span>
+
+        <div class="deck-roulette-color-options" id="deckRouletteColorIdentity">
+          {% for color_value, color_label in deck_roulette_color_options %}
+          <label class="deck-roulette-color-option" title="{{ color_label }}">
+            <input
+              type="checkbox"
+              class="deck-roulette-color-input"
+              value="{{ color_value }}"
+            />
+            <span class="deck-roulette-color-chip"> {{ color_value }} </span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <label class="deck-roulette-field">
+        <span>Color Match</span>
+
+        <select id="deckRouletteColorMatch">
+          <option value="exact" selected>Exactly These Colors</option>
+          <option value="including">Including These Colors</option>
+        </select>
+      </label>
+
+      <label class="deck-roulette-field">
+        <span>Sort</span>
+
+        <select id="deckRouletteSort">
+          {% for sort_value, sort_label in deck_roulette_sort_options %} {% if
+          sort_value == "updated" %}
+          <option value="{{ sort_value }}" selected>{{ sort_label }}</option>
+          {% else %}
+          <option value="{{ sort_value }}">{{ sort_label }}</option>
+          {% endif %} {% endfor %}
+        </select>
+      </label>
+
+      <label class="deck-roulette-field">
+        <span>Out of Top</span>
+
+        <select id="deckRouletteTopLimit">
+          {% for top_limit in deck_roulette_top_limit_options %} {% if top_limit
+          == 100 %}
+          <option value="{{ top_limit }}" selected>{{ top_limit }}</option>
+          {% else %}
+          <option value="{{ top_limit }}">{{ top_limit }}</option>
+          {% endif %} {% endfor %}
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div
+    id="deckRouletteMessage"
+    class="deck-roulette-message hidden"
+    role="alert"
+  ></div>
+
+  <section class="roulette-stage">
+    <div class="roulette-stage-header"><div><div class="roulette-eyebrow">Your next deck</div><h2>Let the wheel decide.</h2><p id="rouletteWheelCount">Ready to spin</p></div>        <button
+          type="button"
+          id="deckRouletteSpinAgainButton"
+          class="action-button" disabled
+        >
+          Spin Again
+        </button></div>
+  <div id="deckRouletteSpinner" class="chaos-draft-spinner-shell">
+    <div class="chaos-draft-spinner-window">
+      <div id="deckRoulettePointer" class="chaos-draft-pointer hidden">
+        <img
+          src="{{ url_for('static', filename='img/packpointer_gold.png') }}"
+          alt="Roulette Pointer"
+        />
+      </div>
+
+      <div id="deckRouletteIdleCta" class="chaos-draft-idle-cta">
+        <button
+          type="button"
+          id="deckRouletteSpinButton"
+          class="chaos-draft-spin-cta"
+          aria-label="Spin Deck Roulette"
+          {%
+          if
+          not
+          card_database_ready
+          %}disabled{%
+          endif
+          %}
+        >
+          <span class="chaos-draft-spin-logo" aria-hidden="true">
+            <img
+              src="{{ url_for('static', filename='img/Logos/spinlogo_D.svg') }}"
+              alt=""
+              class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-base"
+            />
+
+            <img
+              src="{{ url_for('static', filename='img/Logos/spinlogo_spinning.svg') }}"
+              alt=""
+              class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-rotor"
+            />
+          </span>
+        </button>
+      </div>
+
+      <div
+        id="deckRouletteSpinnerTrack"
+        class="chaos-draft-spinner-track hidden"
+      ></div>
+    </div>
+  </div>
+
+    <div class="roulette-stage-footer"><img src="{{ url_for('static', filename='img/Logos/deckadence_d.svg') }}" alt=""><span id="rouletteStageName">No deck selected</span><strong id="rouletteStageMeta"></strong></div>
+  </section>
+  <div id="deckRouletteWinnerPanel" class="deck-roulette-winner-browser hidden">
+    <button
+      type="button"
+      id="deckRoulettePreviousDeckButton"
+      class="deck-roulette-browse-button deck-roulette-browse-button-previous"
+      title="Previous Deck"
+      aria-label="Browse to previous deck"
+    >
+      <i class="fa-solid fa-caret-left" aria-hidden="true"></i>
+    </button>
+
+    <div class="page-panel deck-roulette-winner-panel">
+      <div class="deck-roulette-winner-copy">
+        <div class="deck-roulette-winner-label">Selected Deck</div>
+
+        <h2 id="deckRouletteWinnerName" class="deck-roulette-winner-name"></h2>
+
+        <div
+          id="deckRouletteWinnerCommander"
+          class="deck-roulette-winner-commander"
+        ></div>
+
+        <div
+          id="deckRouletteWinnerMeta"
+          class="deck-roulette-winner-meta"
+        ></div>
+      </div>
+
+      <div class="deck-roulette-winner-actions">
+        <a
+          id="deckRouletteMoxfieldLink"
+          class="action-button secondary-button"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          View on Moxfield
+        </a>
+
+
+
+        <button
+          type="button"
+          id="deckRouletteNewWheelButton"
+          class="deck-roulette-new-wheel-button"
+          title="New Wheel"
+          aria-label="Build and spin a new wheel"
+        >
+          <i class="fa-solid fa-dharmachakra" aria-hidden="true"></i>
+        </button>
+
+        <button type="button" id="deckRouletteOpenButton" class="action-button">
+          Open Deck
+        </button>
+      </div>
+    </div>
+
+    <button
+      type="button"
+      id="deckRouletteNextDeckButton"
+      class="deck-roulette-browse-button deck-roulette-browse-button-next"
+      title="Next Deck"
+      aria-label="Browse to next deck"
+    >
+      <i class="fa-solid fa-caret-right" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  <div
+    id="deckRouletteBusyOverlay"
+    class="chaos-draft-busy-overlay hidden"
+    aria-hidden="true"
+  >
+    <div class="chaos-draft-busy-backdrop"></div>
+
+    <div class="chaos-draft-busy-card">
+      <div class="chaos-draft-busy-spinner"></div>
+
+      <div id="deckRouletteBusyTitle" class="chaos-draft-busy-title">
+        Finding Decks
+      </div>
+
+      <div id="deckRouletteBusyText" class="chaos-draft-busy-text">
+        Searching for matching decks...
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block page_scripts_after_app %}
+<script src="{{ url_for('static', filename='js/deck_roulette.js', v='roulette-filters-2') }}"></script>
+{% endblock %}

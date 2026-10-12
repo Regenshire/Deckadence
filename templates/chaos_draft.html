@@ -1,0 +1,278 @@
+{% extends "base.html" %} {% block title %}Deckadence - Chaos Draft{% endblock
+%} {% block page_styles %}
+<script src="{{ url_for('static', filename='js/pack_opening.js', v='2') }}"></script>
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/card_views.css') }}"
+/>
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/chaos_draft.css') }}"
+/>
+{% if global_card_upscaling_control_enabled %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/image_compare.css') }}"
+/>
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/upscale_batch.css') }}"
+/>
+{% endif %}
+<link
+  rel="stylesheet"
+  href="{{ url_for('static', filename='css/print_export_modal.css') }}"
+/>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/basic_chaos_theme.css', v='3') }}">
+<script defer src="{{ url_for('static', filename='js/campaign_stage_summary.js', v='3') }}"></script>
+{% endblock %} {% block content %}
+<div
+  class="screen screen-wide basic-chaos-screen"
+  id="chaosDraftScreen"
+  data-open-print-in-new-tab="{{ '1' if open_print_in_new_tab else '0' }}"
+  data-sound-enabled="{{ '1' if sound_enabled else '0' }}"
+  data-print-card-backs="{{ '1' if print_card_backs else '0' }}"
+  data-chaos-export-format="{{ chaos_draft_export_format }}"
+  data-chaos-spin-url="{{ url_for('chaos_draft_spin') }}"
+  data-chaos-open-url="{{ url_for('chaos_draft_open') }}"
+  data-chaos-view-data-url="{{ url_for('chaos_draft_view_data') }}"
+  data-chaos-export-url="{{ url_for('chaos_draft_export') }}"
+  data-chaos-export-zip-url="{{ url_for('chaos_draft_export_zip') }}"
+  data-card-face-data-url="{{ url_for('card_face_data') }}"
+>
+  {% if not card_database_ready %} {% set setup_title = "Chaos Draft Setup
+  Required" %} {% set setup_message = "No card database has been loaded yet.
+  Download the card database before spinning Chaos Draft packs." %} {% include
+  "_setup_required_panel.html" %} {% endif %}
+
+  <div class="campaign-stage-heading basic-chaos-heading"><div class="campaign-stage-eyebrow">Chaos Draft / Basic Mode</div><h1 class="campaign-mode-external-title">A little chaos. A lot of fun.</h1><p class="basic-chaos-subtitle">Spin to select a random booster pack from the currently enabled sets.</p></div>
+  <div class="campaign-draft-stage">
+  <div class="page-panel chaos-draft-header-panel">
+    <div class="chaos-draft-header-layout">
+      <div class="chaos-draft-header-copy">
+        <div class="campaign-stage-eyebrow">Your next pack</div><h2 class="page-title">Let the wheel decide.</h2>
+      </div>
+
+      <div class="chaos-draft-top-actions">
+        <button
+          type="button"
+          id="chaosNextButton"
+          class="chaos-draft-next-button"
+          disabled
+        >
+          <span class="chaos-draft-next-button-label">Next Pack</span>
+          <span class="chaos-draft-next-button-arrow">▷</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chaosDraftMessage" class="card-placeholder hidden">
+    Click Spin to generate a Chaos Draft pack selection.
+  </div>
+
+  <div id="chaosDraftSpinner" class="chaos-draft-spinner-shell">
+    <div class="chaos-draft-spinner-window">
+      <div id="chaosDraftPointer" class="chaos-draft-pointer hidden">
+        <img
+          src="{{ url_for('static', filename='img/packpointer_gold.png') }}"
+          alt="Pack Pointer"
+        />
+      </div>
+
+      <div id="chaosDraftIdleCta" class="chaos-draft-idle-cta">
+        <button
+          type="button"
+          id="chaosSpinButton"
+          class="chaos-draft-spin-cta"
+          aria-label="Spin Chaos Draft"
+          {%
+          if
+          not
+          card_database_ready
+          %}disabled{%
+          endif
+          %}
+        >
+          <span class="chaos-draft-spin-logo" aria-hidden="true">
+            <img
+              src="{{ url_for('static', filename='img/Logos/spinlogo_D.svg') }}"
+              alt=""
+              class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-base"
+            />
+            <img
+              src="{{ url_for('static', filename='img/Logos/spinlogo_spinning.svg') }}"
+              alt=""
+              class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-rotor"
+            />
+          </span>
+        </button>
+      </div>
+
+      <div
+        id="chaosDraftSpinnerTrack"
+        class="chaos-draft-spinner-track hidden"
+      ></div>
+    </div>
+  </div>
+
+  <div class="campaign-stage-footer"><span class="campaign-stage-monogram" aria-hidden="true"></span><span id="campaignStagePackName">Give the wheel a spin. Let's crack a pack!</span><strong id="campaignStagePackSummary"></strong></div>
+  </div>
+  <div id="chaosDraftOpenRow" class="chaos-draft-open-row">
+    <div class="chaos-draft-open-actions campaign-chaos-open-actions">
+      <h2 class="campaign-opened-heading">Want to Open or Print your pack?</h2>
+      <button
+        type="button"
+        id="chaosViewButton"
+        class="action-button secondary-button chaos-draft-view-button"
+        disabled
+      >
+        Open
+      </button>
+      <button
+        type="button"
+        id="chaosOpenButton"
+        class="action-button chaos-draft-open-button"
+        disabled
+      >
+        Print / Export
+      </button>
+
+      {% if enable_track_packs %}
+      <button
+        type="button"
+        id="chaosSavePackButton"
+        class="action-button secondary-button chaos-save-pack-button"
+        disabled
+      >
+        Save
+      </button>
+      {% endif %} {% if chaos_draft_export_format in ["archidekt", "moxfield"]
+      %}
+      <div class="chaos-export-split" id="chaosExportSplit">
+        <button
+          type="button"
+          id="chaosExportMainButton"
+          class="action-button secondary-button chaos-export-main-button"
+          disabled
+        >
+          Export
+        </button>
+        <button
+          type="button"
+          id="chaosExportMenuButton"
+          class="action-button secondary-button chaos-export-menu-button"
+          disabled
+          aria-expanded="false"
+          aria-haspopup="true"
+        >
+          ▾
+        </button>
+
+        <div id="chaosExportMenu" class="chaos-export-menu hidden">
+          <button
+            type="button"
+            id="chaosExportCopyButton"
+            class="chaos-export-menu-item"
+            data-export-action="copy"
+          >
+            Copy {{ chaos_draft_export_format|capitalize }}
+          </button>
+          <button
+            type="button"
+            id="chaosExportSaveButton"
+            class="chaos-export-menu-item"
+            data-export-action="save"
+          >
+            Save {{ chaos_draft_export_format|capitalize }}
+          </button>
+        </div>
+        {% endif %}
+      </div>
+
+      {% if enable_track_packs %}
+      <div class="chaos-auto-save-row">
+        <label
+          class="chaos-auto-save-inline"
+          for="chaosAutoSavePackToggle"
+          title="Automatically save this pack when opening the PDF"
+        >
+          <input type="checkbox" id="chaosAutoSavePackToggle" checked />
+          <span>Auto-Save</span>
+        </label>
+      </div>
+      {% endif %}
+      
+    </div>
+
+    <div
+      id="chaosDraftInlineViewPanel"
+      class="page-panel chaos-pack-inline-view-panel hidden"
+    >
+      <div class="chaos-pack-inline-view-header">
+        <div class="chaos-pack-inline-view-header-copy">
+          <h2 id="chaosPackInlineTitle" class="page-title">Pack contents</h2>
+          <p id="chaosPackInlineSubtitle" class="page-subtitle"></p>
+        </div>
+
+        {% if global_card_upscaling_control_enabled %}
+        <div class="chaos-pack-inline-view-header-actions">
+          <button
+            type="button"
+            id="chaosPackInlineUpscaleButton"
+            class="action-button secondary-button chaos-pack-inline-upscale-pack-button"
+            title="Upscale Pack"
+            aria-label="Upscale all cards in this pack"
+          >
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Upscale Pack</span>
+          </button>
+        </div>
+        {% endif %}
+      </div>
+
+      <div id="chaosPackInlineGrid" class="chaos-pack-inline-grid"></div>
+    </div>
+
+    <div
+      id="chaosPackZoomOverlay"
+      class="card-zoom-overlay hidden"
+      aria-hidden="true"
+    >
+      <div id="chaosPackZoomBackdrop" class="card-zoom-backdrop"></div>
+      <div class="card-zoom-content">
+        <img id="chaosPackZoomImage" src="" alt="" class="card-zoom-image" />
+      </div>
+    </div>
+
+    <div
+      id="chaosDraftBusyOverlay"
+      class="chaos-draft-busy-overlay hidden"
+      aria-hidden="true"
+    >
+      <div class="chaos-draft-busy-backdrop"></div>
+      <div class="chaos-draft-busy-card">
+        <div class="chaos-draft-busy-spinner"></div>
+        <div id="chaosDraftBusyTitle" class="chaos-draft-busy-title">
+          Opening Pack
+        </div>
+        <div id="chaosDraftBusyText" class="chaos-draft-busy-text">
+          Relax while we crack your Pack!
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% set print_export_subject_label = "pack" %} {% include
+"_print_export_modal.html" %}
+
+<script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
+{% endblock %} {% block page_scripts_after_app %}
+{% if global_card_upscaling_control_enabled %}
+<script src="{{ url_for('static', filename='js/image_compare.js') }}"></script>
+<script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
+{% endif %}
+<script src="{{ url_for('static', filename='js/chaos_draft.js', v='shared-opening-1') }}"></script>
+
+{% endblock %}

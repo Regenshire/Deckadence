@@ -1,0 +1,60 @@
+html[data-theme] .campaign-management > .page-panel:first-child {padding:8px 4px;background:transparent;border:0;box-shadow:none}
+.campaign-management .page-title{font:700 30px/1.3 Arial,sans-serif;margin:8px 0}
+.campaign-management .page-subtitle{color:var(--muted)}
+html[data-theme] .campaign-management .campaign-list-panel{border:3px solid var(--insert-frame);border-radius:24px;background:var(--panel);padding:0;box-shadow:none}
+.campaign-management .ui-list-filter-toolbar{margin:0;padding:22px 24px;border:0;border-radius:0;background:transparent;border-bottom:1px solid var(--insert-frame)}
+.campaign-management .ui-list-results-summary{margin:0;padding:14px 24px;background:var(--panel-2);border-bottom:1px solid var(--insert-frame)}
+.campaign-management .campaign-save-list{gap:0}
+.campaign-management-row{display:grid;grid-template-columns:minmax(240px,1fr) 220px auto;gap:20px;align-items:center;padding:22px 24px;border-bottom:1px solid var(--insert-frame)}
+.campaign-identity{border-left:3px solid var(--insert-frame);padding-left:16px;min-width:0}
+html[data-theme] .campaign-management .campaign-name-display{font:700 18px/1.35 Arial,sans-serif;width:100%;padding:0;margin:0 0 10px;min-height:26px;border:0;border-radius:0;background:transparent;color:var(--text)}
+html[data-theme] .campaign-management .campaign-name-display:not([readonly]){padding:8px;background:var(--panel-2);outline:1px solid var(--accent)}
+.campaign-status{display:flex;align-items:center;gap:8px;font:400 12px Arial,sans-serif;color:var(--muted)}
+.campaign-status input{accent-color:var(--accent)}
+.campaign-counts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+html[data-theme] .campaign-management .campaign-count{padding:4px 16px;border:0;border-left:1px solid var(--insert-frame);border-radius:0;background:transparent;text-align:left;color:var(--text);cursor:pointer}
+.campaign-count strong{display:block;font:700 24px Arial,sans-serif;margin-bottom:3px}.campaign-count span{font:400 12px Arial,sans-serif;color:var(--muted)}
+.campaign-row-actions{display:flex;align-items:center;gap:8px}.campaign-management .campaign-row-actions .action-button,.campaign-management .chaos-pack-view-header-actions .action-button{width:auto;min-width:0;min-height:42px;padding:10px 14px;font-size:13px;white-space:nowrap}
+.campaign-row-more{position:relative}.campaign-row-more summary{list-style:none;cursor:pointer;padding:10px 14px;min-height:42px;border:1px solid var(--insert-frame);border-radius:10px;background:var(--panel-2)}.campaign-row-more summary::-webkit-details-marker{display:none}
+.campaign-row-menu{position:absolute;right:0;top:48px;z-index:100;background:var(--panel);border:2px solid var(--insert-frame);border-radius:12px;padding:6px;min-width:155px;box-shadow:0 4px 10px #0001}
+html[data-theme] .campaign-management .campaign-row-menu button{display:block;width:100%;text-align:left;padding:10px;border:0;border-radius:6px;background:transparent;color:var(--text);font:600 14px Arial,sans-serif;cursor:pointer}.campaign-row-menu form{margin:0}
+html[data-theme] .campaign-management .campaign-row-menu button:hover{background:var(--panel-2)}
+html[data-theme] .campaign-management .campaign-row-menu .campaign-danger-button{color:var(--theme-error,#b85151)}
+.campaign-management-dialog{width:440px;max-width:90%;padding:24px;border:2px solid var(--insert-frame);border-radius:20px;background:var(--panel);color:var(--text)}.campaign-management-dialog::backdrop{background:#0007}.campaign-management-dialog .campaign-row-actions{justify-content:flex-end;margin-top:20px}
+.campaign-default-settings{padding:16px 24px;color:var(--muted);font-size:13px}.campaign-default-settings summary{cursor:pointer}.campaign-rename-save[hidden]{display:none}
+@media(max-width:1100px){.campaign-management-row{grid-template-columns:minmax(220px,1fr) 180px}.campaign-row-actions{grid-column:1/-1;justify-content:flex-end}}
+@media(max-width:600px){.campaign-management-row{grid-template-columns:minmax(0,1fr);padding:18px 16px;gap:16px}.campaign-counts{width:220px;margin-left:16px}.campaign-row-actions{justify-content:flex-start;flex-wrap:wrap}.campaign-management .ui-list-filter-toolbar{padding:16px}.campaign-management .chaos-pack-view-header-top{flex-direction:column;align-items:flex-start}.campaign-management .page-title{font-size:26px}}
+
+/* Match the approved preview instead of inheriting legacy form/button typography. */
+html[data-theme] .campaign-management { font: 400 15px/1.4 Arial,sans-serif; }
+html[data-theme] .campaign-management > .page-panel:first-child { margin: 6px 0 0; padding: 8px 4px; }
+html[data-theme] .campaign-management .chaos-pack-view-header-top { align-items: center; gap: 24px; }
+html[data-theme] .campaign-management .chaos-pack-view-header-actions { align-items: center; gap: 10px; }
+html[data-theme] .campaign-management .chaos-pack-view-header-actions .action-button { font: 700 15px/1.4 Arial,sans-serif; min-height: 44px; padding: 10px 16px; border-radius: 10px; }
+html[data-theme] .campaign-management .campaign-management-row { padding: 26px 24px; }
+html[data-theme] .campaign-management .campaign-name-heading { font: 700 18px/1.35 Arial,sans-serif; color: var(--text); background: transparent; margin: 0 0 10px; overflow-wrap: anywhere; }
+html[data-theme] .campaign-management .campaign-count strong { font: 700 24px/1.2 Arial,sans-serif; }
+html[data-theme] .campaign-management .campaign-count span { font: 400 12px/1.4 Arial,sans-serif; }
+html[data-theme] .campaign-management .campaign-row-actions .action-button { font: 700 13px/1.4 Arial,sans-serif; border-radius: 10px; }
+html[data-theme] .campaign-management .campaign-status { font: 400 12px/1.4 Arial,sans-serif; }
+html[data-theme] .campaign-management .ui-list-results-summary { font: 700 13px/1.4 Arial,sans-serif; }
+.campaign-management [hidden] { display: none !important; }
+@media(max-width:600px) {
+ html[data-theme] .campaign-management .chaos-pack-view-header-top { align-items: flex-start; }
+ html[data-theme] .campaign-management .campaign-management-row { padding: 22px 16px; }
+ html[data-theme] .campaign-management .campaign-name-heading { font-size: 17px; }
+}
+
+/* Prominent campaign typography and clear interactive count targets. */
+html[data-theme] .campaign-management .campaign-name-heading { font: 700 20px/1.4 Arial,sans-serif; }
+html[data-theme] .campaign-management .campaign-count strong { font: 700 27px/1.2 Arial,sans-serif; }
+html[data-theme] .campaign-management .campaign-count span { font: 700 14px/1.4 Arial,sans-serif; }
+html[data-theme] .campaign-management .campaign-count { transition: background-color .15s ease, border-color .15s ease; }
+html[data-theme] .campaign-management .campaign-count:hover:not(:disabled),
+html[data-theme] .campaign-management .campaign-count:focus-visible {
+ background: var(--panel-2); border-left-color: var(--accent); color: var(--text);
+}
+html[data-theme] .campaign-management .campaign-count:hover:not(:disabled) span,
+html[data-theme] .campaign-management .campaign-count:focus-visible span { color: var(--accent); }
+html[data-theme] .campaign-management .campaign-count:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+html[data-theme] .campaign-management .campaign-status { font: 400 13px/1.4 Arial,sans-serif; }

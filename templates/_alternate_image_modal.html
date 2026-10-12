@@ -1,0 +1,297 @@
+{% set modal_image_owner = image_isolation | default(none) %} {% set
+preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
+(pack.is_preview | default(false)) else '' ) %}
+
+<div
+  id="alternateImageOverlay"
+  class="card-zoom-overlay hidden"
+  aria-hidden="true"
+  data-image-owner-kind="{{ modal_image_owner.owner_kind if modal_image_owner else ('set' if preview_set_code.endswith('^') else '') }}"
+  data-image-owner-id="{{ modal_image_owner.owner_id if modal_image_owner else (preview_set_code if preview_set_code.endswith('^') else '') }}"
+>
+  <div id="alternateImageBackdrop" class="card-zoom-backdrop"></div>
+
+  <div class="card-zoom-content alternate-image-modal-content">
+    <div class="page-panel alternate-image-modal-panel">
+      <button
+        type="button"
+        id="alternateImageCloseButton"
+        class="action-button secondary-button alternate-image-x-button"
+        aria-label="Close"
+        title="Close"
+      >
+        ×
+      </button>
+
+      <div class="alternate-image-header" data-help-id="alternate-image-modal">
+        <h2 class="page-title">Alternate Image</h2>
+
+        <div class="alternate-image-card-heading-row">
+          <div
+            id="alternateImageCardName"
+            class="alternate-image-card-name"
+          ></div>
+
+          <span
+            id="alternateImageIsolationBadge"
+            class="alternate-image-isolation-badge hidden"
+          >
+            <i class="fa-solid fa-lock" aria-hidden="true"></i>
+            Isolation On
+          </span>
+        </div>
+      </div>
+
+      <div
+        id="alternateImageMessage"
+        class="flash-message alternate-image-message hidden"
+        data-help-id="alternate-image-status"
+      ></div>
+
+      <div class="alternate-image-main-layout">
+        <aside
+          class="alternate-image-preview-panel"
+          data-help-id="alternate-image-preview"
+        >
+          <div class="alternate-image-preview-heading">Image Preview</div>
+
+          <div class="alternate-image-preview-frame">
+            <img
+              id="alternateImagePreview"
+              class="alternate-image-preview-image hidden"
+              src=""
+              alt=""
+            />
+
+            <div
+              id="alternateImagePreviewEmpty"
+              class="alternate-image-preview-empty"
+            >
+              Loading current image...
+            </div>
+          </div>
+
+          <div
+            id="alternateImagePreviewCaption"
+            class="alternate-image-preview-caption"
+          >
+            Current card image
+          </div>
+        </aside>
+
+        <div class="alternate-image-management-column">
+          <section
+            class="alternate-active-source-card"
+            data-help-id="alternate-image-active-source"
+          >
+            <div class="alternate-active-source-label">Active Source</div>
+
+            <div
+              id="alternateImageActiveSource"
+              class="alternate-active-source-list"
+            >
+              Loading...
+            </div>
+          </section>
+
+          <section
+            class="alternate-image-section-card"
+            data-help-id="alternate-image-source-list"
+          >
+            <div class="alternate-image-section-header">
+              <h3>Alternate Sources</h3>
+            </div>
+
+            <div
+              id="alternateImageSourceList"
+              class="alternate-image-source-list"
+            ></div>
+          </section>
+
+          <form
+            id="alternateImageForm"
+            class="alternate-image-form-panel"
+            enctype="multipart/form-data"
+            data-help-id="alternate-image-add-source-form"
+          >
+            <input
+              type="hidden"
+              id="alternateImageCardUuid"
+              name="card_uuid"
+              value=""
+            />
+
+            <div
+              id="alternateImageSourceComposer"
+              class="alternate-image-source-composer"
+              data-help-id="alternate-image-source-input"
+            >
+              <label
+                class="alternate-image-field"
+                for="alternateImageSourceType"
+                data-help-id="alternate-image-source-type"
+              >
+                <span class="alternate-image-field-label"> Source Type </span>
+
+                <select name="source_type" id="alternateImageSourceType">
+                  <option value="uploaded_file" selected>Upload File</option>
+                  <option value="external_url">External URL</option>
+                  <option value="local_file">Local File Path</option>
+                </select>
+              </label>
+
+              <label
+                class="alternate-image-field alternate-source-field alternate-source-field-upload-file"
+                for="alternateImageFile"
+                data-help-id="alternate-image-upload"
+              >
+                <span class="alternate-image-field-label"> Image File </span>
+
+                <input
+                  type="file"
+                  name="alternate_image_file"
+                  id="alternateImageFile"
+                  accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+                />
+              </label>
+
+              <label
+                class="alternate-image-field alternate-source-field alternate-source-field-external-url"
+                for="alternateImageExternalUrl"
+                data-help-id="alternate-image-url"
+              >
+                <span class="alternate-image-field-label"> Image URL </span>
+
+                <input
+                  type="url"
+                  name="external_image_url"
+                  id="alternateImageExternalUrl"
+                  placeholder="https://..."
+                />
+              </label>
+
+              <label
+                class="alternate-image-field alternate-source-field alternate-source-field-local-file"
+                for="alternateImageLocalPath"
+                data-help-id="alternate-image-local-path"
+              >
+                <span class="alternate-image-field-label">
+                  Local Image Path
+                </span>
+
+                <input
+                  type="text"
+                  name="local_image_path"
+                  id="alternateImageLocalPath"
+                  placeholder="data/alternate_sources/example.png"
+                />
+              </label>
+            </div>
+
+            <div class="alternate-image-settings-stack">
+              <label
+                class="alternate-image-control-row alternate-image-field-hidden"
+                id="alternateImageFaceKindRow"
+                for="alternateImageFaceKind"
+                data-help-id="alternate-image-card-face"
+              >
+                <span>Card Face</span>
+
+                <select name="face_kind" id="alternateImageFaceKind">
+                  <option
+                    id="alternateImageFaceKindSingleOption"
+                    value="single"
+                  >
+                    Single
+                  </option>
+
+                  <option id="alternateImageFaceKindFrontOption" value="front">
+                    Front
+                  </option>
+
+                  <option id="alternateImageFaceKindBackOption" value="back">
+                    Back
+                  </option>
+                </select>
+              </label>
+
+              <label
+                class="alternate-image-control-row"
+                for="alternateImageExportFrameTemplate"
+                data-help-id="alternate-image-frame-template"
+              >
+                <span>Label Template</span>
+
+                <select
+                  name="export_frame_template"
+                  id="alternateImageExportFrameTemplate"
+                >
+                  <option value="auto">
+                    Automatic - Use Card Printing Frame
+                  </option>
+                </select>
+              </label>
+
+              <label
+                class="alternate-image-control-row alternate-image-check-row settings-field"
+                data-help-id="alternate-image-full-bleed"
+              >
+                <span>3mm Full-Bleed File (MPCFill Bleed)</span>
+
+                <input
+                  type="checkbox"
+                  name="remove_bleed"
+                  id="alternateImageRemoveBleed"
+                />
+              </label>
+
+              <label
+                class="alternate-image-control-row alternate-image-check-row settings-field hidden"
+                id="alternateImageFoilRow"
+                data-help-id="alternate-image-foil"
+              >
+                <span>Foil</span>
+
+                <input type="checkbox" id="alternateImageFoil" />
+              </label>
+            </div>
+
+            <input
+              type="hidden"
+              name="source_name"
+              id="alternateImageSourceName"
+              value=""
+            />
+
+            <input
+              type="hidden"
+              name="notes"
+              id="alternateImageNotes"
+              value=""
+            />
+
+            <div class="alternate-image-actions">
+              <button
+                type="submit"
+                id="alternateImageAddButton"
+                class="action-button"
+                data-help-id="alternate-image-add-source"
+              >
+                Add Alternate Source
+              </button>
+
+              <button
+                type="button"
+                id="alternateImageSaveFrameButton"
+                class="action-button secondary-button hidden"
+                data-help-id="alternate-image-save-frame"
+              >
+                Update
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,92 @@
+/* Shared campaign styling; the workspace itself leaves the page art visible. */
+html[data-theme] #campaignTestDraftWorkspace {background:transparent;padding:20px 24px 16px;gap:0 10px;font:400 15px/1.4 Arial,sans-serif;grid-template-rows:auto minmax(0,1fr);}
+#campaignTestDraftWorkspace .test-draft-page-heading {grid-column:1/-1;padding:4px 4px 24px;}
+.test-draft-eyebrow{font:700 11px/1.4 Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;color:var(--accent);}
+#campaignTestDraftWorkspace .test-draft-page-heading h1{font:700 30px/1.3 Arial,sans-serif;margin:8px 0 10px;color:var(--text);}
+#campaignTestDraftWorkspace .test-draft-page-heading p{font:400 15px/1.5 Arial,sans-serif;margin:0;color:var(--muted);}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-main-panel{padding:0;gap:12px;background:transparent;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-topbar{background:var(--panel);border:2px solid var(--insert-frame);border-radius:18px;padding:14px 18px;align-items:center;flex-wrap:wrap;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-title{font:700 20px/1.4 Arial,sans-serif;margin:0 0 4px;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-subtitle{font:400 13px/1.5 Arial,sans-serif;color:var(--muted);}
+html[data-theme] #campaignTestDraftWorkspace :is(.campaign-test-draft-icon-button,.campaign-test-draft-zone-view-button,.campaign-test-draft-picked-sort-select){min-height:44px;border:1px solid var(--insert-frame);border-radius:10px;background:var(--panel-2);color:var(--text);font:700 14px Arial,sans-serif;box-shadow:none;}
+html[data-theme] #campaignTestDraftWorkspace :is(.campaign-test-draft-icon-button-active,.campaign-test-draft-zone-view-button-active){background:var(--accent);color:white;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-pagination-status{background:transparent;border:0;color:var(--muted);font:400 13px/1.4 Arial,sans-serif;padding:0;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card-area{background:transparent;padding:8px 4px 16px;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-side-panel{background:transparent;border:0;padding:0;gap:10px;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-zone{background:var(--panel);border:3px solid var(--insert-frame);border-radius:22px;padding:0 18px 16px;overflow:hidden;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-zone-header{padding:16px 0;border-bottom:1px solid var(--insert-frame);margin-bottom:12px;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-zone-header h2{font:700 20px/1.4 Arial,sans-serif;color:var(--text);margin:0;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-zone-empty{background:transparent;border:0;border-radius:0;padding:24px 0;min-height:0;justify-content:flex-start;align-items:flex-start;color:var(--muted);font:400 14px/1.6 Arial,sans-serif;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-bottom-bar{padding:12px 18px;background:var(--panel);border:2px solid var(--insert-frame);border-radius:18px;gap:12px;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-human-card-pickbar{border:0;background:transparent;box-shadow:none;backdrop-filter:none;padding:0;min-height:0;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-human-name{font:700 16px/1.4 Arial,sans-serif;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-confirm-button{min-height:44px;font:700 14px/1.4 Arial,sans-serif;border-radius:10px;padding:12px 16px;}
+html[data-theme] #campaignTestDraftWorkspace button:disabled{opacity:.45;}
+html[data-theme] #campaignTestDraftWorkspace :is(.campaign-test-draft-resize-handle,.campaign-test-draft-zone-resize-handle){background:transparent;border:0;}
+html[data-theme] #campaignTestDraftWorkspace :is(.campaign-test-draft-resize-handle,.campaign-test-draft-zone-resize-handle):hover{background:var(--insert-frame);}
+@media(max-width:900px){html[data-theme] #campaignTestDraftWorkspace{padding:12px;gap:0 6px;}#campaignTestDraftWorkspace .test-draft-page-heading{padding-bottom:14px;}#campaignTestDraftWorkspace .test-draft-page-heading h1{font-size:24px;}html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-top-actions{flex-wrap:wrap;}html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-bottom-bar{display:flex;flex-wrap:wrap;}}
+
+html[data-theme] .app-menu-is-collapsed #campaignTestDraftWorkspace {padding-left:80px;}
+#campaignTestDraftWorkspace .test-draft-page-heading {display:flex;align-items:center;justify-content:space-between;gap:24px;}
+.test-draft-heading-actions{display:flex;gap:10px;flex:none;}
+html[data-theme] #campaignTestDraftWorkspace .test-draft-heading-button{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 18px;background:var(--panel-2);color:var(--text);border:1px solid var(--insert-frame);border-radius:10px;font:700 14px/1.4 Arial,sans-serif;text-decoration:none;cursor:pointer;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-title-wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-title{margin:0;font-size:20px;}
+@media(max-width:700px){#campaignTestDraftWorkspace .test-draft-page-heading{flex-wrap:wrap;gap:12px;}html[data-theme] .app-menu-is-collapsed #campaignTestDraftWorkspace{padding-left:64px;}}
+
+/* Grid cards already carry their names in the artwork; retain radio labels
+   for assistive technology without reserving a caption row. */
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card-list-grid .campaign-test-draft-card-footer {
+  position:absolute;width:1px;height:1px;min-height:0;margin:0;padding:0;
+  overflow:hidden;clip-path:inset(50%);white-space:nowrap;
+}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card {position:relative;}
+/* Match Deck Builder's selection outline, image treatment and check badge. */
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card-selected {
+  outline:3px solid rgba(59,130,246,.95);outline-offset:2px;
+  box-shadow:0 0 0 1px rgba(255,255,255,.55),0 0 18px rgba(59,130,246,.55);
+  background:transparent;border-color:transparent;
+}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card-selected .campaign-test-draft-card-image {filter:brightness(1.1) saturate(1.08);}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card-selected::after {
+  content:"✓";position:absolute;top:6px;right:6px;z-index:25;
+  width:24px;height:24px;border-radius:999px;display:inline-flex;
+  align-items:center;justify-content:center;background:rgba(37,99,235,.92);
+  color:#fff;border:1px solid rgba(255,255,255,.8);font-size:.82rem;
+  font-weight:900;box-shadow:0 8px 18px rgba(0,0,0,.35);pointer-events:none;
+}
+
+#campaignTestDraftWorkspace .campaign-test-draft-toolbar[hidden]{display:none;}
+html[data-theme] #campaignTestDraftWorkspace.test-draft-single-page .campaign-test-draft-main-panel{grid-template-rows:auto minmax(0,1fr) auto;}
+
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card-list-grid .campaign-test-draft-card {
+  background:transparent;border:0;padding:0;border-radius:10px;
+}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card-list-grid .campaign-test-draft-card:not(.campaign-test-draft-card-selected){box-shadow:none;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card-image-shell {background:transparent;border:0;border-radius:10px;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card-image {background:transparent;box-shadow:none;}
+
+#campaignTestDraftWorkspace{--campaign-test-draft-card-width:280px;--campaign-test-draft-stack-column-width:280px;}
+
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-empty-pack {
+  display:flex;justify-content:center;align-items:flex-start;min-height:0;
+  padding:16px 8px 24px;background:transparent;border:0;border-radius:0;box-shadow:none;
+}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-empty-pack.hidden{display:none;}
+html[data-theme] #campaignTestDraftWorkspace .test-draft-empty-card {
+  display:block;width:480px;max-width:100%;aspect-ratio:63/88;height:auto;
+  padding:0;border:0;background:transparent;box-shadow:none;cursor:pointer;
+}
+.test-draft-empty-card svg{display:block;width:100%;height:100%;}
+.test-draft-empty-card:focus-visible{outline:3px solid var(--accent);outline-offset:5px;border-radius:24px;}
+
+/* The empty pack occupies the first normal card slot and follows card sizing. */
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-empty-pack {
+  display:grid;grid-template-columns:var(--campaign-test-draft-card-width);
+  justify-content:start;align-items:start;gap:14px;padding:0;
+}
+html[data-theme] #campaignTestDraftWorkspace .test-draft-empty-card {
+  width:var(--campaign-test-draft-card-width);max-width:100%;
+  user-select:none;-webkit-user-drag:none;
+}
+.test-draft-empty-card svg{pointer-events:none;}

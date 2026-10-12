@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Deckadence{% endblock %}</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+    <link
+      rel="stylesheet"
+      id="appBaseStyles"
+      data-default-href="{{ url_for('static', filename='css/style.css') }}"
+      data-backup-href="{{ url_for('static', filename='css/backup-theme.css') }}"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/print_template_selector.css') }}"
+    />
+
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/silhouette_template_library.css') }}"
+    />
+
+    {% if global_personal_use_agreement_required %}
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/personal_use_agreement.css') }}"
+    />
+    {% endif %}
+
+    {% block page_styles %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css', v='theme-surfaces-17') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/white_mana_flair.css', v='32') }}">
+    <script src="{{ url_for('static', filename='js/theme_catalog.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/background_motion.js', v='constellation-2') }}" data-tile-base="{{ url_for('static', filename='img/themes/') }}"></script>
+    <script src="{{ url_for('static', filename='js/themes.js', v='constellation-size-140') }}" data-tile-base="{{ url_for('static', filename='img/themes/') }}"></script>
+  </head>
+  <body{% if global_personal_use_agreement_required %} class="personal-use-agreement-active"{% endif %}>
+    <div class="app-shell">
+      <div class="app-frame">
+        <nav class="app-tabs" aria-label="Primary">
+          <div class="app-tabs-left">
+            <button
+              type="button"
+              id="appMenuToggleButton"
+              class="app-logo-link app-menu-toggle-button"
+              data-help-id="navigation-toggle"
+              data-mobile-home-url="{{ url_for('index') }}"
+              aria-label="Minimize navigation"
+              aria-expanded="true"
+              title="Minimize Navigation"
+            >
+              <img
+                src="{{ url_for('static', filename='img/Logos/deckadence.svg') }}"
+                alt="Deckadence"
+                class="app-logo app-logo-expanded"
+                loading="eager"
+                decoding="async"
+                fetchpriority="high"
+              />
+
+              <img
+                src="{{ url_for('static', filename='img/Logos/deckadence_d.svg') }}"
+                alt="Deckadence"
+                class="app-logo app-logo-collapsed"
+                loading="eager"
+                decoding="async"
+                fetchpriority="high"
+              />
+            </button>
+          </div>
+
+          <div class="app-tabs-nav app-menu-expandable">
+            <div
+              class="app-nav-menu app-nav-home-menu {% if request.endpoint == 'index' %}app-nav-menu-active{% endif %}"
+            >
+              <div class="app-nav-main-control">
+                <a
+                  class="app-nav-primary-link"
+                  data-help-id="navigation-home"
+                  href="{{ url_for('index') }}"
+                >
+                  Home
+                </a>
+              </div>
+            </div>
+
+            <div
+              class="app-nav-menu {% if request.endpoint in ['play_draft', 'play_momir', 'result', 'campaign_chaos_test_draft'] %}app-nav-menu-active{% endif %}"
+            >
+              <div
+                class="app-nav-main-control"
+                data-help-id="navigation-play"
+              >
+                <a
+                  class="app-nav-primary-link"
+                  href="{{ url_for('play_draft') }}"
+                >
+                  Play
+                </a>
+
+                <button
+                  type="button"
+                  class="app-nav-menu-toggle"
+                  data-app-menu-toggle
+                  aria-label="Open Play menu"
+                  aria-expanded="false"
+                >
+                  <i class="fa-solid fa-chevron-down"></i>
+                </button>
+              </div>
+
+              <div class="app-nav-dropdown app-play-dropdown" role="menu">
+                <a
+                  class="app-nav-dropdown-item {% if request.endpoint == 'play_draft' %}app-nav-dropdown-item-active{% endif %}"
+                  href="{{ url_for('play_draft') }}"
+                  role="menuitem" data-help-id="menu_chaos_draft"
+                >
+                  <span class="app-nav-item-icon">
+                    <i class="fa-solid fa-shuffle"></i>
+                  </span>
+                  <span>Chaos Draft</span>
+                </a>
+
+                <a
+                  class="app-nav-dropdown-item {% if request.endpoint in ['play_momir', 'result'] %}app-nav-dropdown-item-active{% endif %}"
+                  href="{{ url_for('play_momir') }}"
+                  role="menuitem" data-help-id="menu_momir"
+                >
+                  <span class="app-nav-item-icon">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  </span>
+                  <span>Momir</span>
+                </a>
+              </div>
+            </div>
+
+            <div
+              class="app-nav-menu {% if request.endpoint in ['deckbuilder_index', 'deckbuilder_open', 'deckbuilder_new', 'deck_roulette', 'campaign_chaos_test_draft_deck_builder', 'sets', 'campaign_chaos_packs_manage', 'campaign_chaos_packs', 'campaign_chaos_pack_detail'] %}app-nav-menu-active{% endif %}"
+            >
+              <div
+                class="app-nav-main-control"
+                data-help-id="navigation-cards"
+              >
+                <a class="app-nav-primary-link" href="{{ url_for('sets') }}">
+                  Cards
+                </a>
+
+                <button
+                  type="button"
+                  class="app-nav-menu-toggle"
+                  data-app-menu-toggle
+                  aria-label="Open Cards menu"
+                  aria-expanded="false"
+                >
+                  <i class="fa-solid fa-chevron-down"></i>
+                </button>
+              </div>
+
+              <div class="app-nav-dropdown app-cards-dropdown" role="menu">
+                <div class="app-nav-dropdown-group">
+                  <a
+                    class="app-nav-dropdown-heading app-nav-dropdown-heading-link"
+                    href="{{ url_for('sets') }}"
+                  >
+                    <span class="app-nav-heading-icon">
+                      <i class="fa-solid fa-clone"></i>
+                    </span>
+                    <span>Sets</span>
+                  </a>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('sets') }}" data-help-id="menu_manage_sets"
+                    role="menuitem"
+                  >
+                    Manage
+                  </a>
+                </div>
+
+                <div class="app-nav-dropdown-group">
+                  <a
+                    class="app-nav-dropdown-heading app-nav-dropdown-heading-link"
+                    href="{{ url_for('deckbuilder_index') }}"
+                  >
+                    <span class="app-nav-heading-icon">
+                      <i class="fa-solid fa-layer-group"></i>
+                    </span>
+                    <span>Decks</span>
+                  </a>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('deckbuilder_index') }}"
+                    role="menuitem" data-help-id="menu_manage_decks"
+                  >
+                    Manage
+                  </a>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented {% if request.endpoint == 'deck_roulette' %}app-nav-dropdown-item-active{% endif %}"
+                    href="{{ url_for('deck_roulette') }}"
+                    role="menuitem"
+                    data-help-id="menu_set_roulette"
+                  >
+                    Roulette
+                  </a>
+                </div>
+
+                <div class="app-nav-dropdown-group">
+                  <a
+                    class="app-nav-dropdown-heading app-nav-dropdown-heading-link"
+                    href="{{ url_for('campaign_chaos_packs_manage') }}"
+                  >
+                    <span class="app-nav-heading-icon">
+                      <i class="fa-solid fa-box-open"></i>
+                    </span>
+                    <span>Packs</span>
+                  </a>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('campaign_chaos_packs_manage') }}"
+                    role="menuitem" data-help-id="menu_manage_packs"
+                  >
+                    Manage
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="app-nav-menu app-nav-icon-menu {% if request.endpoint == 'config' %}app-nav-menu-active{% endif %}"
+            >
+              <button
+                type="button"
+                id="appSettingsButton"
+                class="app-nav-square-button app-gear-button {% if global_reminder_state and global_reminder_state.has_reminders %}app-gear-button-has-reminders{% endif %}"
+                data-help-id="navigation-settings"
+                data-app-menu-toggle
+                aria-label="Open Settings menu{% if global_reminder_state and global_reminder_state.has_reminders %} - {{ global_reminder_state.count }} reminder{% if global_reminder_state.count != 1 %}s{% endif %}{% endif %}"
+                aria-expanded="false"
+                title="Settings"
+              >
+                <i class="fa-solid fa-gear"></i>
+
+                {% if global_reminder_state and
+                global_reminder_state.has_reminders %}
+                <span class="app-gear-reminder-badge">
+                  {{ global_reminder_state.count }}
+                </span>
+                {% endif %}
+              </button>
+
+              <div class="app-nav-dropdown app-settings-dropdown" role="menu">
+                <div class="theme-menu-controls" role="none">
+                  <div class="app-nav-dropdown-item theme-menu-row">
+                    <span class="app-nav-item-icon"><i class="fa-solid fa-palette" aria-hidden="true"></i></span>
+                    <label for="menuThemeSelect">Theme</label>
+                    <select id="menuThemeSelect" class="theme-menu-select" data-theme-select aria-label="Choose theme"></select>
+                  </div>
+                  <a class="app-nav-dropdown-item" href="{{ url_for('config') }}?open=theme&scroll=theme" role="menuitem" data-theme-settings-link>
+                    <span class="app-nav-item-icon"><i class="fa-solid fa-sliders" aria-hidden="true"></i></span>
+                    <span>Theme Settings</span>
+                  </a>
+                </div>
+                <div class="app-nav-dropdown-divider" role="separator"></div>
+                <button
+                  type="button"
+                  class="app-nav-dropdown-item app-nav-dropdown-button app-nav-mobile-qr-item"
+                  data-app-qr-open
+                  role="menuitem"
+                >
+                  <span class="app-nav-item-icon">
+                    <i class="fa-solid fa-qrcode"></i>
+                  </span>
+                  <span>Open Deckadence on Another Device</span>
+                </button>
+
+                <div class="app-nav-dropdown-divider app-nav-mobile-qr-divider"></div>
+
+                <a
+                  class="app-nav-dropdown-item"
+                  href="{{ url_for('config') }}?open=reminders&scroll=reminders"
+                  role="menuitem"
+                >
+                  <span class="app-nav-item-icon">
+                    <i class="fa-solid fa-bell"></i>
+                  </span>
+                  <span>Reminders</span>
+                </a>
+
+                <a
+                  class="app-nav-dropdown-item"
+                  href="{{ url_for('config') }}?open=print_settings&scroll=print_settings"
+                  role="menuitem"
+                >
+                  <span class="app-nav-item-icon">
+                    <i class="fa-solid fa-print"></i>
+                  </span>
+                  <span>Print Settings</span>
+                </a>
+
+                <button
+                  type="button"
+                  class="app-nav-dropdown-item app-nav-dropdown-button"
+                  data-silhouette-template-library-open
+                  role="menuitem"
+                >
+                  <span class="app-nav-item-icon">
+                    <i class="fa-solid fa-scissors"></i>
+                  </span>
+                  <span>Card Cutting Machine Templates</span>
+                </button>
+
+                <a
+                  class="app-nav-dropdown-item"
+                  href="{{ url_for('config') }}?open=card_database&scroll=card_database"
+                  role="menuitem"
+                >
+                  <span class="app-nav-item-icon">
+                    <i class="fa-solid fa-database"></i>
+                  </span>
+                  <span>Card Database</span>
+                </a>
+
+                <div class="app-nav-dropdown-divider"></div>
+
+                <div class="app-nav-dropdown-group">
+                  <div class="app-nav-dropdown-heading">
+                    Chaos Draft Settings
+                  </div>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('config') }}?open=draft_modes&scroll=draft_modes"
+                    role="menuitem"
+                  >
+                    Draft Modes
+                  </a>
+                </div>
+
+                <div class="app-nav-dropdown-group">
+                  <div class="app-nav-dropdown-heading">Momir Settings</div>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('config') }}?open=momir_modes&scroll=momir_modes"
+                    role="menuitem"
+                  >
+                    Momir Modes
+                  </a>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('config') }}?open=other_modes&scroll=other_modes"
+                    role="menuitem"
+                  >
+                    Other Modes
+                  </a>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('config') }}?open=card_repeats&scroll=card_repeats"
+                    role="menuitem"
+                  >
+                    Card Repeat Settings
+                  </a>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('config') }}?open=primary_types&scroll=primary_types"
+                    role="menuitem"
+                  >
+                    Primary Card Types
+                  </a>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('config') }}?open=supplemental_types&scroll=supplemental_types"
+                    role="menuitem"
+                  >
+                    Supplemental Types
+                  </a>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('config') }}?open=other_filters&scroll=other_filters"
+                    role="menuitem"
+                  >
+                    Other Filters
+                  </a>
+
+                  <a
+                    class="app-nav-dropdown-item app-nav-dropdown-item-indented"
+                    href="{{ url_for('config') }}?open=momir_print_settings&scroll=momir_print_settings"
+                    role="menuitem"
+                  >
+                    Momir Print Settings
+                  </a>
+                </div>
+
+                <div class="app-nav-dropdown-divider"></div>
+
+                <div class="app-nav-dropdown-section-label">Advanced</div>
+
+                <a
+                  class="app-nav-dropdown-item"
+                  href="{{ url_for('config') }}?open=exports&scroll=exports"
+                  role="menuitem"
+                >
+                  Exports
+                </a>
+
+                <a
+                  class="app-nav-dropdown-item"
+                  href="{{ url_for('config') }}?open=backup&scroll=backup"
+                  role="menuitem"
+                >
+                  Backup
+                </a>
+
+                <a
+                  class="app-nav-dropdown-item"
+                  href="{{ url_for('config') }}?open=plugins&scroll=plugins"
+                  role="menuitem"
+                >
+                  Plugins
+                </a>
+
+                {% if global_ready_upscaler_plugins %}
+                <a
+                  class="app-nav-dropdown-item"
+                  href="{{ url_for('config') }}?open=image_upscaling&scroll=image_upscaling"
+                  role="menuitem"
+                >
+                  Advanced Image Upscaling
+                </a>
+                {% endif %}
+
+                <a
+                  class="app-nav-dropdown-item app-nav-dropdown-item-danger"
+                  href="{{ url_for('config') }}?open=danger_zone&scroll=danger_zone"
+                  role="menuitem"
+                >
+                  Danger Zone
+                </a>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              id="appHelpToggleButton"
+              class="app-nav-square-button app-help-toggle-button"
+              data-help-id="navigation-help"
+              aria-label="Toggle Context Help"
+              aria-pressed="false"
+              title="Context Help"
+            >
+              <i class="fa-solid fa-circle-question"></i>
+            </button>
+
+            <button
+              type="button"
+              id="appQrButton"
+              class="app-nav-square-button app-qr-nav-button"
+              data-help-id="navigation-qr"
+              data-app-qr-open
+              aria-label="Open Deckadence QR code"
+              title="Open Deckadence on another device"
+            >
+              <img
+                src="{{ global_qr_image_url }}"
+                alt=""
+                class="app-nav-qr-thumbnail"
+                loading="eager"
+                decoding="async"
+                fetchpriority="high"
+              />
+            </button>
+          </div>
+        </nav>
+
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+
+    {% if global_personal_use_agreement_required %}
+    {% include "_personal_use_agreement_modal.html" %}
+    {% endif %}
+
+    {% include "_print_template_selector_modal.html" %}
+    {% include "_silhouette_template_library_modal.html" %}
+    {% include "_help_layer.html" %}
+
+    <div
+      id="appQrModal"
+      class="app-qr-modal-backdrop hidden"
+      aria-hidden="true"
+    >
+      <div
+        class="app-qr-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="appQrModalTitle"
+      >
+        <div class="app-qr-modal-header">
+          <div>
+            <div id="appQrModalTitle" class="app-qr-modal-title">
+              Scan to Open Deckadence
+            </div>
+            <div class="app-qr-modal-subtitle">
+              Use a phone or tablet connected to the same network.
+            </div>
+          </div>
+          <button
+            type="button"
+            id="appQrCloseButton"
+            class="app-qr-modal-close"
+            aria-label="Close QR code"
+          >
+            ×
+          </button>
+        </div>
+
+        <div
+          class="app-qr-modal-body"
+          data-help-id="navigation-qr-panel"
+        >
+          <img
+            src="{{ global_qr_image_url }}"
+            alt="QR code for {{ global_qr_access_url }}"
+            class="app-qr-image"
+          />
+          <div class="app-qr-address-label">Open this address</div>
+          <div class="app-qr-address">{{ global_qr_access_url }}</div>
+        </div>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dialog_focus.js') }}"></script>
+
+    <script src="{{ url_for('static', filename='js/print_template_selector.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/silhouette_template_library.js') }}"></script>
+
+    {% block page_scripts_before_app %}{% endblock %}
+
+    <script src="{{ url_for('static', filename='js/app.js', v='themed-confirm-1') }}"></script>
+
+    {% block page_scripts_after_app %}{% endblock %}
+
+    <script
+      defer
+      src="{{ url_for('static', filename='js/help/help_loader.js', v='theme-3') }}"
+    ></script>
+  </body>
+  </body>
+</html>
+
+
+
+

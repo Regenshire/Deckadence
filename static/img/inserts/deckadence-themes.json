@@ -1,0 +1,432 @@
+[
+  {
+    "name": "White",
+    "mana": "W",
+    "colors": [
+      "White"
+    ],
+    "svg": "deckadence-white-no-foil.svg",
+    "png": "png/deckadence-white-no-foil.png",
+    "palette": {
+      "background": "#e8dec6",
+      "frame": "#b5a17b",
+      "accent": "#faf4e6",
+      "upper": "#faf6ec",
+      "lower": "#eee5d2"
+    }
+  },
+  {
+    "name": "Blue",
+    "mana": "U",
+    "colors": [
+      "Blue"
+    ],
+    "svg": "deckadence-blue-no-foil.svg",
+    "png": "png/deckadence-blue-no-foil.png",
+    "palette": {
+      "background": "#163b59",
+      "frame": "#102939",
+      "accent": "#92b9c9",
+      "upper": "#e3edf0",
+      "lower": "#c5dbe3"
+    }
+  },
+  {
+    "name": "Black",
+    "mana": "B",
+    "colors": [
+      "Black"
+    ],
+    "svg": "deckadence-black-no-foil.svg",
+    "png": "png/deckadence-black-no-foil.png",
+    "palette": {
+      "background": "#25232c",
+      "frame": "#13131a",
+      "accent": "#b4a29b",
+      "upper": "#dfdce0",
+      "lower": "#beb8c3"
+    }
+  },
+  {
+    "name": "Red",
+    "mana": "R",
+    "colors": [
+      "Red"
+    ],
+    "svg": "deckadence-red-no-foil.svg",
+    "png": "png/deckadence-red-no-foil.png",
+    "palette": {
+      "background": "#702f30",
+      "frame": "#412428",
+      "accent": "#d49b70",
+      "upper": "#f1e2d5",
+      "lower": "#e2c1ae"
+    }
+  },
+  {
+    "name": "Green",
+    "mana": "G",
+    "colors": [
+      "Green"
+    ],
+    "svg": "deckadence-green-no-foil.svg",
+    "png": "png/deckadence-green-no-foil.png",
+    "palette": {
+      "background": "#234e42",
+      "frame": "#15382d",
+      "accent": "#a6b689",
+      "upper": "#e4e9d8",
+      "lower": "#c9d6bb"
+    }
+  },
+  {
+    "name": "Azorius",
+    "mana": "WU",
+    "colors": [
+      "White",
+      "Blue"
+    ],
+    "svg": "deckadence-azorius-no-foil.svg",
+    "png": "png/deckadence-azorius-no-foil.png",
+    "palette": {
+      "background": "#233e60",
+      "frame": "#c5b990",
+      "accent": "#f2e8cf",
+      "upper": "#edf0ed",
+      "lower": "#d1dfe7"
+    }
+  },
+  {
+    "name": "Dimir",
+    "mana": "UB",
+    "colors": [
+      "Blue",
+      "Black"
+    ],
+    "svg": "deckadence-dimir-no-foil.svg",
+    "png": "png/deckadence-dimir-no-foil.png",
+    "palette": {
+      "background": "#172a40",
+      "frame": "#171922",
+      "accent": "#6b9cad",
+      "upper": "#cdd9de",
+      "lower": "#a5b9c6"
+    }
+  },
+  {
+    "name": "Rakdos",
+    "mana": "BR",
+    "colors": [
+      "Black",
+      "Red"
+    ],
+    "svg": "deckadence-rakdos-no-foil.svg",
+    "png": "png/deckadence-rakdos-no-foil.png",
+    "palette": {
+      "background": "#48232a",
+      "frame": "#19181d",
+      "accent": "#bc6a50",
+      "upper": "#e2cfca",
+      "lower": "#c09b95"
+    }
+  },
+  {
+    "name": "Gruul",
+    "mana": "RG",
+    "colors": [
+      "Red",
+      "Green"
+    ],
+    "svg": "deckadence-gruul-no-foil.svg",
+    "png": "png/deckadence-gruul-no-foil.png",
+    "palette": {
+      "background": "#364d35",
+      "frame": "#803e30",
+      "accent": "#c1a275",
+      "upper": "#e9e3cc",
+      "lower": "#c6cdb0"
+    }
+  },
+  {
+    "name": "Selesnya",
+    "mana": "GW",
+    "colors": [
+      "Green",
+      "White"
+    ],
+    "svg": "deckadence-selesnya-no-foil.svg",
+    "png": "png/deckadence-selesnya-no-foil.png",
+    "palette": {
+      "background": "#536752",
+      "frame": "#d4c6a0",
+      "accent": "#f3e9ce",
+      "upper": "#f3efdf",
+      "lower": "#d7dfc6"
+    }
+  },
+  {
+    "name": "Orzhov",
+    "mana": "WB",
+    "colors": [
+      "White",
+      "Black"
+    ],
+    "svg": "deckadence-orzhov-no-foil.svg",
+    "png": "png/deckadence-orzhov-no-foil.png",
+    "palette": {
+      "background": "#302b37",
+      "frame": "#c7b48a",
+      "accent": "#f3e5bf",
+      "upper": "#eee8df",
+      "lower": "#d5cbd1"
+    }
+  },
+  {
+    "name": "Izzet",
+    "mana": "UR",
+    "colors": [
+      "Blue",
+      "Red"
+    ],
+    "svg": "deckadence-izzet-no-foil.svg",
+    "png": "png/deckadence-izzet-no-foil.png",
+    "palette": {
+      "background": "#233f59",
+      "frame": "#823d39",
+      "accent": "#c99b7b",
+      "upper": "#e4e6e5",
+      "lower": "#c8d7df"
+    }
+  },
+  {
+    "name": "Golgari",
+    "mana": "BG",
+    "colors": [
+      "Black",
+      "Green"
+    ],
+    "svg": "deckadence-golgari-no-foil.svg",
+    "png": "png/deckadence-golgari-no-foil.png",
+    "palette": {
+      "background": "#303e31",
+      "frame": "#1c2022",
+      "accent": "#a8a376",
+      "upper": "#dbe0ce",
+      "lower": "#b4c1a4"
+    }
+  },
+  {
+    "name": "Boros",
+    "mana": "RW",
+    "colors": [
+      "Red",
+      "White"
+    ],
+    "svg": "deckadence-boros-no-foil.svg",
+    "png": "png/deckadence-boros-no-foil.png",
+    "palette": {
+      "background": "#753a35",
+      "frame": "#d4c3a0",
+      "accent": "#f3e6c9",
+      "upper": "#f5ecdf",
+      "lower": "#e8cfba"
+    }
+  },
+  {
+    "name": "Simic",
+    "mana": "GU",
+    "colors": [
+      "Green",
+      "Blue"
+    ],
+    "svg": "deckadence-simic-no-foil.svg",
+    "png": "png/deckadence-simic-no-foil.png",
+    "palette": {
+      "background": "#1c4d50",
+      "frame": "#254333",
+      "accent": "#9fbfa7",
+      "upper": "#e0ece1",
+      "lower": "#b7d4ca"
+    }
+  },
+  {
+    "name": "Bant",
+    "mana": "GWU",
+    "colors": [
+      "Green",
+      "White",
+      "Blue"
+    ],
+    "svg": "deckadence-bant-no-foil.svg",
+    "png": "png/deckadence-bant-no-foil.png",
+    "palette": {
+      "background": "#345c52",
+      "frame": "#d5c9aa",
+      "accent": "#85a8bd",
+      "upper": "#f0efe1",
+      "lower": "#ccdce0"
+    }
+  },
+  {
+    "name": "Esper",
+    "mana": "WUB",
+    "colors": [
+      "White",
+      "Blue",
+      "Black"
+    ],
+    "svg": "deckadence-esper-no-foil.svg",
+    "png": "png/deckadence-esper-no-foil.png",
+    "palette": {
+      "background": "#233748",
+      "frame": "#23232d",
+      "accent": "#d1c9b2",
+      "upper": "#e7e8e4",
+      "lower": "#bfcbd3"
+    }
+  },
+  {
+    "name": "Grixis",
+    "mana": "UBR",
+    "colors": [
+      "Blue",
+      "Black",
+      "Red"
+    ],
+    "svg": "deckadence-grixis-no-foil.svg",
+    "png": "png/deckadence-grixis-no-foil.png",
+    "palette": {
+      "background": "#2d283c",
+      "frame": "#532832",
+      "accent": "#7199b0",
+      "upper": "#dcd9df",
+      "lower": "#bdc5d0"
+    }
+  },
+  {
+    "name": "Jund",
+    "mana": "BRG",
+    "colors": [
+      "Black",
+      "Red",
+      "Green"
+    ],
+    "svg": "deckadence-jund-no-foil.svg",
+    "png": "png/deckadence-jund-no-foil.png",
+    "palette": {
+      "background": "#453c31",
+      "frame": "#602f2b",
+      "accent": "#8fa177",
+      "upper": "#e0dcc9",
+      "lower": "#bac4ac"
+    }
+  },
+  {
+    "name": "Naya",
+    "mana": "RGW",
+    "colors": [
+      "Red",
+      "Green",
+      "White"
+    ],
+    "svg": "deckadence-naya-no-foil.svg",
+    "png": "png/deckadence-naya-no-foil.png",
+    "palette": {
+      "background": "#4b6146",
+      "frame": "#934e38",
+      "accent": "#e3d2aa",
+      "upper": "#f1ead8",
+      "lower": "#d8dfc5"
+    }
+  },
+  {
+    "name": "Abzan",
+    "mana": "WBG",
+    "colors": [
+      "White",
+      "Black",
+      "Green"
+    ],
+    "svg": "deckadence-abzan-no-foil.svg",
+    "png": "png/deckadence-abzan-no-foil.png",
+    "palette": {
+      "background": "#3a4439",
+      "frame": "#29282d",
+      "accent": "#d5c8a5",
+      "upper": "#ece8d9",
+      "lower": "#c5ccb8"
+    }
+  },
+  {
+    "name": "Jeskai",
+    "mana": "URW",
+    "colors": [
+      "Blue",
+      "Red",
+      "White"
+    ],
+    "svg": "deckadence-jeskai-no-foil.svg",
+    "png": "png/deckadence-jeskai-no-foil.png",
+    "palette": {
+      "background": "#2c4b60",
+      "frame": "#974b40",
+      "accent": "#e9dbb9",
+      "upper": "#f0ece3",
+      "lower": "#d0dee2"
+    }
+  },
+  {
+    "name": "Sultai",
+    "mana": "BGU",
+    "colors": [
+      "Black",
+      "Green",
+      "Blue"
+    ],
+    "svg": "deckadence-sultai-no-foil.svg",
+    "png": "png/deckadence-sultai-no-foil.png",
+    "palette": {
+      "background": "#244748",
+      "frame": "#292b3a",
+      "accent": "#aaa47a",
+      "upper": "#dbe3dc",
+      "lower": "#b2c9c1"
+    }
+  },
+  {
+    "name": "Mardu",
+    "mana": "RWB",
+    "colors": [
+      "Red",
+      "White",
+      "Black"
+    ],
+    "svg": "deckadence-mardu-no-foil.svg",
+    "png": "png/deckadence-mardu-no-foil.png",
+    "palette": {
+      "background": "#542e35",
+      "frame": "#232129",
+      "accent": "#ded0ae",
+      "upper": "#eee2d8",
+      "lower": "#d6bab0"
+    }
+  },
+  {
+    "name": "Temur",
+    "mana": "GUR",
+    "colors": [
+      "Green",
+      "Blue",
+      "Red"
+    ],
+    "svg": "deckadence-temur-no-foil.svg",
+    "png": "png/deckadence-temur-no-foil.png",
+    "palette": {
+      "background": "#2c514a",
+      "frame": "#2a3e56",
+      "accent": "#c48466",
+      "upper": "#e4e9de",
+      "lower": "#bfd1cc"
+    }
+  }
+]

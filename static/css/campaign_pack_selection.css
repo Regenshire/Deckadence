@@ -1,0 +1,13 @@
+html[data-theme] .campaign-pack-selection{font:400 15px/1.4 Arial,sans-serif}
+.pack-selection-eyebrow{font:700 11px/1.4 Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
+html[data-theme] .campaign-pack-selection .page-title{font:700 32px/1.3 Arial,sans-serif;margin:8px 0}html[data-theme] .campaign-pack-selection .page-subtitle{font:400 16px/1.5 Arial,sans-serif;margin:0;color:var(--muted)}
+.campaign-pack-selection .chaos-pack-view-header-top{align-items:center;gap:24px}.campaign-pack-selection .campaign-list-panel{overflow:hidden}
+.campaign-pack-selection .campaign-list-section-header{padding:20px 24px;margin:0;border-bottom:1px solid var(--insert-frame)}.campaign-pack-selection .campaign-list-section-header h2{font:700 20px/1.4 Arial,sans-serif;margin:0}
+html[data-theme] .campaign-pack-selection .campaign-save-row{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:26px 24px;margin:0;border:0;border-bottom:1px solid var(--insert-frame);border-radius:0;background:transparent;box-shadow:none}
+html[data-theme] .campaign-pack-selection .campaign-save-row:last-child{border-bottom:0}.campaign-pack-selection .campaign-save-row>div{min-width:0}
+html[data-theme] .campaign-pack-selection .campaign-save-title{font:700 20px/1.4 Arial,sans-serif;margin:0 0 8px;overflow-wrap:anywhere}html[data-theme] .campaign-pack-selection .campaign-save-meta{font:400 14px/1.5 Arial,sans-serif;color:var(--muted)}
+html[data-theme] .campaign-pack-selection .action-button{display:inline-flex;align-items:center;justify-content:center;width:auto;min-width:0;min-height:44px;padding:10px 16px;margin:0;border-radius:10px;font:700 15px/1.4 Arial,sans-serif;white-space:nowrap}
+html[data-theme] .campaign-pack-selection .campaign-save-row-button{flex:0 0 auto;min-width:144px}html[data-theme] .campaign-pack-selection .chaos-pack-view-back-button{min-width:100px;min-height:48px}
+html[data-theme] .campaign-pack-selection .ui-list-filter-toolbar{background:transparent;border:0;border-bottom:1px solid var(--insert-frame);box-shadow:none;border-radius:0;margin:0;padding:22px 24px}
+html[data-theme] .campaign-pack-selection .ui-list-filter-field>span{font:700 12px/1.4 Arial,sans-serif}html[data-theme] .campaign-pack-selection .ui-list-filter-input{font:400 15px/1.4 Arial,sans-serif;min-height:44px}
+@media(max-width:600px){html[data-theme] .campaign-pack-selection .page-title{font-size:26px}.campaign-pack-selection .chaos-pack-view-header-top{flex-direction:column;align-items:flex-start}html[data-theme] .campaign-pack-selection .campaign-save-row{padding:22px 16px;flex-wrap:wrap;gap:14px}html[data-theme] .campaign-pack-selection .campaign-save-title{font-size:18px}}

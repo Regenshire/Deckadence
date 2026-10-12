@@ -1,0 +1,54 @@
+<div
+  class="personal-use-agreement-overlay"
+  role="presentation"
+>
+  <section
+    class="personal-use-agreement-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="personalUseAgreementTitle"
+    aria-describedby="personalUseAgreementDescription"
+  >
+    <div class="personal-use-agreement-eyebrow">Legal Stuff</div>
+
+    <h2 id="personalUseAgreementTitle">Personal Use Agreement</h2>
+
+    <div
+      id="personalUseAgreementDescription"
+      class="personal-use-agreement-copy"
+    >
+      <p>
+        Deckadence is intended for personal set building and playtesting only. It is not intended for commercial use.
+      </p>
+
+      <p> By using Deckadence, you agree to use the software and any proxies you produce with it for personal, non-commercial purposes.
+      </p>
+
+      <ul>
+        <li>Playtest cards created with this tool are not for resale.</li>
+        <li>Playtest cards created with this tool are not intended for sanctioned play.</li>
+        <li>Please support your local game stores.</li>
+      </ul>
+    </div>
+
+    <form
+      method="post"
+      action="{{ url_for('accept_personal_use_agreement') }}"
+      class="personal-use-agreement-form"
+    >
+      <input
+        type="hidden"
+        name="next"
+        value="{{ request.full_path if request.query_string else request.path }}"
+      />
+
+      <button
+        type="submit"
+        class="action-button personal-use-agreement-button"
+        autofocus
+      >
+        I Agree &amp; Continue
+      </button>
+    </form>
+  </section>
+</div>

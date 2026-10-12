@@ -1,0 +1,2472 @@
+{% extends "base.html" %}
+
+{% block title %}Deckadence - Config{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css') }}">
+<link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/upscale_batch.css') }}"
+>
+<link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/config.css', v='flat-1') }}"
+>
+<link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/card_back_selector.css') }}"
+>
+{% endblock %}
+
+{% block content %}
+{% from "_scoped_print_settings_fields.html" import render_scoped_print_settings %}
+<div class="screen screen-wide settings-flat-screen">
+    <div class="top-bar">
+        <a class="icon-button" href="{{ url_for('index') }}">Back</a>
+        <div class="app-title">Settings</div>
+        <button type="submit" form="configForm" class="icon-button icon-button-submit">
+            Save All
+        </button>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            <div class="flash-message">
+                {{ messages[0] }}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+
+    <form id="configForm" method="post" class="config-form">
+        {% include "_theme_settings.html" %}
+        <div id="section_reminders" class="page-panel collapsible-panel {% if global_reminder_state and global_reminder_state['has_reminders'] %}is-open{% endif %}" data-section="reminders">
+            {% set release_update_state = global_reminder_state.release_update_state if global_reminder_state else {} %}
+            {% set release_has_update = release_update_state.update_available %}
+            {% set release_card_class = 'reminder-card-warning' if release_has_update else ('reminder-card-danger' if release_update_state.error else 'reminder-card-info') %}
+
+            <button type="button" class="collapsible-header reminder-collapsible-header">
+                <span>
+                    Reminders
+                    {% if global_reminder_state and global_reminder_state["has_reminders"] %}
+                    <span class="config-reminder-inline-badge">{{ global_reminder_state["count"] }}</span>
+                    {% endif %}
+                </span>
+
+                <span class="reminder-header-actions">
+                    <span
+                        id="openReminderSettingsButton"
+                        class="reminder-settings-inline-icon"
+                        role="button"
+                        tabindex="0"
+                        aria-label="Open reminder settings"
+                        title="Reminder Settings"
+                    >
+                        ⚙
+                    </span>
+                    <span class="collapsible-chevron">▾</span>
+                </span>
+            </button>
+
+            <div class="collapsible-body">
+                <div class="reminder-card-list">
+            {% set non_release_reminders = namespace(count=0) %}
+
+            {% if global_reminder_state and global_reminder_state["items"] %}
+                {% for reminder in global_reminder_state["items"] %}
+                    {% if reminder.title != "Deckadence Update Available" %}
+                        {% set non_release_reminders.count = non_release_reminders.count + 1 %}
+                        <div class="reminder-card reminder-card-{{ reminder.severity }}">
+                            <div class="reminder-card-header">
+                                <div class="reminder-card-title-wrap">
+                                    <div class="reminder-card-title">{{ reminder.title }}</div>
+                                </div>
+                            </div>
+
+                            <div class="reminder-card-body">
+                                <div class="reminder-card-message">
+                                    {{ reminder.message }}
+                                </div>
+
+                                {% if reminder.action_url %}
+                                <div class="reminder-card-actions">
+                                    <a
+                                        href="{{ reminder.action_url }}"
+                                        class="action-button secondary-button"
+                                        {% if reminder.action_url.startswith('http') %}
+                                            target="_blank" rel="noopener noreferrer"
+                                        {% endif %}
+                                    >
+                                        {{ reminder.action_label or "Open" }}
+                                    </a>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+
+            {% if non_release_reminders.count == 0 %}
+            <div class="reminder-card reminder-card-neutral">
+                <div class="reminder-card-header">
+                    <div class="reminder-card-title-wrap">
+                        <div class="reminder-card-title">General Reminders</div>
+                    </div>
+                </div>
+
+                <div class="reminder-card-body">
+                    <div class="reminder-card-message">
+                        No additional reminders right now.
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+                    <div class="reminder-card {{ release_card_class }}">
+                        <div class="reminder-card-header">
+                            <div class="reminder-card-title-wrap">
+                                <div class="reminder-card-title">Release Status</div>
+                                <div class="reminder-card-subtitle">
+                                    {% if release_has_update %}
+                                        A newer version of Deckadence is available.
+                                    {% elif release_update_state.error %}
+                                        Deckadence could not complete the last release check.
+                                    {% elif release_update_state.latest_version %}
+                                        Deckadence release tracking is working normally.
+                                    {% else %}
+                                        Deckadence has not checked GitHub releases yet.
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="reminder-card-body">
+                            <div class="reminder-card-message">
+                                {% if release_has_update %}
+                                    Version {{ release_update_state.latest_version }} is available. You are currently running {{ release_update_state.current_version }}.
+                                {% elif release_update_state.error %}
+                                    {{ release_update_state.error }}
+                                {% elif release_update_state.latest_version %}
+                                    You are currently running {{ release_update_state.current_version }}. The latest GitHub release is {{ release_update_state.latest_version }}.
+                                {% else %}
+                                    Release information has not been loaded yet.
+                                {% endif %}
+                            </div>
+
+                            <div class="reminder-card-meta">
+                                <div class="reminder-card-meta-row">
+                                    <span>Installed Version</span>
+                                    <strong>{{ release_update_state.current_version or "Unknown" }}</strong>
+                                </div>
+                                <div class="reminder-card-meta-row">
+                                    <span>Latest GitHub Release</span>
+                                    <strong>
+                                        {% if release_update_state.latest_version %}
+                                            {{ release_update_state.latest_version }}
+                                        {% elif release_update_state.error %}
+                                            Unknown
+                                        {% else %}
+                                            Not checked yet
+                                        {% endif %}
+                                    </strong>
+                                </div>
+                                <div class="reminder-card-meta-row">
+                                    <span>Last Release Check</span>
+                                    <strong>{{ release_update_state.last_checked_utc or "Never" }}</strong>
+                                </div>
+                            </div>
+
+                            <div class="reminder-card-actions">
+                                <button
+                                    type="submit"
+                                    form="configForm"
+                                    formaction="{{ url_for('config_check_new_releases') }}"
+                                    formmethod="post"
+                                    class="action-button secondary-button"
+                                >
+                                    Check for Releases Now
+                                </button>
+
+                                {% if release_update_state.release_url %}
+                                <a
+                                    class="action-button"
+                                    href="{{ release_update_state.release_url }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    View Latest Release
+                                </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="reminderSettingsModal" class="reminder-modal-backdrop hidden" aria-hidden="true">
+            <div class="reminder-modal">
+                <div class="reminder-modal-header">
+                    <div>
+                        <div class="reminder-modal-title">Reminder Settings</div>
+                        <div class="reminder-modal-subtitle">
+                            Control how Deckadence checks and displays reminder-related notifications.
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        id="closeReminderSettingsButton"
+                        class="reminder-modal-close"
+                        aria-label="Close reminder settings"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <div class="reminder-modal-body">
+                    <div class="settings-grid">
+                        <label class="toggle-row" for="card_database_reminder_frequency">
+                            <span>Card Database Reminder</span>
+                            <select id="card_database_reminder_frequency" name="card_database_reminder_frequency">
+                                <option value="weekly" {% if config.get("card_database_reminder_frequency", "monthly") == "weekly" %}selected{% endif %}>Weekly</option>
+                                <option value="monthly" {% if config.get("card_database_reminder_frequency", "monthly") == "monthly" %}selected{% endif %}>Monthly</option>
+                                <option value="quarterly" {% if config.get("card_database_reminder_frequency", "monthly") == "quarterly" %}selected{% endif %}>Quarterly</option>
+                                <option value="yearly" {% if config.get("card_database_reminder_frequency", "monthly") == "yearly" %}selected{% endif %}>Yearly</option>
+                                <option value="never" {% if config.get("card_database_reminder_frequency", "monthly") == "never" %}selected{% endif %}>Never</option>
+                            </select>
+                        </label>
+
+                        <label class="toggle-row settings-field">
+                            <span>Check for New Releases</span>
+                            <input
+                                type="checkbox"
+                                name="check_new_releases"
+                                {% if config.get("check_new_releases", "1") == "1" %}checked{% endif %}
+                            >
+                        </label>
+                    </div>
+                </div>
+
+                <div class="reminder-modal-footer">
+                    <button type="button" id="cancelReminderSettingsButton" class="action-button secondary-button">
+                        Close
+                    </button>
+
+                    <button type="submit" form="configForm" class="action-button">
+                        Save Config
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <input type="hidden" name="momir_mode" id="momir_mode" value="{{ momir_mode }}">
+        <input type="hidden" name="chaos_draft_mode" id="chaos_draft_mode" value="{{ chaos_draft_mode }}">
+
+        <div id="section_draft_modes" class="page-panel collapsible-panel {% if section_defaults.get('draft_modes') == '1' %}is-open{% endif %}" data-section="draft_modes">
+            <button type="button" class="collapsible-header">
+                <span>Draft Modes</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+                <div class="game-mode-group-list game-mode-card-list" data-mode-list="chaos">
+                    {% for group in grouped_game_modes %}
+                        {% if group.key == "chaos" %}
+                            <div class="game-mode-group is-open">
+                                <div class="game-mode-group-body">
+                                    {% for mode in group.modes %}
+                                        <button
+                                            type="button"
+                                            class="game-mode-card {% if chaos_draft_mode == mode.value %}game-mode-card-selected{% endif %}"
+                                            data-mode-value="{{ mode.value }}"
+                                            data-mode-scope="chaos"
+                                            data-mode-print-href="{{ mode.print_href }}"
+                                        >
+                                            <div class="game-mode-card-image-wrap">
+                                                <img
+                                                    src="{{ mode.image_src }}"
+                                                    alt="{{ mode.label }}"
+                                                    class="game-mode-card-image"
+                                                >
+                                            </div>
+
+                                            <div class="game-mode-card-content">
+                                                <div class="game-mode-card-title">{{ mode.label }}</div>
+                                                <div class="game-mode-card-description">{{ mode.description | safe }}</div>
+                                            </div>
+                                        </button>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div id="section_momir_modes" class="page-panel collapsible-panel {% if section_defaults.get('momir_modes') == '1' %}is-open{% endif %}" data-section="momir_modes">
+            <button type="button" class="collapsible-header">
+                <span>Momir Modes</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+                <div class="game-modes-toolbar">
+                    <a
+                        class="action-button print-selected-token-button"
+                        href="{% for mode in game_mode_options %}{% if mode.value == momir_mode %}{{ mode.print_href }}{% endif %}{% endfor %}"
+                    >
+                        Print Selected Token
+                    </a>
+                </div>
+
+                <div class="game-mode-group-list game-mode-card-list" data-mode-list="momir">
+                    {% for group in grouped_game_modes %}
+                        {% if group.key == "momir" %}
+                            <div class="game-mode-group is-open">
+                                <div class="game-mode-group-body">
+                                    {% for mode in group.modes %}
+                                        <button
+                                            type="button"
+                                            class="game-mode-card {% if momir_mode == mode.value %}game-mode-card-selected{% endif %}"
+                                            data-mode-value="{{ mode.value }}"
+                                            data-mode-scope="momir"
+                                            data-mode-print-href="{{ mode.print_href }}"
+                                        >
+                                            <div class="game-mode-card-image-wrap">
+                                                <img
+                                                    src="{{ mode.image_src }}"
+                                                    alt="{{ mode.label }}"
+                                                    class="game-mode-card-image"
+                                                >
+                                            </div>
+
+                                            <div class="game-mode-card-content">
+                                                <div class="game-mode-card-title">{{ mode.label }}</div>
+                                                <div class="game-mode-card-description">{{ mode.description | safe }}</div>
+                                            </div>
+                                        </button>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div id="section_other_modes" class="page-panel collapsible-panel {% if section_defaults.get('other_modes') == '1' %}is-open{% endif %}" data-section="other_modes">
+            <button type="button" class="collapsible-header">
+                <span>Other Modes</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+                <div class="game-modes-toolbar">
+                    <a
+                        class="action-button print-selected-token-button"
+                        href="{% for mode in game_mode_options %}{% if mode.value == momir_mode %}{{ mode.print_href }}{% endif %}{% endfor %}"
+                    >
+                        Print Selected Token
+                    </a>
+                </div>
+
+                <div class="game-mode-group-list game-mode-card-list" data-mode-list="other">
+                    {% for group in grouped_game_modes %}
+                        {% if group.key == "other" %}
+                            <div class="game-mode-group is-open">
+                                <div class="game-mode-group-body">
+                                    {% for mode in group.modes %}
+                                        <button
+                                            type="button"
+                                            class="game-mode-card {% if momir_mode == mode.value %}game-mode-card-selected{% endif %}"
+                                            data-mode-value="{{ mode.value }}"
+                                            data-mode-scope="momir"
+                                            data-mode-print-href="{{ mode.print_href }}"
+                                        >
+                                            <div class="game-mode-card-image-wrap">
+                                                <img
+                                                    src="{{ mode.image_src }}"
+                                                    alt="{{ mode.label }}"
+                                                    class="game-mode-card-image"
+                                                >
+                                            </div>
+
+                                            <div class="game-mode-card-content">
+                                                <div class="game-mode-card-title">{{ mode.label }}</div>
+                                                <div class="game-mode-card-description">{{ mode.description | safe }}</div>
+                                            </div>
+                                        </button>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+
+        <div id="section_card_repeats" class="page-panel collapsible-panel {% if section_defaults.get('card_repeats') == '1' %}is-open{% endif %}" data-section="card_repeats">
+            <button type="button" class="collapsible-header">
+                <span>Card Repeats</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+
+                <div class="settings-grid">
+                    <label class="toggle-row" for="allow_repeats">
+                        <span>Repeat Mode</span>
+                        <select id="allow_repeats" name="allow_repeats">
+                            {% for value, label in repeat_mode_options %}
+                                <option value="{{ value }}" {% if config.get("allow_repeats") == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                </div>
+
+                <div class="metadata-list">
+                    <div class="metadata-row">
+                        <span>Current History</span>
+                        <strong id="historyCount">{{ history_count }}</strong>
+                    </div>
+                    <div class="metadata-row">
+                        <span>Behavior</span>
+                        <strong class="metadata-value-wrap">No Repeats prevents drawing any card already shown in the last 24 hours. History older than 24 hours is deleted automatically.</strong>
+                    </div>
+                </div>
+
+                <div class="config-button-row">
+                    <button
+                        type="button"
+                        id="clearHistoryButton"
+                        class="action-button secondary-button"
+                    >
+                        Clear History
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div id="section_primary_types" class="page-panel collapsible-panel {% if section_defaults.get('primary_types') == '1' %}is-open{% endif %}" data-section="primary_types">
+            <button type="button" class="collapsible-header">
+                <span>Primary Card Types</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+                <div class="settings-grid">
+                    {% for key, label in primary_type_keys %}
+                    <label class="toggle-row">
+                        <span>{{ label }}</span>
+                        <input
+                            type="checkbox"
+                            name="{{ key }}"
+                            {% if config.get(key) == "1" %}checked{% endif %}
+                        >
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div id="section_supplemental_types" class="page-panel collapsible-panel {% if section_defaults.get('supplemental_types') == '1' %}is-open{% endif %}" data-section="supplemental_types">
+            <button type="button" class="collapsible-header">
+                <span>Supplemental Types</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+                <div class="settings-grid">
+                    {% for key, label in supplemental_type_keys %}
+                    <label class="toggle-row">
+                        <span>{{ label }}</span>
+                        <input
+                            type="checkbox"
+                            name="{{ key }}"
+                            {% if config.get(key) == "1" %}checked{% endif %}
+                        >
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div id="section_other_filters" class="page-panel collapsible-panel {% if section_defaults.get('other_filters') == '1' %}is-open{% endif %}" data-section="other_filters">
+            <button type="button" class="collapsible-header">
+                <span>Other Filters</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+                <div class="settings-grid">
+                    {% for key, label in other_filter_keys %}
+                    <label class="toggle-row">
+                        <span>{{ label }}</span>
+                        <input
+                            type="checkbox"
+                            name="{{ key }}"
+                            {% if config.get(key) == "1" %}checked{% endif %}
+                        >
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="config-section-divider"></div>
+
+        <div id="section_print_settings" class="page-panel collapsible-panel {% if section_defaults.get('print_settings') == '1' %}is-open{% endif %}" data-section="print_settings">
+            <button type="button" class="collapsible-header">
+                <span>Print Settings</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+                {{ render_scoped_print_settings(
+                    "chaos",
+                    chaos_print_config,
+                    chaos_print_template_options,
+                    print_color_mode_options,
+                    true,
+                    no_waste_set_rule_options,
+                    no_waste_card_type_options,
+                    no_waste_label_options,
+                    false
+                ) }}
+            </div>
+        </div>
+
+        <div id="section_chaos_print_settings" class="page-panel collapsible-panel {% if section_defaults.get('chaos_print_settings') == '1' %}is-open{% endif %}" data-section="chaos_print_settings">
+            <button type="button" class="collapsible-header">
+                <span>Chaos Draft Settings</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+                <div class="settings-grid">
+                    <label class="toggle-row settings-field">
+                        <span>Replace Basic Lands</span>
+                        <input
+                            type="checkbox"
+                            name="chaos_replace_basic_lands"
+                            {% if config.get("chaos_replace_basic_lands", "0") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
+                    <label class="toggle-row" for="chaos_draft_export_format">
+                        <span>Chaos Draft List Export Type</span>
+                        <select id="chaos_draft_export_format" name="chaos_draft_export_format">
+                            {% for value, label in chaos_draft_export_format_options %}
+                                <option value="{{ value }}" {% if config.get("chaos_draft_export_format", "archidekt") == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+
+                    <label class="toggle-row" for="chaos_scryfall_image_quality">
+                        <span>Chaos Scryfall Image Quality</span>
+                        <select id="chaos_scryfall_image_quality" name="chaos_scryfall_image_quality">
+                            {% for value, label in scryfall_image_quality_options %}
+                                <option value="{{ value }}" {% if config.get("chaos_scryfall_image_quality", "png") == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Enable Pack Tracking Database</span>
+                        <input
+                            type="checkbox"
+                            name="enable_track_packs"
+                            {% if config.get("enable_track_packs", "1") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
+
+                    <label class="toggle-row settings-field">
+                        <span>Enable Chaos Draft Card Image Export</span>
+                        <input
+                            type="checkbox"
+                            name="enable_chaos_card_image_export"
+                            {% if config.get("enable_chaos_card_image_export", "1") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Export - Add Bleed</span>
+                        <input
+                            type="checkbox"
+                            name="export_add_bleed"
+                            {% if config.get("export_add_bleed", "1") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Export - Separate Special Slots</span>
+                        <input
+                            type="checkbox"
+                            name="export_separate_special_slots"
+                            {% if config.get("export_separate_special_slots", "0") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Use Pack Image for Title</span>
+                        <input
+                            type="checkbox"
+                            name="use_pack_image_for_title"
+                            {% if config.get("use_pack_image_for_title", "0") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Sound On/Off</span>
+                        <input
+                            type="checkbox"
+                            name="sound_enabled"
+                            {% if config.get("sound_enabled", "1") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Display Pack Prices</span>
+                        <input
+                            type="checkbox"
+                            name="display_pack_prices"
+                            {% if config.get("display_pack_prices", "1") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
+                    <label class="toggle-row" for="pack_price_source">
+                        <span>Pack Price Source</span>
+                        <select id="pack_price_source" name="pack_price_source">
+                            {% for value, label in pack_price_source_options %}
+                                <option value="{{ value }}" {% if config.get("pack_price_source", "tcgplayer-retail") == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div id="section_momir_print_settings" class="page-panel collapsible-panel {% if section_defaults.get('momir_print_settings') == '1' %}is-open{% endif %}" data-section="momir_print_settings">
+            <button type="button" class="collapsible-header">
+                <span>Momir Print Settings</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+                {{ render_scoped_print_settings(
+                    "momir",
+                    momir_print_config,
+                    momir_print_template_options,
+                    print_color_mode_options,
+                    false
+                ) }}
+
+                <div class="config-section-divider"></div>
+
+                <div class="settings-grid">
+                    <label class="toggle-row" for="momir_default_token_variant">
+                        <span>Momir Vig Default Token Style</span>
+                        <select id="momir_default_token_variant" name="momir_default_token_variant">
+                            {% for value, label in momir_default_token_variant_options %}
+                                <option value="{{ value }}" {% if config.get("momir_default_token_variant") == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+
+    </form>
+    <div id="section_card_database" class="page-panel collapsible-panel {% if section_defaults.get('card_database') == '1' %}is-open{% endif %}" data-section="card_database">
+        <button type="button" class="collapsible-header">
+            <span>Card Database</span>
+            <span class="collapsible-chevron">▾</span>
+        </button>
+
+        <div class="collapsible-body">
+
+            <div class="metadata-list">
+                <div class="metadata-row">
+                    <span>Last Database Download</span>
+                    <strong id="importLastRefresh">{{ import_metadata.get("last_refresh_utc", "Never") }}</strong>
+                </div>
+                <div class="metadata-row">
+                    <span>Source URL</span>
+                    <strong class="metadata-value-wrap">{{ import_metadata.get("source_url", "Not downloaded yet") }}</strong>
+                </div>
+                <div class="metadata-row">
+                    <span>Source File Date</span>
+                    <strong id="importSourceLastUpdated">{{ import_metadata.get("source_last_updated", "Unknown") }}</strong>
+                </div>
+                <div class="metadata-row">
+                    <span>Cards Imported</span>
+                    <strong id="importCardsCount">{{ import_metadata.get("cards_imported", "0") }}</strong>
+                </div>
+                <div class="metadata-row">
+                    <span>Sets Represented</span>
+                    <strong id="importSetsCount">{{ import_metadata.get("sets_represented", "0") }}</strong>
+                </div>
+            </div>
+
+            <div class="refresh-panel">
+                <div class="refresh-status-row">
+                    <div id="refreshSpinner" class="spinner {% if not refresh_status.get('is_running') %}hidden{% endif %}"></div>
+                    <div class="refresh-status-text">
+                        <div><strong id="refreshStage">{{ refresh_status.get("stage", "Idle") }}</strong></div>
+                        <div id="refreshMessage">{{ refresh_status.get("message", "No refresh has been run yet.") }}</div>
+                        <div id="refreshError" class="refresh-error {% if not refresh_status.get('error') %}hidden{% endif %}">
+                            {{ refresh_status.get("error", "") }}
+                        </div>
+
+                        <pre
+                            id="refreshDetailLines"
+                            class="refresh-detail-lines"
+                        >{% if refresh_status.get("detail_lines") %}{{ refresh_status.get("detail_lines", []) | join('\n') }}{% endif %}</pre>
+                    </div>
+                </div>
+                <div class="config-button-row">
+                    <button
+                        type="button"
+                        id="refreshCardsButton"
+                        class="action-button"
+                        {% if refresh_status.get("is_running") %}disabled{% endif %}
+                    >
+                        Download Card Database
+                    </button>
+
+                    <button
+                        type="button"
+                        id="forcedRefreshCardsButton"
+                        class="action-button secondary-button force-refresh-button"
+                        {% if refresh_status.get("is_running") %}disabled{% endif %}
+                    >
+                        Forced Refresh
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <div id="section_exports" class="page-panel collapsible-panel {% if section_defaults.get('exports') == '1' %}is-open{% endif %}" data-section="exports">
+            <button type="button" class="collapsible-header">
+                <span>Exports</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body cleanup-panel-body">
+                <div class="settings-grid">
+                    <label class="toggle-row" for="auto_clear_exports">
+                        <span>Auto Clear Exports</span>
+                        <select id="auto_clear_exports" name="auto_clear_exports" form="configForm">
+                            <option value="off" {% if config.get("auto_clear_exports", "7") == "off" %}selected{% endif %}>Off</option>
+                            <option value="1" {% if config.get("auto_clear_exports", "7") == "1" %}selected{% endif %}>1 Day</option>
+                            <option value="7" {% if config.get("auto_clear_exports", "7") == "7" %}selected{% endif %}>7 Days</option>
+                            <option value="30" {% if config.get("auto_clear_exports", "7") == "30" %}selected{% endif %}>30 Days</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="cleanup-action-row">
+                    <form method="post" action="{{ url_for('maintenance_clear_exports') }}">
+                        <button type="submit" class="action-button secondary-button cleanup-action-button">
+                            Clear Exports
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div id="section_backup" class="page-panel collapsible-panel {% if section_defaults.get('backup') == '1' %}is-open{% endif %}" data-section="backup">
+            <button type="button" class="collapsible-header">
+                <span>Backup</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body cleanup-panel-body">
+                {% include "_application_backup_controls.html" %}
+                <details>
+                    <summary>Individual pack exports</summary>
+                    <p>Full-database and legacy full backups cannot be merged into an existing installation. Use a user-content export for transfers.</p>
+                    <div class="cleanup-action-row">
+                    <form method="post" action="{{ url_for('maintenance_backup_all_packs') }}" target="_blank">
+                        <button type="submit" class="action-button secondary-button cleanup-action-button">
+                            Backup All Packs
+                        </button>
+                    </form>
+                </div>
+                </details>
+            </div>
+        </div>
+
+        <div
+            id="section_image_maintenance"
+            class="page-panel collapsible-panel {% if section_defaults.get('image_maintenance') == '1' %}is-open{% endif %}"
+            data-section="image_maintenance"
+        >
+            <button
+                type="button"
+                class="collapsible-header"
+            >
+                <span>Image Maintenance</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body cleanup-panel-body">
+                <div class="metadata-list">
+                    <div class="metadata-row">
+                        <span>Images Remaining</span>
+                        <strong id="alternateBleedRemaining">
+                            {{ alternate_bleed_reprocess_status.get("remaining", 0) }}
+                        </strong>
+                    </div>
+
+                    <div class="metadata-row">
+                        <span>Processed This Run</span>
+                        <strong id="alternateBleedProcessed">
+                            {{ alternate_bleed_reprocess_status.get("processed", 0) }}
+                        </strong>
+                    </div>
+
+                    <div class="metadata-row">
+                        <span>Corrected This Run</span>
+                        <strong id="alternateBleedCorrected">
+                            {{ alternate_bleed_reprocess_status.get("corrected", 0) }}
+                        </strong>
+                    </div>
+
+                    <div class="metadata-row">
+                        <span>Missing Originals</span>
+                        <strong id="alternateBleedMissing">
+                            {{ alternate_bleed_reprocess_status.get("missing_originals", 0) }}
+                        </strong>
+                    </div>
+
+                    <div class="metadata-row">
+                        <span>Failed</span>
+                        <strong id="alternateBleedFailed">
+                            {{ alternate_bleed_reprocess_status.get("failed", 0) }}
+                        </strong>
+                    </div>
+
+                    <div class="metadata-row">
+                        <span>Status</span>
+                        <strong
+                            id="alternateBleedStatusMessage"
+                            class="metadata-value-wrap"
+                        >
+                            {{ alternate_bleed_reprocess_status.get("message", "Ready.") }}
+                        </strong>
+                    </div>
+                </div>
+
+                <div
+                    id="alternateBleedFailureList"
+                    class="flash-message hidden"
+                ></div>
+
+                <div class="config-button-row">
+                    <form
+                        method="post"
+                        action="{{ url_for('maintenance_delete_orphaned_images') }}"
+                    >
+                        <button
+                            type="submit"
+                            class="action-button secondary-button"
+                        >
+                            Delete Orphaned Images
+                        </button>
+                    </form>
+
+                    <button
+                        type="button"
+                        id="reprocessAlternateBleedButton"
+                        class="action-button secondary-button"
+                        {% if alternate_bleed_reprocess_status.get("is_running") %}disabled{% endif %}
+                    >
+                        {% if alternate_bleed_reprocess_status.get("is_running") %}
+                            Reprocessing Alternate Images...
+                        {% else %}
+                            Reprocess Bleed-Removed Alternate Images
+                        {% endif %}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div
+            id="section_plugins"
+            class="page-panel collapsible-panel {% if section_defaults.get('plugins') == '1' %}is-open{% endif %}"
+            data-section="plugins"
+        >
+            <button
+                type="button"
+                class="collapsible-header"
+            >
+                <span>Plugin Manager</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body">
+                {% macro render_plugin_card(plugin) %}
+                    {% set plugin_status = plugin.get("status", {}) %}
+                    {% set install_status = plugin.get("install_status", {}) %}
+
+                    {% if install_status.get("is_running") %}
+                        {% set plugin_state_class = "installing" %}
+                        {% set plugin_state_label = install_status.get("stage", "Installing") %}
+                    {% elif install_status.get("error") %}
+                        {% set plugin_state_class = "error" %}
+                        {% set plugin_state_label = "Installation Failed" %}
+                    {% elif plugin_status.get("development") %}
+                        {% set plugin_state_class = "development" %}
+                        {% set plugin_state_label = "Development" %}
+                    {% elif plugin_status.get("ready") %}
+                        {% set plugin_state_class = "ready" %}
+                        {% set plugin_state_label = "Installed" %}
+                    {% elif plugin_status.get("installed") %}
+                        {% set plugin_state_class = "incomplete" %}
+                        {% set plugin_state_label = "Incomplete" %}
+                    {% else %}
+                        {% set plugin_state_class = "not-installed" %}
+                        {% set plugin_state_label = "Not Installed" %}
+                    {% endif %}
+
+                    <div
+                        class="plugin-card"
+                        data-plugin-id="{{ plugin.get('plugin_id') }}"
+                        data-plugin-status-url="{{ url_for('plugin_status', plugin_id=plugin.get('plugin_id')) }}"
+                        data-plugin-install-url="{{ url_for('plugin_install', plugin_id=plugin.get('plugin_id')) }}"
+                        data-install-running="{{ 'true' if install_status.get('is_running') else 'false' }}"
+                    >
+                        <div class="plugin-card-header">
+                            <div class="plugin-card-heading">
+                                <div class="plugin-card-title-row">
+                                    <div class="plugin-card-title">
+                                        {{ plugin.get("name") or plugin.get("plugin_id") }}
+                                    </div>
+
+                                    <span
+                                        class="plugin-status-badge plugin-status-{{ plugin_state_class }}"
+                                        data-plugin-role="badge"
+                                    >
+                                        {{ plugin_state_label }}
+                                    </span>
+                                </div>
+
+                                <div class="plugin-card-description">
+                                    {{ plugin.get("description", "") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="plugin-card-meta">
+                            <div class="plugin-card-meta-item">
+                                <span>Type</span>
+
+                                <strong>
+                                    {{ plugin.get("type_label", "Plugin") }}
+                                </strong>
+                            </div>
+
+                            <div class="plugin-card-meta-item">
+                                <span>Version</span>
+
+                                <strong data-plugin-role="version">
+                                    {% if plugin_status.get("version") %}
+                                        {{ plugin_status.get("version") }}
+                                    {% elif plugin_status.get("installed") %}
+                                        Unknown
+                                    {% else %}
+                                        Latest release
+                                    {% endif %}
+                                </strong>
+                            </div>
+
+                            <div class="plugin-card-meta-item plugin-card-meta-wide">
+                                <span>Requirements</span>
+
+                                <strong>
+                                    {{ plugin.get("requirements", "None") }}
+                                </strong>
+                            </div>
+                        </div>
+
+                        <div class="plugin-card-status">
+                            <div
+                                class="spinner {% if not install_status.get('is_running') %}hidden{% endif %}"
+                                data-plugin-role="spinner"
+                            ></div>
+
+                            <div class="plugin-card-status-copy">
+                                <strong data-plugin-role="status-title">
+                                    {% if install_status.get("is_running") or install_status.get("error") %}
+                                        {{ install_status.get("stage", plugin_state_label) }}
+                                    {% elif plugin_status.get("development") %}
+                                        Development source is active.
+                                    {% else %}
+                                        {{ plugin_state_label }}
+                                    {% endif %}
+                                </strong>
+
+                                <span data-plugin-role="status-message">
+                                    {% if install_status.get("is_running") or install_status.get("error") %}
+                                        {{ install_status.get("message", "") }}
+                                    {% elif plugin_status.get("development") %}
+                                        Deckadence is currently using this plugin directly from plugin_src.
+                                    {% else %}
+                                        {{ plugin_status.get("message", "") }}
+                                    {% endif %}
+                                </span>
+
+                                <span
+                                    class="plugin-card-error {% if not install_status.get('error') %}hidden{% endif %}"
+                                    data-plugin-role="error"
+                                >
+                                    {{ install_status.get("error", "") }}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="plugin-card-actions">
+                            <form
+                                method="post"
+                                action="{{ url_for('plugin_install_page', plugin_id=plugin.get('plugin_id')) }}"
+                                data-plugin-role="install-form"
+                            >
+                                <button
+                                    type="submit"
+                                    class="action-button plugin-action-button {% if plugin_status.get('installed') and not plugin_status.get('development') %}secondary-button{% endif %}"
+                                    data-plugin-role="install-button"
+                                    {% if install_status.get("is_running") %}disabled{% endif %}
+                                >
+                                    {% if install_status.get("is_running") %}
+                                        Installing...
+                                    {% elif plugin_status.get("development") %}
+                                        Install Release Copy
+                                    {% elif plugin_status.get("installed") %}
+                                        Update / Reinstall
+                                    {% else %}
+                                        Download & Install
+                                    {% endif %}
+                                </button>
+                            </form>
+
+                            <form
+                                method="post"
+                                action="{{ url_for('plugin_uninstall_page', plugin_id=plugin.get('plugin_id')) }}"
+                                class="{% if not plugin_status.get('installed') or plugin_status.get('development') %}hidden{% endif %}"
+                                data-plugin-role="uninstall-form"
+                                onsubmit="return window.confirm('Uninstall {{ plugin.get('name') or plugin.get('plugin_id') }}?');"
+                            >
+                                <button
+                                    type="submit"
+                                    class="action-button secondary-button plugin-action-button plugin-uninstall-button"
+                                    data-plugin-role="uninstall-button"
+                                    {% if install_status.get("is_running") %}disabled{% endif %}
+                                >
+                                    Uninstall
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                {% endmacro %}
+
+                {% set plugin_counts = namespace(installed=0, available=0) %}
+
+                {% for plugin in plugin_catalog_items %}
+                    {% if plugin.get("status", {}).get("installed") %}
+                        {% set plugin_counts.installed = plugin_counts.installed + 1 %}
+                    {% else %}
+                        {% set plugin_counts.available = plugin_counts.available + 1 %}
+                    {% endif %}
+                {% endfor %}
+
+                <div
+                    class="plugin-group {% if plugin_counts.installed == 0 %}hidden{% endif %}"
+                    data-plugin-group="installed"
+                >
+                    <div class="plugin-group-header">
+                        <div class="plugin-group-title">
+                            Installed
+                        </div>
+
+                        <div class="plugin-group-description">
+                            Plugins currently installed.
+                        </div>
+                    </div>
+
+                    <div
+                        class="plugin-list"
+                        data-plugin-list="installed"
+                    >
+                        {% for plugin in plugin_catalog_items %}
+                            {% if plugin.get("status", {}).get("installed") %}
+                                {{ render_plugin_card(plugin) }}
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div
+                    class="plugin-group"
+                    data-plugin-group="available"
+                >
+                    <div class="plugin-group-header">
+                        <div class="plugin-group-title">
+                            Available
+                        </div>
+
+                        <div class="plugin-group-description">
+                            Optional plugins that can be added to Deckadence.
+                        </div>
+                    </div>
+
+                    <div
+                        class="plugin-list {% if plugin_counts.available == 0 %}hidden{% endif %}"
+                        data-plugin-list="available"
+                    >
+                        {% for plugin in plugin_catalog_items %}
+                            {% if not plugin.get("status", {}).get("installed") %}
+                                {{ render_plugin_card(plugin) }}
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+
+                    <div
+                        class="plugin-empty-state {% if plugin_counts.available > 0 %}hidden{% endif %}"
+                        data-plugin-empty="available"
+                    >
+                        No additional plugins are available.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% include "_advanced_image_upscaling.html" %}
+
+        <div id="section_danger_zone" class="page-panel collapsible-panel {% if section_defaults.get('danger_zone') == '1' %}is-open{% endif %}" data-section="danger_zone">
+            <button type="button" class="collapsible-header">
+                <span>Danger Zone</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+
+            <div class="collapsible-body cleanup-panel-body">
+                <div class="settings-grid">
+                    <label class="toggle-row settings-field">
+                        <span>Enable Debug Log</span>
+                        <input
+                            type="checkbox"
+                            name="debug_log"
+                            form="configForm"
+                            {% if config.get("debug_log", "0") == "1" %}checked{% endif %}
+                        >
+                    </label>
+                </div>
+
+                <div class="config-section-divider"></div>
+
+                <h3 class="cleanup-subsection-title">Other Print Settings</h3>
+
+                <div class="settings-grid">
+                    <label class="toggle-row settings-field">
+                        <span>Use PDF Printing</span>
+                        <input
+                            type="checkbox"
+                            name="chaos_use_pdf_print"
+                            form="configForm"
+                            {% if chaos_print_config.get("use_pdf_print", "1") == "1" %}checked{% endif %}
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Card Width (mm)</span>
+                        <input
+                            type="number"
+                            name="chaos_pdf_width_mm"
+                            form="configForm"
+                            step="0.01"
+                            min="1"
+                            value="{{ chaos_print_config.get('pdf_width_mm', '57.5') }}"
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Card Height (mm)</span>
+                        <input
+                            type="number"
+                            name="chaos_pdf_height_mm"
+                            form="configForm"
+                            step="0.01"
+                            min="1"
+                            value="{{ chaos_print_config.get('pdf_height_mm', '85.25') }}"
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Print Bleed Size (mm)</span>
+                        <input
+                            type="number"
+                            name="chaos_print_bleed_size_mm"
+                            form="configForm"
+                            step="0.01"
+                            min="0"
+                            max="10"
+                            value="{{ chaos_print_config.get('print_bleed_size_mm', '3.0') }}"
+                        >
+                    </label>
+
+                    <label class="toggle-row settings-field">
+                        <span>Open Print in New Tab</span>
+                        <input
+                            type="checkbox"
+                            name="chaos_open_print_in_new_tab"
+                            form="configForm"
+                            {% if chaos_print_config.get("open_print_in_new_tab", "1") == "1" %}checked{% endif %}
+                        >
+                    </label>
+                </div>
+
+                <div class="config-section-divider"></div>
+
+                <div class="cleanup-action-row">
+                    <form
+                        method="post"
+                        action="{{ url_for('maintenance_delete_all_upscaled_images') }}"
+                        id="deleteAllUpscaledImagesForm"
+                    >
+                        <input
+                            type="hidden"
+                            name="delete_confirmation"
+                            value=""
+                        >
+                        <button
+                            type="submit"
+                            class="action-button cleanup-danger-button cleanup-action-button"
+                        >
+                            Delete All Up-scaled Images
+                        </button>
+                    </form>
+
+                    <form method="post" action="{{ url_for('maintenance_clear_all_history') }}" id="clearAllHistoryForm">
+                        <input type="hidden" name="delete_confirmation" value="">
+                        <button type="submit" class="action-button cleanup-danger-button cleanup-action-button">
+                            Clear All History
+                        </button>
+                    </form>
+
+                    <form method="post" action="{{ url_for('maintenance_clear_all_packs') }}" id="clearAllPacksForm">
+                        <input type="hidden" name="delete_confirmation" value="">
+                        <button type="submit" class="action-button cleanup-danger-button cleanup-action-button">
+                            Clear All Packs
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    <footer class="app-footer">
+        <div class="app-footer-credits">
+        Powered by data sets from 
+        <a
+            href="https://mtgjson.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="app-footer-link"
+        >
+            MTGJSON
+        </a>
+        and
+        <a
+            href="https://scryfall.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="app-footer-link"
+        >
+            Scryfall
+        </a>
+        </div>
+
+        <div class="app-footer-disclaimer">
+        Deckadence is intended for personal use only, it is not intended for commercial use, and is not approved or endorsed by Wizards of the Coast in any way. Magic: The Gathering card images and rules are property of Wizards of the Coast. © Wizards of the Coast LLC.        
+        </div>
+    </footer>
+</div>
+
+{% include "_card_back_selector_modal.html" %}
+
+<script
+    src="{{ url_for('static', filename='js/card_back_selector.js') }}"
+></script>
+
+<script
+    src="{{ url_for('static', filename='js/plugin_manager.js') }}"
+></script>
+
+<script>
+(function () {
+    const deleteAllUpscaledImagesForm = document.getElementById(
+        "deleteAllUpscaledImagesForm"
+    );
+    const clearAllHistoryForm = document.getElementById("clearAllHistoryForm");
+    const clearAllPacksForm = document.getElementById("clearAllPacksForm");
+
+    async function confirmUiAction(options) {
+        if (window.iMomirConfirm && typeof window.iMomirConfirm.show === "function") {
+            return await window.iMomirConfirm.show(options || {});
+        }
+
+        return window.confirm((options && options.message) || "Continue?");
+    }
+
+    if (deleteAllUpscaledImagesForm) {
+        deleteAllUpscaledImagesForm.addEventListener(
+            "submit",
+            async function (event) {
+                event.preventDefault();
+
+                const confirmed = await confirmUiAction({
+                    title: "Delete All Up-scaled Images",
+                    message: "This permanently deletes every Up-scaled image file and its associated Upscale database record. Original card images, Alternate Images, and Scryfall cache images are not deleted.",
+                    confirmText: "Delete All Up-scaled Images",
+                    cancelText: "Cancel",
+                    danger: true
+                });
+
+                if (!confirmed) {
+                    return;
+                }
+
+                const hiddenInput = deleteAllUpscaledImagesForm.querySelector(
+                    "input[name='delete_confirmation']"
+                );
+
+                if (hiddenInput) {
+                    hiddenInput.value = "DELETE_UPSCALED";
+                }
+
+                deleteAllUpscaledImagesForm.submit();
+            }
+        );
+    }
+
+    if (clearAllHistoryForm) {
+        clearAllHistoryForm.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const confirmed = await confirmUiAction({
+                title: "Clear All History",
+                message: "This will permanently clear all Deckadence history.",
+                confirmText: "Clear History",
+                cancelText: "Cancel",
+                danger: true
+            });
+
+            if (!confirmed) {
+                return;
+            }
+
+            const hiddenInput = clearAllHistoryForm.querySelector("input[name='delete_confirmation']");
+            if (hiddenInput) {
+                hiddenInput.value = "DELETE";
+            }
+
+            clearAllHistoryForm.submit();
+        });
+    }
+
+    if (clearAllPacksForm) {
+        clearAllPacksForm.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const confirmed = await confirmUiAction({
+                title: "Clear All Saved Packs",
+                message: "This will permanently clear all saved packs. Use Backup All Packs first if you may need to restore them later.",
+                confirmText: "Clear All Packs",
+                cancelText: "Cancel",
+                danger: true
+            });
+
+            if (!confirmed) {
+                return;
+            }
+
+            const hiddenInput = clearAllPacksForm.querySelector("input[name='delete_confirmation']");
+            if (hiddenInput) {
+                hiddenInput.value = "DELETE";
+            }
+
+            clearAllPacksForm.submit();
+        });
+    }
+})();
+</script>
+<script>
+(function () {
+    const openButton = document.getElementById("openReminderSettingsButton");
+    const closeButton = document.getElementById("closeReminderSettingsButton");
+    const cancelButton = document.getElementById("cancelReminderSettingsButton");
+    const modal = document.getElementById("reminderSettingsModal");
+
+    if (!openButton || !modal) {
+        return;
+    }
+
+    function openReminderModal() {
+        modal.classList.remove("hidden");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("modal-open");
+    }
+
+    function closeReminderModal() {
+        modal.classList.add("hidden");
+        modal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("modal-open");
+    }
+
+    openButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        openReminderModal();
+    });
+
+    openButton.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            event.stopPropagation();
+            openReminderModal();
+        }
+    });
+
+    if (closeButton) {
+        closeButton.addEventListener("click", function () {
+            closeReminderModal();
+        });
+    }
+
+    if (cancelButton) {
+        cancelButton.addEventListener("click", function () {
+            closeReminderModal();
+        });
+    }
+
+    modal.addEventListener("click", function (event) {
+        if (event.target === modal) {
+            closeReminderModal();
+        }
+    });
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !modal.classList.contains("hidden")) {
+            closeReminderModal();
+        }
+    });
+})();
+</script>
+
+<script>
+(function () {
+    const activeUpscalerSelect = document.getElementById(
+        "upscalingActivePlugin"
+    );
+
+    const activeUpscalerStatus = document.getElementById(
+        "upscalingActivePluginStatus"
+    );
+
+    const cardViewToggle = document.getElementById(
+        "upscalingAddButtonToCardView"
+    );
+
+    const holofoilStampSection = document.getElementById(
+        "upscalingHolofoilStampSection"
+    );
+
+    const holofoilStampToggle = document.getElementById(
+        "upscalingHolofoilStampEnabled"
+    );
+
+    const holofoilStampDetails = document.getElementById(
+        "upscalingHolofoilStampDetails"
+    );
+
+    const holofoilStampSelect = document.getElementById(
+        "upscalingHolofoilStampReplacement"
+    );
+
+    const generateBleedToggle = document.getElementById(
+        "upscalingGenerateBleed"
+    );
+
+    const showGeneratedBleedToggle = document.getElementById(
+        "upscalingShowGeneratedBleed"
+    );
+
+    const upscaleMaintenanceAnalyzeButton =
+        document.getElementById(
+            "upscaleMaintenanceAnalyzeButton"
+        );
+
+    const upscaleMaintenanceCleanButton =
+        document.getElementById(
+            "upscaleMaintenanceCleanButton"
+        );
+
+    const upscaleMaintenanceStatus =
+        document.getElementById(
+            "upscaleMaintenanceStatus"
+        );
+
+    const upscaleMaintenanceTotalRecords =
+        document.getElementById(
+            "upscaleMaintenanceTotalRecords"
+        );
+
+    const upscaleMaintenanceActiveRecords =
+        document.getElementById(
+            "upscaleMaintenanceActiveRecords"
+        );
+
+    const upscaleMaintenanceUnusedRecords =
+        document.getElementById(
+            "upscaleMaintenanceUnusedRecords"
+        );
+
+    const upscaleMaintenanceUnusedFiles =
+        document.getElementById(
+            "upscaleMaintenanceUnusedFiles"
+        );
+
+    const upscaleMaintenanceRecoverableSpace =
+        document.getElementById(
+            "upscaleMaintenanceRecoverableSpace"
+        );
+
+    const upscaleNextCardsButton = document.getElementById(
+        "upscaleNextCardsButton"
+    );
+
+    const devFeedbackToggle = document.getElementById(
+        "upscalingDevFeedbackSystem"
+    );
+
+    const devFeedbackSettingStatus = document.getElementById(
+        "upscalingDevFeedbackSettingStatus"
+    );
+
+    const devSourceIndicatorToggle = document.getElementById(
+        "upscalingDevSourceIndicator"
+    );
+
+    const devSourceIndicatorSettingStatus = document.getElementById(
+        "upscalingDevSourceIndicatorSettingStatus"
+    );
+
+    if (activeUpscalerSelect) {
+        activeUpscalerSelect.addEventListener(
+            "change",
+            async function () {
+                const previousPluginId = (
+                    activeUpscalerSelect.dataset.savedValue
+                    || ""
+                );
+
+                const requestedPluginId = (
+                    activeUpscalerSelect.value
+                    || ""
+                ).trim();
+
+                activeUpscalerSelect.disabled = true;
+
+                if (activeUpscalerStatus) {
+                    activeUpscalerStatus.textContent =
+                        "Saving active Upscaler...";
+                }
+
+                try {
+                    const response = await fetch(
+                        "/config/upscaling/active-plugin",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Accept": "application/json"
+                            },
+                            body: JSON.stringify({
+                                plugin_id: requestedPluginId
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (
+                        !response.ok
+                        || !data.ok
+                    ) {
+                        throw new Error(
+                            data.message
+                            || "Could not save the active Upscaler."
+                        );
+                    }
+
+                    activeUpscalerSelect.dataset.savedValue =
+                        data.plugin_id;
+
+                    window.location.href =
+                        "{{ url_for('config') }}?open=image_upscaling&scroll=image_upscaling";
+
+                    return;
+
+                } catch (error) {
+                    activeUpscalerSelect.value =
+                        previousPluginId;
+
+                    if (activeUpscalerStatus) {
+                        activeUpscalerStatus.textContent =
+                            error.message
+                            || "Could not save the active Upscaler.";
+                    }
+
+                } finally {
+                    activeUpscalerSelect.disabled = false;
+                }
+            }
+        );
+
+        activeUpscalerSelect.dataset.savedValue =
+            activeUpscalerSelect.value;
+    }
+
+    if (cardViewToggle) {
+        cardViewToggle.addEventListener(
+            "change",
+            async function () {
+                const requestedEnabled = Boolean(
+                    cardViewToggle.checked
+                );
+
+                cardViewToggle.disabled = true;
+
+                try {
+                    const response = await fetch(
+                        "/config/upscaling/card-view-button",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Accept": "application/json"
+                            },
+                            body: JSON.stringify({
+                                enabled: requestedEnabled
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (
+                        !response.ok
+                        || !data.ok
+                    ) {
+                        throw new Error(
+                            data.message
+                            || "Could not save Upscaling setting."
+                        );
+                    }
+
+                    cardViewToggle.checked = Boolean(
+                        data.enabled
+                    );
+
+                    if (upscaleNextCardsButton) {
+                        upscaleNextCardsButton.disabled =
+                            !Boolean(data.enabled);
+                    }
+
+                } catch (error) {
+                    cardViewToggle.checked =
+                        !requestedEnabled;
+
+                    console.error(
+                        "Could not save Upscaling setting.",
+                        error
+                    );
+                }
+
+                cardViewToggle.disabled = false;
+            }
+        );
+    }
+
+    function updateHolofoilStampAppearance() {
+        if (
+            !holofoilStampToggle
+            || !holofoilStampSection
+            || !holofoilStampDetails
+        ) {
+            return;
+        }
+
+        const enabled = Boolean(
+            holofoilStampToggle.checked
+        );
+
+        holofoilStampSection.classList.toggle(
+            "no-waste-surprise-section-active",
+            enabled
+        );
+
+        holofoilStampDetails.classList.toggle(
+            "hidden",
+            !enabled
+        );
+    }
+
+    async function saveHolofoilStampSettings() {
+        if (
+            !holofoilStampToggle
+            || !holofoilStampSelect
+        ) {
+            return;
+        }
+
+        const previousEnabled = (
+            holofoilStampToggle.dataset.savedValue
+            === "1"
+        );
+
+        const previousReplacement = (
+            holofoilStampSelect.dataset.savedValue
+            || "none"
+        );
+
+        const requestedEnabled = Boolean(
+            holofoilStampToggle.checked
+        );
+
+        const requestedReplacement = (
+            holofoilStampSelect.value
+            || "none"
+        ).trim();
+
+        holofoilStampToggle.disabled = true;
+        holofoilStampSelect.disabled = true;
+
+        try {
+            const response = await fetch(
+                "/config/upscaling/holofoil-stamp",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        enabled: requestedEnabled,
+                        replacement: requestedReplacement
+                    })
+                }
+            );
+
+            const data = await response.json();
+
+            if (
+                !response.ok
+                || !data.ok
+            ) {
+                throw new Error(
+                    data.message
+                    || "Could not save Holofoil Stamp settings."
+                );
+            }
+
+            holofoilStampToggle.checked = Boolean(
+                data.enabled
+            );
+
+            holofoilStampSelect.value = (
+                data.replacement
+                || "none"
+            );
+
+            holofoilStampToggle.dataset.savedValue = (
+                data.enabled
+                ? "1"
+                : "0"
+            );
+
+            holofoilStampSelect.dataset.savedValue = (
+                data.replacement
+                || "background"
+            );
+
+            updateHolofoilStampAppearance();
+
+        } catch (error) {
+            holofoilStampToggle.checked = (
+                previousEnabled
+            );
+
+            holofoilStampSelect.value = (
+                previousReplacement
+            );
+
+            updateHolofoilStampAppearance();
+
+            console.error(
+                "Could not save Holofoil Stamp settings.",
+                error
+            );
+
+        } finally {
+            holofoilStampToggle.disabled = false;
+            holofoilStampSelect.disabled = false;
+        }
+    }
+
+    if (
+        holofoilStampToggle
+        && holofoilStampSelect
+    ) {
+        holofoilStampToggle.dataset.savedValue = (
+            holofoilStampToggle.checked
+            ? "1"
+            : "0"
+        );
+
+        holofoilStampSelect.dataset.savedValue = (
+            holofoilStampSelect.value
+            || "none"
+        );
+
+        updateHolofoilStampAppearance();
+
+        holofoilStampToggle.addEventListener(
+            "change",
+            saveHolofoilStampSettings
+        );
+
+        holofoilStampSelect.addEventListener(
+            "change",
+            saveHolofoilStampSettings
+        );
+    }
+
+    if (generateBleedToggle) {
+        generateBleedToggle.addEventListener(
+            "change",
+            async function () {
+                const requestedEnabled = Boolean(
+                    generateBleedToggle.checked
+                );
+
+                generateBleedToggle.disabled = true;
+
+                try {
+                    const response = await fetch(
+                        "/config/upscaling/generated-bleed",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Accept": "application/json"
+                            },
+                            body: JSON.stringify({
+                                enabled: requestedEnabled
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (
+                        !response.ok
+                        || !data.ok
+                    ) {
+                        throw new Error(
+                            data.message
+                            || "Could not save generated bleed setting."
+                        );
+                    }
+
+                    generateBleedToggle.checked = Boolean(
+                        data.enabled
+                    );
+
+                    if (
+                        showGeneratedBleedToggle
+                    ) {
+                        showGeneratedBleedToggle.disabled =
+                            !Boolean(
+                                data.enabled
+                            );
+
+                        if (!data.enabled) {
+                            showGeneratedBleedToggle.checked =
+                                false;
+                        }
+                    }
+
+                } catch (error) {
+                    generateBleedToggle.checked =
+                        !requestedEnabled;
+
+                    console.error(
+                        "Could not save generated bleed setting.",
+                        error
+                    );
+                }
+
+                generateBleedToggle.disabled = false;
+            }
+        );
+    }
+
+    if (showGeneratedBleedToggle) {
+        showGeneratedBleedToggle.addEventListener(
+            "change",
+            async function () {
+                const requestedEnabled = Boolean(
+                    showGeneratedBleedToggle.checked
+                );
+
+                showGeneratedBleedToggle.disabled = true;
+
+                try {
+                    const response = await fetch(
+                        "/config/upscaling/show-generated-bleed",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Accept": "application/json"
+                            },
+                            body: JSON.stringify({
+                                enabled: requestedEnabled
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (
+                        !response.ok
+                        || !data.ok
+                    ) {
+                        throw new Error(
+                            data.message
+                            || "Could not save generated bleed preview setting."
+                        );
+                    }
+
+                    showGeneratedBleedToggle.checked =
+                        Boolean(
+                            data.enabled
+                        );
+
+                } catch (error) {
+                    showGeneratedBleedToggle.checked =
+                        !requestedEnabled;
+
+                    console.error(
+                        "Could not save generated bleed preview setting.",
+                        error
+                    );
+                }
+
+                showGeneratedBleedToggle.disabled =
+                    !Boolean(
+                        generateBleedToggle
+                        && generateBleedToggle.checked
+                    );
+            }
+        );
+    }
+
+
+    if (upscaleNextCardsButton) {
+        upscaleNextCardsButton.addEventListener(
+            "click",
+            function () {
+                if (
+                    window.iMomirUpscaleBatch
+                    && window.iMomirUpscaleBatch.requestNext
+                ) {
+                    window.iMomirUpscaleBatch.requestNext(
+                        100,
+                        {
+                            title: "Upscale Next X Cards",
+                            sourceLabel: "Advanced Image Upscaling"
+                        }
+                    );
+                }
+            }
+        );
+    }
+
+    if (devFeedbackToggle) {
+        devFeedbackToggle.addEventListener(
+            "change",
+            async function () {
+                const requestedEnabled = Boolean(
+                    devFeedbackToggle.checked
+                );
+
+                devFeedbackToggle.disabled = true;
+
+                try {
+                    const response = await fetch(
+                        "/config/upscaling/dev-feedback",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Accept": "application/json"
+                            },
+                            body: JSON.stringify({
+                                enabled: requestedEnabled
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (
+                        !response.ok
+                        || !data.ok
+                    ) {
+                        throw new Error(
+                            data.message
+                            || "Could not save Dev Feedback setting."
+                        );
+                    }
+
+                    devFeedbackToggle.checked = Boolean(
+                        data.enabled
+                    );
+
+                    if (devFeedbackSettingStatus) {
+                        devFeedbackSettingStatus.textContent =
+                            data.enabled
+                                ? "Dev Feedback is enabled. Accepting or discarding an upscale candidate will append one evaluation record to the feedback dataset."
+                                : "Dev Feedback is disabled.";
+                    }
+
+                } catch (error) {
+                    devFeedbackToggle.checked =
+                        !requestedEnabled;
+
+                    if (devFeedbackSettingStatus) {
+                        devFeedbackSettingStatus.textContent =
+                            error.message;
+                    }
+                }
+
+                devFeedbackToggle.disabled = false;
+            }
+        );
+    }
+
+    if (devSourceIndicatorToggle) {
+        devSourceIndicatorToggle.addEventListener(
+            "change",
+            async function () {
+                const requestedEnabled = Boolean(
+                    devSourceIndicatorToggle.checked
+                );
+
+                devSourceIndicatorToggle.disabled = true;
+
+                try {
+                    const response = await fetch(
+                        "/config/upscaling/dev-source-indicator",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Accept": "application/json"
+                            },
+                            body: JSON.stringify({
+                                enabled: requestedEnabled
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (
+                        !response.ok
+                        || !data.ok
+                    ) {
+                        throw new Error(
+                            data.message
+                            || "Could not save DEV Upscale indicator setting."
+                        );
+                    }
+
+                    devSourceIndicatorToggle.checked = Boolean(
+                        data.enabled
+                    );
+
+                    if (
+                        devSourceIndicatorSettingStatus
+                    ) {
+                        devSourceIndicatorSettingStatus.textContent =
+                            data.enabled
+                                ? "DEV Upscale indicator is enabled. Newly generated Upscaled image files will contain a red dot in the lower-left corner."
+                                : "DEV Upscale indicator is disabled.";
+                    }
+
+                } catch (error) {
+                    devSourceIndicatorToggle.checked =
+                        !requestedEnabled;
+
+                    if (
+                        devSourceIndicatorSettingStatus
+                    ) {
+                        devSourceIndicatorSettingStatus.textContent =
+                            error.message;
+                    }
+                }
+
+                devSourceIndicatorToggle.disabled = false;
+            }
+        );
+    }
+
+    function formatUpscaleMaintenanceBytes(
+        rawBytes
+    ) {
+        const bytes = Number(
+            rawBytes
+            || 0
+        );
+
+        if (bytes < 1024) {
+            return bytes + " B";
+        }
+
+        if (bytes < 1024 * 1024) {
+            return (
+                bytes / 1024
+            ).toFixed(1)
+                + " KB";
+        }
+
+        if (
+            bytes
+            < 1024 * 1024 * 1024
+        ) {
+            return (
+                bytes
+                / (
+                    1024
+                    * 1024
+                )
+            ).toFixed(1)
+                + " MB";
+        }
+
+        return (
+            bytes
+            / (
+                1024
+                * 1024
+                * 1024
+            )
+        ).toFixed(2)
+            + " GB";
+    }
+
+
+    function renderUpscaleMaintenanceAnalysis(
+        analysis
+    ) {
+        analysis = analysis || {};
+
+        if (
+            upscaleMaintenanceTotalRecords
+        ) {
+            upscaleMaintenanceTotalRecords.textContent =
+                Number(
+                    analysis.total_records
+                    || 0
+                ).toLocaleString();
+        }
+
+        if (
+            upscaleMaintenanceActiveRecords
+        ) {
+            upscaleMaintenanceActiveRecords.textContent =
+                Number(
+                    analysis.active_records
+                    || 0
+                ).toLocaleString();
+        }
+
+        if (
+            upscaleMaintenanceUnusedRecords
+        ) {
+            upscaleMaintenanceUnusedRecords.textContent =
+                Number(
+                    analysis.unused_records
+                    || 0
+                ).toLocaleString();
+        }
+
+        if (
+            upscaleMaintenanceUnusedFiles
+        ) {
+            upscaleMaintenanceUnusedFiles.textContent =
+                Number(
+                    analysis.unused_files
+                    || 0
+                ).toLocaleString();
+        }
+
+        if (
+            upscaleMaintenanceRecoverableSpace
+        ) {
+            upscaleMaintenanceRecoverableSpace.textContent =
+                formatUpscaleMaintenanceBytes(
+                    analysis.recoverable_bytes
+                );
+        }
+
+        const hasCleanup = Boolean(
+            Number(
+                analysis.unused_records
+                || 0
+            )
+            || Number(
+                analysis.unused_files
+                || 0
+            )
+            || Number(
+                analysis.broken_fullbleed_records
+                || 0
+            )
+        );
+
+        if (
+            upscaleMaintenanceCleanButton
+        ) {
+            upscaleMaintenanceCleanButton.disabled =
+                !hasCleanup;
+        }
+    }
+
+
+    if (
+        upscaleMaintenanceAnalyzeButton
+    ) {
+        upscaleMaintenanceAnalyzeButton.addEventListener(
+            "click",
+            async function () {
+                upscaleMaintenanceAnalyzeButton.disabled =
+                    true;
+
+                if (
+                    upscaleMaintenanceCleanButton
+                ) {
+                    upscaleMaintenanceCleanButton.disabled =
+                        true;
+                }
+
+                if (
+                    upscaleMaintenanceStatus
+                ) {
+                    upscaleMaintenanceStatus.textContent =
+                        "Analyzing Upscale images...";
+                }
+
+                try {
+                    const response = await fetch(
+                        "/config/upscaling/image-maintenance/analyze",
+                        {
+                            cache: "no-store",
+                            headers: {
+                                "Accept":
+                                    "application/json"
+                            }
+                        }
+                    );
+
+                    const data =
+                        await response.json();
+
+                    if (
+                        !response.ok
+                        || !data.ok
+                    ) {
+                        throw new Error(
+                            data.message
+                            || "Image analysis failed."
+                        );
+                    }
+
+                    renderUpscaleMaintenanceAnalysis(
+                        data.analysis
+                    );
+
+                    if (
+                        upscaleMaintenanceStatus
+                    ) {
+                        upscaleMaintenanceStatus.textContent =
+                            "Analysis complete. "
+                            + Number(
+                                data.analysis.unused_files
+                                || 0
+                            ).toLocaleString()
+                            + " unused file(s) can recover "
+                            + formatUpscaleMaintenanceBytes(
+                                data.analysis.recoverable_bytes
+                            )
+                            + ".";
+                    }
+
+                } catch (error) {
+                    if (
+                        upscaleMaintenanceStatus
+                    ) {
+                        upscaleMaintenanceStatus.textContent =
+                            error.message;
+                    }
+
+                } finally {
+                    upscaleMaintenanceAnalyzeButton.disabled =
+                        false;
+                }
+            }
+        );
+    }
+
+
+    if (
+        upscaleMaintenanceCleanButton
+    ) {
+        upscaleMaintenanceCleanButton.addEventListener(
+            "click",
+            async function () {
+                const confirmed =
+                    window.confirm(
+                        "Delete the unused Upscaled "
+                        + "image files and database "
+                        + "records found by Image "
+                        + "Maintenance?"
+                    );
+
+                if (!confirmed) {
+                    return;
+                }
+
+                upscaleMaintenanceCleanButton.disabled =
+                    true;
+
+                upscaleMaintenanceAnalyzeButton.disabled =
+                    true;
+
+                if (
+                    upscaleMaintenanceStatus
+                ) {
+                    upscaleMaintenanceStatus.textContent =
+                        "Cleaning unused Upscale images...";
+                }
+
+                try {
+                    const response = await fetch(
+                        "/config/upscaling/image-maintenance/clean",
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type":
+                                    "application/json",
+                                "Accept":
+                                    "application/json"
+                            },
+                            body: JSON.stringify({})
+                        }
+                    );
+
+                    const data =
+                        await response.json();
+
+                    if (
+                        !response.ok
+                        || !data.ok
+                    ) {
+                        throw new Error(
+                            data.message
+                            || "Image cleanup failed."
+                        );
+                    }
+
+                    renderUpscaleMaintenanceAnalysis(
+                        data.result.after
+                    );
+
+                    if (
+                        upscaleMaintenanceStatus
+                    ) {
+                        upscaleMaintenanceStatus.textContent =
+                            "Cleanup complete. Deleted "
+                            + Number(
+                                data.result.deleted_records
+                                || 0
+                            ).toLocaleString()
+                            + " record(s) and "
+                            + Number(
+                                data.result.deleted_files
+                                || 0
+                            ).toLocaleString()
+                            + " file(s), recovering approximately "
+                            + formatUpscaleMaintenanceBytes(
+                                data.result.recovered_bytes
+                            )
+                            + ".";
+                    }
+
+                } catch (error) {
+                    if (
+                        upscaleMaintenanceStatus
+                    ) {
+                        upscaleMaintenanceStatus.textContent =
+                            error.message;
+                    }
+
+                } finally {
+                    upscaleMaintenanceAnalyzeButton.disabled =
+                        false;
+                }
+            }
+        );
+    }
+
+})();
+</script>
+{% endblock %}
+
+{% block page_scripts_before_app %}
+<script src="{{ url_for('static', filename='js/config.js') }}"></script>
+{% endblock %}
+
+{% block page_scripts_after_app %}
+<script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/application_backups.js', v='selective-backup-4') }}"></script>
+{% endblock %}
+

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Print - {{ card["name"] }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
+    <style>
+        :root {
+            --print-width: {{ print_width }};
+            --print-height: {{ print_height }};
+            --sheet-width: {{ sheet_width }};
+            --sheet-height: {{ sheet_height }};
+            --sheet-offset-x: {{ sheet_offset_x }};
+            --sheet-offset-y: {{ sheet_offset_y }};
+        }
+
+        @page {
+            size: {{ print_width }} {{ print_height }};
+            margin: 0;
+        }
+    </style>
+</head>
+<body class="print-page print-mode-{{ print_mode }}">
+    {% if print_slots %}
+        {% if registration_background_src %}
+        <img
+            src="{{ registration_background_src }}"
+            alt=""
+            class="print-template-registration-background"
+            aria-hidden="true"
+        >
+        {% endif %}
+
+        {% for slot in print_slots %}
+        <div
+            class="print-template-slot"
+            style="{{ slot.style }}"
+        >
+            <img
+                src="{{ image_src }}"
+                alt="{{ card['name'] }}"
+                class="print-card-image print-template-slot-image"
+            >
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="print-sheet">
+            <img
+                src="{{ image_src }}"
+                alt="{{ card['name'] }}"
+                class="print-card-image"
+            >
+        </div>
+    {% endif %}
+    <div class="print-return-bar">
+        <button type="button" class="print-return-button" onclick="window.history.back()">
+            Back to Deckadence
+        </button>
+    </div>
+
+    <script>
+        (function () {
+            let hasNavigatedBack = false;
+            let autoPrintTriggered = false;
+
+            function isIPhoneSafari() {
+                const ua = window.navigator.userAgent || "";
+                const isIPhone = /iPhone/i.test(ua);
+                const isSafari = /Safari/i.test(ua) && !/CriOS/i.test(ua) && !/FxiOS/i.test(ua) && !/EdgiOS/i.test(ua);
+                return isIPhone && isSafari;
+            }
+
+            function goBackToApp() {
+                if (hasNavigatedBack) {
+                    return;
+                }
+
+                hasNavigatedBack = true;
+
+                if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    window.location.href = "{{ url_for('index') }}";
+                }
+            }
+
+            function requestPrint() {
+                window.print();
+            }
+
+            window.addEventListener("load", function () {
+                const printNowButton = document.getElementById("printNowButton");
+
+                if (!isIPhoneSafari() && !autoPrintTriggered) {
+                    autoPrintTriggered = true;
+
+                    setTimeout(function () {
+                        requestPrint();
+                    }, 150);
+                }
+            });
+
+            window.addEventListener("afterprint", function () {
+                if (!isIPhoneSafari()) {
+                    setTimeout(goBackToApp, 150);
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,546 @@
+/* Shared insert framing follows each theme's existing palette. */
+html[data-theme] {
+  --insert-frame: color-mix(in srgb, var(--border) 75%, var(--accent) 25%);
+  --insert-edge: var(--panel);
+  --insert-divider: var(--border);
+  --insert-mark: var(--muted);
+}
+html[data-theme="dark"] {
+  --insert-frame: #424b58;
+  --insert-edge: #788597;
+  --insert-divider: #586576;
+  --insert-mark: #a9b0be;
+}
+/* Preserve the approved White Mana palette. */
+html[data-theme="white-mana"] {
+  --insert-mark: #947b4b;
+  --insert-frame: #b5a17b;
+  --insert-edge: #faf4e6;
+  --insert-divider: #ac966a;
+}
+html[data-theme] #homeScreen .home-welcome-panel {
+  border: 6px solid var(--insert-frame);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 2px var(--insert-edge),0 10px 28px #342e2217;
+}
+html[data-theme] .home-primary-card:not(.home-primary-card-setup) {
+  border: 2px solid var(--insert-frame);
+  border-radius: 20px;
+  background: var(--panel);
+  padding: 24px 24px 0;
+}
+html[data-theme] .home-primary-card:not(.home-primary-card-setup) .home-card-copy { margin-bottom: 24px; }
+html[data-theme] .home-primary-card:not(.home-primary-card-setup) .home-card-action {
+  position: relative;
+  margin-left: -24px;
+  margin-right: -24px;
+  padding: 16px 20px 16px 72px;
+  min-height: 58px;
+  background: var(--panel-2);
+  color: var(--accent-hover);
+  border-top: 1px solid var(--insert-divider);
+  border-radius: 0 0 18px 18px;
+}
+html[data-theme] .home-primary-card:not(.home-primary-card-setup) .home-card-action::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  background: var(--insert-mark);
+  mask: url('../img/Logos/deckadence_d.svg') center/contain no-repeat;
+  pointer-events: none;
+}
+html[data-theme] .home-primary-card:not(.home-primary-card-setup) .home-card-action::after {
+  content: "";
+  position: absolute;
+  left: 57px;
+  top: 15px;
+  bottom: 15px;
+  border-left: 1px solid var(--insert-divider);
+  pointer-events: none;
+}
+html[data-theme] .home-card-icon {
+  border: 1px solid var(--insert-divider);
+  border-radius: 50%;
+  background: var(--panel-2);
+  color: var(--accent);
+}
+html[data-theme] a.home-primary-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px #342e221a;
+}
+html[data-theme] .home-primary-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+/* Inset framing leaves roulette track measurements and pointer alignment unchanged. */
+html[data-theme] .chaos-draft-spinner-window {
+  background: var(--panel-2);
+  border-color: var(--insert-frame);
+  border-radius: 24px;
+  box-shadow: inset 0 0 0 5px var(--insert-frame),inset 0 0 0 7px var(--insert-edge),0 8px 24px #342e2217;
+}
+html[data-theme] .chaos-pack-card-winning {
+  background: var(--panel);
+  box-shadow: 0 0 0 2px var(--accent),0 6px 16px #342e2220;
+}
+html[data-theme] .chaos-draft-next-button:not(:disabled) { background: var(--accent); color: #fff; }
+html[data-theme] .chaos-draft-next-button:not(:disabled) .chaos-draft-next-button-arrow { color: var(--insert-edge); }
+html[data-theme] .chaos-draft-next-button:hover:not(:disabled) { background: var(--accent-hover); }
+/* Thin builder framing preserves card stacking, drag targets, and resize handles. */
+html[data-theme] .deckbuilder-main { border-color: var(--insert-divider); background: var(--panel); }
+html[data-theme] .deckbuilder-zone-header {
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--insert-divider);
+  border-radius: 8px 8px 0 0;
+  padding: 7px 10px;
+}
+html[data-theme] .deckbuilder-zone-header h2 { color: var(--accent-hover); }
+html[data-theme] .deckbuilder-zone-resize-handle { background: var(--insert-divider); border-color: var(--accent); }
+@media(max-width:620px) {
+  html[data-theme] #homeScreen .home-welcome-panel { border-width: 4px; border-radius: 20px; }
+}
+
+html[data-theme="dark"] .home-card-action { color: var(--text); }
+html[data-theme="dark"] .deckbuilder-zone-header h2 { color: var(--text); }
+/* Shared editorial guide layout: the entire entry remains the tour trigger. */
+html[data-theme] .home-guides-section { border-top-color: var(--insert-divider,var(--border)); }
+html[data-theme] .home-guide-card {
+  min-height: 0;
+  padding: 8px 16px;
+  border: 0;
+  border-left: 3px solid var(--insert-frame,var(--menuborder));
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+html[data-theme] .home-guide-card:is(:hover,:focus-visible) {
+  transform: none;
+  background: var(--panel-2);
+  border-left-color: var(--accent);
+  box-shadow: none;
+}
+html[data-theme] .home-guide-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+html[data-theme] :is(.home-guide-number,.home-guide-icon,.home-guide-action) { display: none; }
+html[data-theme] .home-guide-card h3 { margin: 0 0 10px; color: var(--text); }
+html[data-theme] .home-guide-card p { margin: 0; color: var(--muted); }
+/* Match the approved guide study, overriding legacy theme card surfaces. */
+html[data-theme] #homeScreen .home-welcome-panel .home-guides-section { margin-top: 28px; padding-top: 24px; }
+html[data-theme] #homeScreen .home-welcome-panel .home-section-heading { margin-bottom: 15px; }
+html[data-theme] #homeScreen .home-welcome-panel .home-section-eyebrow { font: 700 11px/1.5 Arial,sans-serif; letter-spacing: 2px; }
+html[data-theme] #homeScreen .home-welcome-panel .home-section-heading h2 { font: 700 24px/1.3 Arial,sans-serif; margin: 12px 0 0; }
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-grid { gap: 16px; }
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-card,
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-card:is(:hover,:focus-visible) {
+  background: transparent;
+  min-height: 84px;
+  padding: 8px 16px;
+  border: 0;
+  border-left: 3px solid var(--insert-frame,var(--menuborder));
+  border-radius: 0;
+  box-shadow: none;
+  transform: none;
+}
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-card h3 { font: 700 18px/1.5 Arial,sans-serif; margin: 0 0 8px; }
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-card p { font: 400 18px/1.6 Arial,sans-serif; margin: 0; }
+html[data-theme] #homeScreen .home-welcome-panel .home-guide-card:hover { border-left-color: var(--accent); }
+html[data-theme] #homeScreen .home-welcome-panel .home-primary-card:not(.home-primary-card-setup),
+html[data-theme] #homeScreen .home-welcome-panel .home-primary-card:not(.home-primary-card-setup):hover {
+  background: var(--panel);
+  border-color: var(--insert-frame,var(--border));
+}
+html[data-theme="white-mana"] #homeScreen .home-welcome-panel .home-primary-card:not(.home-primary-card-setup) { background: #faf6ec; }
+html[data-theme="white-mana"] #homeScreen .home-welcome-panel { border-color: #b5a17b; }
+.campaign-draft-stage { border: 5px solid var(--insert-frame,var(--border)); border-radius: 28px; background: var(--panel); box-shadow: inset 0 0 0 2px var(--insert-edge,var(--panel)); }
+html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { border: 0; border-radius: 22px 22px 0 0; box-shadow: none; margin: 0; padding: 24px; background: var(--panel); }
+html[data-theme] #chaosDraftScreen .campaign-draft-stage .chaos-draft-spinner-window { border: 0; border-radius: 0; box-shadow: none; background: var(--panel-2); }
+.campaign-stage-eyebrow { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+.campaign-stage-heading .campaign-mode-external-title { font-size: 30px; line-height: 1.2; margin: 0; }
+.campaign-stage-heading { min-width: 0; }
+.campaign-stage-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 16px 24px; background: var(--panel-2); border-top: 1px solid var(--insert-divider,var(--border)); border-radius: 0 0 22px 22px; font-size: 14px; color: var(--text); }
+.campaign-stage-footer strong { margin-left: auto; overflow-wrap: anywhere; }
+.campaign-stage-monogram { width: 40px; height: 24px; border-right: 1px solid var(--insert-divider,var(--border)); background: url('../img/Logos/deckadence_d.svg') left center/24px 24px no-repeat; flex-shrink: 0; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.campaign-opened-heading { flex: 1 1 240px; margin: 0; font-size: 22px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions > .action-button { width: auto; min-width: 100px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .chaos-export-split { width: 190px; }
+@media(max-width:760px) { .campaign-stage-heading .campaign-mode-external-title { font-size: 24px; } .campaign-stage-footer strong { flex-basis: 100%; margin-left: 0; } .campaign-opened-heading { flex-basis: 100%; } }
+/* Campaign composition: match the approved study while retaining all live controls. */
+html[data-theme] #chaosDraftScreen .campaign-mode-title-row {
+  gap: 24px;
+  padding: 8px 0 16px;
+  margin-bottom: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+html[data-theme] #chaosDraftScreen .campaign-stage-heading { flex: 1 1 440px; }
+html[data-theme] #chaosDraftScreen .campaign-stage-eyebrow,
+html[data-theme] #chaosDraftScreen .campaign-current-player-eyebrow {
+  font: 700 11px/1.5 Arial,sans-serif;
+  letter-spacing: 2px;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+html[data-theme] #chaosDraftScreen .campaign-mode-external-title { font: 700 30px/1.25 Arial,sans-serif; color: var(--text); }
+html[data-theme] #chaosDraftScreen .campaign-selector-wrap { gap: 12px; flex-wrap: wrap; }
+html[data-theme] #chaosDraftScreen .campaign-draft-number-chip { background: var(--panel-2); border-color: var(--insert-divider,var(--border)); color: var(--text); padding: 12px 18px; font: 700 16px/1.4 Arial,sans-serif; }
+html[data-theme] #chaosDraftScreen .campaign-selector { min-height: 48px; font: 400 15px/1.4 Arial,sans-serif; }
+html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 30px; }
+html[data-theme] #chaosDraftScreen .campaign-current-player-card { gap: 20px; }
+html[data-theme] #chaosDraftScreen .campaign-current-player-name { font: 700 22px/1.35 Arial,sans-serif; color: var(--text); }
+html[data-theme] #chaosDraftScreen .campaign-top-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button {
+  width: auto;
+  min-width: 148px;
+  min-height: 50px;
+  padding: 12px 18px;
+  border-radius: 11px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  font: 700 16px/1.4 Arial,sans-serif;
+}
+html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button:hover:not(:disabled) { background: var(--accent-hover); }
+html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button:disabled { opacity: .55; cursor: not-allowed; }
+html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button-arrow { color: inherit; }
+html[data-theme] #chaosDraftScreen .chaos-draft-spinner-window::before,
+html[data-theme] #chaosDraftScreen .chaos-draft-spinner-window::after { display: none; }
+html[data-theme] #chaosDraftScreen .campaign-stage-footer { padding: 16px 24px; font: 700 14px/1.5 Arial,sans-serif; color: var(--text); }
+html[data-theme="white-mana"] #chaosDraftScreen .campaign-stage-footer { color: #654c1d; }
+html[data-theme] #chaosDraftScreen .campaign-opened-heading { font: 700 22px/1.4 Arial,sans-serif; color: var(--text); }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions { margin-top: 8px; }
+@media(max-width:900px) {
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row { justify-content: flex-start; }
+  html[data-theme] #chaosDraftScreen .campaign-stage-heading { flex-basis: 100%; }
+  html[data-theme] #chaosDraftScreen .campaign-selector-wrap { width: 100%; }
+  html[data-theme] #chaosDraftScreen .campaign-selector { flex: 1; min-width: 140px; max-width: 100%; }
+}
+@media(max-width:480px) {
+  html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 20px 16px; }
+  html[data-theme] #chaosDraftScreen .campaign-mode-external-title { font-size: 26px; }
+}
+/* Reserve the same stage space before, during, and after selection. */
+html[data-theme] #chaosDraftScreen .chaos-draft-spinner-window { height: 470px; min-height: 470px; }
+html[data-theme] #chaosDraftScreen .chaos-draft-spinner-track { height: 400px; align-items: center; }
+html[data-theme] #chaosDraftScreen .chaos-pack-card { border: 2px solid transparent; }
+html[data-theme] #chaosDraftScreen .chaos-pack-card-winning { border-color: var(--accent); }
+html[data-theme] #chaosDraftScreen .chaos-pack-card-image { height: 280px; margin: 0; }
+html[data-theme] #chaosDraftScreen .chaos-pack-card-winning .chaos-pack-card-image { margin: 0; }
+@media(max-width:700px),(max-height:600px) {
+  html[data-theme] #chaosDraftScreen .chaos-draft-spinner-window { height: 370px; min-height: 370px; padding: 25px 0; }
+  html[data-theme] #chaosDraftScreen .chaos-draft-spinner-track { height: 320px; }
+  html[data-theme] #chaosDraftScreen .chaos-pack-card-image { height: 200px; }
+}
+/* Compact player header and opened-pack tools. */
+html[data-theme] #chaosDraftScreen .campaign-current-player-portrait-wrap { width: 56px; height: 56px; border-radius: 12px; }
+html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 24px 30px; }
+html[data-theme] #chaosDraftScreen .campaign-current-player-eyebrow { margin-bottom: 5px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .chaos-export-split { width: 140px; grid-template-columns: minmax(0,1fr) 38px; flex: 0 0 140px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .campaign-pack-upscale-icon { width: 50px; min-width: 50px; height: 50px; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+html[data-theme] #chaosDraftScreen .chaos-pack-inline-view-header[hidden] { display: none; }
+@media(max-width:480px) {
+  html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 20px 16px; }
+}
+/* Match the portrait column to the actual image instead of the legacy 96px slot. */
+html[data-theme] #chaosDraftScreen .campaign-current-player-card {
+  grid-template-columns: 56px minmax(0, 1fr);
+  column-gap: 14px;
+  align-items: center;
+}
+/* Reset inherited minimum widths so the split control cannot overflow into Upscale. */
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .chaos-export-split {
+  width: 140px;
+  min-width: 140px;
+  max-width: 140px;
+  flex: 0 0 140px;
+  grid-template-columns: minmax(0,1fr) 38px;
+}
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions :is(.chaos-export-main-button,.chaos-export-menu-button) {
+  width: 100%; min-width: 0; height: 50px; min-height: 50px; padding: 10px 12px;
+}
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .chaos-export-main-button { border-radius: 11px 0 0 11px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .chaos-export-menu-button { border-radius: 0 11px 11px 0; padding: 0; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions > .action-button { height: 50px; min-height: 50px; border-radius: 11px; }
+html[data-theme] #chaosDraftScreen .campaign-chaos-open-actions .campaign-pack-upscale-icon { flex: 0 0 50px; }
+
+/* Let opened cards sit directly on the Chaos Draft background. */
+html[data-theme] #chaosDraftScreen #chaosDraftInlineViewPanel {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* Mobile player controls: one identity row and one action row. */
+@media (max-width: 700px) {
+  html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 14px 16px; }
+  html[data-theme] #chaosDraftScreen .campaign-chaos-toolbar {
+    display: grid; grid-template-columns: 44px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto; gap: 4px 12px; align-items: center;
+  }
+  html[data-theme] #chaosDraftScreen :is(.campaign-current-player-card, .campaign-current-player-copy, .campaign-chaos-controls-wrap, .campaign-top-actions-row) { display: contents; }
+  html[data-theme] #chaosDraftScreen .campaign-current-player-portrait-wrap { grid-column: 1; grid-row: 1 / 3; width: 44px; height: 44px; border-radius: 10px; }
+  html[data-theme] #chaosDraftScreen .campaign-current-player-eyebrow { grid-column: 2 / 4; grid-row: 1; margin: 0; font-size: 10px; }
+  html[data-theme] #chaosDraftScreen .campaign-current-player-name { display: none; }
+  html[data-theme] #chaosDraftScreen #campaignPlayerSelect { grid-column: 2 / 4; grid-row: 2; width: 100%; min-width: 0; max-width: none; height: 36px; padding: 6px 10px; }
+  html[data-theme] #chaosDraftScreen .campaign-icon-actions { grid-column: 1 / 3; grid-row: 3; display: flex; gap: 8px; margin-top: 8px; }
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button { grid-column: 3; grid-row: 3; min-width: 120px; width: auto; height: 42px; min-height: 42px; margin-top: 8px; padding: 8px 14px; font-size: 14px; }
+}
+
+/* Keep mobile focused on the selected player, pack name, and actions. */
+@media (max-width: 700px) {
+  html[data-theme] #chaosDraftScreen :is(.campaign-mode-external-title, .campaign-current-player-eyebrow, .campaign-stage-monogram, #campaignStagePackSummary, .campaign-opened-heading) { display: none; }
+  html[data-theme] #chaosDraftScreen .campaign-chaos-toolbar { grid-template-rows: auto auto; }
+  html[data-theme] #chaosDraftScreen .campaign-current-player-portrait-wrap { grid-row: 1; }
+  html[data-theme] #chaosDraftScreen #campaignPlayerSelect { grid-row: 1; }
+  html[data-theme] #chaosDraftScreen .campaign-icon-actions,
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button { grid-row: 2; }
+  html[data-theme] #chaosDraftScreen .campaign-stage-footer { padding: 12px 16px; gap: 0; }
+}
+
+/* Tablet has room for a single player toolbar, but not a side-by-side title. */
+@media (min-width: 701px) and (max-width: 1100px) {
+  html[data-theme] #chaosDraftScreen .campaign-mode-title-row { grid-template-columns: minmax(0, 1fr); gap: 16px; margin-left: 0; padding-bottom: 8px; }
+  html[data-theme] #chaosDraftScreen .campaign-selector-wrap { display: flex; flex-wrap: nowrap; width: 100%; gap: 10px; }
+  html[data-theme] #chaosDraftScreen .campaign-selector { flex: 1; min-width: 0; max-width: none; }
+  html[data-theme] #chaosDraftScreen .campaign-draft-stage .campaign-chaos-header-panel { padding: 18px 20px; }
+  html[data-theme] #chaosDraftScreen .campaign-chaos-toolbar { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; }
+  html[data-theme] #chaosDraftScreen :is(.campaign-current-player-card, .campaign-current-player-copy, .campaign-chaos-controls-wrap, .campaign-top-actions-row) { display: contents; }
+  html[data-theme] #chaosDraftScreen :is(.campaign-current-player-name, .campaign-current-player-eyebrow) { display: none; }
+  html[data-theme] #chaosDraftScreen .campaign-current-player-portrait-wrap { width: 44px; height: 44px; }
+  html[data-theme] #chaosDraftScreen #campaignPlayerSelect { width: 100%; min-width: 0; max-width: none; }
+  html[data-theme] #chaosDraftScreen .campaign-icon-actions { display: flex; gap: 8px; }
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button { min-width: 128px; min-height: 44px; height: 44px; padding: 8px 12px; }
+  html[data-theme] .app-tabs:not(.app-tabs-collapsed) .app-logo { height: 34px; }
+  html[data-theme] .app-tabs:not(.app-tabs-collapsed) { padding: 12px 16px; }
+  html[data-theme] .app-tabs:not(.app-tabs-collapsed) .app-tabs-nav { flex-wrap: nowrap; margin-left: 0; gap: 4px; }
+}
+
+@media (min-width: 701px) and (max-width: 1100px) {
+  html[data-theme] #chaosDraftScreen .campaign-current-player-portrait-wrap { grid-column: 1; grid-row: 1; }
+  html[data-theme] #chaosDraftScreen #campaignPlayerSelect { grid-column: 2; grid-row: 1; }
+  html[data-theme] #chaosDraftScreen .campaign-icon-actions { grid-column: 3; grid-row: 1; }
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button { grid-column: 4; grid-row: 1; }
+}
+
+/* Trial: insert foil colors behind the roulette; the summary stays solid. */
+html[data-theme] #chaosDraftScreen .campaign-draft-stage .chaos-draft-spinner-window {
+  background: url('../img/themes/roulette-foil.svg?v=4') center / 100% 100% no-repeat var(--panel-2);
+}
+
+html[data-theme][data-theme-scheme="light"] #chaosDraftScreen .campaign-draft-stage .chaos-draft-spinner-window {
+  background-image: url('../img/themes/roulette-foil-light.svg?v=1');
+}
+
+html[data-theme][data-theme-scheme="light"]:is([data-theme="white-mana"], [data-theme="light"]) #chaosDraftScreen .campaign-draft-stage .chaos-draft-spinner-window {
+  background-image: url('../img/themes/roulette-foil-white-light.svg?v=1');
+}
+
+html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { width: 44px; min-width: 44px; height: 44px; gap: 4px; font-size: 14px; }
+@media (min-width: 701px) and (max-width: 1100px) {
+  html[data-theme] #chaosDraftScreen .campaign-chaos-toolbar { grid-template-columns: 44px minmax(0,1fr) auto auto 44px; }
+  html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { grid-column: 5; grid-row: 1; }
+}
+@media (max-width: 700px) {
+  html[data-theme] #chaosDraftScreen .campaign-chaos-toolbar { grid-template-columns: 44px minmax(0,1fr) 100px 44px; column-gap: 6px; }
+  html[data-theme] #chaosDraftScreen #campaignPlayerSelect { grid-column: 2 / 5; }
+  html[data-theme] #chaosDraftScreen .campaign-icon-actions { gap: 4px; }
+  html[data-theme] #chaosDraftScreen .campaign-top-actions-row .chaos-draft-next-button { min-width: 100px; padding: 8px; }
+  html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { grid-column: 4; grid-row: 2; margin-top: 8px; }
+}
+
+/* Keep both next actions equally tall at every breakpoint. */
+html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { height: 50px; min-height: 50px; }
+@media (min-width: 701px) and (max-width: 1100px) {
+  html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { height: 44px; min-height: 44px; }
+}
+@media (max-width: 700px) {
+  html[data-theme] #chaosDraftScreen #chaosNextPlayerButton { height: 42px; min-height: 42px; }
+}
+
+/* Dark palettes need light labels on inset surfaces. */
+html[data-theme-scheme="dark"] #homeScreen .home-card-action,
+html[data-theme-scheme="dark"] .deckbuilder-zone-header h2 { color: var(--text); }
+
+/* Deck section bar and ruled group headings. */
+html[data-theme] .deckbuilder-zone-deck > .deckbuilder-zone-header { padding: 12px 16px; border-radius: 0; border-block: 1px solid var(--insert-divider); background: var(--panel-2); }
+html[data-theme] .deckbuilder-stack-column-title { padding: 0 0 9px; margin-bottom: 12px; border-bottom: 1px solid var(--insert-divider); color: var(--muted); font: 700 13px/1.4 Arial,sans-serif; text-transform: uppercase; }
+.deckbuilder-group-control { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.deckbuilder-group-control select { min-height: 34px; padding: 6px 10px; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; font: 700 14px Arial,sans-serif; }
+html[data-theme] .deckbuilder-zone-deck .deckbuilder-zone-header-actions { flex-wrap: wrap; }
+
+/* Full-bleed section bars match the approved builder study. */
+html[data-theme] .deckbuilder-main > .deckbuilder-zone { padding: 0 12px 10px; }
+html[data-theme] .deckbuilder-main .deckbuilder-zone > .deckbuilder-zone-header {
+  margin: 0 -12px 16px; padding: 12px 20px; min-height: 56px;
+  border: 0; border-bottom: 1px solid var(--insert-divider);
+  border-radius: 0; background: var(--panel-2);
+}
+html[data-theme] .deckbuilder-main .deckbuilder-zone-header h2 { font: 700 18px/1.4 Arial,sans-serif; color: var(--text); }
+html[data-theme] .deckbuilder-main > .deckbuilder-zone-resize-handle {
+  position: relative; flex-basis: 1px; min-height: 1px;
+  border: 0; background: var(--insert-divider); z-index: 2;
+}
+html[data-theme] .deckbuilder-main > .deckbuilder-zone-resize-handle::after {
+  content: ""; position: absolute; left: 0; right: 0; top: -4px; height: 9px; cursor: row-resize;
+}
+@media (max-width: 760px) {
+  html[data-theme] .deckbuilder-main .deckbuilder-zone > .deckbuilder-zone-header { padding: 10px 12px; flex-wrap: wrap; gap: 8px; }
+}
+
+/* Deck Roulette: approved heading and wheel frame; existing filters stay intact. */
+html[data-theme] #deckRouletteScreen .deck-roulette-header-panel { background: transparent; border: 0; box-shadow: none; padding: 8px 0; }
+html[data-theme] #deckRouletteScreen .page-title { font: 700 30px/1.25 Arial,sans-serif; margin: 10px 0 0; }
+.roulette-eyebrow { font: 700 11px/1.5 Arial,sans-serif; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
+.roulette-stage { border: 5px solid var(--insert-frame); border-radius: 28px; overflow: hidden; background: var(--panel); }
+.roulette-stage-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 22px 26px; }
+.roulette-stage-header h2 { font: 700 22px/1.4 Arial,sans-serif; margin: 6px 0; }
+.roulette-stage-header p { font-size: 14px; color: var(--muted); margin: 0; }
+html[data-theme] #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window { border: 0; border-radius: 0; box-shadow: none; background: url('../img/themes/roulette-foil.svg?v=4') center/100% 100% no-repeat var(--panel-2); }
+html[data-theme-scheme="light"] #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window { background-image: url('../img/themes/roulette-foil-light.svg'); }
+html:is([data-theme="white-mana"],[data-theme="light"]) #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window { background-image: url('../img/themes/roulette-foil-white-light.svg'); }
+html[data-theme] #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window::before,
+html[data-theme] #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window::after { display: none; }
+.roulette-stage-footer { display: flex; align-items: center; gap: 16px; padding: 16px 24px; border-top: 1px solid var(--insert-divider); background: var(--panel-2); font: 700 14px/1.5 Arial,sans-serif; }
+.roulette-stage-footer img { width: 24px; height: 24px; }
+.roulette-stage-footer strong { margin-left: auto; }
+@media(max-width:700px) { .roulette-stage-header { padding: 16px; } .roulette-stage-footer { flex-wrap: wrap; padding: 12px 16px; } html[data-theme] #deckRouletteScreen .page-title { font-size: 24px; } }
+
+/* Prevent the shared full-width button rule from squeezing the wheel heading. */
+html[data-theme] #deckRouletteScreen .roulette-stage-header > div { flex: 1 1 auto; min-width: 0; }
+html[data-theme] #deckRouletteScreen .roulette-stage-header #deckRouletteSpinAgainButton {
+  flex: 0 0 auto; width: auto; min-width: 148px; min-height: 50px; padding: 12px 20px;
+}
+@media(max-width:480px) {
+  html[data-theme] #deckRouletteScreen .roulette-stage-header { flex-wrap: wrap; }
+  html[data-theme] #deckRouletteScreen .roulette-stage-header #deckRouletteSpinAgainButton { margin-left: auto; }
+}
+
+/* Size a populated roulette to its decks instead of the larger idle placeholder. */
+html[data-theme] #deckRouletteScreen .roulette-stage .chaos-draft-spinner-window:has(#deckRouletteSpinnerTrack:not(.hidden)) {
+  height: auto; min-height: 0; max-height: none; padding: 36px 0;
+}
+
+/* Always-visible roulette filters share the wheel's frame and typography. */
+html[data-theme] #deckRouletteScreen .deck-roulette-filter-panel {
+  padding: 22px 26px; border: 2px solid var(--insert-frame);
+  border-radius: 24px; background: var(--panel); box-shadow: none;
+}
+html[data-theme] #deckRouletteScreen .deck-roulette-filter-grid {
+  grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 18px 16px;
+}
+html[data-theme] #deckRouletteScreen .deck-roulette-field { grid-column: span 2; font: 400 14px/1.4 Arial,sans-serif; }
+html[data-theme] #deckRouletteScreen .deck-roulette-field:nth-child(-n+4) { grid-column: span 3; }
+html[data-theme] #deckRouletteScreen .deck-roulette-field:nth-child(6) { grid-column: span 4; }
+html[data-theme] #deckRouletteScreen .deck-roulette-field > span {
+  color: var(--muted); font: 700 11px/1.5 Arial,sans-serif; letter-spacing: 1px; text-transform: uppercase;
+}
+html[data-theme] #deckRouletteScreen .deck-roulette-field :is(select,input:not([type="checkbox"]),summary) { font: 400 14px/1.4 Arial,sans-serif; min-height: 44px; }
+html[data-theme] #deckRouletteScreen .deck-roulette-color-options { min-height: 44px; }
+html[data-theme] #deckRouletteScreen .deck-roulette-color-chip { border-color: var(--insert-frame); }
+html[data-theme] #deckRouletteScreen .deck-roulette-color-input:focus-visible + .deck-roulette-color-chip { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* Preserve winner content and controls, with the same quiet framed surface. */
+html[data-theme] #deckRouletteScreen .deck-roulette-winner-panel {
+  border: 3px solid var(--insert-frame); border-radius: 24px;
+  background: var(--panel); box-shadow: none; padding: 22px 26px;
+}
+html[data-theme] #deckRouletteScreen .deck-roulette-winner-label { font: 700 11px/1.5 Arial,sans-serif; letter-spacing: 2px; color: var(--accent); }
+html[data-theme] #deckRouletteScreen .deck-roulette-winner-name { font: 700 22px/1.4 Arial,sans-serif; color: var(--text); margin: 6px 0; }
+html[data-theme] #deckRouletteScreen .deck-roulette-browse-button {
+  color: var(--roulette-arrow-color, color-mix(in srgb, var(--insert-frame) 25%, var(--accent))); background: transparent; border: 0; box-shadow: none;
+}
+html[data-theme] #deckRouletteScreen .deck-roulette-browse-button:hover:not(:disabled) { color: var(--roulette-arrow-hover, var(--accent)); }
+@media(max-width:1100px) {
+  html[data-theme] #deckRouletteScreen .deck-roulette-filter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  html[data-theme] #deckRouletteScreen .deck-roulette-filter-grid > .deck-roulette-field { grid-column: span 1; }
+  html[data-theme] #deckRouletteScreen .deck-roulette-field:nth-child(6) { grid-column: span 2; }
+}
+@media(max-width:560px) {
+  html[data-theme] #deckRouletteScreen :is(.deck-roulette-filter-panel,.deck-roulette-winner-panel) { padding: 16px; border-radius: 20px; }
+  html[data-theme] #deckRouletteScreen .deck-roulette-filter-grid { grid-template-columns: minmax(0,1fr); gap: 14px; }
+  html[data-theme] #deckRouletteScreen .deck-roulette-filter-grid > .deck-roulette-field { grid-column: span 1; }
+  html[data-theme] #deckRouletteScreen .deck-roulette-multiselect-menu { min-width: 0; width: 100%; }
+}
+
+/* Emphasize the gold hue instead of washing it out with white. */
+html[data-theme="white-mana"] #deckRouletteScreen {
+  --roulette-arrow-color: #bd8b20;
+  --roulette-arrow-hover: #a8730b;
+}
+
+/* Flat navigation surfaces follow the same insert-derived borders as the pages. */
+html[data-theme] .app-shell .app-frame .app-tabs:not(.app-tabs-collapsed) {
+  background: var(--panel); border: 2px solid var(--insert-frame);
+  border-radius: 22px; box-shadow: none; backdrop-filter: none;
+}
+html[data-theme] .app-shell .app-tabs .app-nav-main-control {
+  border: 1px solid transparent; box-shadow: none; background: transparent;
+  transition: background .15s ease, border-color .15s ease;
+}
+html[data-theme] .app-shell .app-tabs :is(.app-nav-menu-active, .app-nav-menu.is-open) .app-nav-main-control {
+  background: var(--panel-2); border-color: var(--insert-frame); box-shadow: none;
+}
+html[data-theme] .app-shell .app-tabs .app-nav-main-control:hover {
+  background: var(--panel-2); border-color: var(--insert-frame); box-shadow: none;
+}
+html[data-theme] .app-shell .app-tabs :is(.app-nav-primary-link,.app-nav-menu-toggle) {
+  background: transparent; color: var(--text); box-shadow: none;
+}
+html[data-theme] .app-shell .app-tabs .app-nav-dropdown {
+  background: var(--panel); border: 2px solid var(--insert-frame); border-radius: 16px;
+  padding: 8px; box-shadow: 0 4px 10px #00000012; backdrop-filter: none;
+}
+html[data-theme] .app-shell .app-tabs .app-nav-dropdown-group + .app-nav-dropdown-group { border-color: var(--insert-divider); }
+html[data-theme] .app-shell .app-tabs .app-nav-dropdown-heading { color: var(--muted); letter-spacing: 1px; }
+html[data-theme] .app-shell .app-tabs .app-nav-dropdown-item { color: var(--text); box-shadow: none; }
+html[data-theme] .app-shell .app-tabs :is(.app-nav-dropdown-item:hover,.app-nav-dropdown-heading-link:hover) {
+  color: var(--text); background: var(--panel-2); transform: none;
+}
+html[data-theme] .app-shell .app-tabs .app-nav-dropdown-item-active {
+  background: var(--panel-2); color: var(--text); box-shadow: inset 3px 0 var(--accent);
+}
+html[data-theme] .app-shell .app-tabs :is(.app-nav-square-button:hover,.app-nav-icon-menu.is-open > .app-nav-square-button) {
+  background: var(--panel-2); color: var(--text); box-shadow: none;
+}
+html[data-theme] .app-shell .app-tabs :is(a,button):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+html[data-theme] .app-shell .app-tabs .app-nav-dropdown-item-danger { color: var(--theme-error, #bd4545); }
+html[data-theme] .app-shell .app-tabs .app-nav-dropdown-item-disabled:hover { background: transparent; color: var(--muted); }
+
+/* Selected navigation uses the guided-learning rule instead of a filled pill. */
+html[data-theme] .app-shell .app-tabs .app-nav-menu-active .app-nav-main-control,
+html[data-theme] .app-shell .app-tabs .app-nav-dropdown-item-active {
+  background: transparent; border-color: transparent; box-shadow: none;
+}
+html[data-theme] .app-shell .app-tabs .app-nav-menu-active .app-nav-main-control::before,
+html[data-theme] .app-shell .app-tabs .app-nav-dropdown-item-active::before {
+  content: ""; position: absolute; left: 0; top: 6px; bottom: 6px;
+  width: 3px; background: var(--accent); border-radius: 0; pointer-events: none;
+}
+
+/* No pill surface in any primary navigation state, including hover/open. */
+html[data-theme] .app-shell .app-frame .app-tabs .app-nav-menu .app-nav-main-control,
+html[data-theme] .app-shell .app-frame .app-tabs .app-nav-menu .app-nav-main-control:hover,
+html[data-theme] .app-shell .app-frame .app-tabs .app-nav-menu :is(.app-nav-primary-link,.app-nav-menu-toggle) {
+  background: transparent; border-color: transparent; border-radius: 0; box-shadow: none;
+}
+html[data-theme] .app-shell .app-frame .app-tabs .app-nav-primary-link:hover { color: var(--accent); }
+
+/* Active dropdown entries use only the left rule, across every theme. */
+html[data-theme] .app-shell .app-frame .app-tabs .app-nav-dropdown .app-nav-dropdown-item-active {
+  position:relative; background:transparent; border-color:transparent; box-shadow:none;
+}
+html[data-theme] .app-shell .app-frame .app-tabs .app-nav-dropdown .app-nav-dropdown-item:hover,
+html[data-theme] .app-shell .app-frame .app-tabs .app-nav-dropdown .app-nav-dropdown-item:focus-visible {
+  background:var(--panel-2); color:var(--text); box-shadow:none;
+}
+
+/* Submit variants retain the same visible outline as other toolbar buttons. */
+html[data-theme] .app-shell .icon-button.icon-button-submit { border:1px solid var(--border); }

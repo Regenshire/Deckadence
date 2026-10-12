@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "protocol_version": 1,
+  "plugin_id": "upscaler-cpu",
+  "plugin_type": "upscaler",
+  "name": "CPU Upscaler",
+  "version": "0.1.0",
+  "entrypoint": "plugin.py",
+  "requirements_file": "requirements.txt"
+}

@@ -1,0 +1,119 @@
+import os
+import sys
+
+def get_bundle_base_dir():
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+def get_runtime_base_dir():
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+BUNDLE_BASE_DIR = get_bundle_base_dir()
+RUNTIME_BASE_DIR = get_runtime_base_dir()
+
+DATABASE_PATH = os.path.join(RUNTIME_BASE_DIR, "cards.db")
+
+DATA_ROOT_DIR = os.path.join(RUNTIME_BASE_DIR, "data")
+DATA_DOWNLOAD_DIR = os.path.join(DATA_ROOT_DIR, "downloads")
+SCRYFALL_DOWNLOAD_DIR = os.path.join(DATA_ROOT_DIR, "scryfall")
+IMAGE_CACHE_DIR = os.path.join(DATA_ROOT_DIR, "image_cache")
+CHAOS_IMAGE_CACHE_DIR = os.path.join(DATA_ROOT_DIR, "chaos_image_cache")
+CHAOS_TEMP_CACHE_DIR = os.path.join(DATA_ROOT_DIR, "chaos_temp_cache")
+DECK_ART_CACHE_DIR = os.path.join(DATA_ROOT_DIR, "deck_art_cache")
+DECK_ART_GENERATED_DIR = os.path.join(DATA_ROOT_DIR, "deck_art_generated")
+DECK_ART_SOURCE_DIR = os.path.join(DATA_ROOT_DIR, "deck_art_sources")
+CAMPAIGN_PLAYER_PORTRAIT_DIR = os.path.join(DATA_ROOT_DIR, "campaign_player_portraits")
+ALTERNATE_SOURCE_DIR = os.path.join(DATA_ROOT_DIR, "alternate_sources")
+UPSCALED_SCRYFALL_DIR = os.path.join(DATA_ROOT_DIR, "upscaled_scryfall")
+
+UPSCALING_DEV_FEEDBACK_DIR = os.path.join(
+    DATA_ROOT_DIR,
+    "upscaling_dev_feedback",
+)
+
+UPSCALING_DEV_FEEDBACK_LOG_PATH = os.path.join(
+    UPSCALING_DEV_FEEDBACK_DIR,
+    "upscaling_dev_feedback.jsonl",
+)
+
+PLUGIN_DOWNLOAD_DIR = os.path.join(DATA_ROOT_DIR, "plugin_downloads")
+
+CUSTOM_SET_ICON_DIR = os.path.join(DATA_ROOT_DIR, "custom_set_icons")
+RUNTIME_IMAGE_DIR = os.path.join(DATA_ROOT_DIR, "img")
+RUNTIME_CARD_BACK_DIR = os.path.join(RUNTIME_IMAGE_DIR, "card_backs")
+RUNTIME_PACK_ART_DIR = os.path.join(RUNTIME_IMAGE_DIR, "pack_art")
+
+PLUGIN_ROOT_DIR = os.path.join(RUNTIME_BASE_DIR, "plugins")
+
+BUNDLED_PRINT_TEMPLATE_DIR = os.path.join(
+    BUNDLE_BASE_DIR,
+    "print",
+    "templates",
+)
+
+RUNTIME_PRINT_TEMPLATE_DIR = os.path.join(
+    RUNTIME_BASE_DIR,
+    "print",
+    "templates",
+)
+
+EXPORT_ROOT_DIR = os.path.join(RUNTIME_BASE_DIR, "Export")
+
+ATOMIC_CARDS_PATH = os.path.join(DATA_DOWNLOAD_DIR, "AtomicCards.json")
+SET_LIST_PATH = os.path.join(DATA_DOWNLOAD_DIR, "SetList.json")
+ALL_PRINTINGS_PATH = os.path.join(DATA_DOWNLOAD_DIR, "AllPrintings.json")
+ALL_PRINTINGS_GZ_PATH = os.path.join(DATA_DOWNLOAD_DIR, "AllPrintings.json.gz")
+
+SCRYFALL_DEFAULT_CARDS_PATH = os.path.join(SCRYFALL_DOWNLOAD_DIR, "default-cards.jsonl")
+ALL_PRICES_TODAY_PATH = os.path.join(DATA_DOWNLOAD_DIR, "AllPricesToday.json")
+ALL_PRICES_TODAY_ZIP_PATH = os.path.join(DATA_DOWNLOAD_DIR, "AllPricesToday.json.zip")
+
+SET_BOOSTER_CONTENTS_CSV_PATH = os.path.join(DATA_DOWNLOAD_DIR, "setBoosterContents.csv")
+SET_BOOSTER_CONTENT_WEIGHTS_CSV_PATH = os.path.join(DATA_DOWNLOAD_DIR, "setBoosterContentWeights.csv")
+SET_BOOSTER_SHEET_CARDS_CSV_PATH = os.path.join(DATA_DOWNLOAD_DIR, "setBoosterSheetCards.csv")
+SET_BOOSTER_SHEETS_CSV_PATH = os.path.join(DATA_DOWNLOAD_DIR, "setBoosterSheets.csv")
+
+LOG_PATH = os.path.join(RUNTIME_BASE_DIR, "app_debug.log")
+
+def get_template_dir():
+    return os.path.join(BUNDLE_BASE_DIR, "templates")
+
+
+def get_runtime_print_template_dir():
+    return RUNTIME_PRINT_TEMPLATE_DIR
+
+
+def get_print_template_dirs():
+    template_dirs = []
+    seen_paths = set()
+
+    for template_dir in (
+        BUNDLED_PRINT_TEMPLATE_DIR,
+        RUNTIME_PRINT_TEMPLATE_DIR,
+    ):
+        normalized_path = os.path.normcase(
+            os.path.abspath(template_dir)
+        )
+
+        if normalized_path in seen_paths:
+            continue
+
+        seen_paths.add(normalized_path)
+        template_dirs.append(template_dir)
+
+    return tuple(template_dirs)
+
+
+def get_static_dir():
+    return os.path.join(BUNDLE_BASE_DIR, "static")
+
+
+def get_pack_art_dir(static_folder):
+    return os.path.join(static_folder, "img", "pack_art")
+
+
+def get_runtime_pack_art_dir():
+    return RUNTIME_PACK_ART_DIR

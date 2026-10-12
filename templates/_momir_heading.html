@@ -1,0 +1,6 @@
+{% set momir_labels = {'momir_basic': 'Momir Basic', 'momir_select': 'Momir Select', 'momir_planeswalker': 'Momir Planeswalker', 'momir_legends': 'Momir Legends', 'momir_battleship': 'Momir Battleship', 'momir_aggro': 'Momir Aggro', 'momir_odds': 'Momir Odds', 'momir_evens': 'Momir Evens', 'momir_prime': 'Momir Prime', 'planechase': 'Planechase', 'archenemy': 'Archenemy'} %}
+<div class="momir-game-heading">
+  <div class="roulette-eyebrow">{{ momir_labels.get(current_game_mode, 'Momir Vig') }}</div>
+  <h2>Discard a Card. See what happens.</h2>
+  <p>{% if mana_value is defined %}Choose a mana value to draw again.{% else %}Enter your mana value, then draw.{% endif %}</p>
+</div>

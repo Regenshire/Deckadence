@@ -1,0 +1,60 @@
+<div id="deckHelpLayer" class="deck-help-layer" aria-hidden="true" hidden>
+  <div
+    id="deckHelpTooltip"
+    class="deck-help-tooltip"
+    role="tooltip"
+    aria-hidden="true"
+    hidden
+  >
+    <div id="deckHelpTooltipTitle" class="deck-help-tooltip-title"></div>
+
+    <div id="deckHelpTooltipBody" class="deck-help-tooltip-body"></div>
+  </div>
+
+  <div
+    id="deckHelpTourPanel"
+    class="deck-help-tour-panel"
+    role="dialog"
+    aria-modal="false"
+    aria-hidden="true"
+    aria-labelledby="deckHelpTourTitle"
+    hidden
+  >
+    <div class="deck-help-tour-header">
+      <div id="deckHelpTourTitle" class="deck-help-tour-title"></div>
+
+      <div id="deckHelpTourProgress" class="deck-help-tour-progress"></div>
+    </div>
+
+    <div id="deckHelpTourBody" class="deck-help-tour-body"></div>
+
+    <div class="deck-help-tour-actions">
+      <button
+        type="button"
+        id="deckHelpTourBackButton"
+        class="deck-help-tour-button deck-help-tour-button-back"
+      >
+        Back
+      </button>
+
+      <button
+        type="button"
+        id="deckHelpTourNextButton"
+        class="deck-help-tour-button deck-help-tour-button-next"
+      >
+        Next
+      </button>
+    </div>
+  </div>
+
+  <button
+    type="button"
+    id="deckHelpExitButton"
+    class="deck-help-exit-button"
+    hidden
+  >
+    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+
+    <span>Exit Help</span>
+  </button>
+</div>

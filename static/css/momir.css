@@ -1,0 +1,90 @@
+/* Momir keeps every mana shortcut and game actions in view. */
+.momir-input { max-width: 480px; }
+.momir-input .keypad { gap: 8px; }
+.momir-input .keypad-btn { min-height: clamp(44px, 8dvh, 72px); touch-action: manipulation; }
+.momir-input #manaValue { min-height: 52px; margin-bottom: 12px; font-size: 2rem; }
+.momir-input .mana-panel { padding: 16px; }
+.momir-input .enter-button { min-height: 48px; touch-action: manipulation; }
+
+.momir-result { gap: 8px; }
+.momir-result .momir-select-top-panel { padding: 6px 12px; flex: 0 0 auto; }
+.momir-result .result-panel { flex: none; align-self: center; width: calc(var(--momir-board-width, 640px) + 26px); max-width: 100%; display: flex; flex-direction: column; padding: 12px; }
+.momir-result .result-layout { height: var(--momir-board-height, 600px); min-height: 0; grid-template-columns: var(--mana-bank-width, 44px) minmax(0, 1fr) var(--mana-bank-width, 44px); grid-template-rows: minmax(0, 1fr) 48px; align-items: stretch; gap: 8px; }
+.momir-result .result-mana-rail { min-height: 0; gap: 0; grid-row: 1 / 3; }
+.momir-result .result-mana-left { grid-column: 1; }
+.momir-result .result-mana-right { grid-column: 3; }
+.momir-result .result-mana-rail-label:empty { display: none; }
+.momir-result .result-mana-column { display: grid; grid-template-rows: repeat(9, var(--mana-size)); align-content: space-between; flex: 1; gap: 4px; width: 100%; }
+.momir-result .result-mana-link { height: var(--mana-size); min-height: 0; width: var(--mana-size); font-size: 1.2rem; touch-action: manipulation; }
+.momir-result .result-main { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; min-height: 0; text-align: center; }
+.momir-result .result-main .result-label { margin: 0; font-size: .8rem; }
+.momir-result .result-main .result-mana { margin: 0 0 4px; font-size: 1.5rem; line-height: 1.2; }
+.momir-result .card-display { flex: 1; min-height: 0; gap: 4px; }
+.momir-result .card-image { flex: none; width: var(--momir-card-width); height: var(--momir-card-height); max-width: 100%; max-height: 100%; object-fit: cover; border-radius: 4.5% / 3.2%; }
+.momir-result .card-display { justify-content: flex-start; overflow: hidden; }
+.momir-result .card-info { flex: 0 0 auto; }
+.momir-result .card-name { font-size: 1rem; }
+.momir-result .card-type { font-size: .8rem; }
+.momir-result .result-actions-bottom { grid-column: 2; grid-row: 2; margin: 0; gap: 8px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px; }
+.momir-result .result-actions .action-button { min-height: 48px; padding: 8px; touch-action: manipulation; }
+@media (max-width: 600px) {
+  .momir-result .result-panel { padding: 8px; }
+  .momir-result .result-layout { gap: 6px; }
+  .momir-result .card-name { font-size: .85rem; }
+  .momir-result .card-type { font-size: .75rem; }
+}
+/* Short landscape screens keep 18 single-tap choices, in two wider banks. */
+@media (orientation: landscape) and (max-height: 650px) {
+  body:has(.momir-result) .app-shell { padding: 8px; }
+  body:has(.momir-result) .app-frame { gap: 8px; }
+  body:has(.momir-result) .app-tabs { padding: 4px 12px; gap: 8px; }
+  body:has(.momir-result) .app-logo { max-width: 120px; max-height: 40px; }
+  .momir-result .result-mana-column { grid-template-columns: repeat(3, var(--mana-size)); grid-template-rows: repeat(3, var(--mana-size)); justify-content: space-between; }
+}
+
+.momir-mana-dialog { width: min(360px, calc(100% - 32px)); border: 1px solid var(--border); border-radius: 16px; padding: 20px; color: var(--text); background: var(--panel); }
+.momir-mana-dialog::backdrop { background: rgb(0 0 0 / .7); }
+.momir-mana-dialog h2 { margin: 0 0 16px; font-size: 1.2rem; }
+.momir-mana-dialog input:not([type=hidden]) { width: 100%; min-height: 48px; margin-top: 8px; font-size: 1.5rem; }
+.momir-mana-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+.momir-empty-card { width: var(--momir-card-width); height: var(--momir-card-height); max-width: 100%; align-self: center; display: grid; place-items: center; padding: 24px; border: 8px solid #101114; border-radius: 4.5% / 3.2%; background: radial-gradient(ellipse at top, #303947, #191d24); box-shadow: inset 0 0 0 1px #596273; color: var(--text); text-align: center; font-size: clamp(1rem, 2.4vw, 1.6rem); font-weight: 600; }
+
+.momir-message-card { padding: 0; border: 0; background: none; box-shadow: none; overflow: hidden; }
+.momir-message-card > svg { display: block; }
+
+/* Momir's game surface follows the shared theme frame. */
+html[data-theme] :is(.momir-input .mana-panel, .momir-result .result-panel) {
+  border: 4px solid var(--insert-frame, var(--border)); border-radius: 26px;
+  background: var(--panel); box-shadow: none; padding: 20px;
+}
+.momir-game-heading { padding-bottom: 16px; margin-bottom: 18px; border-bottom: 1px solid var(--insert-divider, var(--border)); }
+.momir-game-heading h2 { margin: 8px 0 0; font: 700 21px/1.35 Arial,sans-serif; color: var(--text); }
+html[data-theme] .momir-result .result-panel { width: calc(var(--momir-board-width, 640px) + 48px); }
+html[data-theme] .momir-result .result-layout { gap: 18px; grid-template-rows: minmax(0, 1fr) 48px; }
+html[data-theme] .momir-result .result-mana-link { border: 1px solid var(--insert-frame, var(--border)); border-radius: 10px; background: var(--panel-2); color: var(--text); }
+html[data-theme] .momir-result .result-mana-link-active { background: var(--accent); border-color: var(--accent); color: #fff; }
+html[data-theme] .momir-result .result-mana-link:hover { background: var(--button-hover); }
+html[data-theme] .momir-result .momir-message-card { border: 0; padding: 0; background: var(--panel-2); box-shadow: 0 4px 14px #0002; }
+html[data-theme] .momir-result .result-actions .print-button { background: var(--panel-2); color: var(--text); border: 1px solid var(--insert-frame, var(--border)); }
+@media(max-width:600px) {
+ html[data-theme] :is(.momir-input .mana-panel, .momir-result .result-panel) { padding: 12px; border-width: 3px; border-radius: 20px; }
+ html[data-theme] .momir-result .result-panel { width: calc(var(--momir-board-width, 640px) + 30px); }
+ html[data-theme] .momir-result .result-layout { gap: 12px; }
+ .momir-game-heading { padding-bottom: 12px; margin-bottom: 12px; }
+ .momir-game-heading h2 { font-size: 18px; }
+}
+
+.momir-page-heading { width: calc(var(--momir-board-width, 640px) + 48px); max-width: 100%; align-self: center; margin: 8px 0 12px; }
+.momir-page-heading h1 { margin: 8px 0 0; font: 700 28px/1.25 Arial,sans-serif; color: var(--text); }
+.momir-game-heading p { margin: 6px 0 0; color: var(--muted); font: 400 13px/1.5 Arial,sans-serif; }
+.momir-status-bar { display: flex; align-items: center; gap: 12px; margin: 20px -20px -20px; padding: 14px 20px; border-top: 1px solid var(--insert-divider,var(--border)); background: var(--panel-2); border-radius: 0 0 22px 22px; font: 400 13px/1.4 Arial,sans-serif; }
+.momir-status-bar img { width: 23px; height: 23px; }
+.momir-status-bar strong { min-width: 0; overflow-wrap: anywhere; }
+.momir-status-bar span { margin-left: auto; color: var(--muted); white-space: nowrap; }
+@media(max-width:600px) {
+ .momir-page-heading { width: calc(var(--momir-board-width, 640px) + 30px); }
+ .momir-page-heading h1 { font-size: 22px; }
+ .momir-status-bar { margin: 12px -12px -12px; padding: 12px; gap: 8px; font-size: 11px; border-radius: 0 0 17px 17px; }
+ .momir-status-bar img { width: 20px; height: 20px; }
+}

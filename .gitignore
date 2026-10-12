@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual env
+venv/
+.env/
+.venv/
+
+# Database
+*.db
+cards.db
+cards.db.image-operations.sqlite3
+
+# App data (VERY IMPORTANT)
+data/downloads/
+data/scryfall/
+data/cache/
+data/image_cache/
+
+# Upscaling developer feedback datasets
+data/upscaling_dev_feedback/
+
+data/
+data/scryfall/default-cards.json
+data/img/card_backs
+Utility/temp/
+Export/
+Backups/
+.backup-work/
+static/img/set_icons/
+static/img/*.psd
+static/img/*.PSD
+Utility/
+static/img/concepts/
+static/img/themes/concepts/
+output/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+
+# Dev Stuff
+.vscode/
+.dev_prompts/*
+!.dev_prompts/Start_Deckadence.bat
+!.dev_prompts/build_Deckadence_release.ps1
+
+# Runtime-installed plugins
+plugins/*
+!plugins/.gitkeep
+
+# Downloaded plugin model files
+plugin_src/**/models/*
+plugin_src/**/models/*.pth
+plugin_src/**/models/*.pt
+plugin_src/**/models/*.onnx
+plugin_src/**/models/*.safetensors
+
+# Distributions
+dist/
+build/
+build/Deckadence/
+build/Deckadence/
+
+# Silhouette files
+/static/sil/Examples/
