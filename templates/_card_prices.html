@@ -1,7 +1,7 @@
 {% set provider = pack_price_source if pack_price_source in ['manapool', 'cardkingdom'] else 'manapool' %}
-{% set quote = card.prices.get(provider, {}) %}
+{% set quote = select_price(card.prices, provider) %}
 <button type="button" class="chaos-pack-view-price card-price-trigger" data-card-prices
     data-price-card-uuid="{{ card.card_uuid }}" data-price-finish="{{ card.finish_type or 'normal' }}"
     data-price-source="{{ provider }}" data-price-quotes="{{ card.prices|tojson|forceescape }}"
-    aria-label="{{ 'Mana Pool' if provider == 'manapool' else 'Card Kingdom' }} price; show both vendor prices"
+    aria-label="{{ 'Mana Pool' if quote.provider == 'manapool' else 'Card Kingdom' }} price; show both vendor prices"
     aria-expanded="false">{% if quote.price is defined and quote.price is not none %}${{ '%.2f'|format(quote.price) }}{% else %}—{% endif %}</button>

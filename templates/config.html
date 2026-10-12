@@ -10,7 +10,7 @@
 >
 <link
     rel="stylesheet"
-    href="{{ url_for('static', filename='css/config.css', v='flat-1') }}"
+    href="{{ url_for('static', filename='css/config.css', v='pack-downloader-1') }}"
 >
 <link
     rel="stylesheet"
@@ -765,6 +765,9 @@
                     >
                         Forced Refresh
                     </button>
+                    <button type="button" id="openPackDownloader" class="action-button secondary-button">
+                        Pack Downloader
+                    </button>
                 </div>
             </div>
         </div>
@@ -1316,6 +1319,66 @@
 </div>
 
 {% include "_card_back_selector_modal.html" %}
+
+<dialog id="packDownloaderModal" class="pack-downloader-modal" aria-labelledby="packDownloaderTitle">
+    <div class="pack-downloader-header">
+        <div>
+            <h2 id="packDownloaderTitle">Pack Downloader</h2>
+            <p>Download missing artwork and upgrade generated fallbacks. Handmade images are kept.</p>
+        </div>
+        <button type="button" id="closePackDownloader" class="action-button secondary-button" aria-label="Close pack downloader">Close</button>
+    </div>
+    <div class="pack-downloader-body">
+        <fieldset id="packDownloaderOptions" class="pack-downloader-options" aria-label="Choose products to download">
+            <label class="pack-downloader-set-label" for="packDownloaderSets">Set codes <span>(optional)</span></label>
+            <input id="packDownloaderSets" type="text" placeholder="All imported booster sets, or enter FIN, ECL, TMT" maxlength="2000" autocomplete="off" spellcheck="false" aria-describedby="packDownloaderSetsHelp">
+            <p id="packDownloaderSetsHelp" class="pack-downloader-hint">Leave blank to check all imported booster sets, newest first.</p>
+            <p class="pack-downloader-hint">Packs use a front-facing original first, then a reconstructed photo, then set artwork, and finally an era-based design. Generated faces have no Deckadence branding and are approximations. Each run checks for better artwork and refreshes older generated designs. Boxes and bundles use original product photos.</p>
+            <label class="pack-downloader-set-label" for="packDownloaderStyle">Generated pack design</label>
+            <select id="packDownloaderStyle">
+                <option value="auto">Automatic — release year</option>
+                <option value="classic">1993–94 · Paper oval</option>
+                <option value="vintage">1995–2002 · Framed foil</option>
+                <option value="2000s">2003–14 · Dark foil</option>
+                <option value="modern">2015 onward · Full art</option>
+                <option value="specialty">Specialty · Minimal paper</option>
+            </select>
+            <label class="pack-downloader-set-label" for="packDownloaderColor">Wrapper color <span>(optional)</span></label>
+            <input id="packDownloaderColor" type="text" placeholder="Automatic, or #454474" maxlength="7" pattern="#[0-9a-fA-F]{6}" autocomplete="off" spellcheck="false">
+            <p class="pack-downloader-hint">Design and color affect generated fallbacks only. Original photos and handmade packs are kept. Specialty boosters include the Zeta pack; MBC uses its Commander Edition source.</p>
+            <div class="pack-downloader-types">
+                {% for group in ["Booster packs", "Booster boxes", "Bundles"] %}
+                <fieldset>
+                    <legend>{{ group }}</legend>
+                    {% for key, label in pack_art_product_types.items() %}
+                    {% if (group == "Booster packs" and key in pack_art_pack_types) or (group == "Booster boxes" and key.endswith("_box")) or (group == "Bundles" and "bundle" in key) %}
+                    <label><input type="checkbox" name="pack_art_type" value="{{ key }}" {% if key in pack_art_pack_types %}checked{% endif %}> {{ label }}</label>
+                    {% endif %}
+                    {% endfor %}
+                </fieldset>
+                {% endfor %}
+            </div>
+        </fieldset>
+        <div id="packDownloaderStatus" class="pack-downloader-status" aria-live="polite" aria-atomic="true">
+            <div class="pack-downloader-status-heading">
+                <strong id="packDownloaderStage">Ready</strong>
+                <span id="packDownloaderCounts">0 saved · 0 kept · 0 unavailable</span>
+            </div>
+            <progress id="packDownloaderProgress" value="0" max="1" aria-label="Sets checked"></progress>
+            <div class="pack-downloader-status-heading"><span id="packDownloaderMessage">Choose products and start a download.</span><span id="packDownloaderTransfer"></span></div>
+            <span id="packDownloaderSetProgress"></span>
+        </div>
+        <p id="packDownloaderError" class="pack-downloader-error" role="alert" hidden></p>
+        <div id="packDownloaderResults" class="pack-downloader-results" aria-label="Downloaded artwork and results"></div>
+    </div>
+    <div class="pack-downloader-footer">
+        <p>Closing this window lets downloads continue. Cancel keeps completed images.</p>
+        <div class="config-button-row">
+            <button type="button" id="startPackDownload" class="action-button">Download / upgrade images</button>
+            <button type="button" id="cancelPackDownload" class="action-button secondary-button" disabled>Cancel download</button>
+        </div>
+    </div>
+</dialog>
 
 <script
     src="{{ url_for('static', filename='js/card_back_selector.js') }}"
@@ -2470,7 +2533,7 @@
 {% endblock %}
 
 {% block page_scripts_before_app %}
-<script src="{{ url_for('static', filename='js/config.js') }}"></script>
+<script src="{{ url_for('static', filename='js/config.js', v='pack-downloader-4') }}"></script>
 {% endblock %}
 
 {% block page_scripts_after_app %}

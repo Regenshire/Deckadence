@@ -10,6 +10,7 @@ from flask import jsonify, render_template, request, url_for
 from db.pack_simulator import get_opening, list_openings, reveal_cards, save_opening
 from db.database import get_db_connection, get_custom_draft_sets, bulk_add_cards_to_custom_draft_set
 from db.pricing import get_pack_price_preferences
+from modes.pack_art import product_art_relpath
 from db.sealed_prices import lookup_sealed_prices
 from modes.chaos import (get_chaos_pack_art_info, get_chaos_pack_art_image_src,
                         get_chaos_campaigns, save_opened_chaos_pack_to_tracking_db)
@@ -17,6 +18,11 @@ from modes.pack_simulator import get_catalog, load_product, describe_product, op
 
 
 def register_pack_simulator_routes(app, get_config):
+    def box_art(code, booster):
+        key = 'draft' if booster == 'default' else booster
+        path = product_art_relpath(code, key + '_box', app.static_folder)
+        return get_chaos_pack_art_image_src(path) if path else None
+
     def source_preferences():
         enabled, source = get_pack_price_preferences(get_config())
         return source if enabled else 'none'
@@ -29,6 +35,9 @@ def register_pack_simulator_routes(app, get_config):
         return code, booster
 
     def serialize(opening):
+        opening['box_image_src'] = box_art(opening['set_code'], opening['booster_name']) if opening.get('box_id') else None
+        if opening['box_image_src']:
+            opening['product_image_src'] = opening['box_image_src']
         for pack in opening['packs']:
             pack['image_src'] = get_chaos_pack_art_image_src(get_chaos_pack_art_info(
                 pack['set_code'], pack['booster_name'], app.static_folder)['image_path'])
@@ -70,6 +79,8 @@ def register_pack_simulator_routes(app, get_config):
             product = describe_product(load_product(code, booster))
             art = get_chaos_pack_art_info(code, booster, app.static_folder)
             product['image_src'] = get_chaos_pack_art_image_src(art['image_path'])
+            for box in product['boxes']:
+                box['image_src'] = box_art(code, booster)
             return jsonify(ok=True, product=product)
         except (ValueError, sqlite3.Error) as exc:
             return failure(exc)

@@ -1,4 +1,20 @@
 /* Opt-in artwork-only effects; controls and card rules stay with their screen. */
+:root {
+  /* Scale the corner cut with the card, including enlarged and compact views. */
+  --card-art-radius: 5% / 3.6%;
+}
+img:is(.card-image, .card-zoom-image, .card-search-preview-image,
+  .chaos-pack-view-image, .chaos-pack-inline-image,
+  .campaign-test-draft-card-image, .campaign-test-draft-picked-thumb,
+  .campaign-test-draft-virtual-card-image,
+  .custom-draft-card-search-image, .custom-draft-current-card-image,
+  .custom-draft-card-search-group-image) {
+  border-radius: var(--card-art-radius) !important;
+}
+.card-effects,
+.card-effects-zoom {
+  border-radius: var(--card-art-radius) !important;
+}
 .card-effects {
   --card-rx: 0deg; --card-ry: 0deg; --card-scale: 1;
   --card-mx: 50%; --card-my: 50%; --card-shift: 50%;

@@ -24,7 +24,7 @@
 
   function normalize(value) {
     return {
-      theme: catalog.some((theme) => theme.id === value?.theme) ? value.theme : "dark",
+      theme: catalog.some((theme) => theme.id === value?.theme) ? value.theme : (value?.theme === "backup" ? "dark" : "white-mana"),
       background: value?.background === true,
       backgroundType: value?.backgroundType === "constellation" ? "constellation" : "logo",
       backgroundIntensity: number(value?.backgroundIntensity, 0, 150, 100),

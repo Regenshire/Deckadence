@@ -1418,10 +1418,6 @@
           (card.edhrec_saltiness === null || card.edhrec_saltiness === undefined
             ? "?"
             : Number(card.edhrec_saltiness).toFixed(2)),
-        "Price " +
-          (card.sort_price === null || card.sort_price === undefined
-            ? "?"
-            : "$" + Number(card.sort_price).toFixed(2)),
         "Color Identity: " +
           getColorIdentityLabel(
             card.color_identity_json || "[]",
@@ -1436,6 +1432,7 @@
       metaLineTwo.textContent = card.type_line || "";
 
       meta.appendChild(metaLineOne);
+      metaLineOne.appendChild(window.DeckadencePrices.create(card));
       meta.appendChild(metaLineTwo);
 
       main.appendChild(title);

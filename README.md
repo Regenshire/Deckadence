@@ -244,6 +244,121 @@ Please support your local game stores and the creators whose games and artwork m
 
 ---
 
+# Pack and product art downloader
+
+Open **Settings → Card Database → Pack Downloader** to download missing art and
+check generated fallbacks for upgrades.
+The modal shows progress, transfer size, image previews, and any unavailable
+products. Booster packs are selected by default; optionally select Play,
+Collector, Set, and Draft booster boxes, plus Bundles, Gift Bundles, and Holiday
+Bundles. Enter set codes to limit the run, or leave them blank to check imported
+booster sets from newest to oldest.
+
+Downloads run in one background worker. Closing the modal lets the job continue
+while Deckadence remains open. **Cancel download** stops further work and keeps
+completed images; start again to fill the remaining gaps. Cancellation is checked
+between transfer chunks, so a stalled connection may take until the current
+request times out. Handmade images and original downloaded photos are checked
+locally and skipped. Generated fallbacks are checked for better sources on each
+manual run. No downloads are triggered by Roulette, Pack Simulator,
+or card database refreshes. Database refresh and pack downloads run separately.
+
+The downloader uses official product images from
+[Wizards Play Network](https://wpn.wizards.com/en/products). It reads set names
+from the imported database and discovers product-shot ZIP archives from each
+product page. It uses HTTP byte ranges to read the archive directory and selected
+pack images without downloading the entire marketing kit. No API key or
+additional Python dependency is required.
+
+```powershell
+# List available image sources without writing images.
+python -m modes.pack_art FIN TMT
+
+# Download and format previews for review.
+python -m modes.pack_art FIN TMT --output .dev_prompts/pack_art_preview
+
+# Fill missing art in data/img/pack_art, which Roulette already reads.
+python -m modes.pack_art FIN TMT --install
+```
+
+Installation preserves bundled images, handmade runtime images, and original
+downloaded photos. Each new pack is a
+400 x 694 transparent PNG. Original photos retain their proportions; reconstructed
+photos are corrected to a front-facing wrapper. A `.source.json` sidecar records
+the method, source archive, selected filename, and any construction assets.
+Boxes and bundles use a 640 x 480 transparent
+canvas, retaining the official product view. Pack Simulator uses downloaded box
+art automatically when that box is selected, with the existing generic box as a
+fallback. Bundle images are available for product views; downloading them does
+not add new bundle-opening recipes to the simulator.
+
+Existing generated previews follow the same upgrade rules; use a new output
+folder to compare a revised selection with an earlier download.
+Downloads run only when requested, not while loading the wheel or refreshing cards.
+
+For a set absent from the database, pass `--set-name "Final Fantasy"` with its
+single set code. If WPN uses an unusual page slug, pass the full English product
+page URL using `--page-url`. Packs follow this priority order:
+
+1. **Front-facing original:** check all available official views, including older
+   archive naming conventions. View numbers alone do not determine the front.
+2. **Reconstructed pack:** flatten a mildly angled transparent wrapper using its
+   measured edges and a perspective transform. No artwork or text is invented.
+   Severe angles, curved edges, and missing areas are rejected.
+3. **Created pack face:** use the reusable era-based wrapper builder with
+   matching official set artwork and a transparent set logo. These are unofficial
+   approximations, identified in the modal and source record. Artwork is cropped
+   to the wrapper and may differ from the actual retail pack illustration.
+4. **Era-based pack:** if online sources fail or have no matching assets, build
+   a face with the set name, cached set symbol when available, and correct booster
+   type. This requires no network request and carries no Deckadence branding.
+
+The modal's **Generated pack design** defaults to release-year selection: paper
+oval through 1994, framed foil for 1995–2002, dark foil for 2003–2014, and full-art
+wrappers from 2015 onward. These are approximate design families, not exact
+historical replicas. Choose an explicit style or hex wrapper color to override
+the automatic choice. MBC and SLZ use verified official specialty-product images;
+MBC retains its real horizontal wrapper, and SLZ uses its Zeta envelope. Only
+verified specialty boosters are included; ordinary Secret Lair drops are not
+treated as standard draft packs.
+
+The artwork fallback downloads only the selected images from the English art-and-logo
+archive, and reuses them for the set's other missing pack types. All processing is
+local, with no AI service, API key, or additional dependency. Silhouette checks
+cannot establish camera pose perfectly; inspect unfamiliar source families.
+
+WPN is a website rather than a stable image API. Alternate source URLs and known
+filename conventions are supported, including Jumpstart 2022 and both collector
+sample filename orders. Historical sets and special variants without suitable
+photos or set assets receive era-based faces. Only imported booster types are
+created; boxes and bundles are never synthesized and may remain unavailable.
+
+On each run, generated labels, artwork composites, and reconstructed photos can
+be replaced by a higher-priority method. Owned generated faces also refresh when
+the builder version or selected design/color changes, without downgrading their
+source method. Missing artwork needed to rebuild an existing composite leaves it
+intact. A failed lookup or cancellation keeps the existing file. Replacements use
+an atomic file swap; the modal marks
+them **Upgraded**. Source records identify generated files, and new records also
+include an image checksum so user edits are preserved. Older generated fallbacks
+without a checksum are identified by their matching source records. Handmade
+files without generated provenance and all bundled images are kept.
+
+New sets are included automatically after importing their booster definitions
+and running the downloader. There is no background polling for new artwork.
+
+The reusable `WpnPackArtSource`, `PackArtFormatter`, `PackArtDownloader`, and
+`PackArtJobs` classes live in `modes/pack_art.py`. New images and their source
+records are stored in `data/img/pack_art/<SET>/<product_type>.png` and
+`.source.json`; handmade images in `static/img/pack_art` are preserved.
+`PackFaceComposer` and `PackPerspectiveCorrector` in `modes/pack_art_rendering.py`
+can also be used independently. Custom-set title cards use the same composer,
+preserving their existing appearance. `from_assets()` and `from_label()` accept
+`release_date`, `style`, and `base_color`; the app's custom-pack builder exposes
+these as optional `pack_style`, `release_date`, and `base_color` arguments while
+retaining its original default. CLI callers can use `--pack-style`, `--base-color`,
+and `--release-date`. Generated provenance records the resolved design/version.
+
 # License
 
 Deckadence is released under the MIT License. See [`LICENSE.txt`](LICENSE.txt) for the full license text.

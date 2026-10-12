@@ -214,6 +214,37 @@
   font-size: 13px;
   color: var(--muted);
 }
+.pack-simulator .sim-pack-stage.has-pack-formation {
+  height: var(--formation-height);
+  min-height: var(--formation-height);
+  padding: 0;
+}
+.sim-pack-formation { position: absolute; inset: 0; pointer-events: none; }
+.sim-formation-pack {
+  position: absolute;
+  left: 50%;
+  bottom: 35px;
+  width: var(--formation-width);
+  height: calc(var(--formation-width) * 1.75);
+  object-fit: contain;
+  transform-origin: center bottom;
+  filter: drop-shadow(0 16px 12px #0005);
+}
+.sim-formation-pack.is-phantom { opacity: .5; filter: blur(1.5px); }
+.has-pack-formation #packArtworkButton {
+  position: absolute;
+  bottom: 35px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0;
+  z-index: 10;
+}
+.has-pack-formation #packArtwork {
+  width: var(--formation-width);
+  height: calc(var(--formation-width) * 1.75);
+  max-width: none;
+  object-fit: contain;
+}
 .sim-pack-art:hover .chaos-pack-card-image {
   filter: drop-shadow(0 14px 28px #0009) brightness(1.07);
 }
@@ -1206,6 +1237,13 @@
 .sim-pack-art.is-box > .chaos-pack-card-image {
   display: none;
 }
+.sim-pack-art.is-box.has-product-art > .chaos-pack-card-image {
+  display: block; width: 360px; max-width: min(360px, 65vw); height: 260px; max-height: 100%; object-fit: contain;
+}
+.sealed-product-opening {
+  position: absolute; width: min(420px, 80vw); height: 315px; object-fit: contain;
+  left: 0; top: 0; filter: drop-shadow(0 15px 24px #0008);
+}
 .sim-pack-art.is-box {
   height: 285px;
   justify-content: flex-end;
@@ -1649,3 +1687,66 @@
   background: #292720;
   border-color: #73694e;
 }
+
+/* Keep the opening summary with its heading and view controls with actions. */
+html[data-theme] .pack-simulator .sim-contents-heading { margin-right: auto; min-width: 180px; }
+html[data-theme] .pack-simulator .sim-contents-heading .campaign-opened-heading { margin: 0; }
+.pack-simulator .sim-contents-heading #singlePackSummary { margin-top: 6px; font: 400 13px/1.4 Arial,sans-serif; }
+.pack-simulator .sim-contents-heading #singlePackSummary:empty { display: none; }
+.pack-simulator .sim-view-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.pack-simulator .sim-view-controls .sim-sort { display: flex; align-items: center; gap: 8px; margin: 0; }
+.pack-simulator .sim-view-controls select { min-height: 40px; border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; background: var(--panel-2); color: var(--text); font: 400 14px/1.4 Arial,sans-serif; }
+.pack-simulator .sim-card-toolbar:not(:has(> :not([hidden]))) { display: none; }
+@media(max-width:850px) { .pack-simulator .sim-contents-heading { flex-basis: 100%; } }
+
+/* Separate the opening controls from the revealed card area. */
+.pack-simulator #openedCards { padding-top: 18px; }
+
+/* Keep save fields inset and actions accessible in short viewports. */
+.sim-save-dialog[open] { display:flex; flex-direction:column; overflow:hidden; }
+.sim-save-dialog .sim-dialog-header { flex-shrink:0; padding:20px 24px; background:var(--panel-2); }
+.sim-save-body { padding:20px 24px; min-height:0; overflow:auto; }
+.sim-save-body #savePackSummary { margin:0 0 20px; line-height:1.5; }
+.sim-save-dialog .sim-field { margin:0 0 18px; font-size:13px; font-weight:600; }
+.sim-save-dialog .sim-field select { min-height:42px; font-weight:400; }
+.sim-save-body #saveDescription { margin:0; font-size:13px; line-height:1.5; }
+.sim-save-body #saveStatus:empty { display:none; }
+.sim-save-body #saveStatus { margin:14px 0 0; line-height:1.5; }
+.sim-save-actions { padding:16px 24px; border-top:1px solid var(--border); background:var(--panel-2); flex-shrink:0; flex-wrap:wrap; gap:10px; }
+.sim-save-actions .action-button { min-height:40px; padding:9px 16px; font-size:14px; }
+.sim-save-actions #saveRetry { margin-right:auto; }
+
+/* Approved Find a pack comparison: compact results and wider selection controls. */
+@media (min-width: 761px) {
+.sim-product-dialog .sim-dialog-header{padding:20px 28px;background:var(--panel-2)}.sim-product-dialog .sim-product-body{grid-template-columns:minmax(0,1fr) 330px;gap:24px}.sim-product-dialog .sim-selection{padding:18px 0 0 24px}.sim-product-dialog .sim-selection>img{height:145px}.sim-product-dialog .sim-selection h3{margin-top:12px}.sim-product-dialog .sim-product-results .campaign-add-pack-search-result{padding:10px 12px;grid-template-columns:48px minmax(0,1fr) 24px;gap:12px}.sim-product-dialog .sim-product-results .campaign-add-pack-search-image-wrap{height:64px;width:48px}.sim-product-dialog .sim-product-results .campaign-add-pack-search-result[aria-pressed=true]{box-shadow:none;border:2px solid var(--accent);padding:9px 11px}.sim-product-dialog .sim-selection .sim-field{font-size:13px}.sim-product-dialog .sim-selection .sim-reveal-choice{font-size:13px;line-height:1.5;margin:12px 0}.sim-product-dialog .sim-selection #selectionSummary{margin:14px 0 0;padding-top:12px;border-top:1px solid var(--border);font-size:13px}.sim-product-dialog .sim-selection #useProduct{min-height:42px;margin-top:16px}
+}
+
+/* Approved spring Green Mana surfaces; retain the original forest header. */
+html[data-theme="green-mana"] .sim-product-dialog .sim-dialog-header {
+  --panel: #1c3329; --panel-2: #294839; --border: #436651;
+  --text: #eff6e8; --muted: #b3cdb8; --accent: #28764f;
+  --button: #294839; --button-hover: #436651; --theme-highlight: #a6b689;
+  background: #294839; color: #eff6e8; border-bottom-color: #436651;
+  color-scheme: dark;
+}
+html[data-theme="green-mana"] .sim-product-dialog .sim-dialog-header h2 { color: #eff6e8; }
+html[data-theme="green-mana"] .sim-product-dialog .sim-dialog-header .campaign-stage-eyebrow { color: #b3cdb8; }
+html[data-theme="green-mana"] .sim-product-dialog .sim-dialog-header .sim-icon { background: #294839; color: #eff6e8; border-color: #436651; }
+html[data-theme="green-mana"] .sim-product-dialog .sim-find-filters { background: #b9dba7; }
+html[data-theme="green-mana"] .sim-product-dialog .sim-selection { border-left-color: #89ad78; }
+html[data-theme="green-mana"] .sim-product-dialog .sim-product-results .campaign-add-pack-search-result[aria-pressed="true"] {
+  background: #e3d2ed; border-color: #89649b; color: #382b43;
+}
+html[data-theme="green-mana"] .sim-product-dialog .sim-product-results .campaign-add-pack-search-result[aria-pressed="true"] :is(strong,small,span) { color: #382b43; }
+
+/* Eucalyptus: readable card metadata against the exposed page background. */
+html[data-theme="green-mana"] .pack-simulator .sim-rarity.rare { color:#382c08; }
+html[data-theme="green-mana"] .pack-simulator .sim-rarity.mythic { color:#49200f; }
+html[data-theme="green-mana"] .pack-simulator :is(.sim-price-pull,.sim-price-cost) { color:var(--text); }
+html[data-theme="green-mana"] .pack-simulator .sim-market-row .sim-price-pull { color:#205b3b; }
+html[data-theme="green-mana"] .pack-simulator .sim-market-row .sim-price-cost { color:#922d3a; }
+html[data-theme="green-mana"] .pack-simulator .campaign-stage-eyebrow { color:#253427; }
+html[data-theme="green-mana"] .pack-simulator .sim-dialog-header .campaign-stage-eyebrow { color:#b3cdb8; }
+html[data-theme="green-mana"] .sim-product-dialog .sim-dialog-header { background:#2c4c40; }
+html[data-theme="green-mana"] .sim-product-dialog .sim-find-filters { background:#bfd5c8; }
+html[data-theme="green-mana"] .sim-product-dialog .sim-product-results .campaign-add-pack-search-result[aria-pressed="true"] { background:#ddd4e9; border-color:#877497; color:#362f41; }

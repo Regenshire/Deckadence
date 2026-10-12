@@ -251,7 +251,8 @@ def build_default_chaos_pack_display_name(set_code, booster_name):
 
 
 def get_chaos_pack_art_relpath(set_code, booster_name, static_folder):
-    normalized_booster_key = normalize_chaos_booster_key(booster_name)
+    art_name = "sample" if (booster_name or "").strip().lower() in {"collector-sample", "collector sample"} else booster_name
+    normalized_booster_key = normalize_chaos_booster_key(art_name)
 
     set_code_variants = []
     raw_set_code = (set_code or "").strip()

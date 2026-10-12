@@ -3,7 +3,15 @@ from flask import jsonify, request
 from db.market_prices import lookup_card_prices, normalize_finish, summarize_card_prices, _uuid
 
 
-def register_card_price_routes(app):
+def register_card_price_routes(app, get_config=lambda: {}):
+    from db.pricing import select_price, get_pack_price_preferences
+    app.jinja_env.globals['select_price'] = select_price
+
+    @app.context_processor
+    def price_context():
+        enabled, source = get_pack_price_preferences(get_config())
+        return {'global_price_source': source if enabled else 'none'}
+
     @app.post("/api/card-prices")
     def card_prices_lookup():
         payload = request.get_json(silent=True)

@@ -155,6 +155,23 @@ def get_pack_price_preferences(config):
     return enabled, source
 
 
+def select_price(prices, source="manapool", fallback=True):
+    """Select a display quote without changing either vendor's stored data."""
+    import math
+    if source == "none":
+        return {"price": None, "provider": None, "fallback": False}
+    preferred = "cardkingdom" if source == "cardkingdom" else "manapool"
+    candidates = [preferred]
+    if fallback:
+        candidates.append("cardkingdom" if preferred == "manapool" else "manapool")
+    for provider in candidates:
+        quote = (prices or {}).get(provider) or {}
+        value = quote.get("price")
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+            return {**quote, "provider": provider, "fallback": provider != preferred}
+    return {"price": None, "provider": preferred, "fallback": False}
+
+
 def get_finish_type_for_pack_card(card_entry):
     from db.market_prices import normalize_finish
     explicit = normalize_finish(card_entry.get("finish_type"))

@@ -8,6 +8,21 @@
   const key = (id, finish) => `${id}:${finish || "normal"}`;
   const amount = quote => typeof quote?.price === "number" && Number.isFinite(quote.price)
     ? `$${quote.price.toFixed(2)}` : "—";
+  const defaultSource = () => document.querySelector('script[data-default-price-source]')?.dataset.defaultPriceSource || 'manapool';
+  // Pass {manapool: quote, cardkingdom: quote}; the result identifies the actual
+  // provider. Set fallback=false only when displaying a vendor-specific quote.
+  // No network/database work is performed by selection or formatting.
+  function select(prices, source = defaultSource(), fallback = true) {
+    if (source === 'none') return {price:null, provider:null, fallback:false};
+    const preferred = source === 'cardkingdom' ? 'cardkingdom' : 'manapool';
+    const candidates = fallback ? [preferred, preferred === 'manapool' ? 'cardkingdom' : 'manapool'] : [preferred];
+    for (const provider of candidates) {
+      const quote = prices?.[provider];
+      if (typeof quote?.price === 'number' && Number.isFinite(quote.price))
+        return {...quote, provider, fallback:provider !== preferred};
+    }
+    return {price:null, provider:preferred, fallback:false};
+  }
 
   function render(host, prices) {
     const merged = {...host._deckadencePrices};
@@ -20,11 +35,14 @@
         : quote;
     }
     host._deckadencePrices = merged;
-    const provider = host.dataset.priceSource === "cardkingdom" ? "cardkingdom" : "manapool";
-    host.textContent = host.dataset.pricePending === "1" ? "—" : amount(merged[provider]);
-    host.setAttribute("aria-label", `${vendors[provider]} ${host.textContent}; show both vendor prices`);
+    const quote = select(merged, host.dataset.priceSource || defaultSource());
+    host.hidden = (host.dataset.priceSource || defaultSource()) === 'none';
+    host.textContent = host.dataset.pricePending === "1" ? "—" : amount(quote);
+    host.setAttribute("aria-label", `${vendors[quote.provider] || 'Card price'} ${host.textContent}; show both vendor prices`);
+    const sortHost = host.closest('[data-sort-price]');
+    if (sortHost) sortHost.dataset.sortPrice = quote.price ?? '';
     if (host.classList.contains("chaos-pack-inline-price")) {
-      host.classList.toggle("chaos-pack-inline-price-high", merged[provider]?.price > 2);
+      host.classList.toggle("chaos-pack-inline-price-high", quote.price > 2);
     }
     if (host === activeHost) fillPopup();
     host.dispatchEvent(new CustomEvent("deckadence:prices", {bubbles:true, detail:merged}));
@@ -96,11 +114,11 @@
 
   function dismissLater() { if (!pinned) closeTimer = setTimeout(closePopup, 180); }
 
-  function mount(host, card, prices = card.prices, source = "manapool") {
-    if (source === "none") { host.remove(); return; }
+  function mount(host, card, prices = card.prices, source = defaultSource()) {
+    if (source === "none") { host.hidden = true; host.remove(); return; }
     host.classList.add("card-price-trigger"); host.setAttribute("data-card-prices", "");
     host.dataset.priceCardUuid = card.card_uuid;
-    host.dataset.priceFinish = card.finish_type || card.finish || "normal";
+    host.dataset.priceFinish = card.finish_type || card.finish || (Number(card.sheet_is_foil || card.is_foil) === 1 ? 'foil' : 'normal');
     host.dataset.priceSource = source;
     host.setAttribute("aria-expanded", "false");
     render(host, prices);
@@ -116,7 +134,7 @@
 
   async function refresh() {
     if (document.hidden) return;
-    const hosts = [...document.querySelectorAll(selector)];
+    const hosts = [...document.querySelectorAll(selector)].filter(host => (host.dataset.priceSource || defaultSource()) !== 'none');
     if (!hosts.length) return;
     const unique = new Map(hosts.map(host => [key(host.dataset.priceCardUuid, host.dataset.priceFinish),
       {card_uuid: host.dataset.priceCardUuid, finish: host.dataset.priceFinish || "normal"}]));
@@ -202,7 +220,11 @@
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden) schedule(true); });
   window.addEventListener("online", () => schedule(true));
-  window.DeckadencePrices = {mount, refresh: () => schedule(true), setPending: (root, pending) => {
+  function create(card, source = defaultSource()) {
+    const host = document.createElement('button');host.type='button';
+    mount(host, card, card.prices, source);return host;
+  }
+  window.DeckadencePrices = {select, amount, create, mount, refresh: () => schedule(true), setPending: (root, pending) => {
     if (pending && root.contains(activeHost)) closePopup();
     root.querySelectorAll(selector).forEach(host => {
       host.dataset.pricePending = pending ? "1" : "0";

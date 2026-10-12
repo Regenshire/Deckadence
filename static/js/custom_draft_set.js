@@ -1256,23 +1256,6 @@
     return parsedValue.toFixed(digits);
   }
 
-  function formatCurrentCardPrice(rawValue) {
-    if (
-      rawValue === null ||
-      rawValue === undefined ||
-      (typeof rawValue === "string" && rawValue.trim() === "")
-    ) {
-      return "";
-    }
-
-    const parsedValue = Number(rawValue);
-
-    if (!Number.isFinite(parsedValue)) {
-      return "";
-    }
-
-    return "$" + parsedValue.toFixed(2);
-  }
 
   function buildCurrentCardSearchTextFromCard(card) {
     return [
@@ -1480,7 +1463,6 @@
     row.dataset.edhrecSaltiness = edhrecSaltiness;
     row.dataset.sortPrice = sortPrice;
 
-    const formattedPrice = formatCurrentCardPrice(card.sort_price);
 
     row.innerHTML = [
       '<div class="custom-draft-current-card-image-wrap">',
@@ -1575,9 +1557,7 @@
       "<span>Salt " +
         escapeHtml(formatCurrentCardNumber(card.edhrec_saltiness, 2)) +
         "</span>",
-      formattedPrice
-        ? "<span>Price " + escapeHtml(formattedPrice) + "</span>"
-        : "",
+      '<span data-current-price></span>',
       '<span class="custom-draft-color-identity" data-color-json="' +
         escapeHtml(colorIdentityJson) +
         '">Color Identity: ' +
@@ -1615,6 +1595,7 @@
       "</div>",
     ].join("");
 
+    row.querySelector("[data-current-price]")?.replaceWith(window.DeckadencePrices.create(card));
     return row;
   }
 
@@ -1960,13 +1941,8 @@
         metaWrap.appendChild(span);
       });
 
-      const formattedPrice = formatCurrentCardPrice(card.sort_price);
 
-      if (formattedPrice) {
-        const priceSpan = document.createElement("span");
-        priceSpan.textContent = "Price " + formattedPrice;
-        metaWrap.appendChild(priceSpan);
-      }
+      metaWrap.appendChild(window.DeckadencePrices.create(card));
 
       const colorSpan = document.createElement("span");
       colorSpan.className = "custom-draft-color-identity";
@@ -1999,6 +1975,7 @@
     invalidateCurrentCardRowsCache();
     invalidateCurrentCardGridCard(row);
 
+    row.querySelector("[data-current-price]")?.replaceWith(window.DeckadencePrices.create(card));
     return row;
   }
 
@@ -2827,7 +2804,6 @@
     const zoomSrc = imageElement
       ? imageElement.getAttribute("data-zoom-src") || imageSrc
       : imageSrc;
-    const priceText = formatCurrentCardPrice(row.dataset.sortPrice || "");
     const isFoil = row.dataset.isFoil === "1";
     const hasAlternateSource = row.dataset.hasAlternateSource === "1";
 
@@ -2973,13 +2949,9 @@
       metaRow.appendChild(upscaleButton);
     }
 
-    if (priceText) {
-      const priceDiv = document.createElement("div");
-      priceDiv.className =
-        "chaos-pack-view-price custom-draft-grid-card-meta-text";
-      priceDiv.textContent = priceText.replace(/^Price\s+/i, "");
-      metaRow.appendChild(priceDiv);
-    }
+    const priceButton = window.DeckadencePrices.create({card_uuid:cardUuid, is_foil:isFoil, prices:row.querySelector('[data-card-prices]')?._deckadencePrices});
+    priceButton.classList.add('chaos-pack-view-price', 'custom-draft-grid-card-meta-text');
+    metaRow.appendChild(priceButton);
 
     infoWrap.appendChild(nameRow);
     infoWrap.appendChild(metaRow);

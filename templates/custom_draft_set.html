@@ -1329,8 +1329,8 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
                 >Salt {{ "%.2f"|format(card.edhrec_saltiness) if
                 card.edhrec_saltiness is not none else "?" }}</span
               >
-              {% if card.sort_price is not none %}
-              <span>Price {{ "$%.2f"|format(card.sort_price) }}</span>
+              {% if global_price_source != 'none' %}
+              <button type="button" class="card-price-trigger" data-card-prices data-price-card-uuid="{{ card.card_uuid }}" data-price-finish="{{ 'foil' if card.sheet_is_foil else 'normal' }}" data-price-source="{{ global_price_source }}" aria-label="Show card prices">—</button>
               {% endif %}
               <span
                 class="custom-draft-color-identity"
@@ -1509,12 +1509,12 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 </div>
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
-<script src="{{ url_for('static', filename='js/card_search_modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/card_search_modal.js', v='shared-price-1') }}"></script>
 <script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_back_selector.js') }}"></script>
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js') }}"></script>
-<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=pack-result-1"></script>
+<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=shared-price-1"></script>
 {% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>

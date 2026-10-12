@@ -1,10 +1,175 @@
 document.addEventListener("DOMContentLoaded", function () {
   initializeRefreshCards();
+  initializePackDownloader();
   initializeSettingsConsole();
   initializeConfigPanels();
   initializeGameModeCards();
   initializeConfigShortcutNavigation();
 });
+
+function initializePackDownloader() {
+  const modal = document.getElementById("packDownloaderModal");
+  if (!modal) return;
+  const get = (name) => document.getElementById(name);
+  const start = get("startPackDownload");
+  const cancel = get("cancelPackDownload");
+  const options = get("packDownloaderOptions");
+  const results = get("packDownloaderResults");
+  const error = get("packDownloaderError");
+  let jobId = "", cursor = 0, timer = null, revision = 0;
+  let running = false;
+
+  function showError(message) {
+    error.textContent = message || "";
+    error.hidden = !message;
+  }
+  async function api(path, body) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch("/pack-art/download/" + path, {
+        method: body === undefined ? "GET" : "POST", cache: "no-store",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal,
+      });
+      const data = await response.json();
+      if (!response.ok || !data.ok) throw new Error(data.message || "Could not update the pack downloader.");
+      return data;
+    } catch (e) {
+      if (e.name === "AbortError" || e instanceof TypeError)
+        throw new Error("Could not reach Deckadence. Reopen this window to check the download; completed images are kept.");
+      throw e;
+    } finally { clearTimeout(timeout); }
+  }
+  function appendResult(item) {
+    const card = document.createElement("article");
+    card.className = "pack-download-result pack-download-" + item.status;
+    if (item.image_src) {
+      const image = document.createElement("img");
+      image.src = item.image_src;
+      image.alt = item.set_name + " " + item.label;
+      image.loading = "lazy";
+      card.append(image);
+    }
+    const name = document.createElement("strong");
+    name.textContent = item.set_name + " (" + item.set_code + ")";
+    const label = document.createElement("span");
+    label.textContent = item.label;
+    const status = document.createElement("span");
+    status.className = "pack-download-result-status";
+    status.textContent = ({downloaded: "Downloaded", existing: "Existing image kept", unavailable: "Unavailable"})[item.status] || item.status;
+    if (item.status === "downloaded") {
+      status.textContent = ({front: "Front-facing original", reconstructed: "Reconstructed from pack photo",
+        created: "Created from set artwork", label: "Created with era-based design",
+        product: "Downloaded product photo"})[item.method] || status.textContent;
+      if (item.upgraded) status.textContent = "Upgraded · " + status.textContent;
+    }
+    card.append(name, label, status);
+    if (item.detail) {
+      const detail = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = "Details";
+      const text = document.createElement("p");
+      text.textContent = item.detail;
+      detail.append(summary, text);
+      card.append(detail);
+    }
+    results.append(card);
+  }
+  function apply(state) {
+    if (state.job_id !== jobId) {
+      jobId = state.job_id;
+      results.replaceChildren();
+      cursor = 0;
+      if (state.product_types) {
+        for (const input of options.querySelectorAll('input[name="pack_art_type"]'))
+          input.checked = state.product_types.includes(input.value);
+        get("packDownloaderSets").value = (state.set_codes || []).join(", ");
+        get("packDownloaderStyle").value = state.pack_style || "auto";
+        get("packDownloaderColor").value = state.base_color || "";
+      }
+    }
+    running = state.state === "running" || state.state === "cancelling";
+    options.disabled = running;
+    start.disabled = running;
+    cancel.disabled = state.state !== "running";
+    cancel.textContent = state.state === "cancelling" ? "Cancelling…" : "Cancel download";
+    get("packDownloaderStage").textContent = state.stage;
+    get("packDownloaderMessage").textContent = state.message;
+    get("packDownloaderCounts").textContent = `${state.downloaded} saved · ${state.existing} kept · ${state.unavailable} unavailable`;
+    get("packDownloaderProgress").max = state.total_sets || 1;
+    get("packDownloaderProgress").value = state.completed_sets || 0;
+    get("packDownloaderSetProgress").textContent = state.total_sets ? `${state.completed_sets} of ${state.total_sets} sets checked` : "";
+    get("packDownloaderTransfer").textContent = state.bytes_received ? `${(state.bytes_received / 1048576).toFixed(1)} MB received` : "";
+    get("packDownloaderStatus").dataset.running = String(running);
+    for (const item of state.results) appendResult(item);
+    cursor = state.cursor;
+    showError(state.error);
+  }
+  async function refresh() {
+    clearTimeout(timer);
+    const current = revision;
+    let retry = false;
+    try {
+      const state = await api(`status?job_id=${encodeURIComponent(jobId)}&after=${cursor}`);
+      if (current !== revision) return;
+      apply(state);
+    } catch (e) {
+      if (current !== revision) return;
+      showError(e.message);
+      retry = true;
+    }
+    if (modal.open && (running || retry)) timer = setTimeout(refresh, retry ? 3000 : 1000);
+  }
+  get("openPackDownloader").addEventListener("click", () => {
+    modal.showModal();
+    revision += 1;
+    refresh();
+  });
+  get("closePackDownloader").addEventListener("click", () => modal.close());
+  modal.addEventListener("close", () => {
+    clearTimeout(timer);
+    revision += 1;
+    get("openPackDownloader").focus();
+  });
+  start.addEventListener("click", async () => {
+    const types = [...options.querySelectorAll('input[name="pack_art_type"]:checked')].map((input) => input.value);
+    if (!types.length) { showError("Choose at least one product type."); return; }
+    const codes = get("packDownloaderSets").value.trim().split(/[\s,;]+/).filter(Boolean).map((code) => code.toUpperCase());
+    const packStyle = get("packDownloaderStyle").value;
+    const baseColor = get("packDownloaderColor").value.trim();
+    if (baseColor && !/^#[0-9a-fA-F]{6}$/.test(baseColor)) {
+      showError("Enter a color such as #454474, or leave it blank for automatic colors.");
+      return;
+    }
+    revision += 1;
+    clearTimeout(timer);
+    start.disabled = true;
+    options.disabled = true;
+    showError("");
+    try {
+      await api("start", {set_codes: codes, product_types: types, pack_style: packStyle, base_color: baseColor || null});
+      await refresh();
+    } catch (e) {
+      showError(e.message);
+      options.disabled = running;
+      start.disabled = running;
+      // Reconcile a possibly successful request whose response was interrupted.
+      if (modal.open) timer = setTimeout(refresh, 3000);
+    }
+  });
+  cancel.addEventListener("click", async () => {
+    cancel.disabled = true;
+    try {
+      await api("cancel", {job_id: jobId});
+      revision += 1;
+      await refresh();
+    } catch (e) {
+      showError(e.message);
+      if (modal.open) timer = setTimeout(refresh, 1000);
+    }
+  });
+}
 
 function initializeRefreshCards() {
   const refreshButton = document.getElementById("refreshCardsButton");

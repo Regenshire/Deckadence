@@ -90,10 +90,11 @@
     box.setAttribute("aria-hidden", "true");
     return box;
   }
-  function setBox(host, enabled, name, count, collector = false, play = false) {
+  function setBox(host, enabled, name, count, collector = false, play = false, productImage = null) {
     host.querySelector(".sealed-box")?.remove();
     host.classList.toggle("is-box", enabled);
-    if (enabled)
+    host.classList.toggle("has-product-art", Boolean(enabled && productImage));
+    if (enabled && !productImage)
       host.prepend(
         boxNode(host.querySelector("img").src, name, count, collector, play),
       );
@@ -107,6 +108,7 @@
     prepareGrid,
     box = false,
     boxImage,
+    productImage,
     boxName = "",
     collector = false,
     play = false,
@@ -200,7 +202,19 @@
       stage.style.top = y + "px";
       document.body.append(overlay);
       let delay = 0;
-      if (box) {
+      if (box && productImage) {
+        const photo = element("img", "sealed-product-opening");
+        photo.src = productImage;
+        photo.alt = "";
+        stage.append(photo);
+        animate(photo, [
+          { opacity: 0, transform: "translate(-50%, -50%) scale(.85)" },
+          { opacity: 1, transform: "translate(-50%, -50%) scale(1)", offset: 0.25 },
+          { opacity: 1, offset: 0.65 },
+          { opacity: 0, transform: "translate(-50%, -65%) scale(1.08)" },
+        ], { duration: 1100, fill: "both" });
+        delay = 800;
+      } else if (box) {
         const carton = boxNode(
           boxImage || src,
           boxName,

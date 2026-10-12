@@ -17,6 +17,7 @@ import random
 import re
 import shutil
 import socket
+import sqlite3
 import sys
 import threading
 import time
@@ -463,6 +464,16 @@ app = Flask(
     template_folder=get_template_dir(),
     static_folder=get_static_dir(),
 )
+
+from modes.pack_art import PackArtJobs, PRODUCT_TYPES, PACK_TYPES
+from modes.pack_art_rendering import PackFaceComposer
+
+pack_art_jobs = PackArtJobs(label_renderer=lambda code, name, label, **options:
+    build_custom_draft_set_pack_art_image_bytes(
+        f"{name} - {label} ({code})", set_code=code, booster_name=label,
+        pack_style=options.get('style', 'auto'), release_date=options.get('release_date', ''),
+        base_color=options.get('base_color'), set_name=name,
+    ))
 app.secret_key = APP_SECRET_KEY
 
 from ui.backups import register_backup_routes
@@ -477,10 +488,11 @@ application_backup_jobs = register_backup_routes(
         or get_alternate_bleed_reprocess_status_copy().get("is_running")
         or get_upscaling_batch_status_copy().get("is_running")
         or has_active_manual_upscale_runs()
+        or pack_art_jobs.busy
     ),
 )
 from ui.card_prices import register_card_price_routes
-register_card_price_routes(app)
+register_card_price_routes(app, lambda: get_request_config())
 from ui.pack_simulator import register_pack_simulator_routes
 register_pack_simulator_routes(app, lambda: get_request_config())
 
@@ -9877,7 +9889,30 @@ def build_custom_draft_set_pack_art_image_bytes(
     booster_name=None,
     pack_tracking_code="",
     icon_fallback_set_code=None,
+    *,
+    pack_style="custom",
+    release_date="",
+    base_color=None,
+    set_name=None,
 ):
+    if pack_style != "custom":
+        icon_bytes = None
+        icon_path = get_pack_label_set_icon_path(set_code, fallback_set_code=icon_fallback_set_code)
+        if icon_path:
+            design = PackFaceComposer.design(set_code, release_date, pack_style, base_color)
+            tint = (44, 77, 91) if design['style'] in {'vintage', 'specialty'} else (222, 211, 176)
+            icon = render_svg_icon_to_tinted_image(icon_path, 176, tint, opacity=215)
+            if icon is not None:
+                buffer = BytesIO()
+                icon.save(buffer, format="PNG")
+                icon_bytes = buffer.getvalue()
+        composer = PackFaceComposer(
+            os.path.join(app.static_folder, "img", "pack_art", "_fallback", "packback.png"),
+            os.path.join(app.static_folder, "fonts"),
+        )
+        return composer.from_label(set_name or pack_display_name, set_code or "", booster_name or "Booster Pack",
+                                   release_date=release_date, style=pack_style, base_color=base_color,
+                                   icon_bytes=icon_bytes)
     title_card_bytes = build_chaos_pack_title_card_image_bytes(
         pack_display_name,
         set_code=set_code,
@@ -9901,41 +9936,9 @@ def build_custom_draft_set_pack_art_image_bytes(
         return title_card_bytes
 
     try:
-        with Image.open(packback_path) as packback_source:
-            packback_rgba = packback_source.convert("RGBA")
-
-        with Image.open(BytesIO(title_card_bytes)) as title_card_source:
-            title_card_image = title_card_source.convert("RGB")
-
-        packback_rgb = packback_rgba.convert("RGB")
-        packback_alpha = packback_rgba.getchannel("A")
-
-        target_width_px = 350
-        scale_ratio = target_width_px / max(1, title_card_image.width)
-        target_height_px = max(1, int(round(title_card_image.height * scale_ratio)))
-
-        resized_title_card = title_card_image.resize(
-            (target_width_px, target_height_px),
-            Image.LANCZOS,
-        )
-
-        brightness_enhancer = ImageEnhance.Brightness(resized_title_card)
-        resized_title_card = brightness_enhancer.enhance(1.33)
-
-        overlay_image = Image.new("RGB", packback_rgb.size, (0, 0, 0))
-
-        paste_x = int((packback_rgb.width - resized_title_card.width) / 2)
-        paste_y = int((packback_rgb.height - resized_title_card.height) / 2)
-
-        overlay_image.paste(resized_title_card, (paste_x, paste_y))
-
-        blended_rgb = ImageChops.lighter(packback_rgb, overlay_image)
-        blended_rgba = blended_rgb.convert("RGBA")
-        blended_rgba.putalpha(packback_alpha)
-
-        output_buffer = BytesIO()
-        blended_rgba.save(output_buffer, format="PNG")
-        return output_buffer.getvalue()
+        return PackFaceComposer(
+            packback_path, os.path.join(app.static_folder, "fonts")
+        ).compose(title_card_bytes)
 
     except Exception as exc:
         write_error_log(
@@ -21368,6 +21371,8 @@ def config():
 
     return render_template(
         "config.html",
+        pack_art_product_types=PRODUCT_TYPES,
+        pack_art_pack_types=PACK_TYPES,
         config=config_values,
         momir_mode=resolved_momir_mode,
         chaos_draft_mode=resolved_chaos_draft_mode,
@@ -22103,6 +22108,8 @@ def maintenance_clear_all_packs():
 
 @app.route("/refresh-cards/start", methods=["POST"])
 def refresh_cards_start():
+    if pack_art_jobs.busy:
+        return jsonify(ok=False, message="Finish or cancel the pack download before refreshing the card database."), 409
     current_status = get_refresh_status_copy()
     if current_status["is_running"]:
         return jsonify({"ok": False, "message": "Refresh is already running."}), 409
@@ -22138,6 +22145,48 @@ def refresh_cards_status():
             exc=exc,
         )
         return jsonify(current_status)
+
+@app.get("/pack-art/download/status")
+def pack_art_download_status():
+    after = request.args.get("after", default=0, type=int) or 0
+    state = pack_art_jobs.status(after, request.args.get("job_id", ""))
+    for result in state["results"]:
+        if result.get("image_path"):
+            result["image_src"] = (
+                url_for("runtime_pack_art", pack_art_path=result["image_path"])
+                if result["location"] == "runtime"
+                else url_for("static", filename="img/pack_art/" + result["image_path"])
+            )
+    response = jsonify(ok=True, **state)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.post("/pack-art/download/start")
+def pack_art_download_start():
+    if get_refresh_status_copy().get("is_running"):
+        return jsonify(ok=False, message="Wait for the card database download to finish first."), 409
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(ok=False, message="Choose the products to download."), 400
+    try:
+        job_id = pack_art_jobs.start(payload.get("set_codes"), payload.get("product_types"),
+                                    payload.get("pack_style", "auto"), payload.get("base_color") or None)
+    except ValueError as error:
+        return jsonify(ok=False, message=str(error)), 409
+    except sqlite3.Error:
+        return jsonify(ok=False, message="The card database is unavailable. Download it before downloading pack art."), 503
+    return jsonify(ok=True, job_id=job_id), 202
+
+
+@app.post("/pack-art/download/cancel")
+def pack_art_download_cancel():
+    payload = request.get_json(silent=True)
+    try:
+        pack_art_jobs.cancel(payload.get("job_id") if isinstance(payload, dict) else None)
+    except ValueError as error:
+        return jsonify(ok=False, message=str(error)), 409
+    return jsonify(ok=True), 202
 
 @app.route("/download-card-images/start", methods=["POST"])
 def download_card_images_start():
