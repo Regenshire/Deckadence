@@ -26,6 +26,13 @@ img:is(.card-image, .card-zoom-image, .card-search-preview-image,
   transform-origin: center;
 }
 .card-effects-moving { will-change: transform; }
+.campaign-test-draft-picked-art { width: 44px; }
+.campaign-test-draft-picked-grid-active .campaign-test-draft-picked-art { width: 100%; }
+.card-effects.card-effects.card-effects > img.campaign-test-draft-picked-thumb,
+.card-effects.card-effects.card-effects > img.campaign-test-draft-card-image { transform: none; }
+.deckbuilder-card[data-is-foil="1"] .deckbuilder-card-image-wrap.card-effects::before,
+.deckbuilder-card[data-is-foil="1"] .deckbuilder-card-image-wrap.card-effects::after { content: none; }
+.deckbuilder-card[data-is-foil="1"] .card-effects .campaign-test-draft-picked-thumb { filter: none; }
 .card-effects .card-effect-layer {
   position: absolute; inset: 0; border-radius: inherit;
   pointer-events: none; user-select: none; opacity: 0;

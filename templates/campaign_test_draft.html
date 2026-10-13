@@ -4,7 +4,7 @@
 
 {% block page_styles %}
 <script src="{{ url_for('static', filename='js/deckadence_message_cards.js', v='shared-footer-5') }}"></script>
-<script src="{{ url_for('static', filename='js/pack_opening.js', v='2') }}"></script>
+<script src="{{ url_for('static', filename='js/pack_opening.js', v='3') }}"></script>
 <link
     rel="stylesheet"
     href="{{ url_for('static', filename='css/card_views.css') }}"
@@ -77,18 +77,7 @@
                         class="campaign-test-draft-picked-sort-select"
                         title="Card Size"
                         aria-label="Card Size"
-                    >
-                        <option value="50">50%</option>
-                        <option value="65">65%</option>
-                        <option value="75">75%</option>
-                        <option value="85">85%</option>
-                        <option value="100" selected>100%</option>
-                        <option value="115">115%</option>
-                        <option value="130">130%</option>
-                        <option value="150">150%</option>
-                        <option value="175">175%</option>
-                        <option value="200">200%</option>
-                    </select>
+                    >{% include "_card_size_options.html" %}</select>
                 </label>
 
                 <button
@@ -481,11 +470,13 @@
                         data-card-mana-value="{{ picked_card.mana_value if picked_card.mana_value is not none else '' }}"
                         data-card-type-line="{{ picked_card.type_line or '' }}"
                     >
+                        <div class="campaign-test-draft-picked-art" data-card-effects data-is-foil="{{ 1 if picked_card.is_foil else 0 }}">
                         <img
                             src="{{ url_for('chaos_card_image', card_uuid=picked_card.card_uuid) }}"
                             alt="{{ picked_card.card_name }}"
                             class="campaign-test-draft-picked-thumb"
                         >
+                        </div>
 
                         <div class="campaign-test-draft-picked-main">
                             <div class="campaign-test-draft-picked-name">{{ picked_card.card_name }}</div>
@@ -546,11 +537,13 @@
                         data-card-mana-value="{{ picked_card.mana_value if picked_card.mana_value is not none else '' }}"
                         data-card-type-line="{{ picked_card.type_line or '' }}"
                     >
+                        <div class="campaign-test-draft-picked-art" data-card-effects data-is-foil="{{ 1 if picked_card.is_foil else 0 }}">
                         <img
                             src="{{ url_for('chaos_card_image', card_uuid=picked_card.card_uuid) }}"
                             alt="{{ picked_card.card_name }}"
                             class="campaign-test-draft-picked-thumb"
                         >
+                        </div>
 
                         <div class="campaign-test-draft-picked-main">
                             <div class="campaign-test-draft-picked-name">{{ picked_card.card_name }}</div>
@@ -742,7 +735,7 @@
 
 </div>
 
-<script src="{{ url_for('static', filename='js/card_flip.js', v='card-effects-1') }}"></script>
+<script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
 <script>
 (function () {
     const workspace = document.getElementById("campaignTestDraftWorkspace");
@@ -934,7 +927,9 @@
 
         return (
             '<div class="campaign-test-draft-picked-row" draggable="true" data-drag-type="picked-card" data-draft-test-pick-id="' + escapeHtml(pickedCard.draft_test_pick_id) + '" data-current-zone="' + escapeHtml(targetZone) + '" data-card-name="' + escapeHtml(pickedCard.card_name || "") + '" data-card-uuid="' + escapeHtml(pickedCard.card_uuid || "") + '" data-card-rarity="' + escapeHtml(pickedCard.rarity || "") + '" data-card-mana-value="' + escapeHtml(pickedCard.mana_value ?? "") + '" data-card-type-line="' + escapeHtml(pickedCard.type_line || "") + '">' +
+                '<div class="campaign-test-draft-picked-art" data-card-effects data-is-foil="' + (pickedCard.is_foil ? '1' : '0') + '">' +
                 '<img src="' + escapeHtml(pickedCard.image_src) + '" alt="' + escapeHtml(pickedCard.card_name) + '" class="campaign-test-draft-picked-thumb">' +
+                '</div>' +
                 '<div class="campaign-test-draft-picked-main">' +
                     '<div class="campaign-test-draft-picked-name">' + escapeHtml(pickedCard.card_name) + '</div>' +
                     '<div class="campaign-test-draft-picked-meta">' + pickedMeta + '</div>' +
@@ -1805,15 +1800,11 @@
     }
 
     function setDraftCardSize(sizePercent) {
-        const parsedSize = parseInt(sizePercent || "100", 10);
-        const safeSize = Number.isFinite(parsedSize)
-            ? Math.max(50, Math.min(200, parsedSize))
-            : 100;
+        const safeSize = window.DeckadenceCardSizes.normalize(sizePercent);
 
         draftCardSize = safeSize;
 
-        const baseCardWidth = 280;
-        const cardWidth = Math.round(baseCardWidth * (safeSize / 100));
+        const cardWidth = window.DeckadenceCardSizes.pixels(safeSize);
         const stackColumnWidth = Math.max(112, cardWidth);
         const stackCardWidth = Math.max(96, stackColumnWidth - 16);
         const visibleStackStrip = Math.max(30, Math.round(stackCardWidth * 0.22));
@@ -2632,6 +2623,7 @@
 
         hoverPreviewImage.src = imageElement.src;
         hoverPreviewImage.alt = imageElement.alt || sourceElement.dataset.cardName || fallbackAlt || "Card";
+        window.DeckadenceCardEffects?.copyToZoom(imageElement, hoverPreviewImage);
 
         hoverPreview.classList.remove("hidden");
         hoverPreview.setAttribute("aria-hidden", "false");

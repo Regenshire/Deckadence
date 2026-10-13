@@ -210,6 +210,14 @@ class UserContentExporter:
             return None
         if table == "sets" and field == "local_icon_svg_path" and getattr(self, "current_set_code", None) not in self.custom_codes:
             return None
+        if field == "card_back_key" and getattr(self.selection, "scope", {}).get("kind") == "campaign":
+            prefix, _, filename = value.partition(":")
+            if prefix in {"custom", "builtin"} and filename and Path(filename).name == filename:
+                folder = self.root / KINDS["card_back"] if prefix == "custom" else self.static / "img/card_backs"
+                path = folder / filename
+                if prefix == "custom" or self._is_custom_file(path, "static/img/card_backs/" + filename):
+                    self.asset(path, "card_back", filename)
+            return value
         if value.startswith(("http:", "https:", "builtin:", "custom:")):
             return value
         extension = Path(value).suffix.lower()
@@ -256,6 +264,8 @@ class UserContentExporter:
 
     def _collect_directories(self):
         for kind in ("icon", "card_back", "pack_art", "deck_source", "deck_generated", "print"):
+            if kind == "card_back" and getattr(self.selection, "scope", {}).get("kind") == "campaign":
+                continue
             if not self.selection.enabled({"icon": "custom_set_icons", "card_back": "card_backs", "pack_art": "custom_sets", "deck_source": "deck_art", "deck_generated": "deck_art", "print": "print_templates"}[kind]):
                 continue
             # Partial exports collect category-specific art from selected records.
@@ -325,7 +335,7 @@ class UserContentExporter:
                         if token and path.suffix.lower() in {".studio3", ".svg", ".dxf", ".fcm"}:
                             cutting_entries.append({**registered.get(path.name, {"filename": path.name, "name": path.stem}), "asset": token["$asset"]})
         # Modified bundled backs become custom backs on import.
-        for path in self._files(self.static / "img/card_backs") if self.selection.enabled("card_backs") and (self.static / "img/card_backs").is_dir() else ():
+        for path in self._files(self.static / "img/card_backs") if self.selection.enabled("card_backs") and getattr(self.selection, "scope", {}).get("kind") != "campaign" and (self.static / "img/card_backs").is_dir() else ():
             if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
                 relative = "static/img/card_backs/" + path.name
                 if self._is_custom_file(path, relative):
@@ -421,7 +431,7 @@ class UserContentExporter:
                     else:
                         writer.write(json.dumps({"table": "@settings", "row": settings_row}, ensure_ascii=False) + "\n")
                         counts["@settings"] = 1
-        return {"schemas": schemas, "row_counts": counts, "assets": self.asset_info, "cutting_templates": cutting, "selection": self.selection.options, "entities": self.selection.entities,
+        return {"schemas": schemas, "row_counts": counts, "assets": self.asset_info, "cutting_templates": cutting, "selection": self.selection.options, "entities": self.selection.entities, "scope": getattr(self.selection, "scope", None),
                 "required_dependencies": {table: sorted(ids) for table, ids in self.selection.required.items() if not self.selection.enabled(self.selection.group(table))}}, self.assets
 
 

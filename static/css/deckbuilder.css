@@ -62,6 +62,24 @@
 .deckbuilder-header-art-wrap {
   position: relative;
 }
+.deckbuilder-art-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--muted);
+  background: linear-gradient(140deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.deckbuilder-deck-art-portrait { position: relative; }
+.deckbuilder-header-art-wrap.has-no-art .deckbuilder-deck-art-portrait { visibility: hidden; }
 
 .deckbuilder-toolbar-name-input {
   flex: 1 1 320px;

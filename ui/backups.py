@@ -152,7 +152,11 @@ def register_backup_routes(app, *, app_version="", guard=None, activity_check=No
             directory = payload.get("output_directory") or None
             if directory is not None and not isinstance(directory, str):
                 raise ValueError("Enter a valid backup folder path.")
-            selection = ExportSelection(payload.get("selection"), payload.get("entities"))
+            if "campaign_id" in payload:
+                from campaign_export_selection import CampaignExportSelection
+                selection = CampaignExportSelection(payload["campaign_id"], payload.get("selection"))
+            else:
+                selection = ExportSelection(payload.get("selection"), payload.get("entities"))
             if not any(selection.options.values()):
                 raise ValueError("Select at least one category or setting to export.")
             job_id = jobs.reserve("backup")
@@ -206,7 +210,8 @@ def register_backup_routes(app, *, app_version="", guard=None, activity_check=No
             else:
                 raise ValueError("Choose a ZIP backup or enter its local file path.")
             cleanup = (lambda: uploaded_path.unlink(missing_ok=True)) if uploaded_path else None
-            jobs.run(lambda progress: service.import_backup(archive_path, progress), cleanup=cleanup)
+            campaign_only = request.args.get("scope") == "campaign"
+            jobs.run(lambda progress: service.import_backup(archive_path, progress, campaign_only=campaign_only), cleanup=cleanup)
             return jsonify(ok=True, job_id=jobs.status()["job_id"]), 202
         except Exception as error:
             if uploaded_path:

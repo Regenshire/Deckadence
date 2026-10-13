@@ -86,7 +86,7 @@ class ExportSelection:
 
         for table in tables:
             progress(stage="Selecting custom content", current_file=table)
-            collect_cards = self.group(table) in {"custom_sets", "decks", "packs"} and self.enabled(self.group(table))
+            collect_cards = self.group(table) in {"custom_sets", "decks", "packs", "campaigns"} and self.enabled(self.group(table))
             if table not in existing or not self.enabled(self.group(table)) or table in self.MODIFIED or table in {"sets", "cards", "chaos_cards"}:
                 continue
             for raw in connection.execute('SELECT * FROM "' + table + '"'):

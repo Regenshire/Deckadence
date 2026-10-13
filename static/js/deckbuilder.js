@@ -204,9 +204,6 @@
     cardSize: "imomir.deckbuilder.cardSize",
   });
 
-  const DECKBUILDER_CARD_SIZES = Object.freeze([
-    70, 85, 100, 115, 130, 150, 175, 200,
-  ]);
 
   const deckbuilderPreferences = {
     get: function (key, fallbackValue) {
@@ -239,11 +236,7 @@
   }
 
   function normalizeDeckbuilderCardSize(value) {
-    const parsedValue = parseInt(value, 10);
-
-    return DECKBUILDER_CARD_SIZES.indexOf(parsedValue) !== -1
-      ? parsedValue
-      : 100;
+    return window.DeckadenceCardSizes.normalize(value);
   }
 
   const STACK_HOVER_EXPAND_DELAY_MS = 300;
@@ -529,12 +522,7 @@
   }
 
   function getDeckbuilderCardSizePixels(sizePercent) {
-    const cleanSizePercent = parseInt(sizePercent || 100, 10);
-    const safeSizePercent = Number.isFinite(cleanSizePercent)
-      ? Math.max(70, Math.min(200, cleanSizePercent))
-      : 100;
-
-    return Math.round(176 * (safeSizePercent / 100));
+    return window.DeckadenceCardSizes.pixels(sizePercent);
   }
 
   function updateDeckbuilderCardSize(sizePercent) {
@@ -1800,6 +1788,16 @@
     artUrl.searchParams.set("_art", String(Date.now()));
 
     deckArtImage.src = artUrl.toString();
+  }
+
+  const initialDeckArt = document.getElementById("deckbuilderDeckArtImage");
+  if (initialDeckArt) {
+    const syncArtPlaceholder = () => initialDeckArt.parentElement.classList.toggle(
+      "has-no-art", !initialDeckArt.naturalWidth,
+    );
+    initialDeckArt.addEventListener("load", syncArtPlaceholder);
+    initialDeckArt.addEventListener("error", syncArtPlaceholder);
+    syncArtPlaceholder();
   }
 
   async function saveDeckSettings() {
@@ -3907,6 +3905,7 @@
 
         hoverPreviewImage.src = deckArtImage.src;
         hoverPreviewImage.alt = "Deck Art";
+        window.DeckadenceCardEffects?.copyToZoom(deckArtImage, hoverPreviewImage);
 
         hoverPreview.classList.remove("campaign-test-draft-hover-preview-foil");
 
@@ -3957,10 +3956,7 @@
         hoverPreviewImage.alt =
           imageElement.alt || cardElement.dataset.cardName || "Card";
 
-        hoverPreview.classList.toggle(
-          "campaign-test-draft-hover-preview-foil",
-          cardElement.dataset.isFoil === "1",
-        );
+        window.DeckadenceCardEffects?.copyToZoom(imageElement, hoverPreviewImage);
 
         hoverPreview.classList.remove("hidden");
         hoverPreview.setAttribute("aria-hidden", "false");

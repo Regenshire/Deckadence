@@ -3810,6 +3810,7 @@
 
     zoomImage.src = imageSrc;
     zoomImage.alt = imageAlt;
+    window.DeckadenceCardEffects?.copyToZoom(imageElement, zoomImage);
     zoomOverlay.classList.remove("hidden");
     zoomOverlay.setAttribute("aria-hidden", "false");
   }

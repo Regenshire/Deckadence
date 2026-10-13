@@ -1510,8 +1510,8 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 <script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
-<script src="{{ url_for('static', filename='js/card_flip.js') }}"></script>
-<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=shared-price-1"></script>
+<script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
+<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=shared-effects-1"></script>
 {% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>

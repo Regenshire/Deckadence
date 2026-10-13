@@ -1,0 +1,42 @@
+/* Shared pack tear and card spill presentation. */
+.sealed-opening-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2000;
+  overflow: hidden;
+}
+.sealed-opening-stage {
+  position: absolute;
+  width: 0;
+  height: 0;
+  perspective: 900px;
+}
+.sealed-tear-wrapper {
+  /* One shared shallow cut, with small uneven fibers rather than saw teeth. */
+  --sealed-cut:
+    0% 23.1%, 3% 22.8%, 7% 22.9%, 10% 22.4%, 16% 22.3%, 19% 22.4%, 24% 21.8%,
+    29% 21.7%, 31% 21.9%, 38% 21.2%, 43% 21.1%, 47% 21.2%, 52% 20.6%, 59% 20.5%,
+    62% 20.1%, 68% 20.2%, 73% 19.7%, 76% 19.8%, 82% 19.1%, 87% 19.2%, 91% 18.7%,
+    96% 18.8%, 100% 18.4%;
+  position: absolute;
+  width: 240px;
+  height: 380px;
+  left: -120px;
+  top: -190px;
+  filter: drop-shadow(0 15px 28px #0009);
+}
+.sealed-tear-wrapper img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.sealed-tear-top {
+  clip-path: polygon(0 0, var(--sealed-cut), 100% 0);
+  transform-origin: 18% 21%;
+}
+.sealed-tear-body {
+  clip-path: polygon(var(--sealed-cut), 100% 100%, 0 100%);
+}

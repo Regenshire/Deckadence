@@ -1,18 +1,19 @@
 <div id="applicationBackupPanel" class="application-backup-panel"
+    data-scope="{{ 'campaign' if campaign_backup else 'application' }}"
     data-status-url="{{ url_for('application_backups.status') }}"
     data-create-url="{{ url_for('application_backups.create') }}"
-    data-import-url="{{ url_for('application_backups.restore') }}"
+    data-import-url="{{ url_for('application_backups.restore', scope='campaign') if campaign_backup else url_for('application_backups.restore') }}"
     data-cancel-url="{{ url_for('application_backups.cancel_restore') }}"
     data-cancel-export-url="{{ url_for('application_backups.cancel_export') }}">
-  <p>Back up your custom content and settings. Choose what to include under Settings in the export modal.</p>
+  {% if not campaign_backup %}<p>Back up your custom content and settings. Choose what to include under Settings in the export modal.</p>{% endif %}
   <div class="application-backup-fields">
-    <button type="button" id="applicationBackupOpen" class="action-button cleanup-action-button">Export</button>
+    <button type="button" id="applicationBackupOpen" {% if campaign_backup %}hidden{% endif %} class="action-button cleanup-action-button">Export</button>
     <button type="button" id="applicationBackupShowProgress" class="action-button secondary-button hidden">View Export / Import Status</button>
   </div>
-  <p class="application-backup-hint">Your browser saves the ZIP using its normal download settings. You can continue using Deckadence while it exports.</p>
+  {% if not campaign_backup %}<p class="application-backup-hint">Your browser saves the ZIP using its normal download settings. You can continue using Deckadence while it exports.</p>{% endif %}
   <dialog id="applicationBackupModal" class="campaign-add-pack-dialog print-export-dialog application-backup-modal" aria-labelledby="applicationBackupModalTitle">
     <div class="campaign-add-pack-header">
-      <h2 id="applicationBackupModalTitle" class="campaign-add-pack-title">Backup Export / Import</h2>
+      <h2 id="applicationBackupModalTitle" class="campaign-add-pack-title">{{ 'Campaign Export / Import' if campaign_backup else 'Backup Export / Import' }}</h2>
       <button type="button" id="applicationBackupModalClose" class="campaign-add-pack-close-button" aria-label="Close status">&times;</button>
     </div>
     <div class="print-export-main-actions application-backup-modal-actions">
@@ -26,6 +27,7 @@
         ('assets', 'Assets to Include', 'All Assets', [('modified_cards', 'Modified Cards'), ('deck_art', 'Deck Art'), ('custom_set_icons', 'Custom Set Icons')]),
         ('settings', 'Settings', 'All Settings', [('campaigns', 'All Chaos Draft Campaign, Players, History'), ('print_templates', 'Print Templates'), ('cutting_templates', 'Card Cutting Machine Templates'), ('card_backs', 'Card Backs'), ('config_settings', 'Config Settings')])
       ] %}
+      {% if not campaign_backup or group != 'settings' %}
       <fieldset class="application-backup-selection-group">
         <legend>{{ title }}</legend>
         <label><input type="checkbox" data-export-all="{{ group }}" checked> {{ all_label }}</label>
@@ -37,6 +39,7 @@
         {% if group == 'settings' %}<p class="application-backup-hint">Campaign history includes the pack records required to restore it.</p>{% endif %}
         {% if group == 'assets' %}<p class="application-backup-hint">Modified cards include uploaded alternate art and upscaled images matching the selected categories.</p>{% endif %}
       </fieldset>
+      {% endif %}
       {% endfor %}
     </details>
     <div id="applicationBackupStatusPanel" class="print-export-status-panel application-backup-status hidden" role="status" aria-live="polite">
@@ -62,14 +65,18 @@
       <details id="applicationBackupWarnings" class="hidden"><summary>Skipped files</summary><pre id="applicationBackupWarningList" class="application-backup-warning-list"></pre></details>
     </div>
   </dialog>
-  <hr>
-  <h3>Import user content</h3>
-  <p>Import adds content to your existing database using new identifiers. Existing content is preserved; imported config settings are applied when included in the archive.</p>
+  {% if campaign_backup %}
+  <dialog id="applicationRestoreModal" class="campaign-management-dialog">
+    <button type="button" class="campaign-add-pack-close-button" onclick="this.closest('dialog').close()" aria-label="Close import">&times;</button>
+    <h2>Import Campaign</h2>
+  {% else %}<hr><h3>Import user content</h3>{% endif %}
+  <p>{% if campaign_backup %}Import the campaign and its related players, packs, cards, decks, and assets using new identifiers. Existing campaigns are preserved.{% else %}Import adds content to your existing database using new identifiers. Existing content is preserved; imported config settings are applied when included in the archive.{% endif %}</p>
   <label class="application-backup-field"><span>Import ZIP file</span><input type="file" id="applicationRestoreFile" accept=".zip,application/zip"></label>
-  <p class="application-backup-hint">Choose your Deckadence backup ZIP. Import needs free space for the uploaded archive, extracted custom assets, and temporary record processing.</p>
+  <p class="application-backup-hint">Choose your {{ 'campaign export' if campaign_backup else 'Deckadence backup' }} ZIP. Import needs free space for the uploaded archive, extracted custom assets, and temporary record processing.</p>
   <div class="application-backup-fields">
-    <label class="application-backup-field"><span>Type IMPORT to confirm adding content and applying included settings</span><input type="text" id="applicationRestoreConfirmation" class="campaign-add-pack-custom-input" autocomplete="off" spellcheck="false" placeholder="IMPORT"></label>
+    <label class="application-backup-field"><span>Type IMPORT to confirm {{ 'adding this campaign' if campaign_backup else 'adding content and applying included settings' }}</span><input type="text" id="applicationRestoreConfirmation" class="campaign-add-pack-custom-input" autocomplete="off" spellcheck="false" placeholder="IMPORT"></label>
     <button type="button" id="applicationRestoreStart" class="action-button campaign-danger-button" disabled>Validate and Import</button>
     <button type="button" id="applicationRestoreCancel" class="action-button secondary-button hidden">Cancel Old Staged Full Restore</button>
   </div>
+  {% if campaign_backup %}</dialog>{% endif %}
 </div>

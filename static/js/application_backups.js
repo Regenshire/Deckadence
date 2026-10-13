@@ -1,6 +1,9 @@
 class ApplicationBackupController {
   constructor(panel) {
     this.panel = panel;
+    this.campaignScope = panel.dataset.scope === "campaign";
+    this.campaignSelected = false;
+    this.campaignId = null;
     const get = (suffix) => document.getElementById("application" + suffix);
     this.createButton = get("BackupCreate");
     this.openButton = get("BackupOpen");
@@ -51,12 +54,28 @@ class ApplicationBackupController {
     this.modal.addEventListener("cancel", (event) => { if (this.busy) event.preventDefault(); });
     this.confirmation.addEventListener("input", () => this.updateControls());
     this.file.addEventListener("change", () => this.updateControls());
+    if (this.campaignScope) {
+      document.querySelectorAll(".campaign-export-open-button").forEach(button => {
+        button.addEventListener("click", () => {
+          if (this.busy || this.pending) return;
+          this.campaignId = button.dataset.campaignId ? Number(button.dataset.campaignId) : null;
+          this.campaignSelected = true;
+          document.getElementById("applicationBackupModalTitle").textContent = "Export — " + (button.dataset.campaignName || "No Campaign");
+          button.closest("details")?.removeAttribute("open");
+          this.updateControls();
+          this.openStatus();
+        });
+      });
+      document.getElementById("campaignImportOpenButton")?.addEventListener("click", () => {
+        if (!this.busy) document.getElementById("applicationRestoreModal").showModal();
+      });
+    }
     this.poll();
   }
 
   updateControls() {
     const blocked = this.busy || this.pending;
-    this.createButton.disabled = blocked || !this.selectionInputs.some((input) => input.checked);
+    this.createButton.disabled = blocked || (this.campaignScope && !this.campaignSelected) || !this.selectionInputs.some((input) => input.checked);
     this.openButton.disabled = blocked;
     this.selectionInputs.forEach((input) => { input.disabled = blocked; });
     this.groupInputs.forEach((parent) => {
@@ -142,10 +161,13 @@ class ApplicationBackupController {
   }
 
   createBackup() {
+    if (this.campaignScope && !this.campaignSelected) return;
     return this.start(async () => {
       this.operation = "backup";
       const selection = Object.fromEntries(this.selectionInputs.map((input) => [input.dataset.exportOption, input.checked]));
-      const result = await this.jsonRequest(this.panel.dataset.createUrl, { selection });
+      const payload = { selection };
+      if (this.campaignScope) payload.campaign_id = this.campaignId;
+      const result = await this.jsonRequest(this.panel.dataset.createUrl, payload);
       this.exportJobId = result.job_id;
       this.jobId = result.job_id;
     });
@@ -166,6 +188,7 @@ class ApplicationBackupController {
   }
 
   restoreBackup() {
+    document.getElementById("applicationRestoreModal")?.close();
     const confirmation = this.confirmation.value.trim().toUpperCase();
     if (confirmation !== "IMPORT") return;
     const file = this.file.files[0];

@@ -24954,6 +24954,7 @@ def serialize_draft_test_pick(row):
 
     return {
         "draft_test_pick_id": row["draft_test_pick_id"],
+        "is_foil": int(dict(row).get("is_foil") or 0),
         "draft_test_id": row["draft_test_id"],
         "draft_test_player_id": row["draft_test_player_id"],
         "draft_test_pack_id": row["draft_test_pack_id"],

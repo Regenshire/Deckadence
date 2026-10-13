@@ -1188,6 +1188,7 @@ def get_draft_test_detail(draft_test_id):
         SELECT
             dtpick.*,
             dtpc.image_scope_id,
+            COALESCE(dtpc.is_foil, 0) AS is_foil,
             COALESCE(dtpc.set_code, cc.set_code, '') AS set_code,
             COALESCE(dtpc.collector_number, cc.collector_number, '') AS collector_number,
             COALESCE(dtpc.rarity, cc.rarity, 'common') AS rarity,
@@ -1220,6 +1221,7 @@ def get_draft_test_detail(draft_test_id):
         SELECT
             dtpick.*,
             dtpc.image_scope_id,
+            COALESCE(dtpc.is_foil, 0) AS is_foil,
             COALESCE(dtpc.set_code, cc.set_code, '') AS set_code,
             COALESCE(dtpc.collector_number, cc.collector_number, '') AS collector_number,
             COALESCE(dtpc.rarity, cc.rarity, 'common') AS rarity,

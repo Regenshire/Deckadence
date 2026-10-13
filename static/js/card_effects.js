@@ -7,6 +7,7 @@
   "use strict";
   if (window.DeckadenceCardEffects) return;
   const selector = "[data-card-effects]";
+  const candidates = selector + ", .deckbuilder-card-image-wrap, .custom-draft-current-card-image-wrap, .custom-draft-current-grid-card .chaos-pack-view-image-wrap";
   const states = new WeakMap();
   const moving = new Set();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
@@ -34,6 +35,8 @@
     surface.dataset.cardEffectFinish = finishFor(surface);
     if (states.has(surface)) return states.get(surface);
     surface.classList.add("card-effects");
+    // Grid/stack views clone card DOM; copied layers have no animation state.
+    surface.querySelectorAll(":scope > .card-effect-layer").forEach(layer => layer.remove());
     for (const kind of ["rainbow", "surge", "glare"]) {
       const layer = document.createElement("span");
       layer.className = `card-effect-layer card-effect-${kind}`;
@@ -42,6 +45,7 @@
     }
     const state = {surface, x:0, y:0, tx:0, ty:0, vx:0, vy:0, light:0, targetLight:0, bounds:null};
     states.set(surface, state);
+    reset(state);
     return state;
   }
 
@@ -148,8 +152,8 @@
   reduced.addEventListener("change", resetAll);
 
   function enhance(root = document) {
-    if (root.matches?.(selector)) attach(root);
-    root.querySelectorAll?.(selector).forEach(surface => attach(surface));
+    if (root.matches?.(candidates)) attach(root);
+    root.querySelectorAll?.(candidates).forEach(surface => attach(surface));
   }
   function applyMetadata(image, metadata) {
     const surface = image?.closest(selector);
@@ -157,7 +161,12 @@
   }
   function copyToZoom(sourceImage, zoomImage) {
     const source = sourceImage?.closest(selector);
-    if (!source || !zoomImage) return;
+    if (!zoomImage) return;
+    if (!source) {
+      const previous = zoomImage.closest(selector);
+      if (previous) attach(previous, {finish: "normal"});
+      return;
+    }
     let surface = zoomImage.closest(selector);
     if (!surface) {
       surface = document.createElement("span");
@@ -172,11 +181,13 @@
     enhance();
     new MutationObserver(records => {
       for (const record of records) {
+        if (record.type === "attributes") { enhance(record.target); continue; }
         for (const node of record.addedNodes) {
           if (node.nodeType === 1) enhance(node);
         }
       }
-    }).observe(document.body, {childList:true, subtree:true});
+    }).observe(document.body, {childList:true, subtree:true, attributes:true,
+      attributeFilter:["data-is-foil", "data-card-surge", "data-card-finish"]});
   }
   async function flip(image, changeFace) {
     if (!image || image.dataset.cardFlipping) return;

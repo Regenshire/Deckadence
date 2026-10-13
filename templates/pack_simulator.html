@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="/static/css/basic_chaos_theme.css?v=3">
 <link rel="stylesheet" href="/static/css/sets_theme.css?v=3">
 <link rel="stylesheet" href="/static/css/pack_simulator.css?v=22">
-<script src="/static/js/pack_opening.js?v=2"></script>
+<script src="/static/js/pack_opening.js?v=3"></script>
 {% endblock %}
 {% block content %}
 <main id="chaosDraftScreen" class="screen screen-wide basic-chaos-screen pack-simulator" data-price-source="{{ price_source }}" data-value-source="{{ value_source }}" data-card-back="/static/img/mtg_back_custom_1.jpg">
@@ -33,7 +33,7 @@
   <div class="chaos-draft-open-row chaos-draft-open-row-visible">
     <div class="chaos-draft-open-actions campaign-chaos-open-actions">
       <div class="sim-contents-heading"><h2 class="campaign-opened-heading" id="openingHeading">Ready to crack a pack?</h2><div id="singlePackSummary" class="sim-muted"></div></div>
-      <div class="sim-view-controls" hidden><div class="sim-sort"><label for="cardSort">Sort</label><select id="cardSort"><option value="pack">Pack order</option>{% if price_source != "none" %}<option value="price">Price</option>{% endif %}<option value="rarity">Rarity</option><option value="name">Name</option></select></div><div class="sim-sort"><label for="cardSize">Card Size</label><select id="cardSize"><option value="50">50%</option><option value="75">75%</option><option value="90">90%</option><option value="100" selected>100%</option><option value="110">110%</option><option value="125">125%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select></div></div><button id="skipAnimation" type="button" class="sim-text-button" hidden>Skip animation</button>
+      <div class="sim-view-controls" hidden><div class="sim-sort"><label for="cardSort">Sort</label><select id="cardSort"><option value="pack">Pack order</option>{% if price_source != "none" %}<option value="price">Price</option>{% endif %}<option value="rarity">Rarity</option><option value="name">Name</option></select></div><div class="sim-sort"><label for="cardSize">Card Size</label><select id="cardSize">{% include "_card_size_options.html" %}</select></div></div><button id="skipAnimation" type="button" class="sim-text-button" hidden>Skip animation</button>
       <button id="detailsButton" type="button" class="action-button secondary-button" aria-expanded="false" aria-controls="priceSidebar" {% if price_source == "none" %}hidden{% endif %}><i class="fa-solid fa-chart-simple" aria-hidden="true"></i> Prices</button>
       <button id="simulatorPrintExport" type="button" class="action-button secondary-button" hidden><i class="fa-solid fa-print" aria-hidden="true"></i> Print / Export</button>
       <button id="saveButton" type="button" class="action-button secondary-button" hidden><i class="fa-regular fa-floppy-disk" aria-hidden="true"></i> Save</button>
@@ -100,4 +100,4 @@
 {% set print_export_subject_label = "opening" %}
 {% include "_print_export_modal.html" %}
 {% endblock %}
-{% block page_scripts_after_app %}<script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script><script src="/static/js/sealed_effects.js?v=8"></script><script src="/static/js/profit_effects.js?v=1"></script><script src="/static/js/pack_formation.js?v=1"></script><script src="/static/js/pack_simulator.js?v=24"></script>{% endblock %}
+{% block page_scripts_after_app %}<script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script><script src="/static/js/profit_effects.js?v=1"></script><script src="/static/js/pack_formation.js?v=1"></script><script src="/static/js/pack_simulator.js?v=24"></script>{% endblock %}

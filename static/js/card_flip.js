@@ -320,15 +320,8 @@
             return;
         }
 
-        const wrapElement = getImageWrapForImage(imageElement);
-
-        if (wrapElement) {
-            wrapElement.classList.add("imomir-card-flip-animating");
-        }
-
         imageElement.dataset.cardFlipLastSrc = imageElement.src || "";
-
-        window.setTimeout(function () {
+        const changeFace = () => {
             imageElement.src = targetSrc;
             imageElement.alt = targetAlt || imageElement.alt || "";
             imageElement.dataset.cardFlipFace = targetFace;
@@ -343,13 +336,12 @@
 
             updateFlipControlPosition(buttonElement, targetFace);
             syncVisiblePreviewImages(imageElement, targetFace, targetSrc, targetAlt);
-        }, 120);
-
-        window.setTimeout(function () {
-            if (wrapElement) {
-                wrapElement.classList.remove("imomir-card-flip-animating");
-            }
-        }, 280);
+        };
+        if (window.DeckadenceCardEffects) {
+            window.DeckadenceCardEffects.flip(imageElement, changeFace);
+        } else {
+            changeFace();
+        }
     }
 
     function flipCardFace(imageElement, buttonElement, metadata) {

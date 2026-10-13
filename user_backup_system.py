@@ -256,7 +256,7 @@ class UserBackupService(ArchiveOperations):
         return metadata
 
     @_exclusive
-    def import_backup(self, archive_path, progress=None):
+    def import_backup(self, archive_path, progress=None, *, campaign_only=False):
         from portable_content import UserContentImporter
         progress = progress or (lambda **state: None)
         self._recover_import()
@@ -268,6 +268,9 @@ class UserBackupService(ArchiveOperations):
         with tempfile.TemporaryDirectory(prefix="import-", dir=self.work) as temporary:
             temporary = Path(temporary)
             metadata = self._extract(archive_path, temporary, progress)
+            if campaign_only:
+                from campaign_export_selection import validate_campaign_archive
+                validate_campaign_archive(metadata, temporary / RECORDS)
             return UserContentImporter(self, temporary, metadata, progress).apply()
 
     stage_restore = import_backup

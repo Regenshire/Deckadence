@@ -3,6 +3,7 @@
 {% block title %}Deckadence - Config{% endblock %}
 
 {% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/application_backups.css', v='1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css') }}">
 <link
     rel="stylesheet"
@@ -10,7 +11,7 @@
 >
 <link
     rel="stylesheet"
-    href="{{ url_for('static', filename='css/config.css', v='pack-downloader-3') }}"
+    href="{{ url_for('static', filename='css/config.css', v='campaign-backup-1') }}"
 >
 
 {% endblock %}
@@ -2550,6 +2551,6 @@
 
 {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
-<script src="{{ url_for('static', filename='js/application_backups.js', v='selective-backup-4') }}"></script>
+<script src="{{ url_for('static', filename='js/application_backups.js', v='campaign-1') }}"></script>
 {% endblock %}
 

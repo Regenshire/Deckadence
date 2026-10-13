@@ -17,7 +17,7 @@
 
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/deckbuilder.css') }}"
+  href="{{ url_for('static', filename='css/deckbuilder.css', v='shared-effects-1') }}"
 />
 <link
   rel="stylesheet"
@@ -91,6 +91,15 @@
         class="deckbuilder-header-art"
       />
       {% else %}
+      <div class="deckbuilder-art-placeholder" aria-label="No deck artwork selected">
+        <svg width="38" height="34" viewBox="0 0 38 34" fill="none" aria-hidden="true">
+          <rect x="5" y="5" width="20" height="26" rx="3" transform="rotate(-12 15 18)" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.5"/>
+          <rect x="14" y="2" width="20" height="27" rx="3" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.5"/>
+          <path d="M18 21l4-5 3 3 3-4 3 6M19 25h11" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="21" cy="10" r="2" fill="var(--accent)"/>
+        </svg>
+        <span>Deck art</span>
+      </div>
       <img
         id="deckbuilderDeckArtImage"
         src="{{ url_for('deck_art_image', deck_id=deckbuilder.deck_id) }}"
@@ -393,15 +402,7 @@
           <select
             id="deckbuilderCardSizeSelect"
             class="campaign-test-draft-picked-sort-select"
-          >
-            {% set selected_card_size = (deckbuilder.default_card_size or
-            100)|int %} {% for card_size in [70, 85, 100, 115, 130, 150, 175,
-            200] %} {% if selected_card_size == card_size %}
-            <option value="{{ card_size }}" selected>{{ card_size }}%</option>
-            {% else %}
-            <option value="{{ card_size }}">{{ card_size }}%</option>
-            {% endif %} {% endfor %}
-          </select>
+          >{% include "_card_size_options.html" %}</select>
         </div>
 
         <div class="deckbuilder-view-buttons">
@@ -1516,8 +1517,8 @@
 <script src="{{ url_for('static', filename='js/moxfield_sync.js') }}"></script>
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
-<script src="{{ url_for('static', filename='js/card_flip.js') }}"></script>
-<script src="{{ url_for('static', filename='js/deckbuilder.js', v='group-by-1') }}"></script>
+<script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
+<script src="{{ url_for('static', filename='js/deckbuilder.js', v='shared-effects-1') }}"></script>
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}
