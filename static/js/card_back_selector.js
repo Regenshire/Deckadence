@@ -47,6 +47,14 @@
   let contextMenuOption = null;
   let pendingDeleteOption = null;
 
+  function labelsOnly() {
+    return Boolean(activeButton && activeButton.dataset.cardBackSupportsLabelsOnly === "1");
+  }
+
+  function visibleOptions() {
+    return labelsOnly() ? options.filter(option => option.supports_labels) : options;
+  }
+
   function setStatus(message, isError) {
     const cleanMessage = String(message || "").trim();
 
@@ -190,9 +198,10 @@
 
   function selectKey(nextKey) {
     selectedKey = String(nextKey || "").trim();
-
-    if (!selectedKey && defaultKey) {
-      selectedKey = defaultKey;
+    const available = visibleOptions();
+    if (!available.some(option => option.key === selectedKey)) {
+      const fallback = available.find(option => option.key === defaultKey) || available[0];
+      selectedKey = fallback ? fallback.key : "";
     }
 
     if (grid) {
@@ -225,7 +234,7 @@
 
     const image = document.createElement("img");
 
-    image.src = option.image_url || "";
+    image.src = (labelsOnly() && option.label_preview_url) || option.image_url || "";
 
     image.alt = optionLabel(option);
 
@@ -243,12 +252,10 @@
 
     source.className = "card-back-selector-option-source";
 
-    source.textContent =
-      option.source === "custom"
-        ? option.has_full_bleed
-          ? "Custom Upload • 3mm Full-Bleed"
-          : "Custom Upload"
-        : "Included";
+    const details = [option.source === "custom" ? "Custom Upload" : "Included"];
+    if (labelsOnly()) details.push(option.label_style === "border_bar" ? "Matching label bar" : "Label panel");
+    if (option.has_full_bleed) details.push("3mm Full-Bleed");
+    source.textContent = details.join(" • ");
 
     button.appendChild(imageWrap);
     button.appendChild(title);
@@ -275,12 +282,14 @@
 
     grid.innerHTML = "";
 
-    options.forEach(function (option) {
+    const available = visibleOptions();
+    available.forEach(function (option) {
       grid.appendChild(buildOptionButton(option));
     });
 
     if (emptyState) {
-      emptyState.classList.toggle("hidden", options.length > 0);
+      emptyState.classList.toggle("hidden", available.length > 0);
+      emptyState.textContent = labelsOnly() ? "No label-compatible card backs are available." : "No card back images are available.";
     }
 
     selectKey(selectedKey || defaultKey);
@@ -302,7 +311,9 @@
     }
 
     try {
-      const response = await fetch(optionsUrl, {
+      const url = new URL(optionsUrl, window.location.href);
+      if (labelsOnly()) url.searchParams.set("supports_labels", "1");
+      const response = await fetch(url.toString(), {
         headers: {
           Accept: "application/json",
         },
@@ -367,6 +378,16 @@
     activeButton = button;
 
     selectedKey = getCurrentSelectedKey(button);
+    const requestedKey = selectedKey;
+    options = [];
+    renderOptions();
+    selectedKey = requestedKey;
+    const uploadPanel = modal.querySelector(".card-back-selector-upload-panel");
+    if (uploadPanel) uploadPanel.classList.remove("hidden");
+    const subtitle = modal.querySelector(".card-back-selector-header p");
+    if (subtitle) subtitle.textContent = labelsOnly()
+      ? "Choose any card back. A matching bottom bar is added when needed for your label."
+      : "Select an included card back or upload a custom image.";
 
     modal.classList.remove("hidden");
 
@@ -540,7 +561,7 @@
   }
 
   async function applySelection() {
-    if (!activeButton || !selectedKey) {
+    if (!activeButton || !selectedKey || loading || !visibleOptions().some(option => option.key === selectedKey)) {
       return;
     }
 
@@ -582,8 +603,9 @@
         targetInput.value = selectedKey;
 
         targetInput.dispatchEvent(
-          new Event("change", {
+          new CustomEvent("change", {
             bubbles: true,
+            detail: { cardBackOption: selectedOption },
           }),
         );
       }

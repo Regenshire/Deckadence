@@ -3,24 +3,24 @@ import json
 import sqlite3
 from contextlib import closing
 from decimal import Decimal, InvalidOperation
-from uuid import UUID, uuid5, NAMESPACE_URL
+from uuid import UUID
 
 from flask import jsonify, render_template, request, url_for
 
-from db.pack_simulator import get_opening, list_openings, reveal_cards, save_opening
+from db.pack_simulator import get_opening, list_openings, reveal_cards, save_opening, simulator_pack_key
 from db.database import get_db_connection, get_custom_draft_sets, bulk_add_cards_to_custom_draft_set
 from db.pricing import get_pack_price_preferences
 from modes.pack_art import product_art_relpath
 from db.sealed_prices import lookup_sealed_prices
 from modes.chaos import (get_chaos_pack_art_info, get_chaos_pack_art_image_src,
                         get_chaos_campaigns, save_opened_chaos_pack_to_tracking_db)
-from modes.pack_simulator import get_catalog, load_product, describe_product, open_product, public_card
+from modes.pack_simulator import get_catalog, load_product, describe_product, open_product, public_card, open_included_cards
 
 
-def register_pack_simulator_routes(app, get_config):
-    def box_art(code, booster):
+def register_pack_simulator_routes(app, get_config, get_print_defaults=None):
+    def box_art(code, booster, image_type=None):
         key = 'draft' if booster == 'default' else booster
-        path = product_art_relpath(code, key + '_box', app.static_folder)
+        path = product_art_relpath(code, image_type or key + '_box', app.static_folder)
         return get_chaos_pack_art_image_src(path) if path else None
 
     def source_preferences():
@@ -35,7 +35,7 @@ def register_pack_simulator_routes(app, get_config):
         return code, booster
 
     def serialize(opening):
-        opening['box_image_src'] = box_art(opening['set_code'], opening['booster_name']) if opening.get('box_id') else None
+        opening['box_image_src'] = box_art(opening['set_code'], opening['booster_name'], opening.get('image_type')) if opening.get('box_id') else None
         if opening['box_image_src']:
             opening['product_image_src'] = opening['box_image_src']
         for pack in opening['packs']:
@@ -59,7 +59,8 @@ def register_pack_simulator_routes(app, get_config):
         value_source = get_config().get('simulator_value_source', 'lower')
         if value_source not in {'lower', 'manapool', 'cardkingdom'}:
             value_source = 'lower'
-        return render_template('pack_simulator.html', price_source=source_preferences(), value_source=value_source)
+        return render_template('pack_simulator.html', price_source=source_preferences(), value_source=value_source,
+                               print_export_defaults=get_print_defaults(get_config()) if get_print_defaults else {})
 
     @app.get('/api/pack-simulator/catalog')
     def pack_simulator_catalog():
@@ -80,7 +81,7 @@ def register_pack_simulator_routes(app, get_config):
             art = get_chaos_pack_art_info(code, booster, app.static_folder)
             product['image_src'] = get_chaos_pack_art_image_src(art['image_path'])
             for box in product['boxes']:
-                box['image_src'] = box_art(code, booster)
+                box['image_src'] = box_art(code, booster, box.get('image_type'))
             return jsonify(ok=True, product=product)
         except (ValueError, sqlite3.Error) as exc:
             return failure(exc)
@@ -147,26 +148,30 @@ def register_pack_simulator_routes(app, get_config):
                     raise ValueError('Enter a total cost between $0 and $1,000,000.')
             recipe = [{'set_code': code, 'booster_name': booster, 'count': count}]
             name = f"{product['set_name']} · {product['label']}"
+            box = None
             if data.get('box_id'):
                 box = next((b for b in product['boxes'] if b['product_uuid'] == data['box_id']), None)
                 if not box:
-                    raise ValueError('This box is unavailable. Choose packs or another box.')
+                    raise ValueError('This product is unavailable. Choose another product.')
+                if box.get('unavailable_reason'):
+                    raise ValueError(box['unavailable_reason'])
                 recipe, name = json.loads(box['packs_json']), box['name']
             products, packs, index = {(code, booster): product}, [], 0
             for item in recipe:
                 identity = (item['set_code'], item['booster_name'])
-                if identity not in products:
+                if 'cards' not in item and identity not in products:
                     products[identity] = load_product(*identity)
                 for _ in range(item['count']):
-                    pack = open_product(products[identity])
+                    pack = open_included_cards(item) if 'cards' in item else open_product(products[identity])
                     for card in pack['cards']:
                         card['index'] = index
                         index += 1
                     packs.append(pack)
                     if index > 3000:
                         raise ValueError('This opening is too large. Choose fewer packs.')
-            payload = {'name': name, 'set_code': code, 'booster_name': booster, 'packs': packs,
+            payload = {'name': name, 'release_date': product.get('release_date', ''), 'set_code': code, 'booster_name': booster, 'packs': packs,
                        'card_count': index, 'cost': cost, 'box_id': data.get('box_id'),
+                       'image_type': box.get('image_type') if box else None,
                        'count': count, 'product_image_src': get_chaos_pack_art_image_src(
                            get_chaos_pack_art_info(code, booster, app.static_folder)['image_path'])}
             opening = save_opening(opening_id, payload)
@@ -201,34 +206,40 @@ def register_pack_simulator_routes(app, get_config):
             opening = get_opening(str(opening_id))
             if not opening:
                 return jsonify(ok=False,message='This opening could not be found.'),404
-            index = data.get('pack_index')
-            if type(index) is not int or not 0 <= index < len(opening['packs']):
-                raise ValueError('Choose a pack from this opening.')
-            pack = opening['packs'][index]
+            indices = data.get('pack_indices', [data.get('pack_index')])
+            if (not isinstance(indices, list) or not indices or len(indices) > len(opening['packs'])
+                    or any(type(index) is not int or not 0 <= index < len(opening['packs']) for index in indices)
+                    or len(set(indices)) != len(indices)):
+                raise ValueError('Choose valid packs from this opening.')
+            packs = [opening['packs'][index] for index in indices]
             destination = str(data.get('destination') or '')
             if data.get('kind') == 'campaign':
                 campaign = next((c for c in get_chaos_campaigns(include_disabled=False)
                                  if str(c['campaign_id']) == destination), None)
                 if not campaign:
                     raise ValueError('This campaign is no longer available. Choose another destination.')
-                # Retry-safe identity: another save links the same pack.
-                suffix = uuid5(NAMESPACE_URL, f'deckadence:simulator:{opening_id}:{index}').hex[:12].upper()
-                result = save_opened_chaos_pack_to_tracking_db({
-                    'pack_tracking_code':f"{pack['set_code']}.S.{suffix}",
-                    'set_code':pack['set_code'], 'booster_name':pack['booster_name'],
-                    'booster_index':pack.get('variant_index',0), 'display_name':pack['name'],
-                    'cards':pack['cards'], 'total_cards':len(pack['cards']),
-                },campaign_id=campaign['campaign_id'])
-                if not result.get('ok'):
-                    raise ValueError(result.get('message') or 'The pack could not be saved.')
-                return jsonify(ok=True, message=f"Pack saved to {campaign['campaign_name']}.",
-                               tracked_pack_id=result['tracked_pack_id'],already_saved=result['already_saved'])
+                # Each pack keeps its retry-safe identity, including during batch saves.
+                results = []
+                for index, pack in zip(indices, packs):
+                    result = save_opened_chaos_pack_to_tracking_db({
+                        'simulator_pack_key':simulator_pack_key(opening_id, index),
+                        'set_code':pack['set_code'], 'booster_name':pack['booster_name'],
+                        'booster_index':pack.get('variant_index',0), 'display_name':pack['name'],
+                        'cards':pack['cards'], 'total_cards':len(pack['cards']),
+                    },campaign_id=campaign['campaign_id'])
+                    if not result.get('ok'):
+                        raise ValueError(result.get('message') or 'A pack could not be saved. Retry to finish saving the opening.')
+                    results.append(result)
+                return jsonify(ok=True, message=f"{len(results)} pack{'s' if len(results) != 1 else ''} saved to {campaign['campaign_name']}.",
+                               tracked_pack_ids=[result['tracked_pack_id'] for result in results],
+                               tracked_pack_id=results[0]['tracked_pack_id'],
+                               already_saved=all(result['already_saved'] for result in results))
             if data.get('kind') == 'set':
                 draft_set = next((s for s in get_custom_draft_sets()
                                   if s['set_code'] == destination and s['is_active']),None)
                 if not draft_set:
                     raise ValueError('This custom set is no longer available. Choose another destination.')
-                result = bulk_add_cards_to_custom_draft_set(destination, pack['cards'], preserve_finish=True)
+                result = bulk_add_cards_to_custom_draft_set(destination, [card for pack in packs for card in pack['cards']], preserve_finish=True)
                 return jsonify(ok=True, added_count=result['added_count'],skipped_count=result['skipped_count'],
                     message=f"Added {result['added_count']} cards to {draft_set['set_name']}. "
                             f"{result['skipped_count']} already represented in the set.")

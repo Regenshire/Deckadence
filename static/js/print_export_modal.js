@@ -92,6 +92,71 @@
     let progressPollTimer = 0;
     let progressPollInFlight = false;
 
+    const labelLocation = getElement("printExportLabelLocation");
+    const labelLocationRow = getElement("printExportLabelLocationRow");
+    const backLabelNote = getElement("printExportBackLabelNote");
+    const labelsCheckbox = form && form.querySelector('input[type="checkbox"][name="show_print_export_labels"]');
+    const backsCheckbox = form && form.querySelector('input[type="checkbox"][name="print_card_backs"]');
+    const cardBackInput = getElement("printExportCardBack");
+    const cardBackButton = form && form.querySelector('[data-card-back-target-input="printExportCardBack"]');
+    const labelBackOptions = labelLocation ? JSON.parse(labelLocation.dataset.labelCardBacks || "[]") : [];
+    let previousBackKey = null;
+    let previousPrintBacks = null;
+
+    function syncLabelLocation() {
+      if (!labelLocation || !labelsCheckbox) return;
+      const backLabels = labelsCheckbox.checked && labelLocation.value === "custom_card_back";
+      labelLocationRow.classList.toggle("hidden", !labelsCheckbox.checked);
+      backLabelNote.classList.toggle("hidden", !backLabels);
+      if (cardBackButton) cardBackButton.dataset.cardBackSupportsLabelsOnly = backLabels ? "1" : "0";
+      if (backLabels) {
+        if (previousBackKey === null && cardBackInput) {
+          previousBackKey = cardBackInput.value;
+          const remembered = labelBackOptions.find(option => option.key === labelLocation.dataset.labelCardBackKey);
+          if (remembered) cardBackInput.value = remembered.key;
+        }
+        if (previousPrintBacks === null && backsCheckbox) previousPrintBacks = backsCheckbox.checked;
+        if (cardBackInput && !labelBackOptions.some(option => option.key === cardBackInput.value)) {
+          const choice = labelBackOptions.find(option => option.key === labelLocation.dataset.labelCardBackKey) || labelBackOptions[0];
+          cardBackInput.value = choice ? choice.key : "";
+        }
+        if (backsCheckbox) {
+          backsCheckbox.checked = true;
+          backsCheckbox.disabled = true;
+        }
+      } else {
+        if (cardBackInput && previousBackKey !== null) {
+          labelLocation.dataset.labelCardBackKey = cardBackInput.value;
+          cardBackInput.value = previousBackKey;
+        }
+        if (backsCheckbox) {
+          backsCheckbox.disabled = false;
+          if (previousPrintBacks !== null) backsCheckbox.checked = previousPrintBacks;
+        }
+        previousBackKey = null;
+        previousPrintBacks = null;
+      }
+      if (cardBackButton && cardBackInput) {
+        const selected = labelBackOptions.find(option => option.key === cardBackInput.value);
+        cardBackButton.dataset.selectedCardBackKey = cardBackInput.value;
+        cardBackButton.title = selected ? "Card Back: " + selected.label : "Choose Card Back";
+        cardBackButton.setAttribute("aria-label", cardBackButton.title);
+        const caption = cardBackButton.querySelector("span");
+        if (caption) caption.textContent = selected ? selected.label : "Choose Card Back";
+      }
+    }
+
+    if (labelLocation) labelLocation.addEventListener("change", syncLabelLocation);
+    if (labelsCheckbox) labelsCheckbox.addEventListener("change", syncLabelLocation);
+    if (cardBackInput) cardBackInput.addEventListener("change", function (event) {
+      const option = event.detail && event.detail.cardBackOption;
+      if (option && option.supports_labels && !labelBackOptions.some(item => item.key === option.key)) {
+        labelBackOptions.push(option);
+      }
+      syncLabelLocation();
+    });
+    syncLabelLocation();
+
     function createProgressId() {
       if (window.crypto && typeof window.crypto.randomUUID === "function") {
         return window.crypto.randomUUID();
@@ -195,7 +260,7 @@
           radio.defaultChecked = radio.checked;
         });
 
-      ["print_template", "pdf_render_resolution"].forEach(function (fieldName) {
+      ["print_template", "pdf_render_resolution", "label_location"].forEach(function (fieldName) {
         const selectElement = form.querySelector(`select[name="${fieldName}"]`);
 
         if (!selectElement) {
@@ -206,6 +271,13 @@
           option.defaultSelected = option.selected;
         });
       });
+      if (cardBackInput) {
+        if (previousBackKey !== null) {
+          labelLocation.dataset.labelCardBackKey = cardBackInput.value;
+        } else {
+          cardBackInput.defaultValue = cardBackInput.value;
+        }
+      }
     }
 
     function showMessage(messageText, isError) {
@@ -522,6 +594,7 @@
       }
 
       const isExport = actionType === "export";
+      syncLabelLocation();
       const actionUrl = isExport ? activeExportZipUrl : activePrintUrl;
 
       if (!actionUrl) {
@@ -644,12 +717,17 @@
           setExtraFormFields(null);
 
           if (form) {
+            previousBackKey = null;
+            previousPrintBacks = null;
+            if (backsCheckbox) backsCheckbox.disabled = false;
             form.reset();
           }
 
           if (typeof config.beforeOpen === "function") {
             config.beforeOpen();
           }
+
+          syncLabelLocation();
 
           resetStatusPanel();
           setSettingsVisible(false);
@@ -734,12 +812,17 @@
         setExtraFormFields(options.extraFormFields || null);
 
         if (form) {
+          previousBackKey = null;
+          previousPrintBacks = null;
+          if (backsCheckbox) backsCheckbox.disabled = false;
           form.reset();
         }
 
         if (typeof options.beforeOpen === "function") {
           options.beforeOpen();
         }
+
+        syncLabelLocation();
 
         resetStatusPanel();
         setSettingsVisible(false);

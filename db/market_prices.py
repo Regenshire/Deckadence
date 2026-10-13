@@ -16,6 +16,8 @@ from uuid import UUID
 
 import requests
 
+from download_identity import get_download_user_agent
+
 from paths import DATABASE_PATH
 
 VENDORS = ("manapool", "cardkingdom")
@@ -94,7 +96,7 @@ def _fetch_json(url, params=None):
     # Explicit time/size bounds. An unavailable vendor is retried later, not in
     # a request loop that delays card viewing or hammers the provider.
     with requests.get(url, params=params, headers={
-        "User-Agent": "Deckadence/2.3", "Accept": "application/json",
+        "User-Agent": get_download_user_agent(), "Accept": "application/json",
     }, timeout=(4, 20), stream=True) as response:
         response.raise_for_status()
         parts, size = [], 0

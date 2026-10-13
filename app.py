@@ -34,6 +34,8 @@ from uuid import uuid4
 
 import qrcode
 import requests
+
+from download_identity import get_download_user_agent
 from qrcode.image.pil import PilImage
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter, ImageChops, ImageDraw, ImageFont
 from reportlab.lib.units import mm
@@ -47,6 +49,9 @@ from card_backs import (
     delete_custom_card_back,
     list_card_back_options,
     normalize_card_back_key,
+    normalize_label_location,
+    render_label_card_back,
+    resolve_label_card_back_option,
     resolve_card_back_option,
     save_custom_card_back_upload,
 )
@@ -494,7 +499,8 @@ application_backup_jobs = register_backup_routes(
 from ui.card_prices import register_card_price_routes
 register_card_price_routes(app, lambda: get_request_config())
 from ui.pack_simulator import register_pack_simulator_routes
-register_pack_simulator_routes(app, lambda: get_request_config())
+register_pack_simulator_routes(app, lambda: get_request_config(),
+                               lambda config: get_print_export_defaults_from_config(config))
 
 DECK_ART_RENDERER = DeckArtRenderer(
     static_root=app.static_folder,
@@ -1104,6 +1110,14 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
         "chaos",
     )
 
+    if "print_card_backs" in form_data:
+        g.print_export_card_backs_override = parse_print_export_override_bool(
+            get_form_values("print_card_backs"))
+    if form_data.get("default_card_back"):
+        g.print_export_card_back_override = normalize_card_back_key(
+            form_data.get("default_card_back"), app.static_folder,
+            RUNTIME_CARD_BACK_DIR, fallback_key=DEFAULT_CARD_BACK_KEY)
+
     requested_print_template = (
         form_data.get("print_template")
         or ""
@@ -1153,6 +1167,17 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
             "1",
         ),
     )
+
+    label_location = normalize_label_location(form_data.get("label_location"))
+    g.print_export_label_location_override = label_location
+    if g.print_export_labels_enabled_override and label_location == "custom_card_back":
+        label_back = resolve_label_card_back_option(
+            getattr(g, "print_export_card_back_override", ""),
+            app.static_folder, RUNTIME_CARD_BACK_DIR,
+        )
+        g.print_export_card_back_override = label_back["key"]
+        # A back label must not silently disappear when PDF backs were unchecked.
+        g.print_export_card_backs_override = True
 
     if label_text is not None:
         g.print_export_label_text_override = label_text
@@ -1256,6 +1281,7 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
             else "0"
         ),
         "chaos_print_export_label_text_mode": label_mode,
+        "chaos_print_export_label_location": label_location,
         "chaos_print_template": persisted_print_template,
         "chaos_pdf_render_resolution": (
             requested_pdf_render_resolution
@@ -1287,6 +1313,9 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
         ),
     }
 
+    if g.print_export_labels_enabled_override and label_location == "custom_card_back":
+        persisted_values["chaos_print_export_label_card_back"] = g.print_export_card_back_override
+
     update_config_values(persisted_values)
 
     if hasattr(g, "_config_cache"):
@@ -1302,6 +1331,23 @@ def get_request_print_export_label_text(default_label_text=""):
     return str(label_text or "").strip()
 
 
+def print_export_uses_back_labels():
+    return bool(
+        has_request_context()
+        and getattr(g, "print_export_labels_enabled_override", False)
+        and getattr(g, "print_export_label_location_override", "lower_left") == "custom_card_back"
+    )
+
+
+def get_card_back_label_title():
+    if has_request_context():
+        if getattr(g, "print_export_label_mode_override", "") == "proxy":
+            return ""
+        if getattr(g, "print_export_label_text_override", None) is not None:
+            return "DECK NAME"
+    return "PACK CODE"
+
+
 def get_request_print_scope():
     if not has_request_context():
         return "momir"
@@ -1312,6 +1358,7 @@ def get_request_print_scope():
         endpoint == "play_draft"
         or endpoint.startswith("deckbuilder_")
         or endpoint.startswith("chaos_")
+        or endpoint.startswith("simulator_")
         or endpoint.startswith("campaign_chaos_")
         or endpoint.startswith("custom_draft_")
     ):
@@ -1334,6 +1381,10 @@ def get_effective_print_config(config=None, scope=None):
     )
 
     if effective_scope == "chaos" and has_request_context():
+        if hasattr(g, "print_export_card_backs_override"):
+            resolved_config["print_card_backs"] = "1" if g.print_export_card_backs_override else "0"
+        if hasattr(g, "print_export_card_back_override"):
+            resolved_config["default_card_back"] = g.print_export_card_back_override
         print_template_override = getattr(
             g,
             "print_export_print_template_override",
@@ -2006,7 +2057,7 @@ def check_github_latest_release():
 
     headers = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": f"Deckadence/{APP_VERSION}",
+        "User-Agent": get_download_user_agent(),
     }
 
     try:
@@ -4740,6 +4791,11 @@ def download_file_with_retries(
                     f"=== {label}: CONTENT-LENGTH === {raw_content_length or 'Unknown'}"
                 )
 
+                # iter_content decodes HTTP compression; Content-Length measures
+                # transferred bytes and is comparable only for identity responses.
+                if content_encoding not in ("", "identity"):
+                    content_length = None
+
                 if content_length is not None and content_length < int(expected_min_bytes or 1):
                     raise ValueError(
                         f"{label} returned a suspiciously small Content-Length: {content_length} bytes."
@@ -4783,7 +4839,6 @@ def download_file_with_retries(
 
                 if (
                     content_length is not None
-                    and "gzip" not in content_encoding
                     and downloaded_bytes != content_length
                 ):
                     raise ValueError(
@@ -5007,7 +5062,7 @@ def download_atomic_cards_json(force_download=False):
     )
 
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "application/json;q=0.9,*/*;q=0.8",
     }
 
@@ -5039,7 +5094,7 @@ def download_set_list_json(force_download=False):
     ensure_download_directories()
 
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "application/json;q=0.9,*/*;q=0.8",
     }
 
@@ -5083,7 +5138,7 @@ def download_all_printings_json(force_download=False):
     )
 
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "application/gzip,application/octet-stream;q=0.9,*/*;q=0.8",
     }
 
@@ -5155,7 +5210,7 @@ def download_chaos_booster_csvs(force_download=False):
     ]
 
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "text/csv,application/octet-stream;q=0.9,*/*;q=0.8",
     }
 
@@ -5432,6 +5487,8 @@ def safe_filename(value):
     return "".join(allowed).strip("_") or "card"
 
 def get_chaos_default_card_back_key(config=None):
+    if has_request_context() and hasattr(g, "print_export_card_back_override"):
+        return g.print_export_card_back_override
     if config is None:
         config = (
             get_request_config()
@@ -5479,6 +5536,9 @@ def serialize_card_back_option(option):
         "label": option["label"],
         "source": option["source"],
         "image_url": image_url,
+        "label_preview_url": url_for("card_back_label_preview", key=option["key"]),
+        "supports_labels": bool(option.get("supports_labels")),
+        "label_style": option.get("label_style"),
         "has_full_bleed": bool(
             option.get("source_has_real_bleed")
         ),
@@ -5553,7 +5613,7 @@ def download_chaos_image_to_cache(card_uuid, page_kind, face_name, image_url):
     ensure_download_directories()
 
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "*/*",
     }
 
@@ -10047,7 +10107,7 @@ def ensure_alternate_source_cached(alternate_source_row):
     output_path = os.path.join(ALTERNATE_SOURCE_DIR, filename)
 
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
     }
 
@@ -10403,7 +10463,7 @@ class AlternateImageFileSnapshot:
             started_at = time.monotonic()
             with requests.get(
                 url,
-                headers={"User-Agent": "Deckadence/1.0", "Accept": "image/*"},
+                headers={"User-Agent": get_download_user_agent(), "Accept": "image/*"},
                 stream=True,
                 timeout=(10, 60),
             ) as response:
@@ -11620,7 +11680,7 @@ def download_alternate_source_url_to_file(
     with requests.get(
         clean_url,
         headers={
-            "User-Agent": "Deckadence/1.0",
+            "User-Agent": get_download_user_agent(),
             "Accept": (
                 "image/avif,image/webp,"
                 "image/png,image/jpeg,"
@@ -13512,6 +13572,7 @@ def build_chaos_pdf_card_back_rendered_entry(
     # the configured local Magic card back.
     if back_source["source_type"] == "local":
         return {
+            "is_default_back": True,
             "temp_path": back_source["absolute_path"],
             "fullbleed_temp_path": (
                 back_source.get(
@@ -14255,7 +14316,10 @@ def build_chaos_pack_pdf(
     print_labels_enabled_override=None,
     default_card_back_key=None,
     pack_label_image_path_override=None,
+    card_tracking_codes=None,
 ):
+    if card_tracking_codes is not None and len(card_tracking_codes) != len(cards or []):
+        raise ValueError("Each card must have a matching pack code.")
     pdf_settings = resolve_pdf_print_settings(
         print_labels_enabled_override=print_labels_enabled_override,
     )
@@ -14295,6 +14359,7 @@ def build_chaos_pack_pdf(
     rendered_image_entries = []
     card_back_rendered_entries = []
     pack_label_rendered_entries = []
+    label_back_temp_paths = []
 
     print_card_backs = bool(
         pdf_settings.get("print_card_backs")
@@ -14305,7 +14370,7 @@ def build_chaos_pack_pdf(
     )
 
     requested_default_card_back_key = str(
-        default_card_back_key or ""
+        (getattr(g, "print_export_card_back_override", None) if has_request_context() else None) or default_card_back_key or ""
     ).strip()
 
     # A Custom Draft Set can define its own Card Back. Resolve that
@@ -14590,6 +14655,11 @@ def build_chaos_pack_pdf(
             start=1,
         ):
             card_uuid = card.get("card_uuid")
+            card_tracking_code = (
+                card_tracking_codes[card_index - 1]
+                if card_tracking_codes is not None and card_index <= len(card_tracking_codes)
+                else pack_tracking_code
+            )
 
             progress_card_name = str(
                 card.get("card_name")
@@ -14678,6 +14748,8 @@ def build_chaos_pack_pdf(
                         )
                     )
 
+                card_back_rendered_entries[-1]["pack_tracking_code"] = card_tracking_code
+
             for page_entry in page_entries:
                 page_image_url = (page_entry.get("image_url") or "").strip()
                 page_kind = (page_entry.get("page_kind") or "").strip().lower()
@@ -14734,6 +14806,7 @@ def build_chaos_pack_pdf(
                         "page_kind": (page_entry.get("page_kind") or "").strip().lower(),
                         "card_uuid": (page_entry.get("card_uuid") or card_uuid or "").strip(),
                         "card_row": card_row,
+                        "pack_tracking_code": card_tracking_code,
                         "is_dual_faced": int(card_row["is_dual_faced"] or 0),
                         "is_persistent_cache_file": True,
                         "is_template_rendered": False,
@@ -14776,10 +14849,36 @@ def build_chaos_pack_pdf(
 
         template_rendered_entries = []
 
-        print_job_label_text = get_effective_pack_tracking_code(
-            pack_tracking_code,
-            label_settings=pdf_settings,
-        )
+        if print_export_uses_back_labels():
+            label_back_option = resolve_label_card_back_option(
+                effective_default_card_back_key, app.static_folder, RUNTIME_CARD_BACK_DIR,
+            )
+            default_back_entries = [entry for entry in card_back_rendered_entries
+                                    if entry.get("is_default_back")]
+            if default_back_entries:
+                paths_by_label = {}
+                for entry in default_back_entries:
+                    label_text = get_effective_pack_tracking_code(
+                        entry.get("pack_tracking_code", pack_tracking_code), label_settings=pdf_settings,
+                    )
+                    if not label_text:
+                        continue
+                    if label_text not in paths_by_label:
+                        paths_by_kind = {}
+                        for full_bleed, kind in ((False, "trim"), (True, "bleed")):
+                            path = get_chaos_rendered_pdf_image_temp_path("label_back", kind, label_text)
+                            label_back_temp_paths.append(path)
+                            render_label_card_back(
+                                label_back_option, label_text, full_bleed=full_bleed,
+                                label_title=get_card_back_label_title(),
+                            ).save(path, format="JPEG", quality=95, optimize=True)
+                            paths_by_kind[kind] = path
+                        paths_by_label[label_text] = paths_by_kind
+                    paths_by_kind = paths_by_label[label_text]
+                    entry["temp_path"] = paths_by_kind["trim"]
+                    entry["fullbleed_temp_path"] = paths_by_kind["bleed"]
+                    entry["source_has_real_bleed"] = True
+                    entry["source_bleed_mm"] = float(label_back_option.get("source_bleed_mm") or 3.0)
 
         render_entry_total = len(
             rendered_image_entries
@@ -14831,7 +14930,10 @@ def build_chaos_pack_pdf(
                 build_pdf_rendered_entry_with_template(
                     rendered_entry,
                     pack_tracking_code=(
-                        print_job_label_text
+                        get_effective_pack_tracking_code(
+                            rendered_entry.get("pack_tracking_code", pack_tracking_code),
+                            label_settings=pdf_settings,
+                        )
                         if label_render_options[
                             "use_print_job_label"
                         ]
@@ -15050,6 +15152,12 @@ def build_chaos_pack_pdf(
                 if temp_path and os.path.exists(temp_path):
                     os.remove(temp_path)
             except Exception:
+                pass
+        for temp_path in label_back_temp_paths:
+            try:
+                if os.path.isfile(temp_path):
+                    os.remove(temp_path)
+            except OSError:
                 pass
 
 
@@ -15903,17 +16011,24 @@ def build_export_card_image(
                 matte_rgb=card_matte_rgb,
             )
 
-        image = draw_image_export_corner_label(
-            image=image,
-            label_text=label_text,
-            template_config=template_config,
-            matte_rgb=card_matte_rgb,
-            overlay_fill_rgb=overlay_fill_rgb,
-            normal_text_fill_rgb_override=(
-                normal_text_fill_rgb_override
-            ),
-            force_normal_label=force_normal_label,
+        label_on_back = (
+            print_export_uses_back_labels()
+            and not int(card_row["is_dual_faced"] or 0)
+            and not force_normal_label
         )
+        # Functional reverse faces retain their usual labels; their artwork is never replaced.
+        if not label_on_back:
+            image = draw_image_export_corner_label(
+                image=image,
+                label_text=label_text,
+                template_config=template_config,
+                matte_rgb=card_matte_rgb,
+                overlay_fill_rgb=overlay_fill_rgb,
+                normal_text_fill_rgb_override=(
+                    normal_text_fill_rgb_override
+                ),
+                force_normal_label=force_normal_label,
+            )
 
         os.makedirs(os.path.dirname(output_image_path), exist_ok=True)
         image.save(output_image_path, format="JPEG", quality=95, optimize=True)
@@ -16324,7 +16439,7 @@ def build_chaos_card_image_export_zip(
 
     resolved_default_card_back_key = (
         normalize_card_back_key(
-            default_card_back_key,
+            (getattr(g, "print_export_card_back_override", None) if has_request_context() else None) or default_card_back_key,
             app.static_folder,
             RUNTIME_CARD_BACK_DIR,
             fallback_key=(
@@ -16411,6 +16526,7 @@ def build_chaos_card_image_export_zip(
     export_warnings = []
 
     exported_filename_counts = {}
+    labelled_back_paths = {}
 
     for export_index, export_row in enumerate(
         export_rows,
@@ -16637,6 +16753,25 @@ def build_chaos_card_image_export_zip(
         else:
             back_relative_xml_path = f"\\Images\\Default\\{default_back_filename}"
 
+        if (
+            print_export_uses_back_labels()
+            and back_relative_xml_path == f"\\Images\\Default\\{default_back_filename}"
+        ):
+            back_label = get_effective_pack_tracking_code(
+                export_row["pack_tracking_code"], label_settings=label_settings,
+            )
+            if back_label:
+                if back_label not in labelled_back_paths:
+                    labelled_filename = f"label_back_{len(labelled_back_paths) + 1}.jpg"
+                    render_label_card_back(
+                        default_back_option, back_label, full_bleed=export_add_bleed,
+                        bleed_mm=get_configured_print_bleed_size_mm(),
+                        label_title=get_card_back_label_title(),
+                    ).save(os.path.join(images_default_dir, labelled_filename),
+                           format="JPEG", quality=95, optimize=True)
+                    labelled_back_paths[back_label] = f"\\Images\\Default\\{labelled_filename}"
+                back_relative_xml_path = labelled_back_paths[back_label]
+
         xml_entry = {
             "id": export_id,
             "name": export_row["card_name"],
@@ -16829,7 +16964,7 @@ def build_chaos_card_image_export_zip(
 
 def get_scryfall_bulk_default_cards_download_uri():
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "application/json;q=0.9,*/*;q=0.8",
     }
 
@@ -17003,7 +17138,7 @@ def download_scryfall_default_cards_json(force_download=False):
         }
 
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": (
             "application/jsonl,"
             "application/json,"
@@ -17852,7 +17987,7 @@ def download_and_cache_card_image(card_row, scryfall_match_row):
         return None
 
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "*/*",
     }
 
@@ -17931,7 +18066,7 @@ def download_scryfall_set_icons():
     )
 
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "application/json;q=0.9,*/*;q=0.8",
     }
 
@@ -17959,7 +18094,7 @@ def download_scryfall_set_icons():
     updated_count = 0
 
     svg_headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "image/svg+xml,*/*;q=0.8",
     }
 
@@ -20889,15 +21024,36 @@ def print_export_progress():
 
 
 
+@app.get("/card-backs/label-preview")
+def card_back_label_preview():
+    key = str(request.args.get("key") or "")
+    option = next((item for item in list_card_back_options(app.static_folder, RUNTIME_CARD_BACK_DIR)
+                   if item["key"] == key and item.get("supports_labels")), None)
+    if not option:
+        return "Card back not found.", 404
+    image = render_label_card_back(option, "JMP.J.0042")
+    image.thumbnail((315, 440), Image.Resampling.LANCZOS)
+    output = BytesIO()
+    image.save(output, format="PNG")
+    output.seek(0)
+    return send_file(output, mimetype="image/png", max_age=0)
+
+
 @app.route(
     "/card-backs/options",
     methods=["GET"],
 )
 def card_back_options():
+    options = get_serialized_card_back_options()
+    if request.args.get("supports_labels") == "1":
+        options = [option for option in options if option["supports_labels"]]
+    default_key = get_chaos_default_card_back_key()
+    if options and not any(option["key"] == default_key for option in options):
+        default_key = options[0]["key"]
     return jsonify({
         "ok": True,
         "default_key": (
-            get_chaos_default_card_back_key()
+            default_key
         ),
         "max_upload_size_bytes": (
             CARD_BACK_UPLOAD_MAX_SIZE_BYTES
@@ -20908,7 +21064,7 @@ def card_back_options():
             "0",
         ),
         "options": (
-            get_serialized_card_back_options()
+            options
         ),
     })
 
@@ -24193,11 +24349,99 @@ def campaign_chaos_pack_preview_view():
     )
 
 
-def build_campaign_preview_image_export_rows(preview_pack):
+def simulator_print_selection(opening_id):
+    from db.pack_simulator import get_opening, get_simulator_pack_tracking_codes
+    opening = get_opening(opening_id)
+    if not opening:
+        raise ValueError("This opening was not found. Open a pack or load a saved opening first.")
+    scope = request.form.get("simulator_scope", "opening")
+    packs = opening['packs']
+    indexed_packs = list(enumerate(packs))
+    if scope == "pack":
+        try:
+            index = int(request.form.get("simulator_pack_index", ""))
+        except ValueError:
+            raise ValueError("Choose a valid pack from this opening.")
+        if not 0 <= index < len(packs):
+            raise ValueError("Choose a valid pack from this opening.")
+        packs = [packs[index]]
+        indexed_packs = [(index, packs[0])]
+    elif scope != "opening":
+        raise ValueError("Choose this pack or the entire opening.")
+    cards = [card for pack in packs for card in pack['cards']]
+    if 'simulator_card_indices' in request.form:
+        try:
+            indices = json.loads(request.form['simulator_card_indices'])
+        except (ValueError, TypeError):
+            raise ValueError("The displayed card selection is invalid. Reopen Print / Export.")
+        by_index = {card['index']: card for card in cards}
+        if (not isinstance(indices, list) or len(indices) > 3000
+                or any(type(index) is not int or index not in by_index for index in indices)
+                or len(set(indices)) != len(indices)):
+            raise ValueError("The displayed card selection is invalid. Reopen Print / Export.")
+        cards = [by_index[index] for index in indices]
+    if request.form.get('exclude_low_rarity') == '1':
+        cards = [card for card in cards if str(card.get('rarity') or '').lower() not in {'common', 'uncommon'}]
+    if not cards:
+        raise ValueError("No cards match the selected print / export options.")
+    pack_indices_by_card = {card['index']: index for index, pack in indexed_packs for card in pack['cards']}
+    selected_pack_indices = {pack_indices_by_card[card['index']] for card in cards}
+    codes = get_simulator_pack_tracking_codes(opening_id, [
+        (index, pack) for index, pack in indexed_packs if index in selected_pack_indices
+    ])
+    pack_metadata = {index: {
+        'tracked_pack_id': -(index + 1), 'pack_tracking_code': codes[index],
+        'display_name': pack['name'], 'set_code': pack['set_code'],
+        'booster_name': pack['booster_name'], 'booster_index': pack.get('variant_index', 0),
+    } for index, pack in indexed_packs if index in selected_pack_indices}
+    card_packs = [pack_metadata[pack_indices_by_card[card['index']]] for card in cards]
+    return {"cards": cards, "display_name": packs[0]['name'] if scope == "pack" else opening['name'],
+            "set_code": packs[0]['set_code'] if scope == "pack" else opening['set_code'],
+            "booster_name": packs[0]['booster_name'] if scope == "pack" else opening['booster_name'],
+            "pack_tracking_code": card_packs[0]['pack_tracking_code'], "card_packs": card_packs}
+
+
+@app.post("/pack-simulator/openings/<uuid:opening_id>/print")
+@isolation_operation
+def simulator_opening_print(opening_id):
+    try:
+        selection = simulator_print_selection(str(opening_id))
+        set_request_print_export_overrides_from_form(request.form, default_label_text=None)
+        pdf = build_chaos_pack_pdf(selection['cards'], selection['display_name'],
+            set_code=selection['set_code'], booster_name=selection['booster_name'],
+            pack_tracking_code=selection['pack_tracking_code'],
+            card_tracking_codes=[pack['pack_tracking_code'] for pack in selection['card_packs']],
+            print_labels_enabled_override=int(getattr(g, 'print_export_labels_enabled_override', True)))
+        return build_inline_pdf_response(pdf, build_pack_print_pdf_filename(
+            selection['pack_tracking_code'], selection['display_name'], len(selection['cards'])))
+    except (ValueError, LookupError) as error:
+        return str(error), 400
+
+
+@app.post("/pack-simulator/openings/<uuid:opening_id>/export-zip")
+@isolation_operation
+def simulator_opening_export_zip(opening_id):
+    if (get_request_config().get('enable_chaos_card_image_export') or '0').strip() != '1':
+        return "Card Image Export is disabled in Settings.", 400
+    try:
+        selection = simulator_print_selection(str(opening_id))
+        set_request_print_export_overrides_from_form(request.form, default_label_text=None)
+        result = build_chaos_card_image_export_zip(
+            export_rows=build_campaign_preview_image_export_rows(selection, card_packs=selection['card_packs']),
+            separate_special_slots=False)
+        return send_file(result['zip_path'], mimetype='application/zip', as_attachment=True,
+                         download_name=result['zip_filename'], max_age=0)
+    except (ValueError, LookupError) as error:
+        return str(error), 400
+
+
+def build_campaign_preview_image_export_rows(preview_pack, card_packs=None):
     cards = list((preview_pack or {}).get("cards") or [])
 
     if not cards:
         raise ValueError("No generated pack preview cards are available to export.")
+    if card_packs is not None and len(card_packs) != len(cards):
+        raise ValueError("Each card must have a matching pack.")
 
     pack_display_name = (
         preview_pack.get("pack_display_name")
@@ -24218,14 +24462,15 @@ def build_campaign_preview_image_export_rows(preview_pack):
             continue
 
         card_row = get_chaos_card_by_uuid(card_uuid)
+        card_pack = card_packs[card_index - 1] if card_packs is not None else {}
 
         export_rows.append({
-            "tracked_pack_id": 0,
-            "pack_tracking_code": pack_tracking_code,
-            "pack_set_code": (pack_set_code or "").strip().upper(),
-            "pack_booster_name": (pack_booster_name or "").strip().lower(),
-            "booster_index": 0,
-            "pack_display_name": pack_display_name,
+            "tracked_pack_id": card_pack.get("tracked_pack_id", 0),
+            "pack_tracking_code": card_pack.get("pack_tracking_code", pack_tracking_code),
+            "pack_set_code": (card_pack.get("set_code", pack_set_code) or "").strip().upper(),
+            "pack_booster_name": (card_pack.get("booster_name", pack_booster_name) or "").strip().lower(),
+            "booster_index": card_pack.get("booster_index", 0),
+            "pack_display_name": card_pack.get("display_name", pack_display_name),
             "print_labels_enabled_override": None,
             "labels_disabled_for_pack": False,
 
@@ -25558,12 +25803,21 @@ def get_print_export_defaults_from_config(config):
         label_text_mode = "pack_code"
 
     return {
+        "print_card_backs": get_config_bool(chaos_print_config, "print_card_backs", "0"),
+        "default_card_back": get_chaos_default_card_back_key(config),
         "show_print_export_labels": get_config_bool(
             chaos_print_config,
             "print_labels_enabled",
             "1",
         ),
         "label_text_mode": label_text_mode,
+        "label_location": normalize_label_location(config.get("chaos_print_export_label_location")),
+        "label_card_back_key": config.get("chaos_print_export_label_card_back") or "",
+        "label_card_back_options": [
+            {"key": option["key"], "label": option["label"]}
+            for option in list_card_back_options(app.static_folder, RUNTIME_CARD_BACK_DIR)
+            if option.get("supports_labels")
+        ],
         "include_pack_label_cards": get_config_bool(
             chaos_print_config,
             "print_pack_label_cards",
@@ -38085,6 +38339,8 @@ if __name__ == "__main__":
     initialize_database()
     backfill_finish_metadata()
     ensure_draft_testing_schema()
+    from db.pack_simulator import repair_simulator_tracking_codes
+    repair_simulator_tracking_codes()
     ensure_deck_schema()
     ensure_upscaling_schema()
     ensure_help_schema()

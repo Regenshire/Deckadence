@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 
 import requests
 
+from download_identity import get_download_user_agent
+
 from db.database import get_db_connection
 from paths import ALL_PRICES_TODAY_PATH, ALL_PRICES_TODAY_ZIP_PATH
 from settings import MTGJSON_ALL_PRICES_TODAY_URL
@@ -18,7 +20,7 @@ def download_all_prices_today_json():
     ensure_price_download_directories()
 
     headers = {
-        "User-Agent": "Deckadence/1.0",
+        "User-Agent": get_download_user_agent(),
         "Accept": "application/zip,application/octet-stream;q=0.9,*/*;q=0.8",
     }
 

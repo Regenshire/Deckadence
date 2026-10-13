@@ -1,11 +1,12 @@
 document.addEventListener("DOMContentLoaded", function () {
   initializeRefreshCards();
-  initializePackDownloader();
   initializeSettingsConsole();
   initializeConfigPanels();
   initializeGameModeCards();
   initializeConfigShortcutNavigation();
 });
+// Optional downloader controls must not prevent the rest of Settings from loading.
+document.addEventListener("DOMContentLoaded", initializePackDownloader);
 
 function initializePackDownloader() {
   const modal = document.getElementById("packDownloaderModal");
@@ -60,9 +61,9 @@ function initializePackDownloader() {
     status.className = "pack-download-result-status";
     status.textContent = ({downloaded: "Downloaded", existing: "Existing image kept", unavailable: "Unavailable"})[item.status] || item.status;
     if (item.status === "downloaded") {
-      status.textContent = ({front: "Front-facing original", reconstructed: "Reconstructed from pack photo",
-        created: "Created from set artwork", label: "Created with era-based design",
-        product: "Downloaded product photo"})[item.method] || status.textContent;
+      status.textContent = ({front: "Front-facing original", reconstructed: "Pack image corrected to face forward",
+        created: "Pack image created from set images", label: "Created with era-based design",
+        product: "Downloaded product image"})[item.method] || status.textContent;
       if (item.upgraded) status.textContent = "Upgraded · " + status.textContent;
     }
     card.append(name, label, status);
@@ -93,7 +94,7 @@ function initializePackDownloader() {
     running = state.state === "running" || state.state === "cancelling";
     options.disabled = running;
     start.disabled = running;
-    clearGenerated.disabled = running;
+    if (clearGenerated) clearGenerated.disabled = running;
     cancel.disabled = state.state !== "running";
     cancel.textContent = state.state === "cancelling" ? "Cancelling…" : "Cancel download";
     get("packDownloaderStage").textContent = state.stage;
@@ -147,7 +148,7 @@ function initializePackDownloader() {
     revision += 1;
     clearTimeout(timer);
     start.disabled = true;
-    clearGenerated.disabled = true;
+    if (clearGenerated) clearGenerated.disabled = true;
     options.disabled = true;
     showError("");
     try {
@@ -157,12 +158,13 @@ function initializePackDownloader() {
       showError(e.message);
       options.disabled = running;
       start.disabled = running;
-      clearGenerated.disabled = running;
+      if (clearGenerated) clearGenerated.disabled = running;
       // Reconcile a possibly successful request whose response was interrupted.
       if (modal.open) timer = setTimeout(refresh, 3000);
     }
   });
-  clearGenerated.addEventListener("click", async () => {
+  // A running server can still have a cached template without this newer button.
+  clearGenerated?.addEventListener("click", async () => {
     const types = [...options.querySelectorAll('input[name="pack_art_type"]:checked')].map((input) => input.value);
     if (!types.length) { showError("Choose at least one pack type."); return; }
     const codes = get("packDownloaderSets").value.trim().split(/[\s,;]+/).filter(Boolean).map((code) => code.toUpperCase());
@@ -174,10 +176,17 @@ function initializePackDownloader() {
       const preview = await api("clear-generated", {action: "preview", set_codes: codes, product_types: types});
       if (!modal.open) return;
       if (!preview.count) {
-        get("packDownloaderMessage").textContent = "No unchanged generated faces match these sets and pack types.";
+        get("packDownloaderMessage").textContent = "No generated pack images can be cleared for the selected sets and pack types.";
         return;
       }
-      if (!window.confirm(`Clear ${preview.count} generated pack face${preview.count === 1 ? "" : "s"}?\n\nOriginal photos, reconstructed photos, and handmade art will be kept. Cleared faces are moved to a recovery folder and can be rebuilt by downloading again.`)) return;
+      const confirmation = get("clearPackImagesModal");
+      get("clearPackImagesMessage").textContent = `Delete ${preview.count} generated pack image${preview.count === 1 ? "" : "s"}? These are images created by the pack builder when a downloaded pack image was unavailable.`;
+      confirmation.returnValue = "cancel";
+      const confirmed = new Promise((resolve) => {
+        confirmation.addEventListener("close", () => resolve(confirmation.returnValue === "delete"), {once: true});
+      });
+      confirmation.showModal();
+      if (!await confirmed || !modal.open) return;
       await api("clear-generated", {action: "clear", token: preview.token});
       await refresh();
     } catch (e) {

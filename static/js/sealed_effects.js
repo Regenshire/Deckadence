@@ -40,8 +40,20 @@
     host.addEventListener("pointerleave", reset);
     host.addEventListener("blur", reset);
   }
-  function boxNode(image, name, count, collector = false, play = false) {
+  function boxNode(image, name, count, collector = false, play = false, productType = "", releaseDate = "") {
+    const bundle = productType.includes("bundle");
+    if (productType) {
+      collector = productType === "collector_box";
+      play = !collector;
+    }
+    const productLabel = ({
+      play_box: "Play Booster Box", collector_box: "Collector Booster Box",
+      draft_box: "Draft Booster Box", set_box: "Set Booster Box",
+      bundle: "Bundle", gift_bundle: "Gift Bundle", holiday_bundle: "Holiday Bundle",
+      commander_bundle: "Commander Bundle", secret_lair_bundle: "Secret Lair Bundle",
+    })[productType] || (collector ? "Collector Booster Box" : play ? "Play Booster Box" : "Booster Box");
     const box = element("div", "sealed-box");
+    box.classList.toggle("sealed-box-bundle", bundle);
     box.classList.toggle("sealed-box-collector", collector);
     box.classList.toggle("sealed-box-carton", collector || play);
     box.classList.toggle("sealed-box-play", play);
@@ -58,6 +70,13 @@
     box.append(packs);
     for (const side of ["left", "right", "lid", "front"]) {
       const face = element("div", "sealed-box-" + side);
+      if (side === "front") {
+        const logo = element("img", "sealed-box-magic-logo");
+        const year = Number(String(releaseDate).slice(0, 4));
+        logo.src = "/static/img/Logos/" + (year > 0 && year < 2017 ? "mtg_1993.png" : "mtg_current.png");
+        logo.alt = "Magic: The Gathering";
+        face.append(logo);
+      }
       if (side === "front" || side === "lid") {
         if (!collector && !play) {
           const img = element("img", "sealed-box-art");
@@ -74,9 +93,7 @@
           face.append(label);
           if (collector || play) {
             const bar = element("div", "sealed-box-collector-bar");
-            bar.textContent = collector
-              ? "Collector Boosters"
-              : "Play Boosters";
+            bar.textContent = productLabel;
             face.append(bar);
           }
         } else if (collector || play) {
@@ -90,13 +107,13 @@
     box.setAttribute("aria-hidden", "true");
     return box;
   }
-  function setBox(host, enabled, name, count, collector = false, play = false, productImage = null) {
+  function setBox(host, enabled, name, count, collector = false, play = false, productImage = null, productType = "", releaseDate = "") {
     host.querySelector(".sealed-box")?.remove();
     host.classList.toggle("is-box", enabled);
     host.classList.toggle("has-product-art", Boolean(enabled && productImage));
     if (enabled && !productImage)
       host.prepend(
-        boxNode(host.querySelector("img").src, name, count, collector, play),
+        boxNode(host.querySelector("img").src, name, count, collector, play, productType, releaseDate),
       );
   }
 
@@ -110,6 +127,8 @@
     boxImage,
     productImage,
     boxName = "",
+    productType = "",
+    releaseDate = "",
     collector = false,
     play = false,
     count = 1,
@@ -221,6 +240,8 @@
           count,
           collector,
           play,
+          productType,
+          releaseDate,
         );
         carton.classList.add("sealed-box-opening");
         stage.append(carton);
@@ -239,11 +260,11 @@
           [
             {
               transform:
-                collector || play ? "skewX(-36deg) rotateX(0)" : "rotateX(0)",
+                (collector || play || productType) ? "skewX(-36deg) rotateX(0)" : "rotateX(0)",
             },
             {
               transform:
-                collector || play
+                (collector || play || productType)
                   ? "skewX(-36deg) rotateX(-125deg)"
                   : "rotateX(-125deg)",
             },

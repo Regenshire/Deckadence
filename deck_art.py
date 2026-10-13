@@ -12,6 +12,8 @@ import unicodedata
 
 import requests
 
+from download_identity import get_download_user_agent
+
 from PIL import (
     Image,
     ImageDraw,
@@ -973,7 +975,7 @@ class DeckArtRenderer:
             )
 
         headers = {
-            "User-Agent": "Deckadence/1.0",
+            "User-Agent": get_download_user_agent(),
 
             "Accept": (
                 "image/avif,"

@@ -10,6 +10,8 @@ import zipfile
 
 import requests
 
+from download_identity import get_download_user_agent
+
 from paths import (
     BUNDLE_BASE_DIR,
     PLUGIN_DOWNLOAD_DIR,
@@ -939,9 +941,7 @@ def _download_latest_release_asset(
             "Accept": (
                 "application/vnd.github+json"
             ),
-            "User-Agent": (
-                "Deckadence-Plugin-Installer"
-            ),
+            "User-Agent": get_download_user_agent(),
         },
         timeout=30,
     )
@@ -1050,6 +1050,7 @@ def _download_latest_release_asset(
 
     with requests.get(
         download_url,
+        headers={"User-Agent": get_download_user_agent()},
         stream=True,
         timeout=(30, 300),
     ) as download_response:
@@ -1419,6 +1420,7 @@ def _get_plugin_worker(
                 ],
                 "worker",
             ],
+            env={**os.environ, "DECKADENCE_DOWNLOAD_USER_AGENT": get_download_user_agent()},
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -1572,6 +1574,7 @@ def run_plugin_json(
             ],
             command,
         ],
+        env={**os.environ, "DECKADENCE_DOWNLOAD_USER_AGENT": get_download_user_agent()},
         input=json.dumps(
             payload or {}
         ),

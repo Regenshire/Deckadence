@@ -121,6 +121,20 @@
           />
         </label>
 
+        <label id="printExportLabelLocationRow" class="toggle-row{% if print_export_defaults and not print_export_defaults.show_print_export_labels %} hidden{% endif %}">
+          <span>Label Location</span>
+          <select id="printExportLabelLocation" name="label_location"
+            data-label-card-backs="{{ (print_export_defaults.label_card_back_options | default([])) | tojson | forceescape }}"
+            data-label-card-back-key="{{ print_export_defaults.label_card_back_key | default('') }}">
+            <option value="lower_left" {% if not print_export_defaults or print_export_defaults.label_location != 'custom_card_back' %}selected{% endif %}>Lower Left</option>
+            <option value="custom_card_back" {% if print_export_defaults and print_export_defaults.label_location == 'custom_card_back' %}selected{% endif %}>Custom Card Back</option>
+          </select>
+        </label>
+        <p id="printExportBackLabelNote" class="hidden">
+          Labels use the card back's lower panel, or a matching bottom bar on other backs. PDF card backs are included automatically.
+          Double-faced cards keep their actual reverse face and lower-left label.
+        </p>
+
         <label class="settings-field print-export-radio-group">
           <span>Label Text</span>
 
@@ -161,6 +175,23 @@
 
         <div class="print-export-settings-section">
           <div class="print-export-settings-section-title">PDF Printing</div>
+
+          <label class="toggle-row">
+            <span>Print Card Backs</span>
+            <input type="hidden" name="print_card_backs" value="0" />
+            <input type="checkbox" name="print_card_backs" value="1"
+              {% if print_export_defaults and print_export_defaults.print_card_backs %}checked{% endif %} />
+          </label>
+          <div class="toggle-row">
+            <span>Card Back</span>
+            <input type="hidden" id="printExportCardBack" name="default_card_back"
+              value="{{ print_export_defaults.default_card_back if print_export_defaults else '' }}" />
+            <button type="button" class="card-back-selector-open-button"
+              data-card-back-selector-open data-card-back-target-input="printExportCardBack">
+              <i class="fa-solid fa-clone"></i><span>Choose Card Back</span>
+            </button>
+          </div>
+
 
           <div class="toggle-row">
             <span>Print Template / Paper</span>

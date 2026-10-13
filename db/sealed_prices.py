@@ -51,8 +51,8 @@ class SealedPriceEngine:
             self._schema()
             with closing(self.connect()) as conn:
                 if box_id:
-                    row = conn.execute('SELECT * FROM simulator_sealed_products WHERE product_uuid=? AND set_code=? AND booster_name=? AND category=?',
-                        (box_id,set_code,booster_name,'booster_box')).fetchone()
+                    row = conn.execute('SELECT * FROM simulator_sealed_products WHERE product_uuid=? AND set_code=? AND category IN ("booster_box","bundle")',
+                        (box_id,set_code)).fetchone()
                 else:
                     row = conn.execute('''SELECT * FROM simulator_sealed_products WHERE set_code=? AND booster_name=? AND category='booster_pack'
                         ORDER BY length(name),product_uuid LIMIT 1''', (set_code,booster_name)).fetchone()

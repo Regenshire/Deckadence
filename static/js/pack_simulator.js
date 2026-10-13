@@ -38,28 +38,46 @@
   };
   const cardSizeSelect = $("cardSize");
   const savedCardSize = String(stored("cardSize", 100));
-  cardSizeSelect.value = [...cardSizeSelect.options].some(o => o.value === savedCardSize) ? savedCardSize : "100";
+  cardSizeSelect.value = [...cardSizeSelect.options].some(
+    (o) => o.value === savedCardSize,
+  )
+    ? savedCardSize
+    : "100";
   function applyCardSize() {
     const grid = $("previewCards");
     grid.style.removeProperty("grid-template-columns");
     if (!grid.clientWidth || cardSizeSelect.value === "100") return;
-    const columns = getComputedStyle(grid).gridTemplateColumns.split(" ").filter(Boolean);
+    const columns = getComputedStyle(grid)
+      .gridTemplateColumns.split(" ")
+      .filter(Boolean);
     const baseWidth = parseFloat(columns[0]);
     if (!Number.isFinite(baseWidth)) return;
-    const width = Math.min(grid.clientWidth, baseWidth * Number(cardSizeSelect.value) / 100);
+    const width = Math.min(
+      grid.clientWidth,
+      (baseWidth * Number(cardSizeSelect.value)) / 100,
+    );
     grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(min(100%, ${width}px), 1fr))`;
   }
-  cardSizeSelect.onchange = () => { store("cardSize", Number(cardSizeSelect.value)); applyCardSize(); };
+  cardSizeSelect.onchange = () => {
+    store("cardSize", Number(cardSizeSelect.value));
+    applyCardSize();
+  };
   let lastGridWidth = -1;
-  new ResizeObserver(entries => {
+  new ResizeObserver((entries) => {
     const width = entries[0].contentRect.width;
-    if (width !== lastGridWidth) { lastGridWidth = width; applyCardSize(); }
+    if (width !== lastGridWidth) {
+      lastGridWidth = width;
+      applyCardSize();
+    }
   }).observe($("previewCards"));
   const viewControls = root.querySelector(".sim-view-controls");
   new MutationObserver(() => {
     viewControls.hidden = $("openedCards").hidden;
     if (!viewControls.hidden) applyCardSize();
-  }).observe($("openedCards"), {attributes:true, attributeFilter:["hidden"]});
+  }).observe($("openedCards"), {
+    attributes: true,
+    attributeFilter: ["hidden"],
+  });
   let catalog = [],
     selected = null,
     candidate = null,
@@ -148,14 +166,38 @@
     return productCache.get(k);
   }
   const cards = () => (opening ? opening.packs.flatMap((p) => p.cards) : []);
+  const includeRarity = (card) => !$("excludeLowRarity").checked || !["common", "uncommon"].includes(String(card.rarity || "").toLowerCase());
+  $("excludeLowRarity").checked = stored("excludeLowRarity", false) === true;
+  $("excludeLowRarity").onchange = () => {
+    store("excludeLowRarity", $("excludeLowRarity").checked);
+    if (opening) renderPack();
+  };
   const shownCards = () => cards().filter((c) => revealed.has(c.index));
   const currentPack = () => opening?.packs[packIndex];
   const combinedOpening = () =>
-    Boolean(opening) && (opening.box_id
+    Boolean(opening) &&
+    (opening.box_id
       ? !stored("individualBox", false)
       : stored("openAll." + opening.id, false));
+
+  const printExport = window.iMomirPrintExportModal.init({openButtonId: "unusedSimulatorPrintTrigger"});
+  $("simulatorPrintExport").addEventListener("click", () => {
+    if (!opening || busy) return;
+    const base = "/pack-simulator/openings/" + encodeURIComponent(opening.id);
+    printExport.open({
+      printUrl: base + "/print", exportZipUrl: base + "/export-zip",
+      subtitle: "Print or export cards from " + opening.name + ".",
+      extraFormFields: {
+        simulator_scope: combinedOpening() || $("showAllCards").checked ? "opening" : "pack",
+        simulator_pack_index: packIndex,
+        simulator_card_indices: JSON.stringify(displayedCards().map((card) => card.index)),
+        exclude_low_rarity: $("excludeLowRarity").checked ? "1" : "0",
+      },
+    });
+  });
   const currentBox = () => selected?.boxes.find((b) => b.id === boxId);
-  const price = (c, s = source, fallback = true) => window.DeckadencePrices.select(quotes.get(key(c)), s, fallback).price;
+  const price = (c, s = source, fallback = true) =>
+    window.DeckadencePrices.select(quotes.get(key(c)), s, fallback).price;
   function setBusy(value) {
     busy = value;
     root.setAttribute("aria-busy", String(value));
@@ -176,6 +218,7 @@
       "cardSort",
       "revealPack",
       "saveButton",
+      "simulatorPrintExport",
     ])
       $(id).disabled = value;
     $("skipAnimation").hidden = !value || !animationController;
@@ -188,7 +231,9 @@
         (c) => !revealed.has(c.index),
       )
         ? "Reveal all cards"
-        : opening.box_id ? "Open another box" : "Open another batch";
+        : opening.box_id
+          ? "Open another product"
+          : "Open another batch";
       return;
     }
     const unopened =
@@ -202,7 +247,7 @@
           ? "Open next pack"
           : "Open another"
       : boxId
-        ? "Open box"
+        ? "Open product"
         : quantity > 1
           ? "Open first pack"
           : "Open pack";
@@ -212,7 +257,7 @@
     const box = currentBox();
     $("productName").textContent = selected.set_name;
     $("productType").textContent = box
-      ? "Booster box · " + selected.label
+      ? box.name
       : selected.label;
     const img = $("packArtwork");
     img.src = box?.image_src || selected.image_src;
@@ -231,6 +276,8 @@
       selected.booster_name.toLowerCase().includes("collector"),
       selected.booster_name.toLowerCase().includes("play"),
       box?.image_src,
+      box?.image_type,
+      selected.release_date,
     );
     window.DeckadencePackFormation?.update(quantity, Boolean(box));
     setOpenLabel();
@@ -251,6 +298,7 @@
     $("packStage").hidden = false;
     $("openedCards").hidden = true;
     $("saveButton").hidden = true;
+    $("simulatorPrintExport").hidden = true;
     $("openingHeading").textContent = "Ready to crack a pack?";
     $("singlePackSummary").textContent = "";
     $("showAllCards").checked = false;
@@ -282,7 +330,6 @@
         $("openingSize").value = boxId;
       $("packQuantity").value = quantity;
       updateSelectionSize();
-      $("useProduct").disabled = false;
       renderProducts();
     } catch (e) {
       if (rev === selectionRevision)
@@ -293,18 +340,25 @@
     const box = candidate?.boxes.find((b) => b.id === $("openingSize").value);
     if (candidate) {
       $("selectionArt").src = box?.image_src || candidate.image_src;
-      $("selectionArt").alt = box?.name || candidate.set_name + " " + candidate.label;
+      $("selectionArt").alt =
+        box?.name || candidate.set_name + " " + candidate.label;
     }
     $("quantityField").hidden = Boolean(box);
     $("individualBoxChoice").hidden = !box;
     $("packQuantity").disabled = Boolean(box);
-    $("selectionSummary").textContent = box
-      ? box.packs
-          .map((p) => `${p.count} × ${p.booster_name.replaceAll("-", " ")}`)
-          .join(" · ")
-      : candidate
-        ? `${candidate.min_cards === candidate.max_cards ? candidate.min_cards : candidate.min_cards + "–" + candidate.max_cards} cards per pack`
-        : "";
+    $("useProduct").disabled = !candidate || Boolean(box?.unavailable_reason);
+    $("selectionSummary").textContent =
+      box?.unavailable_reason ||
+      (box
+        ? box.packs
+            .map(
+              (p) =>
+                `${p.count} × ${p.label || p.booster_name.replaceAll("-", " ")}`,
+            )
+            .join(" · ")
+        : candidate
+          ? `${candidate.min_cards === candidate.max_cards ? candidate.min_cards : candidate.min_cards + "–" + candidate.max_cards} cards per pack`
+          : "");
   }
   function renderProducts() {
     const terms = $("productSearch")
@@ -464,6 +518,7 @@
     $("showAllCards").checked = false;
     $("openedCards").hidden = false;
     $("saveButton").hidden = false;
+    $("simulatorPrintExport").hidden = false;
     if (!fresh) $("packStage").hidden = true;
     $("openingHeading").textContent = "Pack contents";
     const url = new URL(location.href);
@@ -496,7 +551,9 @@
       $("packArtwork").src = result.product_image_src;
     }
     if (!fresh) {
-      await prepareSortPrices(combinedOpening() ? { cards: cards() } : currentPack());
+      await prepareSortPrices(
+        combinedOpening() ? { cards: cards() } : currentPack(),
+      );
       renderPack();
     } else $("previewCards").style.visibility = "hidden";
     ensurePrices();
@@ -507,13 +564,15 @@
     if (!opening) return;
     $("cardSort").disabled = busy;
     $("saveButton").disabled = busy;
-    $("packNavigation").hidden = combinedOpening() || opening.packs.length === 1;
-    $("singlePackSummary").hidden = !combinedOpening() && opening.packs.length > 1;
+    $("packNavigation").hidden =
+      combinedOpening() || opening.packs.length === 1;
+    $("singlePackSummary").hidden =
+      !combinedOpening() && opening.packs.length > 1;
     $("packPosition").replaceChildren(
       ...opening.packs.map((p, i) =>
         option(
           i,
-          `Pack ${i + 1} of ${opening.packs.length} · ${p.booster_name.replaceAll("-", " ")}`,
+          `Pack ${i + 1} of ${opening.packs.length} · ${p.label || p.booster_name.replaceAll("-", " ")}`,
         ),
       ),
     );
@@ -522,7 +581,7 @@
     $("nextPack").disabled = busy || packIndex === opening.packs.length - 1;
     $("openRest").hidden = cards().every((c) => revealed.has(c.index));
     $("allCardsLabel").hidden = combinedOpening() || opening.packs.length === 1;
-    const summaryCards = combinedOpening() ? cards() : currentPack().cards;
+    const summaryCards = (combinedOpening() ? cards() : currentPack().cards).filter(includeRarity);
     const shown = summaryCards.filter((c) => revealed.has(c.index));
     $("singlePackSummary").textContent =
       `${shown.length} / ${summaryCards.length} cards · ${shown.filter((c) => c.rarity === "mythic").length} mythics · ${shown.filter((c) => c.rarity === "rare").length} rares`;
@@ -583,8 +642,8 @@
       clearTimeout(timer);
     }
   }
-  function renderPack() {
-    if (!opening) return;
+  function displayedCards() {
+    if (!opening) return [];
     const list = combinedOpening()
       ? sortCards(opening.packs.flatMap(orderedCards))
       : $("showAllCards").checked
@@ -594,8 +653,12 @@
               .filter((c) => revealed.has(c.index)),
           )
         : orderedCards(currentPack());
+    return list.filter(includeRarity);
+  }
+  function renderPack() {
+    if (!opening) return;
     $("previewCards").replaceChildren(
-      ...list.map((c) => cardTile(c, revealed.has(c.index))),
+      ...displayedCards().map((c) => cardTile(c, revealed.has(c.index))),
     );
     updateNavigation();
     renderSidebar();
@@ -697,7 +760,10 @@
     setBusy(true);
     const revealCards = combinedOpening() ? cards() : pack.cards;
     await prepareSortPrices({ cards: revealCards });
-    if ((!opening.box_id && combinedOpening()) || !stored("individualReveal", false))
+    if (
+      (!opening.box_id && combinedOpening()) ||
+      !stored("individualReveal", false)
+    )
       revealCards.forEach((c) => revealed.add(c.index));
     renderPack();
     queueSave();
@@ -753,6 +819,8 @@
         boxImage: opening.product_image_src,
         productImage: opening.box_image_src,
         boxName: selected.set_name,
+        productType: opening.image_type,
+        releaseDate: opening.release_date || selected.release_date,
         collector: selected.booster_name.toLowerCase().includes("collector"),
         play: selected.booster_name.toLowerCase().includes("play"),
         count: opening.packs.length,
@@ -923,7 +991,9 @@
     else changeFace();
   }
   $("revealPack").onclick = () =>
-    reveal((combinedOpening() ? cards() : currentPack().cards).map((c) => c.index));
+    reveal(
+      (combinedOpening() ? cards() : currentPack().cards).map((c) => c.index),
+    );
   $("openRest").onclick = () => {
     reveal(cards().map((c) => c.index));
     $("showAllCards").checked = true;
@@ -1132,7 +1202,7 @@
     rememberOpening();
     return [...sessionOpenings.values()];
   }
-  function valueSummary() {
+  function unfilteredValueSummary() {
     if ($("valueScope").value === "opening") {
       const entries = sessionEntries();
       return {
@@ -1162,6 +1232,13 @@
       expected: currentPack().cards.length,
       packCount: 1,
     };
+  }
+  function valueSummary() {
+    const summary = unfilteredValueSummary();
+    const all = summary.entries
+      ? summary.entries.flatMap((entry) => entry.packs.flatMap((pack) => pack.cards))
+      : currentPack().cards;
+    return {...summary, list: summary.list.filter(includeRarity), expected: all.filter(includeRarity).length};
   }
   function marketCost(vendor, summary) {
     const targets = summary.entries
@@ -1200,13 +1277,16 @@
       included,
       total: included.reduce((sum, c) => sum + Math.round(value(c) * 100), 0),
       excluded: available.length - included.length,
-      fallback: available.filter((c) => !Number.isFinite(price(c, vendor, false)))
-        .length,
+      fallback: available.filter(
+        (c) => !Number.isFinite(price(c, vendor, false)),
+      ).length,
     };
   }
   function renderProfit() {
     const panel = $("profitPanel");
-    if (!panel || !opening) return;
+    if (!panel) return;
+    panel.hidden = true;
+    if (!opening) return;
     panel.dataset.result = "pending";
     panel.querySelector("h3").textContent = "Profit / Loss";
     $("profitValue").textContent = "—";
@@ -1244,7 +1324,7 @@
     if (!completeTotals.length || !availableCosts.length) {
       window.DeckadenceProfitEffects?.update(panel, null, null);
       $("profitBasis").textContent =
-        "Waiting for complete card and market prices.";
+        "Not enough data to display profit or loss";
       return;
     }
     const chosen = completeTotals.reduce((a, b) =>
@@ -1252,6 +1332,7 @@
     );
     const market = availableCosts.reduce((a, b) => (a.cost <= b.cost ? a : b));
     const difference = chosen.total - market.cost;
+    panel.hidden = false;
     window.DeckadenceProfitEffects?.update(
       panel,
       chosen.total,
@@ -1278,7 +1359,9 @@
       opening ? opening.box_id : boxId
     )
       ? "This box"
-      : combinedOpening() ? "This batch" : "This pack";
+      : combinedOpening()
+        ? "This batch"
+        : "This pack";
     const target = sealedTarget(),
       product = sealed.get(sealedKey(target.p, target.box));
     $("detailsProduct").textContent = opening
@@ -1677,10 +1760,10 @@
     $("confirmSave").disabled = savingPack || !entries.length;
     $("saveDescription").textContent =
       kind === "campaign"
-        ? "Keep this complete pack in the campaign, ready to open during a draft."
+        ? "Keep the selected packs in the campaign, ready to open during a draft."
         : "Add these cards to the set’s card pool. Custom sets keep one printing per card name; cards already in the set stay unchanged.";
     $("confirmSave").textContent =
-      kind === "campaign" ? "Save pack" : "Add cards";
+      kind === "campaign" ? (saveTarget?.pack_indices.length > 1 ? "Save packs" : "Save pack") : "Add cards";
   }
   async function loadDestinations() {
     const revision = ++destinationRevision;
@@ -1701,9 +1784,18 @@
   }
   $("saveButton").onclick = () => {
     if (!opening || busy || savingPack) return;
-    saveTarget = { id: opening.id, pack_index: packIndex };
+    const indices = combinedOpening()
+      ? opening.packs.map((_, index) => index)
+      : $("showAllCards").checked
+        ? opening.packs.flatMap((pack, index) =>
+            pack.cards.some((card) => revealed.has(card.index)) ? [index] : [],
+          )
+        : [packIndex];
+    if (!indices.length) return;
+    saveTarget = { id: opening.id, pack_indices: indices };
+    $("saveTitle").textContent = indices.length > 1 ? "Save packs" : "Save pack";
     $("savePackSummary").textContent =
-      `${currentPack().name} · Pack ${packIndex + 1} · ${currentPack().cards.length} cards`;
+      `${opening.name} · ${indices.length} pack${indices.length > 1 ? "s" : ""} · ${indices.reduce((total, index) => total + opening.packs[index].cards.length, 0)} cards`;
     $("saveKind").value = savePreferences.kind === "set" ? "set" : "campaign";
     $("saveDialog").showModal();
     loadDestinations();
@@ -1722,7 +1814,7 @@
     if (savingPack || !saveTarget || !$("saveDestination").value) return;
     const target = { ...saveTarget };
     const data = {
-      pack_index: target.pack_index,
+      pack_indices: target.pack_indices,
       kind: $("saveKind").value,
       destination: $("saveDestination").value,
     };

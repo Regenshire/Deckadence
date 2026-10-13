@@ -7,6 +7,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from download_identity import get_download_user_agent
+
 from .core import (
     ExternalCardReference,
     ExternalDeck,
@@ -71,13 +73,7 @@ class MoxfieldDeckProvider(ExternalDeckProvider):
             "Accept": "application/json, text/plain, */*",
             "Origin": "https://www.moxfield.com",
             "Referer": "https://www.moxfield.com/",
-            "User-Agent": (
-                "Mozilla/5.0 "
-                "(Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 "
-                "(KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
+            "User-Agent": get_download_user_agent(),
         })
 
     def search_decks(

@@ -562,6 +562,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/holofoil_options.css', v='viewport-1') }}">
     <script src="{{ url_for('static', filename='js/holofoil_options.js', v='viewport-1') }}"></script>
 
+    {% include "_card_back_selector_modal.html" %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_back_selector.css') }}">
+    <script src="{{ url_for('static', filename='js/card_back_selector.js') }}"></script>
+
     {% block page_scripts_before_app %}{% endblock %}
 
     <script src="{{ url_for('static', filename='js/app.js', v='themed-confirm-1') }}"></script>

@@ -45,7 +45,7 @@ class PackFaceComposer:
         result.putalpha(wrapper.getchannel('A'))
         return png_bytes(result)
 
-    DESIGN_VERSION = 7
+    DESIGN_VERSION = 8
     STYLES = {'auto': 'Automatic — release year', 'classic': '1993–94 · Paper oval',
               'vintage': '1995–2002 · Framed foil', '2000s': '2003–14 · Dark foil',
               'modern': '2015 onward · Full art', 'specialty': 'Specialty · Minimal paper'}
@@ -99,19 +99,26 @@ class PackFaceComposer:
             draw.text(((x0+x1)/2, y), line, fill=fill, font=face, anchor='mm')
             y += size+6
 
-    def _magic(self, image, box, classic=False):
+    def _magic(self, image, box, release_date=''):
+        year = str(release_date or '')[:4]
+        filename = 'mtg_1993.png' if year.isdigit() and int(year) < 2017 else 'mtg_current.png'
+        with Image.open(self.font_dir.parent / 'img' / 'Logos' / filename) as source:
+            logo = source.convert('RGBA')
+        bounds = logo.getchannel('A').getbbox()
+        if not bounds:
+            return
         x0, y0, x1, y1 = box
-        draw = ImageDraw.Draw(image)
-        # The bundled title font provides lettering, not a rasterized official logo.
-        text = 'Magic'
-        for size in range(116, 20, -1):
-            face = self._font(size, 'MagicTheGathering.TTF')
-            if draw.textlength(text, font=face) <= x1-x0:
-                break
-        face = self._font(round(size * .92), 'MagicTheGathering.TTF')
-        draw.text(((x0+x1)/2, y0+34+round(image.height*.03)), text, font=face, anchor='mm',
-                  fill='#f5d89b' if classic else '#fbfaf5', stroke_width=2,
-                  stroke_fill='#812e29' if classic else '#171c28')
+        background = image.crop(box).convert('L').resize((1, 1)).getpixel((0, 0))
+        if filename == 'mtg_current.png' and background < 140:
+            # Lighten neutral lettering on dark wrappers; retain the colored symbol.
+            red, green, blue, alpha = logo.split()
+            high = ImageChops.lighter(ImageChops.lighter(red, green), blue)
+            low = ImageChops.darker(ImageChops.darker(red, green), blue)
+            neutral = ImageChops.subtract(high, low).point(lambda value: 255 if value < 40 else 0)
+            logo = Image.composite(Image.new('RGBA', logo.size, '#f4f0e8'), logo, neutral)
+            logo.putalpha(alpha)
+        logo = ImageOps.contain(logo.crop(bounds), (x1-x0, y1-y0), Image.Resampling.LANCZOS)
+        image.alpha_composite(logo, (round((x0+x1-logo.width)/2), round((y0+y1-logo.height)/2)))
 
     @staticmethod
     def _center_icon(image, icon, box, maximum=176):
@@ -158,7 +165,7 @@ class PackFaceComposer:
         icon_box = (24, 200, 376, 446)
         if style == 'classic':
             draw.ellipse((28, 91, 372, 610), fill=pale, outline='#c69481', width=4)
-            self._magic(face, (38, 94, 362, 197), classic=True)
+            self._magic(face, (38, 94, 362, 197), release_date=release_date)
             self._text(face, 'BOOSTER PACK', (80, 218, 320, 318), ink, 42, 'MagicTheGathering.TTF')
             title_box = (64, 320, 336, 475)
             self._text(face, 'TRADING CARD GAME', (52, 558, 348, 593), ink, 13)
@@ -174,7 +181,7 @@ class PackFaceComposer:
             draw.rounded_rectangle(window, radius=80, fill='#d3e4dc', outline='#e9eee4', width=3)
             if artwork:
                 face.alpha_composite(ImageOps.fit(artwork, (288,290), Image.Resampling.LANCZOS), (56,195))
-            self._magic(face, (42, 97, 358, 195), classic=True)
+            self._magic(face, (42, 97, 358, 195), release_date=release_date)
             title_box = (48, 484, 352, 576)
         elif style == '2000s':
             draw.rectangle((13, 49, 387, 645), fill='#292927')
@@ -187,7 +194,7 @@ class PackFaceComposer:
                 ImageDraw.Draw(mask).ellipse((0,0,325,351), fill=255)
                 picture.putalpha(mask)
                 face.alpha_composite(picture, (37,187))
-            self._magic(face, (27, 92, 373, 192), classic=True)
+            self._magic(face, (27, 92, 373, 192), release_date=release_date)
             title_box = (31, 499, 369, 594)
         elif style == 'specialty':
             draw.rectangle((12, 45, 388, 649), fill='#efede3', outline=ink, width=2)
@@ -196,7 +203,7 @@ class PackFaceComposer:
                 self._text(face, '× MSCHF', (32, 146, 368, 183), ink, 17)
             else:
                 offset = round(face.height*.03)
-                self._text(face, 'MAGIC', (32, 85+offset, 368, 150+offset), ink, 31)
+                self._magic(face, (32, 85+offset, 368, 150+offset), release_date=release_date)
             draw.line((44,202,356,202), fill=ink, width=2)
             title_box = (38, 287, 362, 485)
             icon_box = (38, 212, 362, 365)
@@ -210,7 +217,7 @@ class PackFaceComposer:
                 opacity = max(0, round(225*(y-400)/210), round(140*(180-y)/132))
                 od.line((10,y,389,y), fill=(7,10,19,min(235,opacity)))
             face = Image.alpha_composite(face, overlay)
-            self._magic(face, (74, 105, 326, 177))
+            self._magic(face, (74, 105, 326, 177), release_date=release_date)
             if 'Collector' in label:
                 stripe = Image.new('RGBA', (572,32), color+(255,))
                 self._text(stripe, label.upper(), (8,0,564,32), '#ffffff', 17, 'Gotham-Medium.otf')

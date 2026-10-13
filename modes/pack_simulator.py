@@ -70,9 +70,9 @@ def load_product(set_code, booster_name):
             card['colors'] = json.loads(card.pop('colors_json') or '[]')
             card.pop('promo_types_json')
             sheets[row['sheet_name']]['cards'].append(card)
-        boxes = [dict(r) for r in conn.execute('SELECT * FROM simulator_boxes WHERE set_code=? AND booster_name=?',
-                                              (set_code, booster_name))]
-        set_row = conn.execute('SELECT set_name FROM sets WHERE set_code=?', (set_code,)).fetchone()
+        boxes = [dict(r) for r in conn.execute('SELECT b.*, d.image_type, d.accessories_json, d.unavailable_reason FROM simulator_boxes b LEFT JOIN simulator_product_details d USING (product_uuid) WHERE b.set_code=? ORDER BY b.name',
+                                              (set_code,))]
+        set_row = conn.execute('SELECT set_name, release_date FROM sets WHERE set_code=?', (set_code,)).fetchone()
     for variant in variants:
         variant['contents'] = contents.get(variant['booster_index'], {})
         if not variant['contents'] or any(name not in sheets or not sheets[name]['cards']
@@ -80,6 +80,7 @@ def load_product(set_code, booster_name):
             raise ValueError('This booster has an incomplete card pool. Refresh the card database or choose another product.')
     return {'set_code': set_code, 'booster_name': booster_name,
             'set_name': set_row[0] if set_row else set_code,
+            'release_date': set_row[1] if set_row else '',
             'label': BOOSTER_LABELS.get(booster_name, sheet_label(booster_name)),
             'variants': variants, 'sheets': sheets, 'boxes': boxes}
 
@@ -158,8 +159,30 @@ def describe_product(product):
                       'chance': chance, 'foil': bool(sheet['sheet_is_foil']),
                       'pool_count': len(sheet['cards']), 'fixed': bool(sheet.get('fixed'))})
     counts = [sum(v['contents'].values()) for v in product['variants']]
-    return {key: product[key] for key in ('set_code', 'booster_name', 'set_name', 'label')} | {
+    return {key: product[key] for key in ('set_code', 'booster_name', 'set_name', 'label', 'release_date')} | {
         'slots': slots, 'min_cards': min(counts), 'max_cards': max(counts),
-        'boxes': [{'id': box['product_uuid'], 'name': box['name'], 'packs': json.loads(box['packs_json'])}
+        'boxes': [{'id': box['product_uuid'], 'name': box['name'], 'packs': json.loads(box['packs_json']),
+                   'image_type': box.get('image_type'),
+                   'unavailable_reason': box.get('unavailable_reason') or ''}
                   for box in product['boxes']],
     }
+
+
+def open_included_cards(item):
+    """Use exact printing IDs and finishes for bundle promos and land packs."""
+    cards = []
+    with closing(get_db_connection()) as conn:
+        for entry in item['cards']:
+            row = conn.execute('SELECT * FROM chaos_cards WHERE card_uuid=?', (entry['uuid'],)).fetchone()
+            if not row:
+                raise ValueError('An included card is missing. Refresh the card database before opening this product.')
+            card = dict(row)
+            card['promo_types'] = card_promo_types(card)
+            finish = entry['finish']
+            if finish not in {'normal', 'foil', 'etched'}:
+                raise ValueError('An included card has an unsupported finish.')
+            sheet = {'sheet_name': 'Included etched cards' if finish == 'etched' else 'Included cards',
+                     'sheet_is_foil': finish != 'normal'}
+            cards.extend(public_card(card, sheet) for _ in range(entry['count']))
+    return {'set_code': item['set_code'] or cards[0]['set_code'], 'booster_name': 'included-cards',
+            'name': item.get('label', 'Included cards'), 'cards': cards, 'variant_index': None}

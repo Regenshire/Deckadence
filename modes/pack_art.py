@@ -29,6 +29,9 @@ from uuid import uuid4
 from PIL import Image, ImageOps
 import requests
 
+from download_identity import get_download_user_agent
+from product_images import product_image_type
+
 from paths import DATABASE_PATH, RUNTIME_PACK_ART_DIR, get_pack_art_dir, get_static_dir
 from modes.pack_art_rendering import PackFaceComposer, PackPerspectiveCorrector
 
@@ -37,7 +40,8 @@ PACK_TYPES = {'play': 'Play Booster', 'collector': 'Collector Booster', 'set': '
               'default': 'Specialty Booster'}
 PRODUCT_TYPES = {**PACK_TYPES, 'play_box': 'Play Booster Box', 'collector_box': 'Collector Booster Box',
                  'set_box': 'Set Booster Box', 'draft_box': 'Draft Booster Box', 'bundle': 'Bundle',
-                 'gift_bundle': 'Gift Bundle', 'holiday_bundle': 'Holiday Bundle'}
+                 'gift_bundle': 'Gift Bundle', 'holiday_bundle': 'Holiday Bundle',
+                 'commander_bundle': 'Commander Bundle', 'secret_lair_bundle': 'Secret Lair Bundle'}
 PACK_METHOD_RANK = {'front': 0, 'reconstructed': 1, 'created': 2, 'label': 3}
 SPECIALTY_PRODUCTS = {
     'MBC': {'draft': 'Commander Draft Booster', 'draft_box': 'Mystery Booster Commander Edition Box'},
@@ -221,7 +225,7 @@ class WpnPackArtSource:
             self.cancel_event.wait(max(0, 0.25 - (time.monotonic() - self._last_request)))
             self.check_cancelled()
             self._last_request = time.monotonic()
-            request_headers = {'User-Agent': 'Deckadence-PackArt/1.0'}
+            request_headers = {'User-Agent': get_download_user_agent()}
             if byte_range:
                 request_headers['Range'] = byte_range
             with self.session.get(url, timeout=(5, 10), stream=True, allow_redirects=False,
@@ -309,11 +313,7 @@ class WpnPackArtSource:
                 name = name[len(prefix):]
             match = re.fullmatch(r'(play|collector|draft|set|jumpstart) boosters?', name)
             key = match[1] if match else None
-            box = re.fullmatch(r'(play|collector|draft|set) boosters? (?:box(?:es)?|displays?)', name)
-            if box:
-                key = box[1] + '_box'
-            if name in {'bundle', 'gift bundle', 'holiday bundle', 'chocobo bundle'}:
-                key = 'holiday_bundle' if name == 'chocobo bundle' else name.replace(' ', '_')
+            key = product_image_type(name) or key
             if name in {'collector booster sample pack', 'collector booster sample packs'}:
                 key = 'sample'
             if not key or len(images) != 1:
@@ -750,6 +750,10 @@ def pack_art_catalog(database_path=DATABASE_PATH):
             FROM sets s JOIN chaos_booster_variants b ON b.set_code=s.set_code
             WHERE b.booster_weight > 0
             GROUP BY s.set_code, b.booster_name ORDER BY s.release_date DESC, s.set_name''').fetchall()
+        inventory = {}
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE name='pack_image_products'").fetchone():
+            inventory = {code: json.loads(types) for code, types in conn.execute(
+                'SELECT set_code, types_json FROM pack_image_products')}
     sets = {}
     aliases = {'collector-sample': 'sample'}
     for code, name, released, booster in rows:
@@ -761,7 +765,7 @@ def pack_art_catalog(database_path=DATABASE_PATH):
             code = _set_code(code)
         except PackArtError:
             continue
-        item = sets.setdefault(code, {'set_code': code, 'set_name': name, 'release_date': released, 'pack_types': []})
+        item = sets.setdefault(code, {'set_code': code, 'set_name': name, 'release_date': released, 'pack_types': [], 'product_types': inventory.get(code)})
         if key not in item['pack_types']:
             item['pack_types'].append(key)
     return list(sets.values())
@@ -833,7 +837,7 @@ class PackArtJobs:
             raise ValueError('Choose at least one supported product type.')
         with self.lock:
             if self.busy:
-                raise ValueError('Wait for the pack download to finish before clearing generated faces.')
+                raise ValueError('Wait for the pack download to finish before clearing generated pack images.')
             downloader = PackArtDownloader(self.output_dir, None, bundled_dir=self.bundled_dir)
             root = self.output_dir.resolve()
             entries = []
@@ -856,25 +860,20 @@ class PackArtJobs:
             return {'count': len(entries), 'token': token}
 
     def clear_generated(self, token):
-        """Move only the confirmed, unchanged generated faces out of active use."""
+        """Delete only the confirmed, unchanged generated pack images."""
         with self.lock:
             if self.busy:
-                raise ValueError('Wait for the pack download to finish before clearing generated faces.')
+                raise ValueError('Wait for the pack download to finish before clearing generated pack images.')
             plan = self.clear_plan
             if not plan or token != plan['token'] or time.monotonic()-plan['created'] > 600:
-                raise ValueError('The selection expired. Preview the generated faces again.')
+                raise ValueError('The selection expired. Preview the generated pack images again.')
             self.clear_plan = None
             downloader = PackArtDownloader(self.output_dir, None, bundled_dir=self.bundled_dir)
             root = self.output_dir.resolve()
-            archive = root / '.cleared' / uuid4().hex
-            if not archive.resolve().is_relative_to(root):
-                raise ValueError('The cleared-image archive must be inside the pack artwork folder.')
             cleared, skipped, failed = 0, 0, 0
             for entry in plan['entries']:
                 path = entry['path']
                 sidecar = path.with_suffix('.source.json')
-                destination = archive / path.parent.name / path.name
-                moved = False
                 try:
                     current = downloader.upgrade_info(path.parent.name, path.stem)
                     if (not current or current['method'] not in {'created', 'label'}
@@ -884,21 +883,23 @@ class PackArtJobs:
                             or path.resolve().parent.parent != root or sidecar.resolve().parent.parent != root):
                         skipped += 1
                         continue
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    os.replace(path, destination)
-                    moved = True
-                    os.replace(sidecar, destination.with_suffix('.source.json'))
+                    image_bytes = path.read_bytes()
+                    path.unlink()
+                    try:
+                        sidecar.unlink()
+                    except OSError:
+                        # Restore in place on failure; successful clears keep no copies.
+                        with path.open('xb') as restored:
+                            restored.write(image_bytes)
+                        raise
                     cleared += 1
                 except OSError:
-                    # Keep the pair active if moving its source record fails.
-                    if moved and not path.exists():
-                        os.replace(destination, path)
                     failed += 1
             self.results = []
-            message = f'{cleared} generated faces cleared. Download again to rebuild them.'
+            message = f'{cleared} generated pack images cleared. Download again to rebuild them.'
             if skipped or failed:
                 message += f' {skipped} changed files kept; {failed} files could not be cleared.'
-            self.state = {'state': 'idle', 'job_id': uuid4().hex, 'stage': 'Generated faces cleared',
+            self.state = {'state': 'idle', 'job_id': uuid4().hex, 'stage': 'Generated pack images cleared',
                           'message': message, 'total_sets': 0, 'completed_sets': 0, 'downloaded': 0,
                           'existing': 0, 'unavailable': 0, 'bytes_received': 0, 'error': ''}
             return {'cleared': cleared, 'skipped': skipped, 'failed': failed}
@@ -973,7 +974,8 @@ class PackArtJobs:
                 self._check_cancelled()
                 code = item['set_code']
                 # Do not request nonexistent pack types (e.g. Play packs for Kaldheim).
-                wanted = [key for key in types if key not in PACK_TYPES or key in item['pack_types']]
+                wanted = [key for key in types if (key in item['pack_types'] if key in PACK_TYPES
+                          else item.get('product_types') is None or key in item['product_types'])]
                 with closing(self.source_factory(cancel_event=self.cancel_event, progress=self._progress)) as source:
                     downloader = PackArtDownloader(self.output_dir, source, bundled_dir=self.bundled_dir,
                         cancel_event=self.cancel_event, stage_callback=lambda stage: self._update(stage=stage),
@@ -996,7 +998,11 @@ class PackArtJobs:
                         except (OSError, ValueError, requests.RequestException, zipfile.BadZipFile) as error:
                             self._check_cancelled()
                             candidates, discovery_error = [], str(error)
+                        confirmed = {candidate.booster_key for candidate in candidates}
                         for key in missing:
+                            # Without local metadata, only request products actually listed by the source.
+                            if key not in PACK_TYPES and item.get('product_types') is None and key not in confirmed:
+                                continue
                             self._check_cancelled()
                             self._update(stage='Downloading', message=f"{item['set_name']} · {PRODUCT_TYPES[key]}")
                             options = [candidate for candidate in candidates if candidate.booster_key == key]

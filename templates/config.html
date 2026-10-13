@@ -10,12 +10,9 @@
 >
 <link
     rel="stylesheet"
-    href="{{ url_for('static', filename='css/config.css', v='pack-downloader-1') }}"
+    href="{{ url_for('static', filename='css/config.css', v='pack-downloader-3') }}"
 >
-<link
-    rel="stylesheet"
-    href="{{ url_for('static', filename='css/card_back_selector.css') }}"
->
+
 {% endblock %}
 
 {% block content %}
@@ -757,16 +754,16 @@
                         Download Card Database
                     </button>
 
-                    <button
+                    <!--<button
                         type="button"
                         id="forcedRefreshCardsButton"
                         class="action-button secondary-button force-refresh-button"
                         {% if refresh_status.get("is_running") %}disabled{% endif %}
                     >
                         Forced Refresh
-                    </button>
+                    </button>-->
                     <button type="button" id="openPackDownloader" class="action-button secondary-button">
-                        Pack Downloader
+                        Pack Image Downloader
                     </button>
                 </div>
             </div>
@@ -1318,13 +1315,13 @@
     </footer>
 </div>
 
-{% include "_card_back_selector_modal.html" %}
+
 
 <dialog id="packDownloaderModal" class="pack-downloader-modal" aria-labelledby="packDownloaderTitle">
     <div class="pack-downloader-header">
         <div>
-            <h2 id="packDownloaderTitle">Pack Downloader</h2>
-            <p>Download missing artwork and upgrade generated fallbacks. Handmade images are kept.</p>
+            <h2 id="packDownloaderTitle">Pack Image Downloader</h2>
+            <p>Download missing pack images and replace generated images when better ones are available. Images you added are kept.</p>
         </div>
         <button type="button" id="closePackDownloader" class="action-button secondary-button" aria-label="Close pack downloader">Close</button>
     </div>
@@ -1333,7 +1330,7 @@
             <label class="pack-downloader-set-label" for="packDownloaderSets">Set codes <span>(optional)</span></label>
             <input id="packDownloaderSets" type="text" placeholder="All imported booster sets, or enter FIN, ECL, TMT" maxlength="2000" autocomplete="off" spellcheck="false" aria-describedby="packDownloaderSetsHelp">
             <p id="packDownloaderSetsHelp" class="pack-downloader-hint">Leave blank to check all imported booster sets, newest first.</p>
-            <p class="pack-downloader-hint">Packs use a front-facing original first, then a reconstructed photo, then set artwork, and finally an era-based design. Generated faces have no Deckadence branding and are approximations. Each run checks for better artwork and refreshes older generated designs. Boxes and bundles use original product photos.</p>
+            <p class="pack-downloader-hint">The downloader first looks for a front-facing pack image. If needed, it corrects an angled image or creates a pack image using set images and a design based on the release year. Each run checks for better images. Boxes and bundles use downloaded product images.</p>
             <label class="pack-downloader-set-label" for="packDownloaderStyle">Generated pack design</label>
             <select id="packDownloaderStyle">
                 <option value="auto">Automatic — release year</option>
@@ -1345,8 +1342,9 @@
             </select>
             <label class="pack-downloader-set-label" for="packDownloaderColor">Wrapper color <span>(optional)</span></label>
             <input id="packDownloaderColor" type="text" placeholder="Automatic, or #454474" maxlength="7" pattern="#[0-9a-fA-F]{6}" autocomplete="off" spellcheck="false">
-            <p class="pack-downloader-hint">Design and color affect generated fallbacks only. Original photos and handmade packs are kept. Specialty boosters include the Zeta pack; MBC uses its Commander Edition source.</p>
-            <p class="pack-downloader-hint">Clear generated faces removes constructed images for the selected sets and pack types. Original photos, reconstructed photos, and handmade art are kept.</p>
+            <p class="pack-downloader-hint">Design and color apply only to images created by the pack builder. Downloaded images and images you added are kept. Specialty boosters include the Zeta pack; MBC uses its Commander Edition source.</p>
+            <p class="pack-downloader-hint">Booster boxes and displays are two names for the same product type. Bundles are separate products whose contents vary by set. Only products listed for each set in the downloaded database or on its official product page are checked.</p>
+            <p class="pack-downloader-hint">Clear generated images deletes images created by the pack builder for the selected sets and pack types. Downloaded images, including those corrected to face forward, and images you added are kept.</p>
             <div class="pack-downloader-types">
                 {% for group in ["Booster packs", "Booster boxes", "Bundles"] %}
                 <fieldset>
@@ -1370,21 +1368,33 @@
             <span id="packDownloaderSetProgress"></span>
         </div>
         <p id="packDownloaderError" class="pack-downloader-error" role="alert" hidden></p>
-        <div id="packDownloaderResults" class="pack-downloader-results" aria-label="Downloaded artwork and results"></div>
+        <div id="packDownloaderResults" class="pack-downloader-results" aria-label="Downloaded pack images and results"></div>
     </div>
     <div class="pack-downloader-footer">
         <p>Closing this window lets downloads continue. Cancel keeps completed images.</p>
         <div class="config-button-row">
-            <button type="button" id="clearGeneratedPackArt" class="action-button secondary-button">Clear generated faces</button>
+            <button type="button" id="clearGeneratedPackArt" class="action-button secondary-button">Clear generated images</button>
             <button type="button" id="startPackDownload" class="action-button">Download / upgrade images</button>
             <button type="button" id="cancelPackDownload" class="action-button secondary-button" disabled>Cancel download</button>
         </div>
     </div>
 </dialog>
 
-<script
-    src="{{ url_for('static', filename='js/card_back_selector.js') }}"
-></script>
+<dialog id="clearPackImagesModal" class="pack-downloader-modal pack-clear-modal" aria-labelledby="clearPackImagesTitle" aria-describedby="clearPackImagesMessage clearPackImagesDetails">
+    <div class="pack-downloader-header"><h2 id="clearPackImagesTitle">Clear generated pack images?</h2></div>
+    <div class="pack-downloader-body">
+        <p id="clearPackImagesMessage"></p>
+        <p id="clearPackImagesDetails">Downloaded pack images and images you added will be kept. The selected generated images will be permanently deleted, with no backup copies. Run the downloader again to create replacements.</p>
+    </div>
+    <form method="dialog" class="pack-downloader-footer">
+        <div class="config-button-row">
+            <button class="action-button secondary-button" value="cancel" autofocus>Cancel</button>
+            <button class="action-button" value="delete">Delete generated images</button>
+        </div>
+    </form>
+</dialog>
+
+
 
 <script
     src="{{ url_for('static', filename='js/plugin_manager.js') }}"
@@ -2535,7 +2545,7 @@
 {% endblock %}
 
 {% block page_scripts_before_app %}
-<script src="{{ url_for('static', filename='js/config.js', v='pack-downloader-5') }}"></script>
+<script src="{{ url_for('static', filename='js/config.js', v='pack-downloader-7') }}"></script>
 {% endblock %}
 
 {% block page_scripts_after_app %}

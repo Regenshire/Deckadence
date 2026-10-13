@@ -98,6 +98,23 @@ def build_pack_tracking_code(set_code, booster_name, booster_index):
 
     return f"{clean_set_code}.{pack_type_code}.{suffix}"
 
+
+def build_unique_simulator_tracking_code(conn, set_code, booster_name, booster_index=0):
+    """Allocate a four-character code while the caller holds a write transaction."""
+    from db.pack_simulator import ensure_simulator_pack_code_schema
+
+    ensure_simulator_pack_code_schema(conn)
+    for _ in range(1000):
+        suffix = build_pack_tracking_suffix(set_code, booster_name, booster_index)
+        code = f"{set_code.strip().upper()}.S.{suffix}"
+        if not conn.execute(
+            "SELECT 1 FROM tracked_chaos_packs WHERE pack_tracking_code = ? "
+            "UNION ALL SELECT 1 FROM simulator_pack_codes WHERE pack_tracking_code = ?",
+            (code, code),
+        ).fetchone():
+            return code
+    raise ValueError("Could not allocate an unused pack code. Please try again.")
+
 def normalize_chaos_booster_key(booster_name):
     value = (booster_name or "").strip().lower()
 
@@ -3103,6 +3120,7 @@ def save_opened_chaos_pack_to_tracking_db(opened_pack=None, campaign_id=None):
         }
 
     pack_tracking_code = (opened_pack.get("pack_tracking_code") or "").strip().upper()
+    simulator_pack_key = opened_pack.get("simulator_pack_key")
     set_code = (opened_pack.get("set_code") or "").strip().upper()
     booster_name = (opened_pack.get("booster_name") or "").strip().lower()
     display_name = (opened_pack.get("display_name") or "").strip()
@@ -3113,7 +3131,7 @@ def save_opened_chaos_pack_to_tracking_db(opened_pack=None, campaign_id=None):
     except (TypeError, ValueError):
         booster_index = 0
 
-    if not pack_tracking_code:
+    if not pack_tracking_code and not simulator_pack_key:
         return {
             "ok": False,
             "message": "Opened Chaos Draft pack does not have a tracking code.",
@@ -3152,6 +3170,16 @@ def save_opened_chaos_pack_to_tracking_db(opened_pack=None, campaign_id=None):
     cursor = conn.cursor()
 
     try:
+        if simulator_pack_key:
+            # Keep retry identity separate from the short printed code. Serialize
+            # allocation and insertion so collisions cannot reuse another pack.
+            cursor.execute("BEGIN IMMEDIATE")
+            from db.pack_simulator import get_or_create_simulator_tracking_code
+            pack_tracking_code = get_or_create_simulator_tracking_code(
+                conn, simulator_pack_key, set_code, booster_name, booster_index,
+            )
+            opened_pack["pack_tracking_code"] = pack_tracking_code
+
         cursor.execute(
             """
             SELECT tracked_pack_id

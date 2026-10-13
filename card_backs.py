@@ -1,6 +1,7 @@
 import os
+from collections import Counter
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 DEFAULT_CARD_BACK_FILENAME = "00 - Word Wall Proxy Back - Dark Color.jpg"
 DEFAULT_CARD_BACK_KEY = f"builtin:{DEFAULT_CARD_BACK_FILENAME}"
@@ -12,6 +13,127 @@ CUSTOM_CARD_BACK_FULLBLEED_DIRNAME = "fullbleed"
 CUSTOM_CARD_BACK_FULLBLEED_MM = 3.0
 CARD_BACK_FINISHED_WIDTH_MM = 63.0
 CARD_BACK_FINISHED_HEIGHT_MM = 88.0
+
+LABEL_CARD_BACKS = {
+    "10 - Deckadence Label Back - White.png": ("Deckadence - White", "#51452f"),
+    "11 - Deckadence Label Back - Gold.png": ("Deckadence - Gold", "#514526"),
+    "12 - Deckadence Label Back - Black.png": ("Deckadence - Black", "#302b38"),
+}
+DEFAULT_LABEL_CARD_BACK_KEY = f"builtin:{next(iter(LABEL_CARD_BACKS))}"
+# Match the insert's lower panel: 84 of its 600 units, or 12.32 mm at trim size.
+CARD_BACK_LABEL_BAR_HEIGHT_MM = CARD_BACK_FINISHED_HEIGHT_MM * 84 / 600
+
+
+def normalize_label_location(value):
+    return "custom_card_back" if str(value or "").strip().lower() == "custom_card_back" else "lower_left"
+
+
+def resolve_label_card_back_option(raw_key, static_dir, runtime_card_back_dir):
+    options = [option for option in list_card_back_options(static_dir, runtime_card_back_dir)
+               if option.get("supports_labels")]
+    if not options:
+        raise ValueError("No label-compatible card backs are available.")
+    fallback = next((option for option in options if option["key"] == DEFAULT_LABEL_CARD_BACK_KEY), options[0])
+    return next((option for option in options if option["key"] == raw_key), fallback)
+
+
+def sample_card_back_border_color(image):
+    """Find the dominant edge color, avoiding rounded corners and central art."""
+    sample = image.convert("RGB").resize((252, 352), Image.Resampling.BOX)
+    pixels = []
+    for bounds in ((25, 2, 227, 8), (25, 344, 227, 350),
+                   (2, 35, 8, 317), (244, 35, 250, 317)):
+        pixels.extend(sample.crop(bounds).getdata())
+    # Group nearby colors so JPEG noise/texture does not outweigh a solid border.
+    counts = Counter(tuple(channel // 32 for channel in rgb) for rgb in pixels)
+    dominant = counts.most_common(1)[0][0]
+    colors = [rgb for rgb in pixels if tuple(channel // 32 for channel in rgb) == dominant]
+    return tuple(round(sum(rgb[channel] for rgb in colors) / len(colors)) for channel in range(3))
+
+
+def card_back_label_text_color(background):
+    channels = [channel / 255 for channel in background]
+    linear = [value / 12.92 if value <= .04045 else ((value + .055) / 1.055) ** 2.4
+              for value in channels]
+    luminance = sum(value * weight for value, weight in zip(linear, (.2126, .7152, .0722)))
+    return "#000000" if luminance > .179 else "#ffffff"
+
+
+def render_label_card_back(option, label_text="", full_bleed=False,
+                           bleed_mm=CUSTOM_CARD_BACK_FULLBLEED_MM, label_title="PACK CODE"):
+    """Use a designed label panel or add a border-colored bar inside the trim."""
+    fullbleed_path = option.get("fullbleed_absolute_path")
+    has_real_bleed = bool(full_bleed and fullbleed_path and os.path.isfile(fullbleed_path))
+    path = fullbleed_path if has_real_bleed else option["absolute_path"]
+    with Image.open(path) as source:
+        image = ImageOps.exif_transpose(source).convert("RGB")
+    bleed = (float(option.get("source_bleed_mm") or CUSTOM_CARD_BACK_FULLBLEED_MM)
+             if has_real_bleed else max(0.0, float(bleed_mm)) if full_bleed else 0.0)
+    trim = _remove_known_card_back_bleed(image, bleed) if has_real_bleed else image
+    border_color = sample_card_back_border_color(trim)
+    if full_bleed and not has_real_bleed:
+        image = ImageOps.expand(image, border=(round(image.width * bleed / 63),
+                                              round(image.height * bleed / 88)), fill=border_color)
+    label_text = " ".join(str(label_text or "").split())
+    if not label_text or not option.get("supports_labels"):
+        return image
+
+    sx = image.width / (63 + 2 * bleed)
+    sy = image.height / (88 + 2 * bleed)
+    # Coordinates are measured in the original insert's 431 x 600 trim viewBox.
+    x = lambda value: (bleed + value * 63 / 431) * sx
+    y = lambda value: (bleed + value * 88 / 600) * sy
+    draw = ImageDraw.Draw(image)
+    color = option.get("label_color")
+    font_path = option["label_font_path"]
+    # The designed insert panel keeps its original heading and code position.
+    # Only added border bars use the raised, heading-free layout below.
+    center_x, text_top, text_bottom = 243, 455, 490
+    text_left, text_right = 130, 352
+    if option.get("label_style") == "border_bar":
+        top_mm = CARD_BACK_FINISHED_HEIGHT_MM - CARD_BACK_LABEL_BAR_HEIGHT_MM
+        # The solid bar continues through the side and bottom bleed; text stays
+        # at least 6 mm above the bottom cut, including when a long name wraps.
+        draw.rectangle((0, round((bleed + top_mm) * sy), image.width, image.height), fill=border_color)
+        color = card_back_label_text_color(border_color)
+        center_x, text_top, text_bottom = 215.5, 530, 558
+        text_left, text_right = 24, 407
+
+    def fitted_font(value, max_size, max_width, max_height):
+        for size in range(max(1, int(max_size)), 0, -1):
+            font = ImageFont.truetype(font_path, size)
+            box = draw.textbbox((0, 0), value, font=font)
+            if box[2] - box[0] <= max_width and box[3] - box[1] <= max_height:
+                return font, box
+        return font, box
+
+    def centered(value, center_x, center_y, font, box):
+        draw.text((center_x - (box[2] + box[0]) / 2,
+                   center_y - (box[3] + box[1]) / 2), value, fill=color, font=font)
+
+    if option.get("label_style") == "insert_panel" and label_title:
+        title_font, title_box = fitted_font(str(label_title), y(8) - y(0),
+                                            x(text_right) - x(text_left), y(14) - y(0))
+        centered(str(label_title), x(center_x), y(444), title_font, title_box)
+
+    # Prefer one line for pack codes; wrap longer deck names into two balanced lines.
+    max_width, max_height = x(text_right) - x(text_left), y(text_bottom) - y(text_top)
+    lines = [label_text]
+    nominal = ImageFont.truetype(font_path, max(1, round(y(25) - y(0))))
+    if draw.textlength(label_text, font=nominal) > max_width and len(label_text.split()) > 1:
+        words = label_text.split()
+        split = min(range(1, len(words)), key=lambda i: max(
+            draw.textlength(" ".join(words[:i]), font=nominal),
+            draw.textlength(" ".join(words[i:]), font=nominal)))
+        lines = [" ".join(words[:split]), " ".join(words[split:])]
+    fonts = [fitted_font(line, y(25) - y(0), max_width, max_height / len(lines)) for line in lines]
+    font_size = min(font.size for font, _ in fonts)
+    font = ImageFont.truetype(font_path, font_size)
+    for index, line in enumerate(lines):
+        box = draw.textbbox((0, 0), line, font=font)
+        center_y = y(text_top) + max_height * (index + .5) / len(lines)
+        centered(line, x(center_x), center_y, font, box)
+    return image
 
 Image.init()
 SUPPORTED_IMAGE_EXTENSIONS = frozenset(
@@ -119,16 +241,23 @@ def list_card_back_options(static_dir, runtime_card_back_dir):
             if not _is_supported_image_filename(filename):
                 continue
 
+            label_info = LABEL_CARD_BACKS.get(filename)
+            fullbleed_path = os.path.join(builtin_dir, "fullbleed", filename)
+            has_bleed = bool(label_info and os.path.isfile(fullbleed_path))
             options.append({
                 "key": f"{BUILTIN_CARD_BACK_PREFIX}{filename}",
                 "filename": filename,
-                "label": os.path.splitext(filename)[0],
+                "label": label_info[0] if label_info else os.path.splitext(filename)[0],
                 "source": "builtin",
                 "absolute_path": absolute_path,
-                "fullbleed_absolute_path": "",
-                "print_master_absolute_path": absolute_path,
-                "source_has_real_bleed": False,
-                "source_bleed_mm": 0.0,
+                "fullbleed_absolute_path": fullbleed_path if has_bleed else "",
+                "print_master_absolute_path": fullbleed_path if has_bleed else absolute_path,
+                "source_has_real_bleed": has_bleed,
+                "source_bleed_mm": 3.0 if has_bleed else 0.0,
+                "supports_labels": True,
+                "label_style": "insert_panel" if label_info else "border_bar",
+                "label_color": label_info[1] if label_info else "",
+                "label_font_path": os.path.join(static_dir, "fonts", "Gotham-Medium.otf"),
             })
 
     if os.path.isdir(runtime_card_back_dir):
@@ -174,6 +303,9 @@ def list_card_back_options(static_dir, runtime_card_back_dir):
                     if source_has_real_bleed
                     else 0.0
                 ),
+                "supports_labels": True,
+                "label_style": "border_bar",
+                "label_font_path": os.path.join(static_dir, "fonts", "Gotham-Medium.otf"),
             })
 
     return options

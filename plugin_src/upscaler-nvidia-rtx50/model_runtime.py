@@ -190,8 +190,8 @@ def ensure_model_file(
     request = urllib.request.Request(
         model_spec["url"],
         headers={
-            "User-Agent": (
-                "Deckadence-Upscaler/0.3"
+            "User-Agent": os.environ.get(
+                "DECKADENCE_DOWNLOAD_USER_AGENT", "Deckadence-Upscaler/0.3"
             ),
 
             "Accept": (
