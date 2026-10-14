@@ -1,0 +1,6 @@
+<div class="campaign-stage-eyebrow draft-mode-eyebrow"><span>Chaos Draft /</span>
+  <form class="draft-mode-pill" action="{{ url_for('switch_draft_mode') }}" method="post" aria-label="Draft mode">
+    <button type="submit" name="mode" value="chaos_draft" aria-pressed="{{ 'true' if draft_switch_mode == 'chaos_draft' else 'false' }}" {% if draft_switch_mode == 'chaos_draft' %}disabled{% endif %}>Basic</button>
+    <button type="submit" name="mode" value="chaos_draft_campaign" aria-pressed="{{ 'true' if draft_switch_mode == 'chaos_draft_campaign' else 'false' }}" {% if draft_switch_mode == 'chaos_draft_campaign' %}disabled{% endif %}>Campaign</button>
+  </form>
+</div>

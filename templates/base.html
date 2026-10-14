@@ -55,7 +55,8 @@
     <script src="{{ url_for('static', filename='js/theme_catalog.js', v='eucalyptus-5') }}"></script>
     <script src="{{ url_for('static', filename='js/background_motion.js', v='constellation-2') }}" data-tile-base="{{ url_for('static', filename='img/themes/') }}"></script>
     <script src="{{ url_for('static', filename='js/themes.js', v='background-animation-control-4') }}" data-tile-base="{{ url_for('static', filename='img/themes/') }}"></script>
-  </head>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/draft_mode_switch.css', v='1') }}">
+</head>
   <body{% if global_personal_use_agreement_required %} class="personal-use-agreement-active"{% endif %}>
     <div class="app-shell">
       <div class="app-frame">

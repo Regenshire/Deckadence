@@ -6,7 +6,7 @@
 
 ## Custom Set Management & Testing Tool | Design -> Proxy -> Test
 
-Deckadence is a self-hosted local Windows web application for creating, managing, printing, and playtesting with Magic: The Gathering cards from any set, deck, or pack. Deckadence support Chaos Drafts, custom draft sets and cubes, deck management, proxy printing, draft testing, card-image management, and optional AI image upscaling in one application.
+Deckadence is a self-hosted local Windows web application for creating, managing, printing, and playtesting with Magic: The Gathering cards from any set, deck, or pack. Deckadence support Chaos Drafts, custom draft sets and cubes, deck management, proxy printing, draft testing, card-image management, pack rip simulation, and optional AI image upscaling in one application.
 
 Deckadence runs on your own PC and opens in a web browser. Your Deckadence database, settings, custom sets, decks, cached images, and generated files are stored locally with the application. No account or hosted Deckadence service is required. You can also open Deckadence from a phone, tablet, or another computer on the same local network.
 
@@ -32,14 +32,29 @@ Deckadence is a local application and stores its database, downloaded card data,
 
 Because Deckadence is designed to work with large collections of card images and other media, **available storage space is an important consideration**. Storage usage will increase over time as additional images and content are downloaded, uploaded, or generated.
 
-| Component            | Minimum                                                                 |
-| -------------------- | ----------------------------------------------------------------------- |
-| **Operating System** | Windows 10 or Windows 11, 64-bit                                        |
-| **Processor**        | 64-bit dual-core processor                                              |
-| **Memory**           | 8 GB RAM or more                                                        |
-| **Free Storage**     | **20 GB** (50+ GB recommended)                                          |
-| **Browser**          | Current version of a modern web browser                                 |
-| **Internet**         | Required for initial card database setup and online data/image features |
+### Windows
+
+| Component        | Minimum                                        |
+| ---------------- | ---------------------------------------------- |
+| Operating System | Windows 10 or Windows 11, 64-bit               |
+| Processor        | 64-bit dual-core processor                     |
+| Memory           | 8 GB RAM                                       |
+| Free Storage     | 20 GB; 50+ GB recommended                      |
+| Browser          | Current modern web browser                     |
+| Internet         | Required for initial setup and online features |
+| Python           | Included with the packaged release             |
+
+### Linux
+
+| Component        | Minimum                                        |
+| ---------------- | ---------------------------------------------- |
+| Operating System | 64-bit Linux                                   |
+| Processor        | 64-bit dual-core processor                     |
+| Memory           | 8 GB RAM                                       |
+| Free Storage     | 20 GB; 50+ GB recommended                      |
+| Browser          | Current modern web browser                     |
+| Internet         | Required for initial setup and online features |
+| Dependencies     | Python 3.12, pip, venv, and Cairo              |
 
 ### Storage Considerations
 
@@ -71,12 +86,6 @@ The packaged Windows release is the easiest way to use Deckadence. You do **not*
 
 You can also run **`Deckadence.exe`** directly. The Deckadence window will display the local and network addresses you can open in a browser.
 
-### Desktop and Start menu shortcuts
-
-After extracting Deckadence to the folder where you want to keep it, double-click **`Install_Shortcuts.bat`**. Choose **Desktop**, **Start menu**, or **Both**. No administrator access is required.
-
-The shortcuts start Deckadence and open your browser, preserving normal browser tabs. If you move the Deckadence folder, run the shortcut installer again to update them. You can remove a shortcut by deleting it; this does not remove Deckadence or your data.
-
 Deckadence normally uses:
 
 ```text
@@ -85,19 +94,51 @@ http://127.0.0.1:5000
 
 Keep the Deckadence program window open while using the application. Closing that window stops Deckadence.
 
+### Optional: Desktop and Start menu shortcuts
+
+After extracting Deckadence to the folder where you want to keep it, double-click **`Install_Shortcuts.bat`**. Choose **Desktop**, **Start menu**, or **Both**. No administrator access is required.
+
+The shortcuts start Deckadence and open your browser, preserving normal browser tabs. If you move the Deckadence folder, run the shortcut installer again to update them. You can remove a shortcut by deleting it; this does not remove Deckadence or your data.
+
 ### Windows Firewall
 
 Windows may ask whether Deckadence is allowed to communicate on your network. If you want to open Deckadence from a phone, tablet, or another computer on your home network, allow access on **Private networks**.
 
 Deckadence does not need to be exposed to the public Internet.
 
+## Linux Installation
+
+1. Install Python 3.12, pip, venv, and Cairo using your distribution's package manager.
+2. Download and extract the **Source code (zip)** from the [Deckadence Releases page](https://github.com/Regenshire/Deckadence/releases).
+3. Open a terminal in the extracted Deckadence folder and run:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+DECKADENCE_USE_WAITRESS=1 python app.py
+```
+
+4. Open **http://127.0.0.1:5000** in your browser.
+
+Keep the terminal open while using Deckadence. Press **Ctrl+C** to stop it.
+
+To start Deckadence again, open a terminal in its folder and run:
+
+```bash
+source .venv/bin/activate
+DECKADENCE_USE_WAITRESS=1 python app.py
+```
+
 ---
 
 # First-Time Use
 
+The startup instructions below are for the packaged Windows release. Linux users should start Deckadence using the Linux Installation instructions above, then follow steps 2 onward in the browser.
+
 An Internet connection is required for the initial card database download and for features that download card data or images.
 
-## 1. Start Deckadence
+## 1. Start Deckadence (Windows)
 
 Run `Start_Deckadence.bat`. Your browser should open Deckadence automatically.
 
@@ -107,11 +148,11 @@ If the browser does not open, use the local address shown in the Deckadence prog
 http://127.0.0.1:5000
 ```
 
-## 2. Accept the Personal Use Agreement
+## 2. Accept the Personal Use Agreement (All)
 
 The first time Deckadence opens, you will be asked to accept the Personal Use Agreement. Deckadence is intended for personal, non-commercial set building and playtesting.
 
-## 3. Download the Card Database
+## 3. Download the Card Database (All)
 
 Before most Deckadence features can be used, the local card database must be created.
 
@@ -120,9 +161,17 @@ Before most Deckadence features can be used, the local card database must be cre
 3. Select **Download Card Database**.
 4. Allow the download and import process to finish.
 
-The first database setup can take some time because Deckadence downloads and processes Magic card, set, and booster information for local use.
+The first database setup can take some time because Deckadence downloads and processes Magic card, set, and booster information for local use. This will take several minutes to complete.
 
-## 4. Start Using Deckadence
+## 4. Optional: Pack and product art downloader
+
+Open **Settings â†’ Card Database â†’ Pack Image Downloader** to download pack art files for sets you want to simulate opening. This will download or create pack images for each set.
+
+This downloader will try to download front facing pack images. If it fails to find one, it will instead try to download a tilted side view and straighten it, and if that fails it will create standing pack image to represent the pack.
+
+This can take some time to run for all magic sets.
+
+## 5. Start Using Deckadence (All)
 
 After the card database is ready, the main areas of the application are available:
 
@@ -132,7 +181,7 @@ After the card database is ready, the main areas of the application are availabl
 
 Card images do not need to be downloaded all at once. Deckadence can cache images as they are needed, and image-management tools are available if you prefer to prepare images ahead of time.
 
-## 5. Optional: Use Deckadence From Another Device
+## 6. Optional: Use Deckadence From Another Device (All)
 
 Deckadence can be opened from another computer, phone, or tablet connected to the same local network.
 
@@ -146,7 +195,7 @@ http://192.168.1.50:5000
 
 The exact address depends on the computer running Deckadence.
 
-## 6. Optional: Install an Image Upscaler
+## 7. Optional: Install an Image Upscaler
 
 Deckadence provides optional AI image upscalers that run locally on your PC.
 
@@ -156,11 +205,11 @@ Compatible upscalers can be managed under:
 
 Choose an upscaler and select **Download & Install**. The bundled-runtime plugin packages include their own Python; Deckadence automatically downloads the selected upscaler's libraries and required models. No separate Python installation or terminal commands are needed. Keep an Internet connection available until installation finishes.
 
-These large libraries are downloaded only when you install an upscaler, keeping the main Deckadence download small. CPU upscaling does not require a dedicated GPU. NVIDIA and AMD upscalers require compatible graphics hardware and drivers.
+The upscaler will install required libraries and AI Image Models. This can take some time as the files are large.
 
-## 7. Optional: Pack and product art downloader
+These large libraries are downloaded only when you install an upscaler.
 
-Open **Settings â†’ Card Database â†’ Pack Image Downloader** to download pack art files for sets you want to simulate opening.
+CPU upscaling does not require a dedicated GPU. NVIDIA and AMD upscalers require compatible graphics hardware and drivers.
 
 ---
 
@@ -352,3 +401,19 @@ Optional upscaling plugins use separately distributed open-source machine-learni
   <br>
   <em>Use the Deckbuilder to create and manage deckss</em>
 </p>
+
+## AI Usage in Deckadence (optional)
+
+Deckadence offers optional AI image-upscaling plugins to improve the resolution of card images. These plugins run locally on your computer. Images processed by the upscalers are not sent to a cloud AI service.
+
+The upscalers are installed separately and are not required for Deckadence’s other features. An Internet connection is needed to download their libraries and models.
+
+AI upscaling features can alter fine details, lettering, and artwork.
+
+## Development
+
+Deckadence has been developed over the past six months and has been a passionate side project of mine, created for my own personal use.  I am providing it to the greater Magic proxy community as a resource to those who are interested.
+
+Disclaimer: AI tools have been used to assist with Deckadence’s development, including code generation, troubleshooting, documentation, and release tooling.
+
+AI usage is a controversial and complex subject (rightly so for several reason), and I want to be clear about its usage as a coding assistant in the development of the application.

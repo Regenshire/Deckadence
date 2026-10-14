@@ -63,6 +63,15 @@
         {% set campaign_filter_default_sort = "name_asc" %}
         {% include "_campaign_list_filter.html" %}
 
+        <form method="post" action="{{ url_for('campaign_chaos_packs_manage_select') }}" class="campaign-save-row">
+            <input type="hidden" name="campaign_id" value="">
+            <div>
+                <div class="campaign-save-title">No Campaign</div>
+                <div class="campaign-save-meta">Default packs for drafting without a named campaign.</div>
+            </div>
+            <button type="submit" class="action-button campaign-save-row-button">Manage Packs</button>
+        </form>
+
         {% if campaigns %}
             <div class="campaign-save-list">
                 {% for campaign in campaigns %}

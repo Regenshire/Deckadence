@@ -1,0 +1,6 @@
+.draft-mode-eyebrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.draft-mode-pill{display:inline-flex;align-items:center;margin:0;padding:2px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent);border-radius:99px;background:transparent}
+.draft-mode-pill button{border:0;border-radius:99px;background:transparent;color:var(--muted);padding:3px 9px;font:700 10px/1.5 Arial,sans-serif;letter-spacing:1px;text-transform:uppercase;cursor:pointer}
+.draft-mode-pill button[aria-pressed="true"]{background:color-mix(in srgb,var(--accent) 17%,var(--bg));color:var(--accent);opacity:1;cursor:default}
+.draft-mode-pill button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.draft-mode-pill button:not(:disabled):hover{color:var(--accent);background:var(--panel)}

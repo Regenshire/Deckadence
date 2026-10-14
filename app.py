@@ -19136,6 +19136,15 @@ def index():
     )
 
 
+@app.route("/play/draft/mode", methods=["POST"])
+def switch_draft_mode():
+    mode = (request.form.get("mode") or "").strip()
+    if mode not in {"chaos_draft", "chaos_draft_campaign"}:
+        return "Invalid draft mode", 400
+    set_config_value("chaos_draft_mode", mode)
+    return redirect(url_for("play_draft"), code=303)
+
+
 @app.route("/play/draft")
 def play_draft():
     config = get_request_config()
@@ -23351,6 +23360,10 @@ def get_pack_management_campaign_id():
 def set_pack_management_campaign_id(
     campaign_id,
 ):
+    if campaign_id is None or str(campaign_id).strip() == "":
+        clear_chaos_session_state(PACK_MANAGEMENT_CAMPAIGN_STATE_KEY)
+        return {"ok": True, "campaign_id": None, "campaign_name": "No Campaign"}
+
     try:
         parsed_campaign_id = int(
             campaign_id
@@ -23401,15 +23414,6 @@ def campaign_chaos_packs_current_campaign():
         get_selected_chaos_campaign_id()
     )
 
-    if not selected_chaos_campaign_id:
-        flash(
-            "No Chaos Draft campaign is currently selected."
-        )
-
-        return redirect(
-            url_for("play_draft")
-        )
-
     previous_management_campaign_id = (
         get_pack_management_campaign_id()
     )
@@ -23430,9 +23434,7 @@ def campaign_chaos_packs_current_campaign():
             url_for("play_draft")
         )
 
-    selected_management_campaign_id = int(
-        selection_result["campaign_id"]
-    )
+    selected_management_campaign_id = selection_result["campaign_id"]
 
     if (
         previous_management_campaign_id
@@ -23564,13 +23566,6 @@ def campaign_chaos_packs():
     selected_chaos_campaign_id = (
         get_pack_management_campaign_id()
     )
-
-    if not selected_chaos_campaign_id:
-        return redirect(
-            url_for(
-                "campaign_chaos_packs_manage"
-            )
-        )
 
     selected_chaos_campaign = (
         get_chaos_campaign_by_id(

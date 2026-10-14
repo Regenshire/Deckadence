@@ -46,7 +46,7 @@
   Download the card database before spinning Chaos Draft packs." %} {% include
   "_setup_required_panel.html" %} {% endif %}
 
-  <div class="campaign-stage-heading basic-chaos-heading"><div class="campaign-stage-eyebrow">Chaos Draft / Basic Mode</div><h1 class="campaign-mode-external-title">A little chaos. A lot of fun.</h1><p class="basic-chaos-subtitle">Spin to select a random booster pack from the currently enabled sets.</p></div>
+  <div class="campaign-stage-heading basic-chaos-heading">{% set draft_switch_mode = 'chaos_draft' %}{% include '_draft_mode_switch.html' %}<h1 class="campaign-mode-external-title">A little chaos. A lot of fun.</h1></div>
   <div class="campaign-draft-stage">
   <div class="page-panel chaos-draft-header-panel">
     <div class="chaos-draft-header-layout">
