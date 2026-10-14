@@ -15,7 +15,7 @@
 {% block content %}
 <main id="chaosDraftScreen" class="screen screen-wide basic-chaos-screen pack-simulator" data-price-source="{{ price_source }}" data-value-source="{{ value_source }}" data-card-back="/static/img/mtg_back_custom_1.jpg">
   <div class="campaign-mode-title-row sim-title-row">
-    <div class="campaign-stage-heading basic-chaos-heading"><div class="campaign-stage-eyebrow">Play / Pack Simulator</div><h1 class="campaign-mode-external-title">Pick a pack. See what’s inside.</h1></div>
+    <div class="campaign-stage-heading basic-chaos-heading"><div class="campaign-stage-eyebrow">Play / Pack Simulator</div><h1 class="campaign-mode-external-title">Just one more pack.</h1></div>
     <button class="sim-text-button" type="button" data-dialog="historyDialog"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Recent openings</button>
   </div>
 
@@ -103,4 +103,4 @@
 {% set print_export_subject_label = "opening" %}
 {% include "_print_export_modal.html" %}
 {% endblock %}
-{% block page_scripts_after_app %}<script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script><script src="/static/js/profit_effects.js?v=1"></script><script src="/static/js/pack_formation.js?v=1"></script><script src="/static/js/pack_simulator.js?v=24"></script>{% endblock %}
+{% block page_scripts_after_app %}<script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script><script src="/static/js/profit_effects.js?v=1"></script><script src="/static/js/pack_formation.js?v=1"></script><script src="/static/js/pack_simulator.js?v=26"></script>{% endblock %}

@@ -1289,6 +1289,27 @@
       ).length,
     };
   }
+  function profitAmounts(summary) {
+    if (!summary.expected || summary.list.length < summary.expected) return null;
+    const valueSource = root.dataset.valueSource || "lower";
+    const required =
+      valueSource === "lower" ? Object.keys(vendors) : [valueSource];
+    const totals = required.map((v) => {
+      const values = pullValues(summary.list, v);
+      return {
+        vendor: v,
+        total:
+          values.available.length === summary.expected ? values.total : null,
+        cost: marketCost(v, summary),
+      };
+    });
+    const completeTotals = totals.filter((t) => t.total !== null);
+    const availableCosts = totals.filter((t) => t.cost !== null);
+    if (!completeTotals.length || !availableCosts.length) return null;
+    const chosen = completeTotals.reduce((a, b) => a.total <= b.total ? a : b);
+    const market = availableCosts.reduce((a, b) => a.cost <= b.cost ? a : b);
+    return {valueSource, completeTotals, chosen, market};
+  }
   function renderProfit() {
     const panel = $("profitPanel");
     if (!panel) return;
@@ -1314,30 +1335,13 @@
         "Reveal all cards to calculate profit or loss.";
       return;
     }
-    const valueSource = root.dataset.valueSource || "lower";
-    const required =
-      valueSource === "lower" ? Object.keys(vendors) : [valueSource];
-    const totals = required.map((v) => {
-      const values = pullValues(summary.list, v);
-      return {
-        vendor: v,
-        total:
-          values.available.length === summary.expected ? values.total : null,
-        cost: marketCost(v, summary),
-      };
-    });
-    const completeTotals = totals.filter((t) => t.total !== null);
-    const availableCosts = totals.filter((t) => t.cost !== null);
-    if (!completeTotals.length || !availableCosts.length) {
+    const amounts = profitAmounts(summary);
+    if (!amounts) {
       window.DeckadenceProfitEffects?.update(panel, null, null);
-      $("profitBasis").textContent =
-        "Not enough data to display profit or loss";
+      $("profitBasis").textContent = "Not enough data to display profit or loss";
       return;
     }
-    const chosen = completeTotals.reduce((a, b) =>
-      a.total <= b.total ? a : b,
-    );
-    const market = availableCosts.reduce((a, b) => (a.cost <= b.cost ? a : b));
+    const {valueSource, completeTotals, chosen, market} = amounts;
     const difference = chosen.total - market.cost;
     panel.hidden = false;
     window.DeckadenceProfitEffects?.update(
