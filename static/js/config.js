@@ -18,7 +18,10 @@ function initializePackDownloader() {
   const options = get("packDownloaderOptions");
   const results = get("packDownloaderResults");
   const error = get("packDownloaderError");
-  let jobId = "", cursor = 0, timer = null, revision = 0;
+  let jobId = "",
+    cursor = 0,
+    timer = null,
+    revision = 0;
   let running = false;
 
   function showError(message) {
@@ -30,18 +33,30 @@ function initializePackDownloader() {
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
       const response = await fetch("/pack-art/download/" + path, {
-        method: body === undefined ? "GET" : "POST", cache: "no-store",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal,
+        method: body === undefined ? "GET" : "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: controller.signal,
       });
       const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.message || "Could not update the pack downloader.");
+      if (!response.ok || !data.ok)
+        throw new Error(
+          data.message || "Could not update the pack downloader.",
+        );
       return data;
     } catch (e) {
       if (e.name === "AbortError" || e instanceof TypeError)
-        throw new Error("Could not reach Deckadence. Reopen this window to check the download; completed images are kept.");
+        throw new Error(
+          "Could not reach Deckadence. Reopen this window to check the download; completed images are kept.",
+        );
       throw e;
-    } finally { clearTimeout(timeout); }
+    } finally {
+      clearTimeout(timeout);
+    }
   }
   function appendResult(item) {
     const card = document.createElement("article");
@@ -59,12 +74,23 @@ function initializePackDownloader() {
     label.textContent = item.label;
     const status = document.createElement("span");
     status.className = "pack-download-result-status";
-    status.textContent = ({downloaded: "Downloaded", existing: "Existing image kept", unavailable: "Unavailable"})[item.status] || item.status;
+    status.textContent =
+      {
+        downloaded: "Downloaded",
+        existing: "Existing image kept",
+        unavailable: "Unavailable",
+      }[item.status] || item.status;
     if (item.status === "downloaded") {
-      status.textContent = ({front: "Front-facing original", reconstructed: "Pack image corrected to face forward",
-        created: "Pack image created from set images", label: "Created with era-based design",
-        product: "Downloaded product image"})[item.method] || status.textContent;
-      if (item.upgraded) status.textContent = "Upgraded · " + status.textContent;
+      status.textContent =
+        {
+          front: "Front-facing original",
+          reconstructed: "Pack image corrected to face forward",
+          created: "Pack image created from set images",
+          label: "Created with era-based design",
+          product: "Downloaded product image",
+        }[item.method] || status.textContent;
+      if (item.upgraded)
+        status.textContent = "Upgraded · " + status.textContent;
     }
     card.append(name, label, status);
     if (item.detail) {
@@ -84,7 +110,9 @@ function initializePackDownloader() {
       results.replaceChildren();
       cursor = 0;
       if (state.product_types) {
-        for (const input of options.querySelectorAll('input[name="pack_art_type"]'))
+        for (const input of options.querySelectorAll(
+          'input[name="pack_art_type"]',
+        ))
           input.checked = state.product_types.includes(input.value);
         get("packDownloaderSets").value = (state.set_codes || []).join(", ");
         get("packDownloaderStyle").value = state.pack_style || "auto";
@@ -96,14 +124,20 @@ function initializePackDownloader() {
     start.disabled = running;
     if (clearGenerated) clearGenerated.disabled = running;
     cancel.disabled = state.state !== "running";
-    cancel.textContent = state.state === "cancelling" ? "Cancelling…" : "Cancel download";
+    cancel.textContent =
+      state.state === "cancelling" ? "Cancelling…" : "Cancel download";
     get("packDownloaderStage").textContent = state.stage;
     get("packDownloaderMessage").textContent = state.message;
-    get("packDownloaderCounts").textContent = `${state.downloaded} saved · ${state.existing} kept · ${state.unavailable} unavailable`;
+    get("packDownloaderCounts").textContent =
+      `${state.downloaded} saved · ${state.existing} kept · ${state.unavailable} unavailable`;
     get("packDownloaderProgress").max = state.total_sets || 1;
     get("packDownloaderProgress").value = state.completed_sets || 0;
-    get("packDownloaderSetProgress").textContent = state.total_sets ? `${state.completed_sets} of ${state.total_sets} sets checked` : "";
-    get("packDownloaderTransfer").textContent = state.bytes_received ? `${(state.bytes_received / 1048576).toFixed(1)} MB received` : "";
+    get("packDownloaderSetProgress").textContent = state.total_sets
+      ? `${state.completed_sets} of ${state.total_sets} sets checked`
+      : "";
+    get("packDownloaderTransfer").textContent = state.bytes_received
+      ? `${(state.bytes_received / 1048576).toFixed(1)} MB received`
+      : "";
     get("packDownloaderStatus").dataset.running = String(running);
     for (const item of state.results) appendResult(item);
     cursor = state.cursor;
@@ -114,7 +148,9 @@ function initializePackDownloader() {
     const current = revision;
     let retry = false;
     try {
-      const state = await api(`status?job_id=${encodeURIComponent(jobId)}&after=${cursor}`);
+      const state = await api(
+        `status?job_id=${encodeURIComponent(jobId)}&after=${cursor}`,
+      );
       if (current !== revision) return;
       apply(state);
     } catch (e) {
@@ -122,7 +158,8 @@ function initializePackDownloader() {
       showError(e.message);
       retry = true;
     }
-    if (modal.open && (running || retry)) timer = setTimeout(refresh, retry ? 3000 : 1000);
+    if (modal.open && (running || retry))
+      timer = setTimeout(refresh, retry ? 3000 : 1000);
   }
   get("openPackDownloader").addEventListener("click", () => {
     modal.showModal();
@@ -136,13 +173,24 @@ function initializePackDownloader() {
     get("openPackDownloader").focus();
   });
   start.addEventListener("click", async () => {
-    const types = [...options.querySelectorAll('input[name="pack_art_type"]:checked')].map((input) => input.value);
-    if (!types.length) { showError("Choose at least one product type."); return; }
-    const codes = get("packDownloaderSets").value.trim().split(/[\s,;]+/).filter(Boolean).map((code) => code.toUpperCase());
+    const types = [
+      ...options.querySelectorAll('input[name="pack_art_type"]:checked'),
+    ].map((input) => input.value);
+    if (!types.length) {
+      showError("Choose at least one product type.");
+      return;
+    }
+    const codes = get("packDownloaderSets")
+      .value.trim()
+      .split(/[\s,;]+/)
+      .filter(Boolean)
+      .map((code) => code.toUpperCase());
     const packStyle = get("packDownloaderStyle").value;
     const baseColor = get("packDownloaderColor").value.trim();
     if (baseColor && !/^#[0-9a-fA-F]{6}$/.test(baseColor)) {
-      showError("Enter a color such as #454474, or leave it blank for automatic colors.");
+      showError(
+        "Enter a color such as #454474, or leave it blank for automatic colors.",
+      );
       return;
     }
     revision += 1;
@@ -152,7 +200,12 @@ function initializePackDownloader() {
     options.disabled = true;
     showError("");
     try {
-      await api("start", {set_codes: codes, product_types: types, pack_style: packStyle, base_color: baseColor || null});
+      await api("start", {
+        set_codes: codes,
+        product_types: types,
+        pack_style: packStyle,
+        base_color: baseColor || null,
+      });
       await refresh();
     } catch (e) {
       showError(e.message);
@@ -165,29 +218,48 @@ function initializePackDownloader() {
   });
   // A running server can still have a cached template without this newer button.
   clearGenerated?.addEventListener("click", async () => {
-    const types = [...options.querySelectorAll('input[name="pack_art_type"]:checked')].map((input) => input.value);
-    if (!types.length) { showError("Choose at least one pack type."); return; }
-    const codes = get("packDownloaderSets").value.trim().split(/[\s,;]+/).filter(Boolean).map((code) => code.toUpperCase());
+    const types = [
+      ...options.querySelectorAll('input[name="pack_art_type"]:checked'),
+    ].map((input) => input.value);
+    if (!types.length) {
+      showError("Choose at least one pack type.");
+      return;
+    }
+    const codes = get("packDownloaderSets")
+      .value.trim()
+      .split(/[\s,;]+/)
+      .filter(Boolean)
+      .map((code) => code.toUpperCase());
     revision += 1;
     clearTimeout(timer);
     clearGenerated.disabled = start.disabled = options.disabled = true;
     showError("");
     try {
-      const preview = await api("clear-generated", {action: "preview", set_codes: codes, product_types: types});
+      const preview = await api("clear-generated", {
+        action: "preview",
+        set_codes: codes,
+        product_types: types,
+      });
       if (!modal.open) return;
       if (!preview.count) {
-        get("packDownloaderMessage").textContent = "No generated pack images can be cleared for the selected sets and pack types.";
+        get("packDownloaderMessage").textContent =
+          "No generated pack images can be cleared for the selected sets and pack types.";
         return;
       }
       const confirmation = get("clearPackImagesModal");
-      get("clearPackImagesMessage").textContent = `Delete ${preview.count} generated pack image${preview.count === 1 ? "" : "s"}? These are images created by the pack builder when a downloaded pack image was unavailable.`;
+      get("clearPackImagesMessage").textContent =
+        `Delete ${preview.count} generated pack image${preview.count === 1 ? "" : "s"}? These are images created by the pack builder when a downloaded pack image was unavailable.`;
       confirmation.returnValue = "cancel";
       const confirmed = new Promise((resolve) => {
-        confirmation.addEventListener("close", () => resolve(confirmation.returnValue === "delete"), {once: true});
+        confirmation.addEventListener(
+          "close",
+          () => resolve(confirmation.returnValue === "delete"),
+          { once: true },
+        );
       });
       confirmation.showModal();
-      if (!await confirmed || !modal.open) return;
-      await api("clear-generated", {action: "clear", token: preview.token});
+      if (!(await confirmed) || !modal.open) return;
+      await api("clear-generated", { action: "clear", token: preview.token });
       await refresh();
     } catch (e) {
       showError(e.message);
@@ -198,7 +270,7 @@ function initializePackDownloader() {
   cancel.addEventListener("click", async () => {
     cancel.disabled = true;
     try {
-      await api("cancel", {job_id: jobId});
+      await api("cancel", { job_id: jobId });
       revision += 1;
       await refresh();
     } catch (e) {
@@ -487,7 +559,11 @@ function initializeSettingsConsole() {
   screen.classList.add("settings-console-screen");
 
   const sectionMetadata = {
-    theme: { description: "Choose your colors and an optional Deckadence background.", showSave: false },
+    theme: {
+      description:
+        "Change your theme settings here.  Set your prefered colors and background.",
+      showSave: false,
+    },
     reminders: {
       description:
         "Release checks, reminder status, and notification preferences.",
@@ -561,7 +637,7 @@ function initializeSettingsConsole() {
       description:
         "Application-wide reminders, release information, and notification preferences.",
       iconClass: "fa-solid fa-sliders",
-      sections: ["theme", "reminders"],
+      sections: ["reminders", "theme"],
       parent: "form",
     },
     {

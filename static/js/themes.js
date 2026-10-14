@@ -25,11 +25,11 @@
   function normalize(value) {
     return {
       theme: catalog.some((theme) => theme.id === value?.theme) ? value.theme : (value?.theme === "backup" ? "dark" : "white-mana"),
-      background: value?.background === true,
-      backgroundType: value?.backgroundType === "constellation" ? "constellation" : "logo",
+      background: typeof value?.background === "boolean" ? value.background : true,
+      backgroundType: value?.backgroundType === "logo" ? "logo" : "constellation",
       backgroundIntensity: number(value?.backgroundIntensity, 0, 150, 100),
       backgroundSize: number(value?.backgroundSize, 50, 200, 100),
-      backgroundAnimations: value?.backgroundAnimations === true,
+      backgroundAnimations: typeof value?.backgroundAnimations === "boolean" ? value.backgroundAnimations : true,
     };
   }
 
@@ -49,6 +49,9 @@
     Object.entries(theme.colors).forEach(([name, value]) => root.style.setProperty(`--${name}`, value));
     root.style.setProperty("--theme-highlight", theme.scheme === "light" ? theme.colors.accent : theme.colors.menuborder);
     const constellation = state.backgroundType === "constellation";
+    document.querySelectorAll("[data-background-animation-control]").forEach((control) => {
+      control.hidden = !constellation;
+    });
     const asset = constellation
       ? `card-constellation-${theme.scheme}.svg?v=2`
       : `${theme.id}.svg`;

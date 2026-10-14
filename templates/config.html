@@ -37,7 +37,6 @@
 
 
     <form id="configForm" method="post" class="config-form">
-        {% include "_theme_settings.html" %}
         <div id="section_reminders" class="page-panel collapsible-panel {% if global_reminder_state and global_reminder_state['has_reminders'] %}is-open{% endif %}" data-section="reminders">
             {% set release_update_state = global_reminder_state.release_update_state if global_reminder_state else {} %}
             {% set release_has_update = release_update_state.update_available %}
@@ -261,6 +260,8 @@
 
         <input type="hidden" name="momir_mode" id="momir_mode" value="{{ momir_mode }}">
         <input type="hidden" name="chaos_draft_mode" id="chaos_draft_mode" value="{{ chaos_draft_mode }}">
+
+        {% include "_theme_settings.html" %}
 
         <div id="section_draft_modes" class="page-panel collapsible-panel {% if section_defaults.get('draft_modes') == '1' %}is-open{% endif %}" data-section="draft_modes">
             <button type="button" class="collapsible-header">
@@ -2546,7 +2547,7 @@
 {% endblock %}
 
 {% block page_scripts_before_app %}
-<script src="{{ url_for('static', filename='js/config.js', v='pack-downloader-7') }}"></script>
+<script src="{{ url_for('static', filename='js/config.js', v='reminders-first-8') }}"></script>
 {% endblock %}
 
 {% block page_scripts_after_app %}

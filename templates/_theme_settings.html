@@ -18,16 +18,15 @@
         <option value="logo">Deckadence Logo</option>
         <option value="constellation">Card Constellation</option>
       </select>
+      <label class="theme-background-control theme-background-subitem" for="themeBackgroundAnimations" data-background-animation-control hidden>
+        <span><strong>Background Animations</strong><span class="theme-control-description">Turn On background animation</span></span>
+        <span class="theme-switch"><input id="themeBackgroundAnimations" type="checkbox" role="switch" data-background-setting="backgroundAnimations"><span class="theme-switch-track" aria-hidden="true"></span></span>
+      </label>
       <label for="themeBackgroundIntensity">Background Intensity <output for="themeBackgroundIntensity" data-background-output="backgroundIntensity">100%</output></label>
       <input id="themeBackgroundIntensity" type="range" min="0" max="150" step="5" value="100" data-background-setting="backgroundIntensity">
       <label for="themeBackgroundSize">Background Size <output for="themeBackgroundSize" data-background-output="backgroundSize">100%</output></label>
       <input id="themeBackgroundSize" type="range" min="50" max="200" step="5" value="100" data-background-setting="backgroundSize">
     </div>
-    <label class="theme-background-control" for="themeBackgroundAnimations">
-      <span><strong>Background Animations</strong><span class="theme-control-description">Animate the constellation ley lines. Pauses in hidden tabs and respects reduced-motion preferences.</span></span>
-      <span class="theme-switch"><input id="themeBackgroundAnimations" type="checkbox" role="switch" data-background-setting="backgroundAnimations"><span class="theme-switch-track" aria-hidden="true"></span></span>
-    </label>
-    <p class="theme-note">White Mana is the default for new installs. Dark preserves the original appearance.</p>
     <p class="theme-status" data-theme-status role="status" aria-live="polite"></p>
     <noscript>Enable JavaScript to change themes. The original Dark appearance is still available.</noscript>
   </div>
