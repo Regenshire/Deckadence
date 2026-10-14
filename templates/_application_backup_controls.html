@@ -11,7 +11,7 @@
     <button type="button" id="applicationBackupOpen" {% if campaign_backup %}hidden{% endif %} class="action-button cleanup-action-button">Export</button>
     <button type="button" id="applicationBackupShowProgress" class="action-button secondary-button hidden">View Export / Import Status</button>
   </div>
-  {% if not campaign_backup %}<p class="application-backup-hint">Your browser saves the ZIP using its normal download settings. You can continue using Deckadence while it exports.</p>{% endif %}
+  {% if not campaign_backup %}<p class="application-backup-hint">You can continue using Deckadence during export.</p>{% endif %}
   <dialog id="applicationBackupModal" class="campaign-add-pack-dialog print-export-dialog application-backup-modal" aria-labelledby="applicationBackupModalTitle">
     <div class="campaign-add-pack-header">
       <h2 id="applicationBackupModalTitle" class="campaign-add-pack-title">{{ 'Campaign Export / Import' if campaign_backup else 'Backup Export / Import' }}</h2>
@@ -71,9 +71,9 @@
     <button type="button" class="campaign-add-pack-close-button" onclick="this.closest('dialog').close()" aria-label="Close import">&times;</button>
     <h2>Import Campaign</h2>
   {% else %}<hr><h3>Import user content</h3>{% endif %}
-  <p>{% if campaign_backup %}Import the campaign and its related players, packs, cards, decks, and assets using new identifiers. Existing campaigns are preserved.{% else %}Import adds content to your existing database using new identifiers. Existing content is preserved; imported config settings are applied when included in the archive.{% endif %}</p>
+  <p>{% if campaign_backup %}Import this campaign and its contents.{% else %}Adds the imported content without removing existing content. Included settings will be applied.{% endif %}</p>
   <label class="application-backup-field"><span>Import ZIP file</span><input type="file" id="applicationRestoreFile" accept=".zip,application/zip"></label>
-  <p class="application-backup-hint">Choose your {{ 'campaign export' if campaign_backup else 'Deckadence backup' }} ZIP. Import needs free space for the uploaded archive, extracted custom assets, and temporary record processing.</p>
+  <p class="application-backup-hint">Choose your {{ 'campaign export' if campaign_backup else 'Deckadence backup' }} ZIP. Additional disk space is required during import.</p>
   <div class="application-backup-fields">
     <label class="application-backup-field"><span>Type IMPORT to confirm {{ 'adding this campaign' if campaign_backup else 'adding content and applying included settings' }}</span><input type="text" id="applicationRestoreConfirmation" class="campaign-add-pack-custom-input" autocomplete="off" spellcheck="false" placeholder="IMPORT"></label>
     <button type="button" id="applicationRestoreStart" class="action-button campaign-danger-button" disabled>Validate and Import</button>

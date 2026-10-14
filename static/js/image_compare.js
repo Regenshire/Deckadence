@@ -953,7 +953,7 @@
     outputHeading.append(outputLabel, outputResolution);
     outputEmpty = document.createElement("div");
     outputEmpty.className = "imomir-compare-empty";
-    outputEmpty.innerHTML = "<strong>Ready for an upscale</strong><p>Choose a model, then run an upscale.<br>Review the result here before accepting.</p>";
+    outputEmpty.innerHTML = "<p>Choose a model to upscale this image.</p>";
     outputMeta.classList.add("imomir-compare-caption");
     outputPanel.append(outputHeading, outputImage, outputEmpty, outputMeta);
 
