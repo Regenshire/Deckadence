@@ -1,3 +1,4 @@
+// *** HOLOFOIL OPTIONS - Set Card Stamp and Emblem Choices ***
 (() => {
   const selections = new WeakMap();
   const bound = new WeakSet();
@@ -91,7 +92,7 @@
     }
     if (!custom) {
       const baselineHelp = document.createElement('small');
-      baselineHelp.textContent = '0% / 0% in Card Center uses your D outline anchor: X 50.9%, Y 94.0%. Width 6.4%, tilt 16.5°. Sliders adjust up to ±2 percentage points from that baseline.';
+      baselineHelp.textContent = 'Adjust the emblem position from its default placement.';
       dialog.querySelector('.holofoil-position-controls').append(baselineHelp);
     }
     const canvas = dialog.querySelector('canvas');

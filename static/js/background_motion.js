@@ -1,3 +1,4 @@
+// *** BACKGROUND MOTION - Animate Theme Backgrounds ***
 /* Bounded raster overlay: no animated SVGs, live blur, or full-page filters. */
 (() => {
   "use strict";

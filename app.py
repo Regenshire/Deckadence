@@ -1,3 +1,4 @@
+# *** DECKADENCE - Setup the App and Handle Page Actions ***
 from user_backup_system import recover_interrupted_import
 
 # Recover only an interrupted portable import's asset/settings changes.
@@ -92,6 +93,33 @@ from paths import (
 )
 
 from settings import (
+    STANDARD_CARD_WIDTH_MM,
+    STANDARD_CARD_HEIGHT_MM,
+    PACK_TITLE_CARD_WIDTH_MM,
+    PACK_TITLE_CARD_HEIGHT_MM,
+    ALTERNATE_UPLOAD_BLEED_MM,
+    PDF_RENDER_RESOLUTION_PPI,
+    CARD_SIZE_PERCENTAGES,
+    DECK_ART_UPLOAD_MAX_BYTES,
+    DECK_ART_UPLOAD_MAX_PIXELS,
+    DECK_ART_UPLOAD_MAX_DIMENSION,
+    ALTERNATE_IMAGE_DEFAULT_MAX_MB,
+    RELEASE_CHECK_TIMEOUT_SECONDS,
+    DATA_DOWNLOAD_CONNECT_TIMEOUT_SECONDS,
+    DATA_DOWNLOAD_READ_TIMEOUT_SECONDS,
+    LARGE_DATA_DOWNLOAD_READ_TIMEOUT_SECONDS,
+    DATA_REQUEST_TIMEOUT_SECONDS,
+    IMAGE_DOWNLOAD_TIMEOUT_SECONDS,
+    EXTERNAL_IMAGE_DOWNLOAD_TIMEOUT_SECONDS,
+    CARD_IMAGE_CONNECT_TIMEOUT_SECONDS,
+    CARD_IMAGE_READ_TIMEOUT_SECONDS,
+    DECK_SEARCH_DEFAULT_LIMIT,
+    PRINT_CARD_SEARCH_LIMIT,
+    UPSCALER_READY_CACHE_SECONDS,
+    UPSCALER_MODEL_CACHE_SECONDS,
+    UPSCALER_DEV_MODEL_CACHE_SECONDS,
+    PRINT_EXPORT_PROGRESS_TTL_SECONDS,
+    PRINT_EXPORT_PROGRESS_MAX_JOBS,
     ALLOWED_CHAOS_BOOSTER_TYPES,
     APP_SECRET_KEY,
     APP_SERVER_PORT,
@@ -464,6 +492,7 @@ from deck_art import (
     DeckArtSpec,
 )
 
+# *** APP SETUP - Setup Flask and Shared App Services ***
 app = Flask(
     __name__,
     template_folder=get_template_dir(),
@@ -507,13 +536,6 @@ DECK_ART_RENDERER = DeckArtRenderer(
     cache_root=DECK_ART_CACHE_DIR,
 )
 
-DECK_ART_UPLOAD_MAX_BYTES = (
-    16
-    * 1024
-    * 1024
-)
-DECK_ART_UPLOAD_MAX_PIXELS = 40_000_000
-DECK_ART_UPLOAD_MAX_DIMENSION = 4096
 
 os.makedirs(
     DECK_ART_GENERATED_DIR,
@@ -527,6 +549,7 @@ os.makedirs(
 
 register_ui_navigation(app)
 
+# *** SETTINGS - Read Settings for the Current Page ***
 def get_request_config():
     if not hasattr(g, "_config_cache"):
         g._config_cache = get_config()
@@ -548,6 +571,7 @@ def get_auto_clear_exports_config_value():
 def get_config_bool(config, key, fallback="0"):
     return (config.get(key) or fallback).strip() == "1"
 
+# *** PRINT SETTINGS - Read Print and Export Choices ***
 def parse_print_export_override_bool(raw_value, default_value=False):
     if isinstance(raw_value, (list, tuple)):
         values = list(raw_value)
@@ -570,13 +594,6 @@ def parse_print_export_override_bool(raw_value, default_value=False):
     return bool(default_value)
 
 
-PDF_RENDER_RESOLUTION_PPI = {
-    "draft": 150.0,
-    "standard": 300.0,
-    "high": 450.0,
-    "max": 600.0,
-    "supermax": 1200.0,
-}
 
 
 def normalize_pdf_render_resolution(raw_value):
@@ -833,12 +850,11 @@ def get_pdf_render_pixels_per_mm(config=None):
     )
 
 
-PRINT_EXPORT_PROGRESS_TTL_SECONDS = 15 * 60
-PRINT_EXPORT_PROGRESS_MAX_JOBS = 100
 print_export_progress_lock = threading.Lock()
 print_export_progress_jobs = {}
 
 
+# *** PRINT PROGRESS - Track Print Jobs ***
 def normalize_print_export_progress_id(raw_value):
     progress_id = str(raw_value or "").strip()
 
@@ -952,6 +968,7 @@ NO_WASTE_LABEL_OPTION_VALUES = tuple(
 )
 
 
+# *** FILL EMPTY SLOTS - Select Cards and Labels ***
 def normalize_no_waste_option_values(
     raw_values,
     valid_values,
@@ -1093,6 +1110,7 @@ def get_request_no_waste_settings():
     return settings
 
 
+# *** PRINT OPTIONS - Apply the Selected Print Settings ***
 def set_request_print_export_overrides_from_form(form_data, default_label_text=""):
     clean_default_label_text = None if default_label_text is None else str(default_label_text or "").strip()
 
@@ -1951,6 +1969,7 @@ def parse_utc_metadata_datetime(raw_value):
 
     return None
 
+# *** APP UPDATES - Check for New Releases ***
 def normalize_release_version(value):
     version_text = str(value or "").strip()
 
@@ -2064,7 +2083,7 @@ def check_github_latest_release():
         response = requests.get(
             GITHUB_LATEST_RELEASE_API_URL,
             headers=headers,
-            timeout=8,
+            timeout=RELEASE_CHECK_TIMEOUT_SECONDS,
         )
 
         if response.status_code == 404:
@@ -2215,6 +2234,7 @@ def get_release_update_state(config=None, import_metadata=None, force=False):
 
     return cached_state
 
+# *** REMINDERS - Show Setup and Template Reminders ***
 def get_reminder_frequency_days(config):
     reminder_frequency = (config.get("card_database_reminder_frequency") or "monthly").strip().lower()
 
@@ -2347,6 +2367,7 @@ def build_global_reminder_state(config=None, import_metadata=None):
     }
 
 
+# *** SHARED PAGE SETTINGS - Provide Settings to Page Templates ***
 @app.context_processor
 def inject_global_template_state():
     config = get_request_config()
@@ -2354,6 +2375,9 @@ def inject_global_template_state():
     access_url = build_access_url()
 
     return {
+        "global_deck_art_upload_max_mb": DECK_ART_UPLOAD_MAX_BYTES / (1024 * 1024),
+        "global_card_size_percentages": CARD_SIZE_PERCENTAGES,
+        "global_alternate_image_default_max_mb": ALTERNATE_IMAGE_DEFAULT_MAX_MB,
         "nav_momir_mode": resolve_momir_mode_value(config),
         "nav_chaos_draft_mode": resolve_chaos_draft_mode_value(config),
         "global_reminder_state": global_reminder_state,
@@ -2421,6 +2445,7 @@ refresh_lock = threading.Lock()
 
 app.config["DEBUG_LOG_ENABLED"] = False
 
+# *** LOGGING - Record Errors and Debug Messages ***
 def set_runtime_debug_log_enabled_from_config():
     try:
         config = get_config()
@@ -2509,7 +2534,7 @@ upscaling_batch_status = {
     "source_label": "",
     "replace_existing": False,
     "include_alternate_images": False,
-    "alternate_image_max_mb": 4.0,
+    "alternate_image_max_mb": ALTERNATE_IMAGE_DEFAULT_MAX_MB,
     "holofoil_stamp_replacement": "",
     "total_cards": 0,
     "processed_cards": 0,
@@ -2529,6 +2554,7 @@ upscaling_batch_status = {
 
 upscaling_batch_lock = threading.Lock()
 
+# *** BACKGROUND PROGRESS - Update Download and Image Status ***
 def set_refresh_status(**kwargs):
     with refresh_lock:
         refresh_status.update(kwargs)
@@ -2663,6 +2689,7 @@ def build_alternate_bleed_reprocess_status():
 
     return status
 
+# *** SAVE SETTINGS - Read Values from the Settings Page ***
 def update_config_from_form(form_data):
     updated_config = {}
     current_config = get_config()
@@ -3060,6 +3087,7 @@ def update_config_from_form(form_data):
 def parse_bool_csv(value):
     return str(value or "").strip().upper() == "TRUE"
 
+# *** CARD DATA - Import Sets and Booster Contents ***
 def ensure_chaos_pack_art_set_folders():
     os.makedirs(PACK_ART_DIR, exist_ok=True)
 
@@ -3487,6 +3515,7 @@ def import_chaos_booster_data():
     conn.close()
 
 
+# *** PRINT TEMPLATES - Select Templates and Page Layouts ***
 def get_print_template_options_for_scope(scope):
     return get_print_template_registry().get_options(
         scope=scope,
@@ -4238,6 +4267,7 @@ def get_game_mode_print_href(mode_value):
 
     return url_for("print_custom_game_mode", mode_value=mode_value)
 
+# *** NETWORK ACCESS - Build the App Address and QR Code ***
 def get_preferred_local_ip():
     try:
         probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -4349,7 +4379,8 @@ def resolve_game_mode_token_image(mode_value):
         "label": mode_item["label"],
     }
 
-def search_cards_for_print(search_text, search_scope="any", limit=75):
+# *** CARD SEARCH - Find Cards for Printing ***
+def search_cards_for_print(search_text, search_scope="any", limit=PRINT_CARD_SEARCH_LIMIT):
     normalized_query = (search_text or "").strip().lower()
     if not normalized_query:
         return []
@@ -4571,6 +4602,7 @@ def build_config_page_image_status():
 
     return current_image_status
 
+# *** DOWNLOAD FILES - Prepare Folders and Save Uploads ***
 def ensure_download_directories():
     os.makedirs(DATA_DOWNLOAD_DIR, exist_ok=True)
     os.makedirs(SCRYFALL_DOWNLOAD_DIR, exist_ok=True)
@@ -4702,6 +4734,7 @@ def require_http_url(value, label="Download"):
 
 
 
+# *** DATA DOWNLOADS - Download and Unpack Card Data ***
 def download_file_with_retries(
     url,
     destination_path,
@@ -4710,8 +4743,8 @@ def download_file_with_retries(
     force_download=True,
     expected_min_bytes=1,
     attempts=3,
-    connect_timeout=60,
-    read_timeout=120,
+    connect_timeout=DATA_DOWNLOAD_CONNECT_TIMEOUT_SECONDS,
+    read_timeout=DATA_DOWNLOAD_READ_TIMEOUT_SECONDS,
     chunk_size=1024 * 1024,
 ):
     url = require_http_url(url, label)
@@ -4993,7 +5026,7 @@ def parse_remote_last_modified(raw_value):
 
 
 def get_remote_atomic_cards_timestamp_text():
-    response = requests.head(MTGJSON_ATOMIC_URL, timeout=60, allow_redirects=True)
+    response = requests.head(MTGJSON_ATOMIC_URL, timeout=DATA_REQUEST_TIMEOUT_SECONDS, allow_redirects=True)
     response.raise_for_status()
 
     last_modified = response.headers.get("Last-Modified")
@@ -5074,8 +5107,8 @@ def download_atomic_cards_json(force_download=False):
         force_download=True,
         expected_min_bytes=50 * 1024 * 1024,
         attempts=3,
-        connect_timeout=60,
-        read_timeout=120,
+        connect_timeout=DATA_DOWNLOAD_CONNECT_TIMEOUT_SECONDS,
+        read_timeout=DATA_DOWNLOAD_READ_TIMEOUT_SECONDS,
         chunk_size=1024 * 1024,
     )
 
@@ -5106,8 +5139,8 @@ def download_set_list_json(force_download=False):
         force_download=force_download,
         expected_min_bytes=100 * 1024,
         attempts=3,
-        connect_timeout=60,
-        read_timeout=120,
+        connect_timeout=DATA_DOWNLOAD_CONNECT_TIMEOUT_SECONDS,
+        read_timeout=DATA_DOWNLOAD_READ_TIMEOUT_SECONDS,
         chunk_size=512 * 1024,
     )
 
@@ -5155,8 +5188,8 @@ def download_all_printings_json(force_download=False):
             force_download=True,
             expected_min_bytes=50 * 1024 * 1024,
             attempts=4,
-            connect_timeout=60,
-            read_timeout=120,
+            connect_timeout=DATA_DOWNLOAD_CONNECT_TIMEOUT_SECONDS,
+            read_timeout=DATA_DOWNLOAD_READ_TIMEOUT_SECONDS,
             chunk_size=1024 * 1024,
         )
     except Exception as exc:
@@ -5223,8 +5256,8 @@ def download_chaos_booster_csvs(force_download=False):
             force_download=force_download,
             expected_min_bytes=expected_min_bytes,
             attempts=3,
-            connect_timeout=60,
-            read_timeout=120,
+            connect_timeout=DATA_DOWNLOAD_CONNECT_TIMEOUT_SECONDS,
+            read_timeout=DATA_DOWNLOAD_READ_TIMEOUT_SECONDS,
             chunk_size=512 * 1024,
         )
 
@@ -5278,6 +5311,7 @@ def normalize_card_lookup_name(card_name):
 
     return value.strip().lower()
 
+# *** CARD IMAGES - Select Image Sources and Quality ***
 def get_effective_chaos_scryfall_image_quality():
     try:
         if has_request_context():
@@ -5641,7 +5675,7 @@ def download_chaos_image_to_cache(card_uuid, page_kind, face_name, image_url):
             return cache_paths
 
         try:
-            response = requests.get(candidate_url, headers=headers, timeout=120)
+            response = requests.get(candidate_url, headers=headers, timeout=IMAGE_DOWNLOAD_TIMEOUT_SECONDS)
             response.raise_for_status()
 
             temp_abs_path = (
@@ -5731,6 +5765,7 @@ def try_download_chaos_image_to_cache(card_uuid, page_kind, face_name, image_url
 
         return None
 
+# *** PDF IMAGES - Prepare Card Images for Printing ***
 def build_pdf_image_reader_from_bytes(image_bytes, print_mode):
     with Image.open(BytesIO(image_bytes)) as source_image:
         image = source_image.convert("RGB")
@@ -6071,6 +6106,7 @@ def draw_pdf_background_image(pdf_canvas, image_path, page_width_mm, page_height
         mask="auto",
     )
 
+# *** CUTTING GUIDES - Draw Registration Marks and Card Guides ***
 def is_silhouette_registration_marks_enabled():
     if (
         has_request_context()
@@ -6280,6 +6316,7 @@ def draw_pdf_cutting_guides_for_page(pdf_canvas, page_entries, slot_defs):
         cut_rect = get_pdf_cut_rect_for_slot(slot_defs[slot_index])
         draw_pdf_cutting_guide_corner_marks(pdf_canvas, cut_rect)
 
+# *** PDF CARD LAYOUT - Place Cards and Labels on the Page ***
 def draw_processed_image_into_slot(
     pdf_canvas,
     image_path,
@@ -6822,6 +6859,7 @@ def draw_card_corner_label(pdf_canvas, slot_x_mm, slot_y_mm, slot_width_mm, slot
 
     pdf_canvas.drawString(text_x_pts, text_y_pts, text_to_draw)
 
+# *** PDF SHEETS - Build Single Images and Card Back Sheets ***
 def build_single_image_pdf_buffer(image_path):
     pdf_settings = resolve_pdf_print_settings()
     pdf_template_layout = (
@@ -7134,6 +7172,7 @@ def build_default_card_back_sheet_pdf():
 
     return buffer
 
+# *** TITLE SHEETS - Set Pack Titles, Colors, and Artwork ***
 def get_set_name_for_custom_title_sheet(set_code):
     clean_set_code = (set_code or "").strip().upper()
 
@@ -7574,6 +7613,7 @@ def build_custom_title_card_jpg_buffer(
     output_buffer.seek(0)
     return output_buffer
 
+# *** PRINT PAGES - Send PDF and Browser Print Pages ***
 def build_inline_pdf_response(pdf_buffer, filename):
     raw_name = str(
         filename or "Deckadence Print"
@@ -7763,6 +7803,7 @@ def render_print_page(card, image_src):
         ),
     )
 
+# *** PACK LABEL ART - Draw Icons, Text, and Borders ***
 def get_pack_label_set_icon_path(set_code, fallback_set_code=None):
     clean_set_code = (set_code or "").strip().upper()
     clean_fallback_set_code = (fallback_set_code or "").strip().upper()
@@ -8307,11 +8348,12 @@ def get_chaos_rendered_pdf_image_temp_path(card_uuid, page_kind, label_text):
     filename = f"chaos_pdf_rendered_{safe_filename(card_uuid)}_{safe_filename(page_kind)}_{label_part}_{uuid4().hex}.jpg"
     return get_chaos_temp_file_path(filename)
 
+# *** PACK TITLE CARDS - Build Title Images and Labels ***
 def build_chaos_pack_image_title_card_bytes(
     set_code,
     booster_name,
-    card_width_mm=63.5,
-    card_height_mm=88.9,
+    card_width_mm=PACK_TITLE_CARD_WIDTH_MM,
+    card_height_mm=PACK_TITLE_CARD_HEIGHT_MM,
     pixels_per_mm=12.0,
 ):
     booster_key = normalize_chaos_booster_key(booster_name)
@@ -8444,8 +8486,8 @@ def save_chaos_pack_label_image_file(
     set_code=None,
     booster_name=None,
     pack_tracking_code="",
-    card_width_mm=63.0,
-    card_height_mm=88.0,
+    card_width_mm=STANDARD_CARD_WIDTH_MM,
+    card_height_mm=STANDARD_CARD_HEIGHT_MM,
 ):
     label_card_bytes = build_chaos_pack_title_card_image_bytes(
         pack_display_name,
@@ -8504,6 +8546,7 @@ def build_chaos_pack_label_rendered_entry(
         "is_template_rendered": False,
     }
 
+# *** DOUBLE-SIDED PRINTING - Align Card Fronts and Backs ***
 def get_horizontally_mirrored_slot_index(slot_index, columns):
     try:
         slot_index = int(slot_index)
@@ -9106,6 +9149,7 @@ def draw_chaos_card_back_entries_into_pdf_layout(
 
     return pages_rendered
 
+# *** PDF PAGE DRAWING - Draw Borders and Finished Card Pages ***
 def get_pdf_slot_region_bounds_mm(slot_defs):
     valid_slots = [
         slot_def
@@ -9616,13 +9660,14 @@ def draw_chaos_rendered_entries_into_pdf_layout(
 
     return pages_rendered
 
+# *** PACK TITLE ART - Render Pack Names and Set Artwork ***
 def build_chaos_pack_title_card_image_bytes(
     pack_display_name,
     set_code=None,
     booster_name=None,
     pack_tracking_code="",
-    card_width_mm=63.5,
-    card_height_mm=88.9,
+    card_width_mm=PACK_TITLE_CARD_WIDTH_MM,
+    card_height_mm=PACK_TITLE_CARD_HEIGHT_MM,
     icon_fallback_set_code=None,
     show_pack_type=True,
     show_signature=True,
@@ -10007,6 +10052,7 @@ def build_custom_draft_set_pack_art_image_bytes(
         )
         return title_card_bytes
 
+# *** ALTERNATE IMAGES - Find and Load Card Artwork ***
 def normalize_alternate_face_kind(face_kind):
     normalized_face_kind = (face_kind or "single").strip().lower()
 
@@ -10111,7 +10157,7 @@ def ensure_alternate_source_cached(alternate_source_row):
         "Accept": "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
     }
 
-    response = requests.get(external_url, headers=headers, timeout=180)
+    response = requests.get(external_url, headers=headers, timeout=EXTERNAL_IMAGE_DOWNLOAD_TIMEOUT_SECONDS)
     response.raise_for_status()
 
     with open(output_path, "wb") as output_file:
@@ -10465,7 +10511,7 @@ class AlternateImageFileSnapshot:
                 url,
                 headers={"User-Agent": get_download_user_agent(), "Accept": "image/*"},
                 stream=True,
-                timeout=(10, 60),
+                timeout=(CARD_IMAGE_CONNECT_TIMEOUT_SECONDS, CARD_IMAGE_READ_TIMEOUT_SECONDS),
             ) as response:
                 response.raise_for_status()
 
@@ -10983,17 +11029,14 @@ def get_alternate_source_by_id(alternate_source_id, *, image_context=None):
     finally:
         conn.close()
 
-CARD_PRINT_WIDTH_MM = 63.0
-CARD_PRINT_HEIGHT_MM = 88.0
+CARD_PRINT_WIDTH_MM = STANDARD_CARD_WIDTH_MM
+CARD_PRINT_HEIGHT_MM = STANDARD_CARD_HEIGHT_MM
 
-# Alternate-source uploads marked "Remove Bleed From Upload"
-# are expected to contain a standard 3 mm bleed on every edge.
-#
-# This is intentionally separate from print/output bleed settings.
-ALTERNATE_UPLOAD_BLEED_MM = 3.0
+# Alternate image processing version
 ALTERNATE_BLEED_PROCESSING_VERSION = 2
 
 
+# *** IMAGE BLEED - Add, Crop, and Remove Card Borders ***
 def get_configured_print_bleed_size_mm():
     try:
         if has_request_context():
@@ -11640,6 +11683,7 @@ def save_alternate_source_fullbleed_file(
     }
 
 
+# *** ALTERNATE IMAGE UPLOADS - Save and Process Artwork ***
 def download_alternate_source_url_to_file(
     external_url,
     destination_path,
@@ -11688,7 +11732,7 @@ def download_alternate_source_url_to_file(
             ),
         },
         stream=True,
-        timeout=(10, 60),
+        timeout=(CARD_IMAGE_CONNECT_TIMEOUT_SECONDS, CARD_IMAGE_READ_TIMEOUT_SECONDS),
     ) as response:
         response.raise_for_status()
 
@@ -12423,6 +12467,7 @@ _isolation_maintenance_lock = threading.Lock()
 _isolation_maintenance_running = False
 
 
+# *** SEPARATE CARD IMAGES - Maintain Images for Individual Decks and Packs ***
 def _run_isolation_maintenance():
     global _isolation_maintenance_running
 
@@ -12672,6 +12717,7 @@ def disable_alternate_image_isolation(owner_kind, owner_id):
 
 
 
+# *** ALTERNATE IMAGE EDITOR - Add and Change Card Artwork ***
 class AlternateImageEditor:
     """Owner-aware editing; no activation and no implicit global fallback."""
 
@@ -13024,6 +13070,7 @@ class AlternateImageEditor:
                 self.remove_unreferenced_files(upload_paths)
 
 
+# *** PACK PRINT IMAGES - Prepare Card Fronts and Backs ***
 def get_chaos_card_by_uuid(card_uuid):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -13766,6 +13813,7 @@ def build_chaos_print_pages_for_card(card_row):
 
     return pages
 
+# *** FILL EMPTY PRINT SLOTS - Find Extra Cards for the Page ***
 def get_no_waste_cards_per_page(
     pdf_template_layout,
 ):
@@ -14303,6 +14351,7 @@ def build_no_waste_surprise_cards(
 
     return surprise_cards
 
+# *** PACK PDF - Build the Finished Print File ***
 @isolation_operation
 def build_chaos_pack_pdf(
     cards,
@@ -15161,6 +15210,7 @@ def build_chaos_pack_pdf(
                 pass
 
 
+# *** IMAGE EXPORT - Prepare Files, Borders, and Labels ***
 def get_next_image_export_folder():
     auto_clear_export_root(get_auto_clear_exports_config_value())
     os.makedirs(EXPORT_ROOT_DIR, exist_ok=True)
@@ -15905,6 +15955,7 @@ def draw_image_export_corner_label(
 
     return source_image
 
+# *** EXPORTED CARD IMAGES - Render Cards for Export ***
 def build_export_card_image(
     source_image_path,
     output_image_path,
@@ -16390,6 +16441,7 @@ def build_custom_draft_set_image_export_rows(set_code, selected_card_ids=None):
 
     return export_rows
 
+# *** IMAGE ZIP EXPORT - Package the Selected Cards ***
 @isolation_operation
 def build_chaos_card_image_export_zip(
     tracked_pack_ids=None,
@@ -16962,6 +17014,7 @@ def build_chaos_card_image_export_zip(
         ),
     }
 
+# *** SCRYFALL DATA - Download and Import Card Details ***
 def get_scryfall_bulk_default_cards_download_uri():
     headers = {
         "User-Agent": get_download_user_agent(),
@@ -16976,7 +17029,7 @@ def get_scryfall_bulk_default_cards_download_uri():
     response = requests.get(
         bulk_api_url,
         headers=headers,
-        timeout=60,
+        timeout=DATA_REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
 
@@ -17169,8 +17222,8 @@ def download_scryfall_default_cards_json(force_download=False):
         force_download=True,
         expected_min_bytes=1024 * 1024,
         attempts=3,
-        connect_timeout=60,
-        read_timeout=300,
+        connect_timeout=DATA_DOWNLOAD_CONNECT_TIMEOUT_SECONDS,
+        read_timeout=LARGE_DATA_DOWNLOAD_READ_TIMEOUT_SECONDS,
         chunk_size=1024 * 1024,
     )
 
@@ -17991,7 +18044,7 @@ def download_and_cache_card_image(card_row, scryfall_match_row):
         "Accept": "*/*",
     }
 
-    response = requests.get(image_url, headers=headers, timeout=120)
+    response = requests.get(image_url, headers=headers, timeout=IMAGE_DOWNLOAD_TIMEOUT_SECONDS)
     response.raise_for_status()
 
     set_code = (scryfall_match_row["set_code"] or "set").lower()
@@ -18054,6 +18107,7 @@ def build_type_flags(card_types):
 
     return flags
 
+# *** SET DATA - Import Set Icons and Card Records ***
 def download_scryfall_set_icons():
     ensure_download_directories()
 
@@ -18073,7 +18127,7 @@ def download_scryfall_set_icons():
     response = requests.get(
         SCRYFALL_SETS_API_URL,
         headers=headers,
-        timeout=60,
+        timeout=DATA_REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
 
@@ -18120,7 +18174,7 @@ def download_scryfall_set_icons():
                 icon_response = requests.get(
                     icon_svg_uri,
                     headers=svg_headers,
-                    timeout=60,
+                    timeout=DATA_REQUEST_TIMEOUT_SECONDS,
                 )
                 icon_response.raise_for_status()
 
@@ -18493,6 +18547,7 @@ def ensure_card_has_local_image(card_row):
 
     return refreshed_card
 
+# *** BACKGROUND DOWNLOADS - Download Images and Refresh Card Data ***
 def run_image_download_job(force_redownload=False):
     conn = None
 
@@ -18948,6 +19003,7 @@ def run_refresh_job(force_download=False):
             ),
         )
 
+# *** HELP - Load Help and Save Tour Progress ***
 @app.route(
     "/api/help/bootstrap",
     methods=["GET"],
@@ -19043,6 +19099,7 @@ def help_get_progress(
         "progress": progress,
     })
 
+# *** HOME AND PLAY - Open Game Pages and Results ***
 @app.route("/personal-use-agreement/accept", methods=["POST"])
 def accept_personal_use_agreement():
     next_path = (request.form.get("next") or "").strip()
@@ -19243,6 +19300,7 @@ def result():
         open_print_in_new_tab=print_settings["open_in_new_tab"],
     )
 
+# *** PRINT ACTIONS - Print Cards and Game Tokens ***
 @app.route(
     "/print-template-registration-background/"
     "<template_id>"
@@ -19611,6 +19669,7 @@ def print_custom_game_mode_pdf(mode_value):
     pdf_buffer = build_single_image_pdf_buffer(image_path)
     return build_inline_pdf_response(pdf_buffer, f"{safe_mode_value}.pdf")
 
+# *** CARD SEARCH PAGE - Show Search Results ***
 @app.route("/card-search")
 def card_search():
     search_query = (request.args.get("q") or "").strip()
@@ -19625,7 +19684,7 @@ def card_search():
     featured_card = None
 
     if search_query:
-        results = search_cards_for_print(search_query, search_scope=search_scope, limit=75)
+        results = search_cards_for_print(search_query, search_scope=search_scope, limit=PRINT_CARD_SEARCH_LIMIT)
 
         if selected_card_key:
             for row in results:
@@ -19663,6 +19722,7 @@ def card_search():
     )
 
 
+# *** PLUGIN ACTIONS - Install and Remove Plugins ***
 def start_plugin_install_with_defaults(
     plugin_id,
 ):
@@ -19852,9 +19912,6 @@ def plugin_uninstall_page(plugin_id):
     )
 
 
-UPSCALER_READY_CACHE_SECONDS = 5
-UPSCALER_MODEL_CACHE_SECONDS = 300
-UPSCALER_DEV_MODEL_CACHE_SECONDS = 15
 
 upscaler_metadata_cache_lock = (
     threading.Lock()
@@ -19872,6 +19929,7 @@ upscaler_model_result_cache = {
 }
 
 
+# *** UPSCALER SETTINGS - Read Plugin and Image Options ***
 def invalidate_upscaler_metadata_cache():
     with upscaler_metadata_cache_lock:
         upscaler_ready_plugin_cache[
@@ -20354,6 +20412,7 @@ def build_chaos_upscale_control_url(
     )
 
 
+# *** UPSCALER CONTROLS - Save Plugin, Emblem, and Image Choices ***
 @app.route(
     "/config/upscaling/active-plugin",
     methods=["POST"],
@@ -20943,6 +21002,7 @@ def config_check_new_releases():
 
     return redirect(url_for("config") + "?open=reminders&scroll=reminders")
 
+# *** CARD BACK CONTROLS - Preview, Upload, and Delete Card Backs ***
 @app.route(
     "/card-backs/custom/<filename>",
     methods=["GET"],
@@ -21181,6 +21241,7 @@ def card_back_delete():
             ),
         }), 500
 
+# *** CUTTING TEMPLATE CONTROLS - List, Upload, and Download Templates ***
 @app.route(
     "/silhouette-templates/options",
     methods=["GET"],
@@ -21324,6 +21385,7 @@ def silhouette_template_download(
         conditional=True,
     )
 
+# *** SETTINGS PAGE - Display and Save App Settings ***
 @app.route("/config", methods=["GET", "POST"])
 def config():
     if request.method == "POST":
@@ -21579,6 +21641,7 @@ def config():
         history_count=get_recent_history_count(),
     )
 
+# *** MAINTENANCE - Clean Images, Exports, and History ***
 def normalize_managed_image_reference_path(raw_path):
     clean_path = str(
         raw_path or ""
@@ -22262,6 +22325,7 @@ def maintenance_clear_all_packs():
     flash(f"Cleared all packs. Deleted {result['total_deleted']} row(s).")
     return redirect(url_for("config"))
 
+# *** DOWNLOAD CONTROLS - Start Downloads and Show Progress ***
 @app.route("/refresh-cards/start", methods=["POST"])
 def refresh_cards_start():
     if pack_art_jobs.busy:
@@ -22446,6 +22510,7 @@ def card_image(card_key):
 
     return ("Not found", 404)
 
+# *** CHAOS DRAFT PAGES - Show Available Packs ***
 @app.route("/chaos-draft/packs", methods=["GET"])
 def chaos_draft_packs():
     packs = get_eligible_chaos_packs(app.static_folder)
@@ -22558,6 +22623,7 @@ CAMPAIGN_UI_SORT_OPTIONS = {
 }
 
 
+# *** CAMPAIGN CONTROLS - Create, Import, and Export Campaigns ***
 @app.route("/campaign-chaos/campaigns", methods=["GET"])
 def campaign_chaos_campaigns():
     all_campaigns = get_chaos_campaigns(
@@ -22974,6 +23040,7 @@ def campaign_chaos_campaign_open(campaign_id):
 
     return redirect(url_for("play_draft"))
 
+# *** CAMPAIGN PLAYERS - Manage Players and Portraits ***
 @app.route("/campaign-chaos/players", methods=["GET"])
 def campaign_chaos_players():
     selected_chaos_campaign_id = get_selected_chaos_campaign_id()
@@ -23145,6 +23212,7 @@ def campaign_chaos_select_player():
 
     return jsonify(result)
 
+# *** CAMPAIGN PACKS - Show Packs and Campaign History ***
 def build_manage_pack_summary_rows(packs):
     summary_lookup = {}
 
@@ -23733,6 +23801,7 @@ def add_upscaled_state_to_cards(cards):
 
     return cards
 
+# *** PACK DETAILS - View, Print, and Export Saved Packs ***
 @app.route("/campaign-chaos/packs/<int:tracked_pack_id>", methods=["GET"])
 def campaign_chaos_pack_detail(tracked_pack_id):
     pack = get_tracked_pack_state_by_id(tracked_pack_id)
@@ -24071,6 +24140,7 @@ def campaign_chaos_pack_export(tracked_pack_id):
         "export_text": export_text,
     })
 
+# *** ADD CAMPAIGN PACKS - Import and Generate Packs ***
 @app.route("/campaign-chaos/packs/import-campaign-packs", methods=["GET"])
 def campaign_chaos_packs_import_campaign_packs():
     source_campaign_id = (
@@ -24349,6 +24419,7 @@ def campaign_chaos_pack_preview_view():
     )
 
 
+# *** PACK PREVIEWS - Print, Export, and Save Pack Selections ***
 def simulator_print_selection(opening_id):
     from db.pack_simulator import get_opening, get_simulator_pack_tracking_codes
     opening = get_opening(opening_id)
@@ -24844,6 +24915,7 @@ def campaign_chaos_packs_action():
     flash("Unknown pack action.")
     return redirect(url_for("campaign_chaos_packs"))
 
+# *** DRAFT PLAY CONTROLS - Start Drafts and Show Picks ***
 @app.route("/campaign-chaos/test-draft/start", methods=["POST"])
 def campaign_chaos_test_draft_start():
     selected_chaos_campaign_id = (
@@ -25459,6 +25531,7 @@ def campaign_chaos_test_draft_pick(draft_test_id):
         draft_test_id=draft_test_id,
     ))
 
+# *** DECK PRINTING - Prepare Deck Cards and Export Options ***
 def get_deckbuilder_export_display_name(deck_row):
     if not deck_row:
         return "Deck Builder"
@@ -25919,6 +25992,7 @@ def build_deckbuilder_image_export_rows(
 
     return export_rows
 
+# *** DECK ART - Upload Artwork and Build Deck Images ***
 def normalize_deck_art_color_identity(
     raw_value,
 ):
@@ -26241,7 +26315,7 @@ def save_deck_art_upload(
 
     if len(upload_bytes) > DECK_ART_UPLOAD_MAX_BYTES:
         raise ValueError(
-            "Deck Art uploads must be 16 MB or smaller."
+            f"Deck Art uploads must be {DECK_ART_UPLOAD_MAX_BYTES / (1024 * 1024):g} MB or smaller."
         )
 
     if not upload_bytes:
@@ -27751,6 +27825,7 @@ DECK_ROULETTE_WHEEL_SIZE_OPTIONS = tuple(
 )
 
 
+# *** DECK ROULETTE - Filter Decks and Spin the Wheel ***
 def normalize_deck_roulette_brackets(
     values,
 ):
@@ -28380,6 +28455,7 @@ def deck_roulette_open():
         ),
     })
 
+# *** DECK CONTROLS - Create, Load, Print, and Export Decks ***
 @app.route("/deck-builder", methods=["GET"])
 def deckbuilder_index():
     search_text = (request.args.get("search_text") or "").strip()
@@ -28830,7 +28906,7 @@ def deckbuilder_loadable_decks():
     search_text = request.args.get("search_text") or ""
     deck_rows = get_loadable_deck_rows(
         search_text=search_text,
-        limit=100,
+        limit=DECK_SEARCH_DEFAULT_LIMIT,
     )
 
     decks = []
@@ -29027,6 +29103,7 @@ def deckbuilder_delete(deck_id):
         "redirect_url": redirect_url,
     })
 
+# *** DECK CARDS - Search, Import, and Edit Cards ***
 @app.route("/deck-builder/<int:deck_id>/cards/search", methods=["GET"])
 def deckbuilder_cards_search(deck_id):
     deck_row = get_deck_by_id(deck_id)
@@ -30171,6 +30248,7 @@ def deckbuilder_basic_land(deck_id):
         flash(f"Deck Builder Basic Land error: {str(exc)}")
         return redirect(request.referrer or url_for("campaign_chaos_packs"))
 
+# *** DRAFT AND PACK ACTIONS - Add Lands and Open Packs ***
 @app.route("/campaign-chaos/test-draft/<int:draft_test_id>/basic-land", methods=["POST"])
 def campaign_chaos_test_draft_basic_land(draft_test_id):
     action = (request.form.get("action") or "add").strip().lower()
@@ -30494,6 +30572,7 @@ def chaos_draft_save_pack():
 
     return jsonify(result)
 
+# *** PACK CARD EDITING - Change Printings and Artwork ***
 def search_campaign_pack_card_printing_options(tracked_pack_card_id):
     try:
         parsed_tracked_pack_card_id = int(tracked_pack_card_id)
@@ -30874,6 +30953,7 @@ def debug_alternate_source_add():
         "alternate_source_id": int(alternate_source_id),
     })
 
+# *** CARD IMAGE PAGES - Show Faces, Previews, and Comparisons ***
 def get_standard_card_back_image_url(card):
     if not card:
         return ""
@@ -31916,6 +31996,7 @@ UPSCALER_MODEL_CAPABILITY_NAMES = (
 )
 
 
+# *** UPSCALER MODELS - Read Available Models and Options ***
 def normalize_upscaler_model_contract(
     model,
 ):
@@ -32943,6 +33024,7 @@ def upscaling_run_status():
         ),
     })
 
+# *** UPSCALING - Process Selected Card Images ***
 def run_card_upscale_candidate_batch(
     *,
     card_row,
@@ -34165,6 +34247,7 @@ def chaos_card_upscale_run(card_uuid):
         ),
     })
 
+# *** BATCH UPSCALING - Select Cards and Manage Batch Jobs ***
 def batch_image_context(owner):
     if not owner:
         return AlternateImageContext()
@@ -35311,9 +35394,9 @@ def upscaling_batch_start():
         alternate_image_max_mb = float(
             payload.get(
                 "alternate_image_max_mb",
-                4.0,
+                ALTERNATE_IMAGE_DEFAULT_MAX_MB,
             )
-            or 4.0
+            or ALTERNATE_IMAGE_DEFAULT_MAX_MB
         )
     except (
         TypeError,
@@ -35784,6 +35867,7 @@ def upscaling_batch_status_route():
         ),
     })
 
+# *** UPSCALING RESULTS - Preview, Accept, and Discard Images ***
 @app.route(
     "/upscaling/candidate/<int:upscaled_image_id>/image",
     methods=["GET"],
@@ -36402,6 +36486,7 @@ def chaos_card_upscale_revert(
     })
 
 
+# *** PACK EXPORT PAGES - Open, Copy, and Print Pack Results ***
 @app.route("/chaos-draft/open-file", methods=["GET"])
 def chaos_draft_open_file():
     pdf_state = get_chaos_session_state("pending_opened_pack_pdf", default_value=None)
@@ -36722,6 +36807,7 @@ def debug_chaos_card():
         "results": results,
     })
 
+# *** CUSTOM SET CONTROLS - Create, Print, and Export Sets ***
 @app.route("/custom-draft-sets/add", methods=["POST"])
 def custom_draft_sets_add():
     set_name = (request.form.get("set_name") or "").strip()
@@ -37307,6 +37393,7 @@ def build_custom_draft_set_manage_pack_preview(clean_set_code, clean_booster_nam
         "save_url": url_for("campaign_chaos_pack_preview_save"),
     }
 
+# *** CUSTOM PACK LAYOUT - Edit Slots and Generate Packs ***
 def normalize_custom_draft_booster_name(booster_name):
     clean_booster_name = str(booster_name or "").strip().lower()
 
@@ -37526,6 +37613,7 @@ def custom_draft_set_generate_pack(set_code, booster_name):
             "message": str(exc),
         }), 400
 
+# *** CUSTOM SET CARDS - Import, Search, and Edit Cards ***
 def parse_custom_draft_bulk_import_quantity(raw_value):
     try:
         parsed_quantity = int(float(str(raw_value or "1").strip()))
@@ -38310,6 +38398,7 @@ def custom_draft_set_cards_delete(set_code, custom_set_card_id):
 
     return jsonify(result)
 
+# *** SETS PAGE - Show and Select Available Sets ***
 @app.route("/sets", methods=["GET", "POST"])
 def sets():
     if request.method == "POST":
@@ -38336,6 +38425,7 @@ def sets():
         selected_chaos_pack_types=selected_chaos_pack_types,
     )
 
+# *** APP STARTUP - Start the Server and Open the Browser ***
 if __name__ == "__main__":
     initialize_database()
     backfill_finish_metadata()

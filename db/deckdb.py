@@ -1,6 +1,9 @@
+# *** DECK DATABASE - Save Decks, Cards, and Layouts ***
 import json
 from datetime import datetime, timezone
 from functools import lru_cache
+
+from settings import DECK_SEARCH_DEFAULT_LIMIT, DECK_SEARCH_MAX_LIMIT
 
 from db.database import (
     ensure_isolation_storage_schema,
@@ -138,6 +141,7 @@ def normalize_deck_role(value):
     return DECK_ROLE_MAIN
 
 
+# *** DECK TABLES - Setup Saved Deck Storage ***
 @lru_cache(maxsize=1)
 def ensure_deck_schema():
     conn = get_db_connection()
@@ -320,6 +324,7 @@ def normalize_deck_basic_land_name(value):
     return ""
 
 
+# *** DECK DETAILS - Read Decks and Save Artwork Choices ***
 def get_deck_by_id(deck_id):
     ensure_deck_schema()
 
@@ -777,6 +782,7 @@ def deckbuilder_row_get(row, key, default=None):
     return default
 
 
+# *** DECK CARDS - Import and Move Cards ***
 @isolation_operation
 def import_draft_cards_into_deck(deck_id, draft_cards, default_zone):
     ensure_deck_schema()
@@ -2411,6 +2417,7 @@ def remove_deckbuilder_card(deck_id, deck_card_id):
         "deck_card_id": parsed_deck_card_id,
     }
 
+# *** BASIC LANDS - Read, Add, and Remove Lands ***
 def get_saved_basic_land_cards_for_deck(deck_id):
     ensure_deck_schema()
 
@@ -2748,6 +2755,7 @@ def is_draft_basic_land_pick_row(row):
     except Exception:
         return False
 
+# *** DECK LAYOUT - Save Display and Sorting Choices ***
 def normalize_deck_view_mode(value):
     clean_value = str(value or "grid").strip().lower()
 
@@ -2996,6 +3004,7 @@ def update_deck_settings(
         "deck_flex": clean_deck_flex,
     }
 
+# *** DECK LISTS - Find and Display Saved Decks ***
 def get_deck_management_rows(
     search_text="",
     deck_format="",
@@ -3187,21 +3196,21 @@ def get_deck_management_rows(
         "next_page": parsed_page + 1 if parsed_page < total_pages else None,
     }
 
-def get_loadable_deck_rows(search_text="", limit=100):
+def get_loadable_deck_rows(search_text="", limit=DECK_SEARCH_DEFAULT_LIMIT):
     ensure_deck_schema()
 
     clean_search_text = str(search_text or "").strip().lower()
 
     try:
-        parsed_limit = int(limit or 100)
+        parsed_limit = int(limit or DECK_SEARCH_DEFAULT_LIMIT)
     except (TypeError, ValueError):
-        parsed_limit = 100
+        parsed_limit = DECK_SEARCH_DEFAULT_LIMIT
 
     if parsed_limit < 1:
         parsed_limit = 1
 
-    if parsed_limit > 250:
-        parsed_limit = 250
+    if parsed_limit > DECK_SEARCH_MAX_LIMIT:
+        parsed_limit = DECK_SEARCH_MAX_LIMIT
 
     where_clauses = [
         "status = ?",
@@ -3282,6 +3291,7 @@ def get_deck_by_source(source_type, source_id):
 
     return row
 
+# *** CREATE DECKS - Create and Copy Saved Decks ***
 def create_standalone_deck(deck_name="Untitled Deck", deck_format=DECK_FORMAT_STANDARD):
     ensure_deck_schema()
 

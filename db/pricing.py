@@ -1,3 +1,4 @@
+# *** CARD PRICES - Import Prices and Add Them to Packs ***
 import json
 import os
 import zipfile

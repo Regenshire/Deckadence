@@ -1,3 +1,4 @@
+// *** PLUGIN MANAGER - Install and Remove Plugins ***
 (function () {
     const pluginCards = document.querySelectorAll(
         ".plugin-card[data-plugin-id]"

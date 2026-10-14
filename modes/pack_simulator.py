@@ -1,9 +1,4 @@
-"""Weighted booster simulation using Chaos Draft's imported sheet data.
-
-No Chaos house rules, shared pending-pack state, or pricing dependencies.
-Published sheet odds approximate retail collation; factory print runs and box
-guarantees are not modeled.
-"""
+# *** PACK SIMULATOR - Read Products and Open Packs ***
 import json
 import re
 from contextlib import closing

@@ -1,3 +1,4 @@
+// *** MOMIR - Select Game Options and Draw Cards ***
 document.addEventListener("DOMContentLoaded", function () {
     initializeManaKeypad();
 });

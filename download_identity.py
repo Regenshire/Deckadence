@@ -1,4 +1,4 @@
-"""A stable, anonymous HTTP identity shared by this installation's downloads."""
+# *** USER AGENT - Setup the User Agent for this install ***
 from contextlib import closing
 from pathlib import Path
 import sqlite3
@@ -14,6 +14,7 @@ class DownloadIdentity:
         self._user_agent = None
         self._lock = threading.Lock()
 
+    # Select User Agent UUID
     def user_agent(self):
         with self._lock:
             if self._user_agent is None:
@@ -36,6 +37,8 @@ class DownloadIdentity:
                         self._user_agent = str(UUID(value))
             return self._user_agent
 
+
+# Set the User Agent UUID for the App
 
 _identity = DownloadIdentity(Path(DATA_ROOT_DIR) / "download_identity.sqlite3")
 

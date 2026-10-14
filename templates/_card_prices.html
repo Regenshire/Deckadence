@@ -1,3 +1,4 @@
+{# *** CARD PRICES - Price Display *** #}
 {% set provider = pack_price_source if pack_price_source in ['manapool', 'cardkingdom'] else 'manapool' %}
 {% set quote = select_price(card.prices, provider) %}
 <button type="button" class="chaos-pack-view-price card-price-trigger" data-card-prices

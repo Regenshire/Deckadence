@@ -1,3 +1,4 @@
-{% for size in [50, 75, 90, 100, 110, 125, 150, 175, 200] %}
+{# *** CARD SIZES - Card Size Choices *** #}
+{% for size in global_card_size_percentages %}
 <option value="{{ size }}"{% if size == 100 %} selected{% endif %}>{{ size }}%</option>
 {% endfor %}

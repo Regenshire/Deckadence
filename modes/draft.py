@@ -1,3 +1,4 @@
+# *** DRAFT PLAY - Start Drafts and Record Player Picks ***
 from db.draftdb import (
     create_draft_test_session_from_pack_pool,
     ensure_draft_testing_schema,

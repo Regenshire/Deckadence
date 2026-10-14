@@ -1,3 +1,4 @@
+// *** CUTTING TEMPLATES - Browse and Upload Silhouette Files ***
 (function () {
   const modal = document.getElementById("silhouetteTemplateLibraryModal");
 

@@ -1,3 +1,4 @@
+# *** UPSCALED IMAGES - Save, Accept, and Remove Image Records ***
 import hashlib
 import json
 import os
@@ -23,6 +24,7 @@ def upscaling_utc_now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
+# *** IMAGE TABLES - Setup Upscaled Image Storage ***
 def ensure_upscaling_schema():
     os.makedirs(
         UPSCALED_SCRYFALL_DIR,
@@ -462,6 +464,7 @@ def hydrate_upscaled_image_paths(
 
 
 
+# *** CURRENT IMAGES - Find Saved Upscaled Artwork ***
 def get_current_upscaled_image_for_card(
     card_row,
     face_kind="single",
@@ -926,6 +929,7 @@ def set_upscaled_generated_bleed(
 
 
 
+# *** NEW IMAGES - Register Upscaling Results ***
 def register_upscaled_candidate(
     *,
     card_uuid=None,
@@ -1326,6 +1330,7 @@ def _safe_file_size(
         return 0
 
 
+# *** IMAGE MAINTENANCE - Find and Remove Unused Images ***
 def _scan_upscaled_image_maintenance(
     stale_pending_hours=(
         UPSCALE_MAINTENANCE_STALE_PENDING_HOURS
@@ -2149,6 +2154,7 @@ def delete_all_upscaled_images():
     }
 
 
+# *** IMAGE CHOICES - Accept, Discard, and Revert Results ***
 def accept_upscaled_candidate(
     upscaled_image_id,
 ):

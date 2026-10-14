@@ -1,7 +1,74 @@
+# *** SETTINGS - App Defaults and Adjustable Values ***
 import secrets
 
-from card_backs import DEFAULT_CARD_BACK_KEY
+# Card sizes (millimeters)
+STANDARD_CARD_WIDTH_MM = 63.0
+STANDARD_CARD_HEIGHT_MM = 88.0
+PACK_TITLE_CARD_WIDTH_MM = 63.5
+PACK_TITLE_CARD_HEIGHT_MM = 88.9
 
+# Image bleed (millimeters; separate from print output)
+ALTERNATE_UPLOAD_BLEED_MM = 3.0  # Removed from uploaded alternate artwork.
+CUSTOM_CARD_BACK_FULLBLEED_MM = 3.0  # Bleed around uploaded full-bleed card backs.
+GENERATED_IMAGE_BLEED_MM = 3.0  # Default for generated image borders.
+
+# Default card back
+DEFAULT_CARD_BACK_FILENAME = "00 - Word Wall Proxy Back - Dark Color.jpg"
+DEFAULT_CARD_BACK_KEY = f"builtin:{DEFAULT_CARD_BACK_FILENAME}"
+
+# PDF quality (pixels per inch)
+PDF_RENDER_RESOLUTION_PPI = {
+    "draft": 150.0,
+    "standard": 300.0,
+    "high": 450.0,
+    "max": 600.0,
+    "supermax": 1200.0,
+}
+
+# Card sizes on screen (percent)
+CARD_SIZE_PERCENTAGES = (50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190, 200)
+
+# Deck artwork upload limits (bytes, total pixels, longest side in pixels)
+DECK_ART_UPLOAD_MAX_BYTES = 16 * 1024 * 1024
+DECK_ART_UPLOAD_MAX_PIXELS = 40_000_000
+DECK_ART_UPLOAD_MAX_DIMENSION = 4096
+
+# Batch upscaling: starting alternate-image size limit (MB)
+ALTERNATE_IMAGE_DEFAULT_MAX_MB = 4.0
+
+# Download timeouts (seconds)
+RELEASE_CHECK_TIMEOUT_SECONDS = 8
+DATA_DOWNLOAD_CONNECT_TIMEOUT_SECONDS = 60
+DATA_DOWNLOAD_READ_TIMEOUT_SECONDS = 120
+LARGE_DATA_DOWNLOAD_READ_TIMEOUT_SECONDS = 300
+DATA_REQUEST_TIMEOUT_SECONDS = 60
+IMAGE_DOWNLOAD_TIMEOUT_SECONDS = 120
+EXTERNAL_IMAGE_DOWNLOAD_TIMEOUT_SECONDS = 180
+CARD_IMAGE_CONNECT_TIMEOUT_SECONDS = 10
+CARD_IMAGE_READ_TIMEOUT_SECONDS = 60
+
+# Search result limits
+# Load Deck search
+DECK_SEARCH_DEFAULT_LIMIT = 100
+DECK_SEARCH_MAX_LIMIT = 250
+# Print card search
+PRINT_CARD_SEARCH_LIMIT = 75
+
+# Market prices (seconds and maximum queued cards)
+MARKET_PRICE_CACHE_SECONDS = 24 * 60 * 60
+MARKET_PRICE_RETRY_SECONDS = 5 * 60
+MARKET_PRICE_MAX_QUEUED_CARDS = 10000
+
+# Upscaler information refresh (seconds)
+UPSCALER_READY_CACHE_SECONDS = 5
+UPSCALER_MODEL_CACHE_SECONDS = 300
+UPSCALER_DEV_MODEL_CACHE_SECONDS = 15
+
+# Print progress history (seconds and maximum remembered jobs)
+PRINT_EXPORT_PROGRESS_TTL_SECONDS = 15 * 60
+PRINT_EXPORT_PROGRESS_MAX_JOBS = 100
+
+# Application
 APP_VERSION = "2.3.3"
 GITHUB_RELEASE_OWNER = "Regenshire"
 GITHUB_RELEASE_REPO = "Deckadence"
@@ -32,8 +99,8 @@ CARD_BACK_UPLOAD_MAX_SIZE_BYTES = CARD_BACK_UPLOAD_MAX_SIZE_MB * 1024 * 1024
 
 PRINT_EDGE_BORDER_PIXELS = 1
 
-PDF_CUTTING_GUIDE_CARD_WIDTH_MM = 63.0
-PDF_CUTTING_GUIDE_CARD_HEIGHT_MM = 88.0
+PDF_CUTTING_GUIDE_CARD_WIDTH_MM = STANDARD_CARD_WIDTH_MM
+PDF_CUTTING_GUIDE_CARD_HEIGHT_MM = STANDARD_CARD_HEIGHT_MM
 PDF_CUTTING_GUIDE_SIZE_MM = 2.0
 PDF_CUTTING_GUIDE_THICKNESS_MM = 0.20
 PDF_CUTTING_GUIDE_COLOR_RGB = (0, 255, 0)

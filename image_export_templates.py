@@ -1,3 +1,4 @@
+# *** IMAGE EXPORT TEMPLATES - Define Card Borders, Labels, and Bleed ***
 # Image export overlay templates for Chaos Draft card image exports.
 #
 # Coordinate values are normalized percentages of the final image:
@@ -601,6 +602,7 @@ BLEED_WIDTH_MM = CARD_WIDTH_MM + (BLEED_SIZE_MM * 2.0)
 BLEED_HEIGHT_MM = CARD_HEIGHT_MM + (BLEED_SIZE_MM * 2.0)
 
 
+# *** BLEED LAYOUTS - Adjust Template Positions for Bleed ***
 def convert_card_x_to_bleed_x(value):
     return (BLEED_SIZE_MM + (float(value) * CARD_WIDTH_MM)) / BLEED_WIDTH_MM
 
@@ -764,6 +766,7 @@ def deep_merge_template(base, override):
 
     return merged
 
+# *** TEMPLATE CHOICES - List and Load Export Templates ***
 def get_card_export_template_options():
     options = [
         {

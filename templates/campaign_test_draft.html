@@ -1,10 +1,12 @@
+{# *** DRAFT PLAY - Draft Picks and Player Cards *** #}
 {% extends "base.html" %}
 
 {% block title %}Deckadence - Test Draft{% endblock %}
 
+{# Page Styles #}
 {% block page_styles %}
 <script src="{{ url_for('static', filename='js/deckadence_message_cards.js', v='shared-footer-5') }}"></script>
-<script src="{{ url_for('static', filename='js/pack_opening.js', v='3') }}"></script>
+<script src="{{ url_for('static', filename='js/pack_opening.js', v='4') }}"></script>
 <link
     rel="stylesheet"
     href="{{ url_for('static', filename='css/card_views.css') }}"
@@ -12,6 +14,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/campaign_test_draft_theme.css', v='10') }}">
 {% endblock %}
 
+{# Page Content #}
 {% block content %}
 {% set session = draft_state.session %}
 {% set human_player = namespace(item=None) %}
@@ -164,8 +167,7 @@
                 <h2>Finalize Your Deck</h2>
 
                 <p>
-                    The draft is complete. Move cards between Deck and Sideboard, add Basic Lands,
-                    then copy or export your final decklist.
+                    Draft complete. Build your deck.
                 </p>
 
                 <div class="campaign-test-draft-complete-summary">
@@ -2472,7 +2474,7 @@
             '<div id="campaignTestDraftCompletePanel" class="campaign-test-draft-complete-panel">' +
                 '<div class="campaign-test-draft-complete-eyebrow">Draft Complete</div>' +
                 '<h2>Finalize Your Deck</h2>' +
-                '<p>The draft is complete. Move cards between Deck and Sideboard, add Basic Lands, then copy or export your final decklist.</p>' +
+                '<p>Draft complete. Build your deck.</p>' +
                 '<div class="campaign-test-draft-complete-summary">' +
                     '<div><span>Deck</span><strong>' + escapeHtml(deckCount) + '</strong></div>' +
                     '<div><span>Sideboard</span><strong>' + escapeHtml(sideboardCount) + '</strong></div>' +

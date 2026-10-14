@@ -1,3 +1,4 @@
+// *** MOMIR LAYOUT - Arrange the Game Controls ***
 // Size the active game area below the actual navigation, including collapsed navigation.
 class MomirViewportController {
     constructor(screen) {

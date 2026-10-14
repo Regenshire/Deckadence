@@ -1,3 +1,4 @@
+// *** DECK BUILDER - Arrange and Edit Deck Cards ***
 (function () {
   const workspace = document.getElementById("deckbuilderWorkspace");
   const deckbuilderMain = workspace
@@ -2911,6 +2912,7 @@
     return true;
   }
 
+  // *** CARD SELECTION - Select Cards for Group Actions ***
   function getDeckbuilderSelectionKey(cardElement) {
     if (!cardElement) {
       return "";
@@ -3242,6 +3244,7 @@
     });
   }
 
+  // *** DRAG AND DROP - Move Cards Between Areas ***
   function clearDropZoneState() {
     Array.from(
       document.querySelectorAll(".campaign-test-draft-drop-zone"),
@@ -3658,6 +3661,7 @@
     });
   }
 
+  // *** CARD PREVIEWS - Show Hover Images and Touch Menus ***
   function positionHoverPreview(event) {
     if (!hoverPreview) {
       return;
@@ -3983,6 +3987,7 @@
     });
   }
 
+  // *** CARD STACKS - Arrange Cards in Columns ***
   function getDeckbuilderStackColumnDefs() {
     const special = [{ key: "commander", label: "Commander" }, { key: "partner", label: "Partner" }];
     const groups = {
@@ -4561,6 +4566,7 @@
     );
   }
 
+  // *** BASIC LANDS - Handle Land Buttons ***
   function bindBasicLandButtons() {
     Array.from(
       document.querySelectorAll(".campaign-test-draft-basic-land-button"),
@@ -4598,6 +4604,7 @@
     });
   }
 
+  // *** COPY DECK - Build and Copy Deck Lists ***
   function getDeckbuilderCopyCards(listElement) {
     if (!listElement) {
       return [];
@@ -4795,6 +4802,7 @@
     });
   }
 
+  // *** CARD EDITING - Change Artwork and Printings ***
   function openDeckbuilderAlternateImageModal(cardUuid, cardName) {
     const cleanCardUuid = String(cardUuid || "").trim();
     const cleanCardName = String(cardName || "").trim();
@@ -4965,6 +4973,7 @@
     }
   }
 
+  // *** CARD MENUS - Show and Run Card Actions ***
   function setDeckbuilderContextMenuOpen(isOpen, x, y) {
     if (!cardContextMenu) {
       return;

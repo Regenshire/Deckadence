@@ -1,3 +1,4 @@
+// *** CAMPAIGN PACKS - Manage Saved Packs ***
 (function () {
   const config = document.getElementById("campaignManagePacksConfig");
 

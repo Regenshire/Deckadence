@@ -1,9 +1,11 @@
+{# *** CAMPAIGN DRAFT - Pack Opening Page *** #}
 {% extends "base.html" %}
 
 {% block title %}Deckadence - Chaos Draft Campaign Mode{% endblock %}
 
+{# Page Styles #}
 {% block page_styles %}
-<script src="{{ url_for('static', filename='js/pack_opening.js', v='3') }}"></script>
+<script src="{{ url_for('static', filename='js/pack_opening.js', v='4') }}"></script>
 <link
     rel="stylesheet"
     href="{{ url_for('static', filename='css/card_views.css') }}"
@@ -30,6 +32,7 @@
 <script defer src="{{ url_for('static', filename='js/campaign_stage_summary.js', v='3') }}"></script>
 {% endblock %}
 
+{# Page Content #}
 {% block content %}
 <div
     class="screen screen-wide"
@@ -348,10 +351,10 @@
 {% block page_scripts_after_app %}
 {% if global_card_upscaling_control_enabled %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
-<script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/deckadence_message_cards.js', v='shared-footer-5') }}"></script>
-<script src="{{ url_for('static', filename='js/chaos_draft.js', v='compact-prices-2') }}"></script>
+<script src="{{ url_for('static', filename='js/chaos_draft.js', v='opening-visibility-3') }}"></script>
 <script src="{{ url_for('static', filename='js/campaign_chaos_draft.js', v='next-player-1') }}"></script>
 
 {% endblock %}

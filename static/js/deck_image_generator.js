@@ -1,3 +1,4 @@
+// *** DECK ART - Create Deck Covers and Inserts ***
 class DeckArtModal {
   constructor(options = {}) {
     this.root =

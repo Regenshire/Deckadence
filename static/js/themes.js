@@ -1,3 +1,4 @@
+// *** APP THEMES - Apply Colors and Backgrounds ***
 /*
  * Appearance foundation:
  * - theme_catalog.js is the palette registry for menus and Settings previews.

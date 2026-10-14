@@ -1,3 +1,4 @@
+// *** SHARED CONTROLS - Handle Page Navigation and Common Controls ***
 /* ==========================================
    Deckadence Shared UI Controllers
    ========================================== */

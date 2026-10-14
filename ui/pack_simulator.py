@@ -1,4 +1,4 @@
-"""Standalone pack simulator routes, isolated from campaign and draft state."""
+# *** PACK SIMULATOR CONTROLS - Handle Product and Pack Actions ***
 import json
 import sqlite3
 from contextlib import closing

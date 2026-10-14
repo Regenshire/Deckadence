@@ -1,4 +1,4 @@
-"""Simulator-only metadata and saved openings. Never writes draft state."""
+# *** PACK SIMULATOR - Save Pack Openings and Tracking Codes ***
 import json
 import time
 from contextlib import closing

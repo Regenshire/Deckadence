@@ -1,3 +1,4 @@
+{# *** DECK BUILDER - Deck and Sideboard Workspace *** #}
 {% extends "base.html" %} {% block title %}Deckadence - Deck Builder{% endblock
 %} {% block page_styles %} {% if global_card_upscaling_control_enabled %}
 <link
@@ -1523,7 +1524,7 @@
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
-<script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/deck_image_generator.js') }}"></script>
 {% endblock %}

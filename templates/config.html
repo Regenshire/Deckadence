@@ -1,7 +1,9 @@
+{# *** SETTINGS - App Settings Page *** #}
 {% extends "base.html" %}
 
 {% block title %}Deckadence - Config{% endblock %}
 
+{# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/application_backups.css', v='1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css') }}">
@@ -16,6 +18,7 @@
 
 {% endblock %}
 
+{# Page Content #}
 {% block content %}
 {% from "_scoped_print_settings_fields.html" import render_scoped_print_settings %}
 <div class="screen screen-wide settings-flat-screen">
@@ -811,7 +814,7 @@
                 {% include "_application_backup_controls.html" %}
                 <details>
                     <summary>Individual pack exports</summary>
-                    <p>Full-database and legacy full backups cannot be merged into an existing installation. Use a user-content export for transfers.</p>
+                    <p>To transfer your content to another installation, choose Export, then Export to Zip. Older full-database backups cannot be imported here.</p>
                     <div class="cleanup-action-row">
                     <form method="post" action="{{ url_for('maintenance_backup_all_packs') }}" target="_blank">
                         <button type="submit" class="action-button secondary-button cleanup-action-button">
@@ -1332,7 +1335,6 @@
             <label class="pack-downloader-set-label" for="packDownloaderSets">Set codes <span>(optional)</span></label>
             <input id="packDownloaderSets" type="text" placeholder="All imported booster sets, or enter FIN, ECL, TMT" maxlength="2000" autocomplete="off" spellcheck="false" aria-describedby="packDownloaderSetsHelp">
             <p id="packDownloaderSetsHelp" class="pack-downloader-hint">Leave blank to check all imported booster sets, newest first.</p>
-            <p class="pack-downloader-hint">The downloader first looks for a front-facing pack image. If needed, it corrects an angled image or creates a pack image using set images and a design based on the release year. Each run checks for better images. Boxes and bundles use downloaded product images.</p>
             <label class="pack-downloader-set-label" for="packDownloaderStyle">Generated pack design</label>
             <select id="packDownloaderStyle">
                 <option value="auto">Automatic — release year</option>
@@ -1344,9 +1346,7 @@
             </select>
             <label class="pack-downloader-set-label" for="packDownloaderColor">Wrapper color <span>(optional)</span></label>
             <input id="packDownloaderColor" type="text" placeholder="Automatic, or #454474" maxlength="7" pattern="#[0-9a-fA-F]{6}" autocomplete="off" spellcheck="false">
-            <p class="pack-downloader-hint">Design and color apply only to images created by the pack builder. Downloaded images and images you added are kept. Specialty boosters include the Zeta pack; MBC uses its Commander Edition source.</p>
-            <p class="pack-downloader-hint">Booster boxes and displays are two names for the same product type. Bundles are separate products whose contents vary by set. Only products listed for each set in the downloaded database or on its official product page are checked.</p>
-            <p class="pack-downloader-hint">Clear generated images deletes images created by the pack builder for the selected sets and pack types. Downloaded images, including those corrected to face forward, and images you added are kept.</p>
+            <p class="pack-downloader-hint">Choose how Deckadence draws packs when no pack image is available.</p>
             <div class="pack-downloader-types">
                 {% for group in ["Booster packs", "Booster boxes", "Bundles"] %}
                 <fieldset>
@@ -1386,7 +1386,7 @@
     <div class="pack-downloader-header"><h2 id="clearPackImagesTitle">Clear generated pack images?</h2></div>
     <div class="pack-downloader-body">
         <p id="clearPackImagesMessage"></p>
-        <p id="clearPackImagesDetails">Downloaded pack images and images you added will be kept. The selected generated images will be permanently deleted, with no backup copies. Run the downloader again to create replacements.</p>
+        <p id="clearPackImagesDetails">Permanently delete the selected generated images? Downloaded and uploaded images will be kept.</p>
     </div>
     <form method="dialog" class="pack-downloader-footer">
         <div class="config-button-row">
@@ -2551,7 +2551,7 @@
 {% endblock %}
 
 {% block page_scripts_after_app %}
-<script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
 <script src="{{ url_for('static', filename='js/application_backups.js', v='campaign-1') }}"></script>
 {% endblock %}
 

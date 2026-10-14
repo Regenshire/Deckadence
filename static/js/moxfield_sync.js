@@ -1,3 +1,4 @@
+// *** MOXFIELD SYNC - Update Linked Decks ***
 (function () {
   "use strict";
 

@@ -1,3 +1,4 @@
+// *** CARD SEARCH - Find and Select Cards ***
 (function () {
   function getElement(id) {
     return document.getElementById(id);

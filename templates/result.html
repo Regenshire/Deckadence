@@ -1,13 +1,16 @@
+{# *** CARD RESULT - Selected Card and Actions *** #}
 {% extends "base.html" %}
 
 {% block title %}Deckadence - Result{% endblock %}
 
+{# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/momir.css', v='theme-3') }}">
 <script src="{{ url_for('static', filename='js/momir_layout.js', v='theme-3') }}"></script>
 <script src="{{ url_for('static', filename='js/deckadence_message_cards.js', v='shared-footer-5') }}"></script>
 {% endblock %}
 
+{# Page Content #}
 {% block content %}
 <div data-face-url="{{ url_for('card_face_data') }}" class="screen screen-result screen-medium{% if current_game_mode != "tower_of_power" %} momir-result{% endif %}">
 {% if current_game_mode != "tower_of_power" %}{% include "_momir_page_heading.html" %}{% endif %}

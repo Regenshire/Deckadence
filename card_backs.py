@@ -1,18 +1,21 @@
+# *** CARD BACKS - Select, Upload, and Draw Card Backs ***
 import os
 from collections import Counter
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-DEFAULT_CARD_BACK_FILENAME = "00 - Word Wall Proxy Back - Dark Color.jpg"
-DEFAULT_CARD_BACK_KEY = f"builtin:{DEFAULT_CARD_BACK_FILENAME}"
+from settings import (
+    DEFAULT_CARD_BACK_FILENAME,
+    DEFAULT_CARD_BACK_KEY,
+    CUSTOM_CARD_BACK_FULLBLEED_MM,
+    STANDARD_CARD_WIDTH_MM as CARD_BACK_FINISHED_WIDTH_MM,
+    STANDARD_CARD_HEIGHT_MM as CARD_BACK_FINISHED_HEIGHT_MM,
+)
 
 BUILTIN_CARD_BACK_PREFIX = "builtin:"
 CUSTOM_CARD_BACK_PREFIX = "custom:"
 
 CUSTOM_CARD_BACK_FULLBLEED_DIRNAME = "fullbleed"
-CUSTOM_CARD_BACK_FULLBLEED_MM = 3.0
-CARD_BACK_FINISHED_WIDTH_MM = 63.0
-CARD_BACK_FINISHED_HEIGHT_MM = 88.0
 
 LABEL_CARD_BACKS = {
     "10 - Deckadence Label Back - White.png": ("Deckadence - White", "#51452f"),
@@ -59,6 +62,7 @@ def card_back_label_text_color(background):
     return "#000000" if luminance > .179 else "#ffffff"
 
 
+# *** CARD BACK LABELS - Draw Labels on Card Backs ***
 def render_label_card_back(option, label_text="", full_bleed=False,
                            bleed_mm=CUSTOM_CARD_BACK_FULLBLEED_MM, label_title="PACK CODE"):
     """Use a designed label panel or add a border-colored bar inside the trim."""
@@ -72,17 +76,17 @@ def render_label_card_back(option, label_text="", full_bleed=False,
     trim = _remove_known_card_back_bleed(image, bleed) if has_real_bleed else image
     border_color = sample_card_back_border_color(trim)
     if full_bleed and not has_real_bleed:
-        image = ImageOps.expand(image, border=(round(image.width * bleed / 63),
-                                              round(image.height * bleed / 88)), fill=border_color)
+        image = ImageOps.expand(image, border=(round(image.width * bleed / CARD_BACK_FINISHED_WIDTH_MM),
+                                              round(image.height * bleed / CARD_BACK_FINISHED_HEIGHT_MM)), fill=border_color)
     label_text = " ".join(str(label_text or "").split())
     if not label_text or not option.get("supports_labels"):
         return image
 
-    sx = image.width / (63 + 2 * bleed)
-    sy = image.height / (88 + 2 * bleed)
+    sx = image.width / (CARD_BACK_FINISHED_WIDTH_MM + 2 * bleed)
+    sy = image.height / (CARD_BACK_FINISHED_HEIGHT_MM + 2 * bleed)
     # Coordinates are measured in the original insert's 431 x 600 trim viewBox.
-    x = lambda value: (bleed + value * 63 / 431) * sx
-    y = lambda value: (bleed + value * 88 / 600) * sy
+    x = lambda value: (bleed + value * CARD_BACK_FINISHED_WIDTH_MM / 431) * sx
+    y = lambda value: (bleed + value * CARD_BACK_FINISHED_HEIGHT_MM / 600) * sy
     draw = ImageDraw.Draw(image)
     color = option.get("label_color")
     font_path = option["label_font_path"]
@@ -227,6 +231,7 @@ def _remove_known_card_back_bleed(
     ))
 
 
+# *** CARD BACK CHOICES - List and Select Card Backs ***
 def list_card_back_options(static_dir, runtime_card_back_dir):
     options = []
     builtin_dir = get_builtin_card_back_dir(static_dir)
@@ -411,6 +416,7 @@ def resolve_card_back_option(
     )
 
 
+# *** CUSTOM CARD BACKS - Save and Delete Uploaded Images ***
 def save_custom_card_back_upload(
     file_storage,
     runtime_card_back_dir,

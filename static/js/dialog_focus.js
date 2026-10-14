@@ -1,3 +1,4 @@
+// *** DIALOG FOCUS - Keep Keyboard Focus in Open Dialogs ***
 /* Shared keyboard lifecycle for existing overlays; page controllers still own closing. */
 class DialogFocusController {
   constructor(root = document) {

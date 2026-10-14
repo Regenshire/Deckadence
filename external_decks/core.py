@@ -1,3 +1,4 @@
+# *** EXTERNAL DECKS - Define Deck Details and Search Options ***
 from __future__ import annotations
 
 from abc import ABC, abstractmethod

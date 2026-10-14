@@ -1,7 +1,9 @@
+{# *** PACK VIEW - Show Opened Pack Cards *** #}
 {% extends "base.html" %}
 
 {% block title %}Deckadence - Pack View{% endblock %}
 
+{# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/campaign_pack_detail.css', v='header-theme-2') }}">
 <link
@@ -14,6 +16,7 @@
 >
 {% endblock %}
 
+{# Page Content #}
 {% block content %}
 <div class="screen screen-wide" id="basicPackDetailScreen">
     <div class="page-panel chaos-pack-view-header-panel">

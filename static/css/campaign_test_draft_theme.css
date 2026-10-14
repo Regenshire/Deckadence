@@ -1,3 +1,4 @@
+/* *** DRAFT PLAY - Draft Workspace Layout *** */
 /* Shared campaign styling; the workspace itself leaves the page art visible. */
 html[data-theme] #campaignTestDraftWorkspace {background:transparent;padding:20px 24px 16px;gap:0 10px;font:400 15px/1.4 Arial,sans-serif;grid-template-rows:auto minmax(0,1fr);}
 #campaignTestDraftWorkspace .test-draft-page-heading {grid-column:1/-1;padding:4px 4px 24px;}

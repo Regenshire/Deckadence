@@ -1,4 +1,4 @@
-
+// *** CARD FACES - Switch Between Card Faces ***
 function initializeResultFaces() {
     const resultImage = document.getElementById("resultCardImage");
     const zoomOverlay = document.getElementById("cardZoomOverlay");

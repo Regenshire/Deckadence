@@ -1,11 +1,14 @@
+{# *** SETS - Set Selection Page *** #}
 {% extends "base.html" %}
 
 {% block title %}Deckadence - Magic Sets{% endblock %}
 
+{# Page Styles #}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/sets_theme.css') }}?v=3">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/sets_theme.css') }}?v=5">
 {% endblock %}
 
+{# Page Content #}
 {% block content %}
 <div class="screen screen-wide sets-page">
     <header class="sets-page-heading">
@@ -292,21 +295,21 @@
 
         <div class="page-panel sets-available-panel">
             <div class="sets-panel-header">
-                <div><h2>Available Sets</h2><p>Choose all sets, or select your own mix.</p></div>
-                <label class="sets-all-toggle"><input type="checkbox" id="allSetsEnabled" name="all_sets_enabled" {% if config.get("all_sets_enabled") == "1" %}checked{% endif %}> All Sets</label>
+                <div><h2>Available Sets</h2><p>Chose the sets that are available for Chaos Draft and Momir modes. Choose all sets, or select your own mix.</p></div>
+                <div class="sets-panel-actions">
+                    <label class="sets-all-toggle"><input type="checkbox" id="allSetsEnabled" name="all_sets_enabled" {% if config.get("all_sets_enabled") == "1" %}checked{% endif %}> All Sets</label>
+                    <button type="submit" form="setsForm" class="action-button">Save</button>
+                </div>
             </div>
             <div class="sets-compact-filters">
                 <label>Search<input type="search" id="setSearchInput" class="sets-search-input" placeholder="Search set name or code..." autocomplete="off"></label>
-                <label>Set Type<select id="setTypeFilter" class="sets-filter-select"><option value="">All Types</option>
-                        {% set ns = namespace(seen_types=[]) %}
-                        {% for mtg_set in all_sets %}
-                            {% set current_type = (mtg_set["set_type"] or "")|lower %}
-                            {% if current_type and current_type not in ns.seen_types %}
-                                {% set ns.seen_types = ns.seen_types + [current_type] %}
-                                <option value="{{ current_type }}">{{ mtg_set["set_type"] }}</option>
-                            {% endif %}
-                        {% endfor %}
-                </select></label>
+                <div class="sets-type-field">
+                    <span id="setTypeLabel">Set Type</span>
+                    <details id="setTypeFilter" class="sets-type-filter">
+                        <summary aria-labelledby="setTypeLabel setTypeSummary"><span id="setTypeSummary">All Types</span></summary>
+                        <div class="sets-type-options" role="group" aria-label="Set types"></div>
+                    </details>
+                </div>
                 <label>From Year<input type="number" id="setYearStart" min="1993" max="{{ current_year }}" value="1993"></label>
                 <label>To Year<input type="number" id="setYearEnd" min="1993" max="{{ current_year }}" value="{{ current_year }}"></label>
             </div>
@@ -410,7 +413,9 @@
                 Choose which booster types are allowed in Chaos Draft.
             </p>
 
-            </div></div>
+            </div>
+            <button type="submit" form="setsForm" class="action-button">Save</button>
+            </div>
             <div class="sets-booster-options">
                 {% for pack_type_option in chaos_pack_type_options %}
                 <label class="toggle-row">
@@ -445,5 +450,5 @@
 {% endblock %}
 
 {% block page_scripts_before_app %}
-<script src="{{ url_for('static', filename='js/sets.js') }}?v=2"></script>
+<script src="{{ url_for('static', filename='js/sets.js') }}?v=3"></script>
 {% endblock %}

@@ -1,10 +1,11 @@
-"""Campaign ownership boundaries for the portable user-content backup format."""
+# *** CAMPAIGN EXPORT - Select the Campaign Data to Export ***
 import sqlite3
 
 from export_selection import ExportSelection
 
 
 class CampaignExportSelection(ExportSelection):
+    # Setup the Campaign Export
     def __init__(self, campaign_id, options=None):
         if campaign_id is not None and (type(campaign_id) is not int or campaign_id <= 0):
             raise ValueError("Invalid campaign identifier.")
@@ -16,6 +17,7 @@ class CampaignExportSelection(ExportSelection):
         self.scope = {"kind": "campaign", "campaign_id": campaign_id}
         self.draft_ids = set()
 
+    # Select the Campaign Decks, Packs, and Sets
     def prepare(self, connection, existing, tables, integer_ids, references, progress):
         connection.row_factory = sqlite3.Row
 
@@ -51,6 +53,7 @@ class CampaignExportSelection(ExportSelection):
         self.entities.update(deck_ids=sorted(deck_ids), pack_ids=sorted(pack_ids), set_codes=sorted(codes))
         super().prepare(connection, existing, tables, integer_ids, references, progress)
 
+    # Check Which Records Belong in the Export
     def allows(self, table, row):
         if table == "chaos_campaigns":
             return self.campaign_id is not None and row.get("campaign_id") == self.campaign_id
@@ -70,8 +73,8 @@ class CampaignExportSelection(ExportSelection):
         return super().allows(table, row)
 
 
+# *** CAMPAIGN IMPORT - Check the Campaign Backup File ***
 def validate_campaign_archive(metadata, records_path):
-    """Reject full-application content at the campaign import entry point."""
     import json
     scope = metadata.get("scope") or {}
     if scope.get("kind") != "campaign":

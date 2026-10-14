@@ -1,3 +1,4 @@
+// *** APP CONTROLS - Setup Shared Page Actions ***
 /* ==========================================
    Deckadence Client Refresh Tracker
    ------------------------------------------

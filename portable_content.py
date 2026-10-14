@@ -1,4 +1,4 @@
-"""Explicit user-content selection and transactional, relationship-aware merging."""
+# *** BACKUP CONTENT - Export and Import Selected User Data ***
 from contextlib import closing
 import configparser
 import hashlib
@@ -89,6 +89,7 @@ def _json_value(value):
     return value, False
 
 
+# *** EXPORT CONTENT - Collect Selected Records and Files ***
 class UserContentExporter:
     def __init__(self, service, temporary, progress, selection=None):
         self.service, self.root, self.bundle = service, service.root, service.bundle
@@ -435,6 +436,7 @@ class UserContentExporter:
                 "required_dependencies": {table: sorted(ids) for table, ids in self.selection.required.items() if not self.selection.enabled(self.selection.group(table))}}, self.assets
 
 
+# *** IMPORT CONTENT - Restore Records and Match Related Data ***
 class UserContentImporter:
     def __init__(self, service, temporary, metadata, progress):
         self.service, self.root, self.bundle = service, service.root, service.bundle

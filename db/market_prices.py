@@ -1,9 +1,4 @@
-"""Independent Mana Pool / Card Kingdom quotes with a lazy 24-hour cache.
-
-lookup() only reads SQLite and queues bounded background work. It never waits
-for a vendor. refresh() is the blocking batch entry point for background jobs.
-Prices are USD near-mint retail/listing quotes, never buylist or guessed values.
-"""
+# *** CARD PRICES - Download and Store Market Prices ***
 import json
 import logging
 import re
@@ -21,9 +16,11 @@ from download_identity import get_download_user_agent
 from paths import DATABASE_PATH
 
 VENDORS = ("manapool", "cardkingdom")
-TTL = 24 * 60 * 60
-RETRY_DELAY = 5 * 60
-MAX_QUEUED_CARDS = 10000
+from settings import (
+    MARKET_PRICE_CACHE_SECONDS as TTL,
+    MARKET_PRICE_RETRY_SECONDS as RETRY_DELAY,
+    MARKET_PRICE_MAX_QUEUED_CARDS as MAX_QUEUED_CARDS,
+)
 MANAPOOL_URL = "https://manapool.com/api/v1/products/singles"
 CARDKINGDOM_URL = "https://api.cardkingdom.com/api/v2/pricelist"
 LOG = logging.getLogger(__name__)

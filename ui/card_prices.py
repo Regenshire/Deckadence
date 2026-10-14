@@ -1,4 +1,4 @@
-"""Nonblocking price API. Price problems never change a card operation's result."""
+# *** CARD PRICE CONTROLS - Provide Prices to the App ***
 from flask import jsonify, request
 from db.market_prices import lookup_card_prices, normalize_finish, summarize_card_prices, _uuid
 

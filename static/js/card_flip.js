@@ -1,3 +1,4 @@
+// *** CARD FLIP - Show Card Fronts and Backs ***
 (function () {
     const metadataUrl = "/card-face-data";
 

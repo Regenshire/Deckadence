@@ -1,3 +1,4 @@
+# *** DRAFT BOTS - Score Cards and Select Picks ***
 import json
 import random
 
@@ -259,6 +260,7 @@ def bot_count_colored_pips(card_row):
     return pip_counts
 
 
+# *** DRAFT PROFILE - Review Cards Already Picked ***
 def bot_build_draft_profile(drafted_cards, player_row, draft_context):
     drafted_cards = list(drafted_cards or [])
 
@@ -433,6 +435,7 @@ def bot_build_draft_profile(drafted_cards, player_row, draft_context):
     }
 
 
+# *** CARD SCORES - Compare Colors, Mana, and Card Types ***
 def bot_get_color_fit_score(card_row, profile, draft_context):
     if bot_is_basic_land(card_row):
         return -999.0
@@ -709,6 +712,7 @@ def bot_score_card(card_row, profile, draft_context):
     }
 
 
+# *** BOT PICK - Select the Next Card ***
 def choose_bot_draft_pick(available_cards, drafted_cards, player_row, draft_context):
     available_cards = list(available_cards or [])
 

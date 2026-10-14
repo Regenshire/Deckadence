@@ -1,3 +1,4 @@
+// *** APP BACKUPS - Export and Import User Content ***
 class ApplicationBackupController {
   constructor(panel) {
     this.panel = panel;
@@ -281,7 +282,7 @@ class ApplicationBackupController {
         this.setFeedback("running", "deliver");
         this.download.click();
         this.stage.textContent = "Export Complete";
-        this.message.textContent = state.result.warning_count ? state.result.message : "The ZIP file is ready. Your browser is handling the download.";
+        this.message.textContent = state.result.warning_count ? state.result.message : "Backup ready. Download started.";
         this.setFeedback("complete", "complete");
         window.iMomirToast?.success("Export to Zip complete.");
       }

@@ -1,3 +1,4 @@
+# *** RULES TEXT AI - Restore Text with Image Models ***
 import os
 import time
 

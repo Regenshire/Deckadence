@@ -1,3 +1,4 @@
+// *** PACK FORMATION - Animate Cards into Packs ***
 (() => {
   const stage = document.querySelector('.sim-pack-stage');
   const button = document.getElementById('packArtworkButton');

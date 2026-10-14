@@ -1,3 +1,4 @@
+// *** ALTERNATE IMAGES - Select and Manage Card Artwork ***
 window.iMomirImageUrl = function (rawUrl) {
   if (!rawUrl) return "";
 
@@ -31,13 +32,10 @@ for (const button of document.querySelectorAll(
     button.disabled = true;
 
     const message = turnOn
-      ? "Do you want to turn on Image Isolation?  This action will copy this collection's current alternate image settings into " +
-        "an independent library and future edits will be isolated to this collect. Cards added later " +
-        "will not inherit global alternates. Standard Scryfall and accepted-upscale " +
-        "fallback remain shared. You can turn isolation off later, which discards " +
-        "the isolated settings. Do you want to proceed?"
-      : "Do you want to turn Image Isolation off and discard this collection's isolated images? " +
-        "The deck will revert to using the global images again for each selected printing if you turn Image Isolation Off.";
+      ? "Copy the current alternate image choices for this collection. Changes will apply only here, " +
+        "and cards added later won't use shared alternate images. Standard and accepted upscaled " +
+        "images remain shared. Turning this off discards the separate image choices."
+      : "Discard this collection's separate image choices and return to shared images?";
 
     try {
       const confirmed = window.iMomirConfirm?.show

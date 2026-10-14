@@ -1,3 +1,4 @@
+// *** SETTINGS - Show and Save App Options ***
 document.addEventListener("DOMContentLoaded", function () {
   initializeRefreshCards();
   initializeSettingsConsole();
@@ -8,6 +9,7 @@ document.addEventListener("DOMContentLoaded", function () {
 // Optional downloader controls must not prevent the rest of Settings from loading.
 document.addEventListener("DOMContentLoaded", initializePackDownloader);
 
+// *** PACK ART - Download Pack Images ***
 function initializePackDownloader() {
   const modal = document.getElementById("packDownloaderModal");
   if (!modal) return;
@@ -280,6 +282,7 @@ function initializePackDownloader() {
   });
 }
 
+// *** CARD DATABASE - Download and Refresh Card Data ***
 function initializeRefreshCards() {
   const refreshButton = document.getElementById("refreshCardsButton");
   const forcedRefreshButton = document.getElementById(
@@ -538,6 +541,7 @@ function initializeRefreshCards() {
   pollRefreshStatus();
 }
 
+// *** SETTINGS GROUPS - Organize the Settings Page ***
 function initializeSettingsConsole() {
   const configForm = document.getElementById("configForm");
 
@@ -873,6 +877,7 @@ function initializeSettingsConsole() {
   });
 }
 
+// *** SETTINGS PANELS - Open and Close Sections ***
 function initializeConfigPanels() {
   const panels = document.querySelectorAll(".collapsible-panel");
 
@@ -894,6 +899,7 @@ function initializeConfigPanels() {
   });
 }
 
+// *** GAME MODES - Select the Active Game ***
 function initializeGameModeCards() {
   const gameModeLists = document.querySelectorAll(".game-mode-card-list");
   const momirInput = document.getElementById("momir_mode");
@@ -951,6 +957,7 @@ function initializeGameModeCards() {
   });
 }
 
+// *** SETTINGS SHORTCUTS - Open a Settings Section ***
 function initializeConfigShortcutNavigation() {
   const panels = document.querySelectorAll(".collapsible-panel");
 

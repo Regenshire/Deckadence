@@ -1,18 +1,21 @@
+{# *** CARD SEARCH - Search and Print Cards *** #}
 {% extends "base.html" %}
 
 {% block title %}Deckadence - Card Search{% endblock %}
 
+{# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='1') }}">
 {% endblock %}
 
+{# Page Content #}
 {% block content %}
 <div class="screen screen-medium card-search-themed">
     <div class="page-panel card-search-heading">
         <div class="card-search-eyebrow">CARDS / CARD SEARCH</div>
         <h1 class="page-title">Card Search</h1>
         <p class="page-subtitle">
-            Search for any card to print, or switch to Token mode to search tokens, emblems, planes, schemes, dungeons, and related game objects.
+            Find cards or tokens to print.
         </p>
 
     </div>

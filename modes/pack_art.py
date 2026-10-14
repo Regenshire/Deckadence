@@ -1,8 +1,4 @@
-"""Fill missing booster wrappers and product photos without changing existing art.
-
-Discovery, formatting and installation are independent of Flask and the database.
-Run ``python -m modes.pack_art --help`` for the preview/install workflow.
-"""
+# *** PACK ART - Find, Download, and Save Pack Images ***
 from __future__ import annotations
 
 import argparse
@@ -171,6 +167,7 @@ class _WpnArchive(RawIOBase):
         return data
 
 
+# *** PACK IMAGE SOURCES - Find Product Artwork ***
 class WpnPackArtSource:
     """Public English product-shot archives, with page images as a fallback.
 
@@ -406,6 +403,7 @@ class WpnPackArtSource:
         self.session.close()
 
 
+# *** PACK IMAGE FORMAT - Prepare Downloaded Artwork ***
 class PackArtFormatter:
     """Accept frontal wrappers and retain the complete image on a 400 x 694 canvas."""
 
@@ -512,6 +510,7 @@ class PackArtFormatter:
         return output.getvalue()
 
 
+# *** PACK IMAGE DOWNLOADS - Download and Save Artwork ***
 class PackArtDownloader:
     """Reusable service; providers implement discover() and image_bytes().
 
@@ -787,6 +786,7 @@ def product_art_relpath(set_code, product_type, static_folder, runtime_dir=RUNTI
     return None
 
 
+# *** DOWNLOAD JOBS - Track Progress and Cancellation ***
 class PackArtJobs:
     """One user-started worker. No requests, downloads or polling during gameplay."""
 

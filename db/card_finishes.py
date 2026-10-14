@@ -1,4 +1,4 @@
-"""Printing treatment metadata used by presentation, independent of prices."""
+# *** CARD FINISHES - Identify Normal, Foil, and Etched Cards ***
 import json
 import logging
 import os

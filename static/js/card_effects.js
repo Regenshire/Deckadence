@@ -1,3 +1,4 @@
+// *** CARD EFFECTS - Show Foil and Card Lighting Effects ***
 /* Shared, opt-in card presentation. No card rules, image requests, or input capture.
  * Mark an artwork wrapper data-card-effects and data-is-foil="0|1", or call
  * DeckadenceCardEffects.attach(wrapper, {finish: "normal"|"foil"|"surge"}).

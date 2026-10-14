@@ -1,3 +1,4 @@
+/* *** APP BACKUPS - Page Styles and Layout *** */
 .application-backup-panel { display: grid; gap: 0.85rem; width: 100%; min-width: 0; }
 .application-backup-panel p, .application-backup-panel h3 { margin: 0; }
 .application-backup-fields { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; }

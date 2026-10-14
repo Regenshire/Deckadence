@@ -1,3 +1,4 @@
+// *** APP MESSAGES - Show Card-Style Messages ***
 /* Reusable layered message card. Text is assigned as textContent, never HTML. */
 function deckadenceMessageCards({
     title = [], subtitle = [], number = '', category = '', edition = '', footer = '',

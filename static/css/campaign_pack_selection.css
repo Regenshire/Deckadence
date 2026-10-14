@@ -1,3 +1,4 @@
+/* *** PACK SELECTION - Pack Lists and Selection Controls *** */
 html[data-theme] .campaign-pack-selection{font:400 15px/1.4 Arial,sans-serif}
 .pack-selection-eyebrow{font:700 11px/1.4 Arial,sans-serif;letter-spacing:2px;text-transform:uppercase;color:var(--accent)}
 html[data-theme] .campaign-pack-selection .page-title{font:700 32px/1.3 Arial,sans-serif;margin:8px 0}html[data-theme] .campaign-pack-selection .page-subtitle{font:400 16px/1.5 Arial,sans-serif;margin:0;color:var(--muted)}

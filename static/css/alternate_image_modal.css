@@ -1,3 +1,4 @@
+/* *** ALTERNATE IMAGES - Page Styles and Layout *** */
 .imomir-isolation-toggle {
   display: inline-grid;
   grid-template-columns: 34px minmax(0, 1fr);

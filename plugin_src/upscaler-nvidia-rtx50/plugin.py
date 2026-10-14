@@ -1,3 +1,4 @@
+# *** UPSCALER PLUGIN - Handle Model and Image Commands ***
 import json
 import os
 import platform
@@ -47,6 +48,7 @@ HARDWARE_CAPABILITIES = {
 }
 
 
+# *** MODEL OPTIONS - Describe Available Model Features ***
 def build_model_contract(model):
     model_contract = dict(
         model
@@ -296,6 +298,7 @@ UPSCALE_MODELS = {
 }
 
 
+# *** APP COMMANDS - Read Requests and Write Results ***
 def read_payload():
     raw_input = sys.stdin.read()
 
@@ -347,6 +350,7 @@ def load_torch():
         )
 
 
+# *** HARDWARE - Check the Available Processing Device ***
 def build_hardware_status():
     torch, torch_error = load_torch()
 
@@ -831,6 +835,7 @@ def handle_upscale_test(payload):
         ),
     }
 
+# *** MODEL LIST - Show Available Upscaling Models ***
 def handle_models(payload):
     visible_model_ids = {
         "magic_card_ai_v3",
@@ -1005,6 +1010,7 @@ def apply_dev_source_indicator(
         "dev_source_indicator_applied"
     ] = True
 
+# *** IMAGE UPSCALING - Process a Card Image ***
 def handle_upscale(payload):
     model_id = str(
         payload.get(
@@ -1193,6 +1199,7 @@ def handle_upscale(payload):
 
     return result
 
+# *** BATCH UPSCALING - Process a Group of Images ***
 def handle_upscale_batch(payload):
     raw_items = payload.get(
         "items"
@@ -1402,6 +1409,7 @@ COMMAND_HANDLERS = {
 }
 
 
+# *** PLUGIN WORKER - Wait for App Commands ***
 def worker_main():
     for raw_line in sys.stdin:
         line = raw_line.strip()
@@ -1471,6 +1479,7 @@ def worker_main():
         )
 
 
+# *** PLUGIN STARTUP - Run the Requested Command ***
 def main():
     if len(sys.argv) < 2:
         raise ValueError(

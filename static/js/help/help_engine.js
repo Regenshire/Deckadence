@@ -1,3 +1,4 @@
+// *** HELP - Show Help for Page Controls ***
 (function () {
   if (window.DeckadenceHelp) {
     return;

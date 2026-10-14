@@ -1,3 +1,4 @@
+# *** UPSCALER MODELS - Locate and Download Model Files ***
 import hashlib
 import os
 import urllib.request

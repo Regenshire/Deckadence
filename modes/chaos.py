@@ -1,3 +1,4 @@
+# *** CHAOS DRAFT - Generate Packs and Manage Campaigns ***
 import json
 import os
 import random
@@ -28,6 +29,7 @@ from db.database import (
     get_selected_set_codes,
 )
 
+# *** PACK DETAILS - Build Names and Tracking Codes ***
 def get_pack_type_code_for_tracking(booster_name):
     value = (booster_name or "").strip().lower()
 
@@ -267,6 +269,7 @@ def build_default_chaos_pack_display_name(set_code, booster_name):
     )
 
 
+# *** PACK ART - Find Pack Images ***
 def get_chaos_pack_art_relpath(set_code, booster_name, static_folder):
     art_name = "sample" if (booster_name or "").strip().lower() in {"collector-sample", "collector sample"} else booster_name
     normalized_booster_key = normalize_chaos_booster_key(art_name)
@@ -438,6 +441,7 @@ def get_chaos_pack_art_image_src(image_path):
     return url_for("static", filename=clean_image_path)
 
 
+# *** PACK HISTORY - Track Opened Packs ***
 def clear_chaos_pack_history():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -504,6 +508,7 @@ def get_chaos_opened_pack_keys():
     return opened_keys
 
 
+# *** PACK SELECTION - Select Packs and Card Sheets ***
 def choose_weighted_row(rows, weight_key):
     candidate_rows = []
     total_weight = 0.0
@@ -1128,6 +1133,7 @@ def replace_basic_land_if_enabled(chosen_card, set_code, booster_name, sheet_nam
 
     return replacement_card
 
+# *** OPEN PACKS - Generate Cards and Save Session Results ***
 def open_chaos_pack_once(
     set_code,
     booster_name,
@@ -1786,6 +1792,7 @@ def normalize_custom_pack_card_name_for_lookup(card_name):
 
     return clean_name
 
+# *** CUSTOM PACKS - Read Card Lists and Build Previews ***
 def parse_custom_pack_decklist_text(decklist_text):
     parsed_cards = []
 
@@ -3106,6 +3113,7 @@ def build_chaos_pack_pdf_from_variant(
         include_pack_labels=include_pack_labels,
     )
 
+# *** SAVED PACKS - Store Packs and Link Them to Campaigns ***
 @isolation_operation
 def save_opened_chaos_pack_to_tracking_db(opened_pack=None, campaign_id=None):
     if opened_pack is None:
@@ -3854,6 +3862,7 @@ def get_tracked_chaos_pack_cards(tracked_pack_id):
 
     return cards
 
+# *** CAMPAIGNS - Create and Manage Campaigns ***
 def ensure_chaos_campaign_schema():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -4297,6 +4306,7 @@ def migrate_chaos_players_remove_global_unique_constraint(cursor):
     cursor.execute("DROP TABLE chaos_players")
     cursor.execute("ALTER TABLE chaos_players_new RENAME TO chaos_players")
 
+# *** PLAYERS - Create and Manage Campaign Players ***
 def ensure_campaign_player_schema():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -4959,6 +4969,7 @@ def import_campaign_players_from_campaign(source_campaign_id=None, target_campai
         "skipped_count": skipped_count,
     }
 
+# *** DRAFT GAMES - Manage Games and Selected Packs ***
 def ensure_chaos_draft_game_schema():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -5359,6 +5370,7 @@ def get_chaos_draft_game_display_label(draft_game):
 
     return f"Draft #{draft_number}"
 
+# *** CAMPAIGN HISTORY - Record and Display Pack Openings ***
 def record_campaign_pack_opening(tracked_pack_id, opened_by_player_id=None, opening_context="campaign_mode", campaign_id=None, draft_game_id=None):
     ensure_chaos_draft_game_schema()
 
@@ -5874,6 +5886,7 @@ def normalize_tracked_pack_id_list(raw_pack_ids):
 
     return pack_ids
 
+# *** PACK MANAGEMENT - Update and Remove Saved Packs ***
 def get_tracked_pack_management_rows(static_folder, search_text="", campaign_id=None):
     ensure_tracked_pack_campaign_schema()
 
@@ -6213,6 +6226,7 @@ def get_tracked_pack_state_by_id(tracked_pack_id):
         "cards": cards,
     }
 
+# *** PACK EXPORTS - Build Print Files and Card Lists ***
 @isolation_operation
 def build_tracked_packs_combined_pdf(
     tracked_pack_ids,

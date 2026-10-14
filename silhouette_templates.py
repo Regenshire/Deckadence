@@ -1,3 +1,4 @@
+# *** SILHOUETTE TEMPLATES - List and Upload Cutting Files ***
 import json
 import os
 import re
@@ -183,6 +184,7 @@ def _write_manifest_document(
     )
 
 
+# *** CUTTING FILES - List Available Templates ***
 def list_silhouette_templates(
     static_folder,
 ):
@@ -321,6 +323,7 @@ def get_silhouette_template_entry(
     return None
 
 
+# *** TEMPLATE UPLOADS - Save Custom Cutting Files ***
 def save_silhouette_template_upload(
     file_storage,
     name,

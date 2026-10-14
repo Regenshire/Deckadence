@@ -1,4 +1,4 @@
-"""Reusable content selection for backups and individual Deckadence exports."""
+# *** EXPORT SELECTION - Select the Data to Include in a Backup ***
 import json
 import sqlite3
 
@@ -47,6 +47,7 @@ class ExportSelection:
             return "decks"
         return "campaigns"
 
+    # *** EXPORT CONTENT - Collect Selected Records and Related Cards ***
     def prepare(self, connection, existing, tables, integer_ids, references, progress):
         connection.row_factory = sqlite3.Row
         self.integer_ids = integer_ids
@@ -138,6 +139,7 @@ class ExportSelection:
                 or self.enabled(self.group(table)) or bool(self.required.get(table))
                 or table in self.PACKS and bool(self.required.get("tracked_chaos_packs")))
 
+    # *** EXPORT FILTERS - Check Which Records to Include ***
     def allows(self, table, row):
         if table == "chaos_pack_art":
             return (self.enabled("custom_sets") and row.get("set_code") in self.ids.get("set_code", set())

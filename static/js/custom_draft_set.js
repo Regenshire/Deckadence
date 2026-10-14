@@ -1,3 +1,4 @@
+// *** CUSTOM SETS - Manage Cards and Generate Packs ***
 (function () {
   const customDraftSetManageForm = document.getElementById(
     "customDraftSetManageForm",
@@ -252,6 +253,7 @@
         )
       : null;
 
+  // *** CARD IMAGES - Load Visible Card Artwork ***
   function isCardImageElementEligible(imageElement) {
     if (!imageElement || !imageElement.isConnected) {
       return false;
@@ -537,6 +539,7 @@
     deferVisibleCurrentCardImages();
   }
 
+  // *** SAVED CHOICES - Read and Save Display Options ***
   function getClientSetting(settingKey, fallbackValue) {
     try {
       const storedValue = window.localStorage.getItem(settingKey);
@@ -654,6 +657,7 @@
       .join("/");
   }
 
+  // *** CARD FILTERS - Match Colors, Mana, and Rarity ***
   function rowMatchesColorFilter(row, selectedColorValues) {
     if (!selectedColorValues || !selectedColorValues.length) {
       return true;
@@ -1091,6 +1095,7 @@
     return lookup;
   }
 
+  // *** PACK PREVIEW - Generate and Save Packs ***
   function setGenerateStatus(messageText, isError) {
     if (!generateStatus) {
       return;
@@ -1395,6 +1400,7 @@
     ].join("");
   }
 
+  // *** CARD ROWS - Build and Update the Card List ***
   function createCurrentCardRowFromPayload(card) {
     if (!card) {
       return null;
@@ -1979,6 +1985,7 @@
     return row;
   }
 
+  // *** SELECTED CARDS - Change Categories and Remove Cards ***
   async function bulkAssignSpecialSlot() {
     const selectedIds = getSelectedCustomSetCardIds();
 
@@ -2165,6 +2172,7 @@
     }
   }
 
+  // *** CARD SORTING - Order the Visible Cards ***
   function getRarityRank(rarityValue, highToLow) {
     const cleanRarity = String(rarityValue || "").toLowerCase();
 
@@ -2355,6 +2363,7 @@
     return getVisibleCurrentCardRows().length;
   }
 
+  // *** SET STATISTICS - Count Card Types and Colors ***
   function getPrimaryCardType(typeLine) {
     const cleanTypeLine = String(typeLine || "").toLowerCase();
 
@@ -2522,6 +2531,7 @@
     }
   }
 
+  // *** COPY CARDS - Build and Copy Card Lists ***
   function getFrontCardNameForExport(cardName) {
     const cleanCardName = String(cardName || "").trim();
 
@@ -2666,6 +2676,7 @@
     }
   }
 
+  // *** CARD DISPLAY - Arrange Filters and Card Views ***
   function setCurrentFiltersCollapsed(isCollapsed) {
     if (!currentCardTools) {
       return;

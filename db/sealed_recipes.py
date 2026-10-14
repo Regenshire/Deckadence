@@ -1,6 +1,4 @@
-"""Resolve published booster contents; non-booster extras never block opening."""
-
-
+# *** SEALED PRODUCTS - Read Product Contents ***
 class SealedRecipeCatalog:
     def __init__(self, all_sets):
         self.sets = all_sets

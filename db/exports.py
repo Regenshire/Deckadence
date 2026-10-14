@@ -1,3 +1,4 @@
+# *** EXPORTS - Export and Import Saved Packs and Campaigns ***
 import os
 import shutil
 import time
@@ -199,6 +200,7 @@ def delete_from_table_if_exists(cursor, table_name):
     return row_count
 
 
+# *** CLEANUP - Clear History, Packs, and Old Exports ***
 def clear_all_history_data():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -338,6 +340,7 @@ def auto_clear_export_root(auto_clear_exports_value):
         "days": clear_days,
     }
 
+# *** EXPORT DATA - Find Tables and Selected Records ***
 def get_sqlite_table_names():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -828,6 +831,7 @@ def filter_pack_membership_rows(
     return rows_by_table
 
 
+# *** EXPORT CONTENT - Collect Packs and Campaign Records ***
 def build_pack_rows_by_table(
     tracked_pack_ids=None,
     include_image_dependencies=True,
@@ -1148,6 +1152,7 @@ def merge_rows_by_identity(left_rows, right_rows):
 
     return list(merged_lookup.values())
 
+# *** PACK CHECKS - Check Pack Records Before Export ***
 def validate_portable_pack_integrity(
     rows_by_table,
     *,
@@ -1321,6 +1326,7 @@ def validate_portable_pack_integrity(
 
 
 
+# *** BACKUP FILES - Build the Export Contents ***
 def add_xml_field(row_element, field_name, field_value):
     field_element = ET.SubElement(row_element, "field")
     field_element.set("name", str(field_name))
@@ -1687,6 +1693,7 @@ def create_export_archive(
     }
 
 
+# *** CREATE EXPORTS - Write Pack and Campaign Backups ***
 @isolation_operation
 def export_packs_archive(
     tracked_pack_ids=None,
@@ -1821,6 +1828,7 @@ def export_full_archive(auto_clear_exports_value=None):
 
 
 
+# *** READ IMPORTS - Open Backup Contents ***
 def load_export_manifest_from_zip(zip_file):
     if MANIFEST_FILENAME not in zip_file.namelist():
         raise ValueError("Export archive does not contain manifest.xml.")
@@ -2189,6 +2197,7 @@ def remap_import_source_json(
     )
 
 
+# *** IMPORT RECORDS - Match Saved IDs to the Current Database ***
 def remap_portable_import_rows(
     rows_by_table,
     import_scope,
@@ -2976,6 +2985,7 @@ def prepare_isolated_archive_import(zip_file, root):
         for name, rows in tables.items()
     }
 
+# *** IMPORT BACKUPS - Restore the Selected Archive ***
 def import_archive_from_path(
     archive_path,
     import_scope,

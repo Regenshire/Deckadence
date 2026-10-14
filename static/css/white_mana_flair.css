@@ -1,3 +1,4 @@
+/* *** WHITE MANA THEME - Background and Decorative Details *** */
 /* Shared insert framing follows each theme's existing palette. */
 html[data-theme] {
   --insert-frame: color-mix(in srgb, var(--border) 75%, var(--accent) 25%);

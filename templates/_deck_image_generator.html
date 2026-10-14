@@ -1,3 +1,4 @@
+{# *** DECK ART - Deck Image Editor *** #}
 <div
   id="deckArtModal"
   class="campaign-add-pack-modal deck-art-modal hidden"
@@ -95,22 +96,6 @@
 
           <label class="deck-art-range-control">
             <span>
-              <strong>Horizontal</strong>
-              <output data-deck-art-x-output>Center</output>
-            </span>
-
-            <input
-              type="range"
-              min="-1"
-              max="1"
-              step="0.01"
-              value="0"
-              data-deck-art-x
-            />
-          </label>
-
-          <label class="deck-art-range-control">
-            <span>
               <strong>Vertical</strong>
               <output data-deck-art-y-output>Center</output>
             </span>
@@ -122,6 +107,22 @@
               step="0.01"
               value="0"
               data-deck-art-y
+            />
+          </label>
+
+          <label class="deck-art-range-control">
+            <span>
+              <strong>Horizontal</strong>
+              <output data-deck-art-x-output>Center</output>
+            </span>
+
+            <input
+              type="range"
+              min="-1"
+              max="1"
+              step="0.01"
+              value="0"
+              data-deck-art-x
             />
           </label>
 
@@ -194,7 +195,7 @@
               <strong>Choose or drop an image</strong>
 
               <span data-deck-art-upload-name>
-                PNG, JPEG, or WebP up to 16 MB
+                PNG, JPEG, or WebP up to {{ "%g" | format(global_deck_art_upload_max_mb) }} MB
               </span>
             </label>
           </div>

@@ -1,3 +1,4 @@
+# *** DRAFT DATABASE - Save Draft Sessions and Picks ***
 import random
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -53,6 +54,7 @@ def draft_test_normalize_optional_int(value):
         return None
 
 
+# *** DRAFT TABLES - Setup Draft Storage ***
 @lru_cache(maxsize=1)
 def ensure_draft_testing_schema():
     conn = get_db_connection()
@@ -334,6 +336,7 @@ def deactivate_existing_draft_tests(campaign_id=None):
     conn.close()
 
 
+# *** DRAFT SESSIONS - Create Sessions and Select Packs ***
 def create_draft_test_session(campaign_id=None, pod_size=8, packs_per_player=3, human_player_name="You"):
     ensure_draft_testing_schema()
 
@@ -908,6 +911,7 @@ def create_draft_test_session_from_pack_pool(
     }
 
 
+# *** DRAFT DETAILS - Read Cards, Players, and Picks ***
 def get_draft_test_full_card_stats(draft_test_id):
     ensure_draft_testing_schema()
 
@@ -1373,6 +1377,7 @@ def get_draft_test_virtual_player_detail(draft_test_id, draft_test_player_id=Non
         "picked_cards": picked_cards,
     }
 
+# *** DRAFT BOTS - Select Picks and Pass Packs ***
 def get_draft_test_pass_direction(pack_number):
     try:
         parsed_pack_number = int(pack_number)
@@ -1762,6 +1767,7 @@ def advance_draft_test_after_round(cursor, session_row, now_utc):
     )
 
 
+# *** PLAYER PICKS - Add Lands and Record Selections ***
 def get_basic_land_card_for_draft_test(cursor, land_name):
     clean_land_name = normalize_draft_test_basic_land_name(land_name)
 

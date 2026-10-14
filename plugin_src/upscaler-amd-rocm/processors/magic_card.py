@@ -1,3 +1,4 @@
+# *** CARD UPSCALING - Process Card Images ***
 import os
 import time
 

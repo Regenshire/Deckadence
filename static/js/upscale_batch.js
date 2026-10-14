@@ -1,3 +1,4 @@
+// *** BATCH UPSCALING - Select Cards and Show Processing Progress ***
 (function () {
   const START_URL = "/upscaling/batch/start";
 
@@ -15,7 +16,7 @@
   const ALTERNATE_MAX_MB_STORAGE_KEY =
     "deckadence_batch_upscale_alternate_max_mb";
 
-  const DEFAULT_ALTERNATE_MAX_MB = 4.0;
+  const DEFAULT_ALTERNATE_MAX_MB = window.DeckadenceDisplaySettings.alternateImageDefaultMaxMb;
 
   let overlay = null;
   let titleElement = null;
@@ -57,6 +58,7 @@
 
   let deleteConfirmationArmed = false;
 
+  // *** BATCH DIALOG - Build and Show the Upscaling Dialog ***
   function ensureModal() {
     if (overlay) {
       return;
@@ -211,7 +213,7 @@
     alternateMaxInput.min = "0.01";
     alternateMaxInput.max = "256";
     alternateMaxInput.step = "0.01";
-    alternateMaxInput.value = "4.00";
+    alternateMaxInput.value = DEFAULT_ALTERNATE_MAX_MB.toFixed(2);
     alternateMaxInput.className = "imomir-batch-upscale-alternate-max-input";
 
     const alternateMbText = document.createElement("span");
@@ -378,6 +380,7 @@
     }
   }
 
+  // *** BATCH CHOICES - Read and Save Model and Image Options ***
   function getSavedUpscaleModel() {
     try {
       return String(
@@ -465,6 +468,7 @@
     alternateMaxInput.disabled = !alternateCheckbox.checked;
   }
 
+  // *** UPSCALER MODELS - Load Available Choices ***
   async function loadBatchModels() {
     modelSelect.innerHTML = "";
     modelSelect.disabled = true;
@@ -564,6 +568,7 @@
     }
   }
 
+  // *** BATCH DISPLAY - Show Confirmation, Progress, and Results ***
   function setConfirmationMode(options) {
     pendingRequest = options;
     completionCallbackFired = false;
@@ -745,6 +750,7 @@
     return payload;
   }
 
+  // *** BATCH ACTIONS - Start Processing or Delete Images ***
   async function startPendingBatch() {
     if (!pendingRequest) {
       return;
@@ -940,6 +946,7 @@
     }
   }
 
+  // *** BATCH PROGRESS - Show the Current Job Status ***
   function renderStatus(status) {
     status = status || {};
 
@@ -1084,6 +1091,7 @@
     pollTimer = window.setTimeout(pollStatus, Number(delay || 750));
   }
 
+  // *** CARD SELECTION - Choose Cards or Packs to Process ***
   function requestCards(cardUuids, options) {
     const normalized = normalizeCardUuids(cardUuids);
 

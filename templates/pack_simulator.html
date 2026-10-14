@@ -1,5 +1,7 @@
+{# *** PACK SIMULATOR - Product Selection and Pack Opening *** #}
 {% extends 'base.html' %}
 {% block title %}Deckadence - Pack Simulator{% endblock %}
+{# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css') }}">
 <link rel="stylesheet" href="/static/css/card_views.css">
@@ -7,8 +9,9 @@
 <link rel="stylesheet" href="/static/css/basic_chaos_theme.css?v=3">
 <link rel="stylesheet" href="/static/css/sets_theme.css?v=3">
 <link rel="stylesheet" href="/static/css/pack_simulator.css?v=22">
-<script src="/static/js/pack_opening.js?v=3"></script>
+<script src="/static/js/pack_opening.js?v=4"></script>
 {% endblock %}
+{# Page Content #}
 {% block content %}
 <main id="chaosDraftScreen" class="screen screen-wide basic-chaos-screen pack-simulator" data-price-source="{{ price_source }}" data-value-source="{{ value_source }}" data-card-back="/static/img/mtg_back_custom_1.jpg">
   <div class="campaign-mode-title-row sim-title-row">
@@ -80,7 +83,7 @@
         <div class="sim-exclude-control"><label for="excludeLowCards"><input type="checkbox" role="switch" id="excludeLowCards"> Exclude cards below</label><span>$<input id="excludeBelow" type="number" min="0" max="1000000" step="0.01" value="2" aria-label="Minimum card value"></span></div>
         <div class="sim-highlights-heading"><h3>Top pulls</h3><select id="detailSource" aria-label="Top pulls price source"><option value="manapool">Mana Pool</option><option value="cardkingdom">Card Kingdom</option></select></div><div id="topPulls"></div>
         <details class="sim-price-list"><summary>All card prices</summary><div class="sim-price-table-wrap"><table><thead><tr><th>Card</th><th>MP</th><th>CK</th></tr></thead><tbody id="priceRows"></tbody></table></div></details>
-      </section><p class="sim-muted sim-small">USD · Card prices are near mint. Marketplace prices exclude shipping and tax.</p>
+      </section><p class="sim-muted sim-small">All prices in USD · Card prices are for Near Mint (NM) cards. Marketplace prices exclude shipping, tax, and fees.</p>
     </div>
   </aside>
 

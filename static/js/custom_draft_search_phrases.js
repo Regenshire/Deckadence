@@ -1,3 +1,4 @@
+// *** CUSTOM SET SEARCH - Build Card Search Choices ***
 (function () {
     "use strict";
 

@@ -1,3 +1,4 @@
+// *** THEME CATALOG - List Available App Themes ***
 /* Shared theme tokens for menus and Settings previews. */
 window.DeckadenceThemeCatalog = [
   {

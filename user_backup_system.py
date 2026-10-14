@@ -1,4 +1,4 @@
-"""Streamed portable archives containing user records and assets, never cards.db."""
+# *** USER BACKUPS - Export, Import, and Recover User Content ***
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -282,5 +282,6 @@ class UserBackupService(ArchiveOperations):
         raise ValueError("Portable user-content imports never replace the database at startup.")
 
 
+# *** IMPORT RECOVERY - Recover an Interrupted Backup Import ***
 def recover_interrupted_import():
     UserBackupService().recover_import()

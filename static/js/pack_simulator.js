@@ -1,3 +1,4 @@
+// *** PACK SIMULATOR - Select Products and Open Packs ***
 (() => {
   "use strict";
   const root = document.querySelector(".pack-simulator");
@@ -252,6 +253,7 @@
           ? "Open first pack"
           : "Open pack";
   }
+  // *** PRODUCT SELECTION - Choose a Product and Opening Size ***
   function updateProduct() {
     if (!selected) return;
     const box = currentBox();
@@ -460,6 +462,7 @@
     resetForProduct(productChanged);
     setBusy(false);
   };
+  // *** OPEN PRODUCTS - Create and Load Pack Openings ***
   async function openNew(all = false) {
     if (busy || !selected || selected.unavailable) return;
     const params = {
@@ -589,6 +592,7 @@
     setOpenLabel();
   }
   const orderedPacks = new Map();
+  // *** CARD DISPLAY - Sort and Show Pack Cards ***
   function orderedCards(pack) {
     if (orderedPacks.has(pack)) return orderedPacks.get(pack);
     const list = sortCards([...pack.cards].reverse());
@@ -892,6 +896,7 @@
     }
   };
   $("showAllCards").onchange = renderPack;
+  // *** REVEAL CARDS - Show Cards and Opening Effects ***
   function reveal(indices) {
     const focusIndex =
       document.activeElement.closest("[data-card-index]")?.dataset.cardIndex;
@@ -999,6 +1004,7 @@
     $("showAllCards").checked = true;
     renderPack();
   };
+  // *** SAVE PROGRESS - Remember Revealed Cards ***
   function queueSave() {
     if (!opening) return;
     rememberOpening();
@@ -1031,6 +1037,7 @@
       saving = false;
     }
   }
+  // *** PRODUCT PRICES - Load Card and Sealed Values ***
   function ensurePrices() {
     if (source === "none" || !opening) return;
     // Warm both quotes for the pack's upcoming reveals without displaying them.

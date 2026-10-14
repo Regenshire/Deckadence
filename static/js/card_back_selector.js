@@ -1,3 +1,4 @@
+// *** CARD BACKS - Select a Card Back ***
 (function () {
   const modal = document.getElementById("cardBackSelectorModal");
 

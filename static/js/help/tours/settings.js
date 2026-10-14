@@ -1,3 +1,4 @@
+// *** SETTINGS TOUR - Define the Settings Tour Steps ***
 (function () {
   if (!window.DeckadenceTours) {
     return;

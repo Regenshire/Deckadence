@@ -1,3 +1,4 @@
+# *** SHARED PAGE CONTROLS - Navigation, Filters, and Card Lists ***
 import json
 
 from urllib.parse import urlparse
@@ -5,6 +6,7 @@ from urllib.parse import urlparse
 from flask import request
 
 
+# *** PAGE NAVIGATION - Set Back and Forward Actions ***
 class UINavigation:
     """
     Standardized browser-style navigation actions for Deckadence UI pages.
@@ -149,6 +151,7 @@ class UINavigation:
             ),
         }
 
+# *** LIST FILTERS - Set Search and Filter Options ***
 class UIListFilter:
     """
     Reusable server-side filtering and sorting for small UI lists.
@@ -483,6 +486,7 @@ class UIListFilter:
             },
         }
 
+# *** CARD LISTS - Set Card Views and Display Options ***
 class UICardCollection:
     """
     Server-side configuration and normalization layer for reusable
@@ -1093,6 +1097,7 @@ ui_list_filter = UIListFilter()
 ui_navigation = UINavigation()
 
 
+# *** APP NAVIGATION - Add Navigation to Page Templates ***
 def register_ui_navigation(app):
     if app.extensions.get(
         "imomir_ui_navigation"

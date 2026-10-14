@@ -1,3 +1,4 @@
+// *** CARD RESULTS - Show the Selected Card ***
 document.addEventListener("DOMContentLoaded", function () {
     initializeResultFaces();
     initializeMomirSelectResultLinks();

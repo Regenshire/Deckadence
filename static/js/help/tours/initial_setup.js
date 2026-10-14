@@ -1,3 +1,4 @@
+// *** SETUP TOUR - Define the First-Time Setup Steps ***
 (function () {
   if (!window.DeckadenceTours) {
     return;

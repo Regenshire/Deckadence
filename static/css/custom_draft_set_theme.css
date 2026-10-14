@@ -1,3 +1,4 @@
+/* *** CUSTOM SETS - Page Colors and Layout *** */
 /* One scoped definition for the approved upper layout. Card rendering is untouched. */
 html[data-theme] .custom-set-heading{background:transparent;border:0;box-shadow:none;padding:0 4px 6px;margin:0}
 .custom-set-eyebrow{font:700 11px/1.4 Arial,sans-serif;letter-spacing:2px;color:var(--accent)}

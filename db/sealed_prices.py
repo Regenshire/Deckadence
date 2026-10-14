@@ -1,4 +1,4 @@
-"""Exact sealed-product quotes. Reads return immediately; refreshes run off-thread."""
+# *** SEALED PRICES - Download and Store Product Prices ***
 import logging
 import sqlite3
 import threading

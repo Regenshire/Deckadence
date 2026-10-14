@@ -1,3 +1,4 @@
+// *** CUSTOM SET TOUR - Define the Custom Set Tour Steps ***
 (function () {
   if (!window.DeckadenceTours) {
     return;

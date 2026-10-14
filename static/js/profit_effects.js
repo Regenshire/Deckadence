@@ -1,3 +1,4 @@
+// *** PACK VALUE EFFECTS - Animate Pack Value Results ***
 /* Decorative profit materials. Valuation never depends on this optional renderer. */
 (() => {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");

@@ -1,3 +1,4 @@
+// *** CAMPAIGN TOUR - Define the Campaign Tour Steps ***
 (function () {
   if (!window.DeckadenceTours) {
     return;

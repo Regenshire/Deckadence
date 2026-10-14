@@ -1,3 +1,4 @@
+# *** HOLOFOIL STAMPS - Draw and Replace Card Stamps ***
 import base64
 import io
 import re

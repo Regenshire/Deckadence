@@ -1,3 +1,4 @@
+# *** DATABASE - Store Settings, Cards, and Custom Sets ***
 import os
 import sqlite3
 import json
@@ -18,6 +19,7 @@ from settings import (
     DEFAULT_CONFIG,
 )
 
+# *** DATABASE CONNECTION - Open the Card Database ***
 def get_db_connection():
     db_parent = os.path.dirname(DATABASE_PATH)
     if db_parent and not os.path.exists(db_parent):
@@ -85,6 +87,7 @@ _isolation_mutex = threading.RLock()
 _isolation_local = threading.local()
 
 
+# *** SEPARATE CARD IMAGES - Protect Deck and Pack Artwork ***
 @contextmanager
 def isolation_guard(wait=True):
     acquired = _isolation_mutex.acquire(blocking=wait)
@@ -1064,6 +1067,7 @@ def repair_legacy_isolated_packs(*, apply=False):
             conn.rollback()
     return result
 
+# *** DATABASE SETUP - Create Tables and Add Missing Fields ***
 def initialize_database():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1781,6 +1785,7 @@ def initialize_database():
     restore_custom_draft_sets_to_sets_table()
 
 
+# *** APP SETTINGS - Read and Save Settings ***
 def get_config():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1838,6 +1843,7 @@ def update_config_values(updated_config):
     conn.close()
 
 
+# *** SELECTED SETS - Save Set Choices and Import Details ***
 def get_selected_set_codes():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -2008,6 +2014,7 @@ def restore_custom_draft_sets_to_sets_table():
     conn.commit()
     conn.close()
 
+# *** CUSTOM SETS - Read and Update Saved Sets ***
 def get_custom_draft_sets():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -2260,6 +2267,7 @@ CUSTOM_DRAFT_PACK_DEFAULT_SLOT_COUNT = 15
 CUSTOM_DRAFT_PACK_MIN_SLOT_COUNT = 1
 CUSTOM_DRAFT_PACK_MAX_SLOT_COUNT = 60
 
+# *** PACK LAYOUTS - Define and Save Custom Pack Slots ***
 def get_default_custom_draft_pack_slots():
     slots = []
 
@@ -2878,6 +2886,7 @@ def update_custom_draft_pack_layout(
         "slot_count": slot_count,
     }
 
+# *** PACK GENERATION - Filter and Select Cards ***
 def get_custom_draft_set_pack_card_pool(set_code):
     clean_set_code = normalize_custom_draft_set_code(set_code)
 
@@ -3547,6 +3556,7 @@ def generate_custom_draft_set_pack_cards(set_code, booster_name, batch_card_name
 
     return generated_cards
 
+# *** CUSTOM SET CARDS - List and Search Cards ***
 def get_custom_draft_set_card_rows(set_code, search_text=""):
     clean_set_code = normalize_custom_draft_set_code(set_code)
     clean_search_text = str(search_text or "").strip().lower()
@@ -4625,6 +4635,7 @@ def search_chaos_cards_for_custom_draft_import_list(set_code, import_items, limi
     conn.close()
     return result_rows
 
+# *** CUSTOM SET EDITING - Add and Update Cards ***
 def bulk_add_most_recent_cards_to_custom_draft_set(set_code, import_items):
     clean_set_code = normalize_custom_draft_set_code(set_code)
 

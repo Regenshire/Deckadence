@@ -1,3 +1,4 @@
+// *** CAMPAIGN SUMMARY - Show Packs and Player Results ***
 /* Display the completed spin's actual metadata, rather than scraping card labels. */
 (() => {
   const prompts = [

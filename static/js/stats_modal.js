@@ -1,3 +1,4 @@
+// *** CARD STATISTICS - Show Card Counts and Distributions ***
 (function () {
     function getElement(id) {
         return document.getElementById(id);

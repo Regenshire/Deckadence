@@ -1,3 +1,4 @@
+// *** CHAOS DRAFT - Spin and Open Packs ***
 document.addEventListener("DOMContentLoaded", function () {
   initializeChaosDraftPage();
 });
@@ -1993,13 +1994,13 @@ function initializeChaosDraftPage() {
 
         const packImage = document.querySelector(".chaos-pack-card-winning .chaos-pack-card-image");
         const alreadyOpen = inlinePackViewLoaded;
+        if (!alreadyOpen) inlineViewGrid.style.visibility = "hidden";
         await loadInlinePackView();
         if (!alreadyOpen) {
           inlineViewGrid.style.visibility = "hidden";
           await setPackRouletteExpanded(false);
           const openingTop = spinnerShell.closest(".campaign-draft-stage") || inlineViewPanel;
           openingTop.scrollIntoView({ behavior: "instant", block: "start" });
-          inlineViewGrid.style.visibility = "";
           await animatePackOpening(packImage);
         }
       } catch (error) {

@@ -1,4 +1,4 @@
-"""Map sealed product names to the image types used by the downloader."""
+# *** PRODUCT IMAGES - Match Images to Product Types ***
 import re
 
 

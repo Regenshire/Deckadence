@@ -15,6 +15,7 @@ Deckadence runs on your own PC and opens in a web browser. Your Deckadence datab
 - **Build custom sets, cubes, and drafts.** Create custom draft sets and chaos draft pools that use cards from any set.
 - **Run Chaos Drafts and manage packs.** Open boosters in the Chaos draft mode, build pre-printed pack pools, track opened packs, and use campaign and draft-testing tools.
 - **Build and manage decks.** Use the Deck Builder to organize cards, change printings, manage sideboards and basic lands, and prepare decks for playtesting or proxy printing.
+- **Pack Openings.** Use the Pack Simulator to get a virtual fix on opening packs! You can use it to see what sort of cards could be open, and how much you are likely to lose if you open a bunch of them. The recommendation from everyone is to Buy Singles. Hopefully this help fullfill that itch!
 - **Create high-quality proxy print files.** Generate PDFs using configurable print templates, card backs, bleed, cutting guides, multi-card sheets, pack labels, and Silhouette-compatible layouts.
 - **Control card artwork and printings.** Use existing artwork, select alternate printings, use alternate image sources, and optionally install AI upscaling plugins for higher-resolution proxy images.
 - **Keep everything local.** Deckadence is designed to run from your own PC without a Deckadence account or cloud database. Local backup/export tools are included, and the application can be shared with devices on your home network using the built-in QR code.

@@ -1,11 +1,14 @@
+{# *** PACK LAYOUT - Custom Pack Slot Editor *** #}
 {% extends "base.html" %}
 
 {% block title %}Deckadence - {{ booster_label }} Layout{% endblock %}
 
+{# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/custom_draft_pack_layout_theme.css', v='1') }}">
 {% endblock %}
 
+{# Page Content #}
 {% block content %}
 <div class="screen screen-wide custom-layout-themed">
     <div class="page-panel custom-layout-heading">
@@ -63,7 +66,7 @@
                 <div>
                     <h2>Slot Rules</h2>
                     <p class="page-subtitle">
-                        Each slot chooses one card using Color, Rarity, Special Slot Category, and Foil metadata.
+                        Choose the color, rarity, category, and foil rules for each slot.
                     </p>
                 </div>
 

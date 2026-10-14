@@ -1,4 +1,4 @@
-"""Shared archive safety, disk-space and cross-process locking helpers."""
+# *** BACKUP FILES - Create and Read Backup Archives ***
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -70,6 +70,7 @@ def _exclusive(method):
     return guarded
 
 
+# *** BACKUP OPERATIONS - Check Space and Handle Backup Files ***
 class ArchiveOperations:
     def __init__(self, runtime_root=None, bundle_root=None, app_version=""):
         self.root = Path(runtime_root or RUNTIME_BASE_DIR).resolve()

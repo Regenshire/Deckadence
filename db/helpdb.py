@@ -1,3 +1,4 @@
+# *** HELP PROGRESS - Save Completed Help and Tours ***
 import json
 import re
 from contextlib import closing

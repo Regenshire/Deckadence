@@ -1,3 +1,4 @@
+# *** UPSCALING FEEDBACK - Record Image Quality and Processing Details ***
 import hashlib
 import json
 import os

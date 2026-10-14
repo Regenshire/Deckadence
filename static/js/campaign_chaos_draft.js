@@ -1,3 +1,4 @@
+// *** CAMPAIGN DRAFT - Select and Open Campaign Packs ***
 (function () {
     const screen = document.getElementById("chaosDraftScreen");
     const newDraftButton = document.getElementById("campaignNewDraftButton");

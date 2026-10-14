@@ -1,3 +1,4 @@
+# *** TOWER OF POWER - Select Cards and Track Draws ***
 import os
 import random
 from datetime import datetime, timezone

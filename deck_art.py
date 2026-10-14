@@ -1,3 +1,4 @@
+# *** DECK ART - Draw Deck Covers and Inserts ***
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -191,6 +192,7 @@ class DeckArtRenderer:
             exist_ok=True,
         )
 
+    # *** DECK IMAGE FILES - Render and Reuse Saved Images ***
     def render_cached(
         self,
         spec: DeckArtSpec,
@@ -563,6 +565,7 @@ class DeckArtRenderer:
             " ",
             cleaned_text,
         ).strip()
+    # *** DECK IMAGE OPTIONS - Read Artwork and Text Choices ***
     def _normalize_spec(
         self,
         spec,
@@ -905,6 +908,7 @@ class DeckArtRenderer:
 
         return path
 
+    # *** DECK ARTWORK - Load and Position the Image ***
     def _load_artwork(
         self,
         scryfall_id,
@@ -1317,6 +1321,7 @@ class DeckArtRenderer:
 
         return fallback
 
+    # *** MANA SYMBOLS - Draw Deck Colors ***
     def _draw_mana_identity(
         self,
         image,
@@ -1663,6 +1668,7 @@ class DeckArtRenderer:
 
         return image
 
+    # *** DECK TEXT - Draw the Name and Other Labels ***
     def _draw_deck_name(
         self,
         draw,

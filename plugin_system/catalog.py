@@ -1,3 +1,4 @@
+# *** PLUGIN CATALOG - List Available Plugins ***
 PLUGIN_CATALOG = {
     "upscaler-nvidia-rtx50": {
         "plugin_id": (

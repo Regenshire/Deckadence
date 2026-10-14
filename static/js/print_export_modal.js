@@ -1,3 +1,4 @@
+// *** PRINT AND EXPORT - Select Print and Export Options ***
 (function () {
   function getElement(id) {
     return document.getElementById(id);

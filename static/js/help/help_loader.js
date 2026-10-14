@@ -1,3 +1,4 @@
+// *** HELP SETUP - Load Help and Tour Progress ***
 (function () {
   if (window.DeckadenceHelpLoader) {
     return;

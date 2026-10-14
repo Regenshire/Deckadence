@@ -1,3 +1,4 @@
+# *** PACK LABEL TEMPLATES - Define Pack Label Layouts ***
 PACK_LABEL_TEMPLATE_DEFAULT = "generic"
 
 PACK_LABEL_TEMPLATES = {

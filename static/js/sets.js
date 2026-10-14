@@ -1,7 +1,22 @@
+// *** SETS - Find and Select Card Sets ***
 document.addEventListener("DOMContentLoaded", function () {
   initializeSetsPage();
   initializeCustomDraftSetDeleteActions();
 });
+
+const SET_TYPE_LABELS = {
+  expansion: "Expansion", commander: "Commander", custom: "Custom", core: "Core",
+  draft_innovation: "Draft Innovation", masterpiece: "Masterpiece", promo: "Promos",
+  masters: "Masters", eternal: "Eternal", box: "Box", alchemy: "Alchemy",
+  memorabilia: "Memorabilia", funny: "Un-Sets", token: "Tokens", minigame: "Mini Games",
+  arsenal: "Arsenal", starter: "Starter", spellbook: "Spellbook", duel_deck: "Duel Decks",
+  from_the_vault: "From the Vault", archenemy: "Archenemy", planechase: "Planechase",
+  treasure_chest: "Treasure Chests", premium_deck: "Premium Decks", vanguard: "Vanguard"
+};
+const SET_TYPE_PRIORITY = ["expansion", "commander", "custom", "core", "draft_innovation", "masterpiece", "promo", "masters", "eternal", "box"];
+function setTypeLabel(type) {
+  return SET_TYPE_LABELS[type] || type.replace(/[_-]+/g, " ").replace(/\b\w/g, letter => letter.toUpperCase());
+}
 
 function initializeSetsPage() {
   const allSetsCheckbox = document.getElementById("allSetsEnabled");
@@ -21,9 +36,49 @@ function initializeSetsPage() {
   );
   const setCheckboxes = document.querySelectorAll(".set-checkbox");
   const setRows = document.querySelectorAll(".set-row");
+  const selectedTypes = new Set();
 
   if (!allSetsCheckbox || !setsListWrapper) {
     return;
+  }
+
+  if (setTypeFilter) {
+    const options = setTypeFilter.querySelector(".sets-type-options");
+    const summary = document.getElementById("setTypeSummary");
+    const available = [...new Set(Array.from(setRows, row => row.dataset.setType).filter(Boolean))];
+    const types = [...SET_TYPE_PRIORITY.filter(type => available.includes(type)),
+      ...available.filter(type => !SET_TYPE_PRIORITY.includes(type)).sort((a, b) => setTypeLabel(a).localeCompare(setTypeLabel(b)))];
+    const controls = [];
+    let dividerAdded = false;
+    ["", ...types].forEach(type => {
+      if (type && !SET_TYPE_PRIORITY.slice(0, 4).includes(type) && !dividerAdded) {
+        options.append(document.createElement("hr"));
+        dividerAdded = true;
+      }
+      const label = document.createElement("label");
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = type;
+      checkbox.checked = !type;
+      label.append(checkbox, document.createTextNode(type ? setTypeLabel(type) : "All Types"));
+      options.append(label);
+      controls.push(checkbox);
+      checkbox.addEventListener("change", () => {
+        if (!type) selectedTypes.clear();
+        else if (checkbox.checked) selectedTypes.add(type);
+        else selectedTypes.delete(type);
+        controls.forEach(control => { control.checked = control.value ? selectedTypes.has(control.value) : selectedTypes.size === 0; });
+        const labels = types.filter(value => selectedTypes.has(value)).map(setTypeLabel);
+        summary.textContent = labels.length ? labels.join(", ") : "All Types";
+        filterSetRows();
+      });
+    });
+    setTypeFilter.addEventListener("keydown", event => {
+      if (event.key === "Escape") { setTypeFilter.open = false; setTypeFilter.querySelector("summary").focus(); }
+    });
+    document.addEventListener("click", event => {
+      if (!setTypeFilter.contains(event.target)) setTypeFilter.open = false;
+    });
   }
 
   function updateSelectionSummary() {
@@ -97,9 +152,6 @@ function initializeSetsPage() {
     const searchValue = setSearchInput
       ? setSearchInput.value.trim().toLowerCase()
       : "";
-    const typeValue = setTypeFilter
-      ? setTypeFilter.value.trim().toLowerCase()
-      : "";
     const startYear = setYearStart ? Number(setYearStart.value) : 1993;
     const endYear = setYearEnd ? Number(setYearEnd.value) : 9999;
 
@@ -111,7 +163,7 @@ function initializeSetsPage() {
 
       const matchesSearch =
         searchValue === "" || haystack.includes(searchValue);
-      const matchesType = typeValue === "" || rowType === typeValue;
+      const matchesType = selectedTypes.size === 0 || selectedTypes.has(rowType);
       const matchesYear =
         rowYearText === "" ||
         (Number.isFinite(rowYear) &&
@@ -174,9 +226,6 @@ function initializeSetsPage() {
     setSearchInput.addEventListener("input", filterSetRows);
   }
 
-  if (setTypeFilter) {
-    setTypeFilter.addEventListener("change", filterSetRows);
-  }
 
   if (setYearStart) {
     setYearStart.addEventListener("input", function () {

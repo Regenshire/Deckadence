@@ -1,6 +1,7 @@
+// *** CARD SIZES - Set Displayed Card Sizes ***
 /* Shared Card Size choices and the standard four-column, 1400px card width. */
 (() => {
-  const values = Object.freeze([50, 75, 90, 100, 110, 125, 150, 175, 200]);
+  const values = Object.freeze(window.DeckadenceDisplaySettings.cardSizePercentages);
   function normalize(value) {
     const number = Number(value);
     return Number.isFinite(number)

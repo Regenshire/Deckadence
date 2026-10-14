@@ -1,3 +1,4 @@
+/* *** APP THEMES - Page Styles and Layout *** */
 /* Shared appearance foundation. Dark/Backup deliberately retain legacy surfaces. */
 :root { --theme-tile: none; }
 /* A single body-owned layer keeps opacity independent of app content. */

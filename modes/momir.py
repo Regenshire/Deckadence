@@ -1,3 +1,4 @@
+# *** MOMIR - Filter Cards and Select a Random Card ***
 from settings import (
     PRIMARY_TYPE_KEYS,
     SUPPLEMENTAL_TYPE_KEYS,

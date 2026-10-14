@@ -1,3 +1,4 @@
+/* *** CHAOS DRAFT - Page Colors and Layout *** */
 html[data-theme] #chaosDraftScreen.basic-chaos-screen .basic-chaos-heading{padding:8px 4px 24px;flex:none}
 html[data-theme] #chaosDraftScreen.basic-chaos-screen .chaos-draft-header-panel{background:var(--panel);border:0;box-shadow:none;border-radius:22px 22px 0 0;margin:0;padding:24px 30px}
 html[data-theme] #chaosDraftScreen.basic-chaos-screen .chaos-draft-header-layout{display:flex;justify-content:space-between;align-items:center;gap:24px}

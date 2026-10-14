@@ -1,5 +1,4 @@
-"""Validated custom SVG uploads and shared emblem preferences."""
-
+# *** EMBLEMS - Set Colors, Positions, and Custom Artwork ***
 import base64
 
 import io

@@ -1,3 +1,4 @@
+# *** PRINT TEMPLATES - Load Templates and Calculate Page Layouts ***
 import configparser
 import os
 import re
@@ -82,6 +83,7 @@ class PrintTemplate:
 
         return False
 
+# *** TEMPLATE LIBRARY - Load Templates and Build Layouts ***
 class PrintTemplateRegistry:
     def __init__(self, template_dirs=None):
         self._template_dirs = tuple(
@@ -176,6 +178,7 @@ class PrintTemplateRegistry:
         self.reload()
         return True
 
+    # *** LOAD TEMPLATES - Read the Template Files ***
     def reload(self):
         templates = {}
         template_sources = {}
@@ -630,6 +633,7 @@ class PrintTemplateRegistry:
             ),
         )
 
+    # *** CARD POSITIONS - Calculate Card Placement ***
     def _build_grid_slots(
         self,
         parser,
@@ -980,6 +984,7 @@ _registry = None
 _registry_lock = threading.Lock()
 
 
+# *** SHARED TEMPLATES - Get the Template Library ***
 def get_print_template_registry(
     reload=False,
 ):
@@ -1278,6 +1283,7 @@ def _normalize_rotation(value):
     return rotation
 
 
+# *** TEMPLATE SETTINGS - Read Print and Cutting Options ***
 def _read_metadata(parser):
     if not parser.has_section(
         "Metadata"

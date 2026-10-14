@@ -1,3 +1,4 @@
+# *** CARD FRAMES - Define Frame Areas and Image Positions ***
 FRAME_PROFILES = {
     "normal_1993": {
         "profile_id": (

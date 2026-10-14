@@ -1,3 +1,4 @@
+# *** GENERATED BLEED - Add Borders Around Card Images ***
 import os
 
 from PIL import (
@@ -8,10 +9,11 @@ from PIL import (
 )
 
 
-CARD_WIDTH_MM = 63.0
-CARD_HEIGHT_MM = 88.0
-
-DEFAULT_BLEED_MM = 3.0
+from settings import (
+    STANDARD_CARD_WIDTH_MM as CARD_WIDTH_MM,
+    STANDARD_CARD_HEIGHT_MM as CARD_HEIGHT_MM,
+    GENERATED_IMAGE_BLEED_MM as DEFAULT_BLEED_MM,
+)
 
 SYNTHETIC_BLEED_MODEL_ID = (
     "imomir_synthetic_frame_bleed_v1"
@@ -304,6 +306,7 @@ def median_rgb(
     )
 
 
+# *** CARD EDGES - Sample Colors Around the Card ***
 def sample_edge_reference_colors(
     image,
     corner_radius_px,
@@ -470,6 +473,7 @@ def build_valid_card_mask(
     return mask
 
 
+# *** CARD CORNERS - Repair Corners Before Adding Bleed ***
 def repair_synthetic_corners(
     source_image,
     radius_px,
@@ -837,6 +841,7 @@ def fill_outer_corner(
     )
 
 
+# *** DRAW BLEED - Extend the Card Borders ***
 def render_synthetic_fullbleed(
     source_image,
     bleed_size_mm,
@@ -1067,6 +1072,7 @@ KNOWN_ALWAYS_SYNTHETIC_FRAME_KEYS = {
 }
 
 
+# *** BLEED CHOICE - Check Card Edges and Select a Method ***
 def measure_edge_complexity(
     image,
     edge_name,
@@ -1392,6 +1398,7 @@ def refine_bleed_strategy_from_pixels(
     )
 
 
+# *** SAVE BLEED - Build the Finished Image ***
 def build_generated_bleed_derivative(
     *,
     source_path,

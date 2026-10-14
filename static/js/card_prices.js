@@ -1,3 +1,4 @@
+// *** CARD PRICES - Show Card Values ***
 /* Price refreshes are independent from card rendering, selection and animations. */
 (() => {
   "use strict";

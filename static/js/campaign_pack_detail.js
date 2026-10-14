@@ -1,3 +1,4 @@
+// *** PACK DETAILS - Show and Edit Pack Cards ***
 (function () {
   const campaignPackDetailScreen = document.getElementById(
     "campaignPackDetailScreen",

@@ -1,3 +1,4 @@
+# *** PLUGIN MANAGER - Install, Remove, and Run Plugins ***
 import atexit
 import json
 import os
@@ -41,6 +42,7 @@ PLUGIN_WORKERS = {}
 PLUGIN_WORKERS_LOCK = threading.Lock()
 
 
+# *** PLUGIN FILES - Locate Plugins and Read Their Details ***
 def ensure_plugin_directories():
     os.makedirs(
         PLUGIN_ROOT_DIR,
@@ -337,6 +339,7 @@ def get_plugin_runtime_context(
 
     return None
 
+# *** PLUGIN STATUS - Check Installed Plugins ***
 def get_plugin_status(
     plugin_id,
 ):
@@ -575,6 +578,7 @@ def get_plugin_install_status(
     return current_status
 
 
+# *** PLUGIN INSTALLATION - Unpack Files and Install Requirements ***
 def _safe_extract_zip(
     zip_path,
     destination_dir,
@@ -1245,6 +1249,7 @@ def _install_plugin_worker(
         )
 
 
+# *** INSTALL CONTROLS - Start Installation and Remove Plugins ***
 def start_plugin_install(
     plugin_id,
 ):
@@ -1394,6 +1399,7 @@ def _stop_all_plugin_workers():
         )
 
 
+# *** RUN PLUGINS - Send Commands and Read Results ***
 def _get_plugin_worker(
     plugin_id,
     runtime_context,

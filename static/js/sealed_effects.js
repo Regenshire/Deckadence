@@ -1,3 +1,4 @@
+// *** SEALED PRODUCT EFFECTS - Animate Product Results ***
 /* Optional presentation only. Saved pack contents never depend on animation. */
 (() => {
   const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;

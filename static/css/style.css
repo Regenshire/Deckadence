@@ -1,3 +1,4 @@
+/* *** APP STYLES - Shared Page Layout and Controls *** */
 :root {
   --bg: #101114;
   --panel: #1a1c21;
@@ -220,10 +221,7 @@ input {
   color: #ffffff;
 }
 
-/* ==========================================
-   Hierarchical Main Navigation
-   ========================================== */
-
+/* *** HIERARCHICAL MAIN NAVIGATION *** */
 .app-tabs {
   position: relative;
   z-index: 1500;
@@ -779,10 +777,7 @@ input {
   }
 }
 
-/* ==========================================
-   Main Navigation Refinements
-   ========================================== */
-
+/* *** MAIN NAVIGATION REFINEMENTS *** */
 /*
  * Let the navigation consume all horizontal space.
  * Settings uses margin-left:auto below, which pushes
@@ -1025,10 +1020,7 @@ input {
   }
 }
 
-/* ==========================================
-   Collapsible Main Navigation
-   ========================================== */
-
+/* *** COLLAPSIBLE MAIN NAVIGATION *** */
 .app-tabs {
   transition:
     padding 0.18s ease,
@@ -1163,10 +1155,7 @@ input {
   }
 }
 
-/* ==========================================
-   Main Navigation During Modal Views
-   ========================================== */
-
+/* *** MAIN NAVIGATION DURING MODAL VIEWS *** */
 /*
  * Keep the complete navigation below active blocking overlays, including
  * dialogs inside fixed workspaces. Preserve its layout and saved state.
@@ -3892,10 +3881,7 @@ body:has(
   background: var(--button-hover);
 }
 
-/* ==========================================
-   Typed Destructive Confirmation Modal
-   ========================================== */
-
+/* *** TYPED DESTRUCTIVE CONFIRMATION MODAL *** */
 .deckbuilder-delete-deck-dialog,
 .typed-delete-dialog {
   width: min(100%, 560px);
@@ -5733,10 +5719,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Campaign History
-   ========================================== */
-
+/* *** CAMPAIGN HISTORY *** */
 .campaign-history-filter-panel {
   padding: 16px;
 }
@@ -6039,10 +6022,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Manage Packs - Import Packs from Campaign
-   ========================================== */
-
+/* *** MANAGE PACKS - IMPORT PACKS FROM CAMPAIGN *** */
 .campaign-add-pack-options {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -6144,10 +6124,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Manage Packs - Summary Modal
-   ========================================== */
-
+/* *** MANAGE PACKS - SUMMARY MODAL *** */
 .campaign-draft-testing-dialog {
   max-width: 760px;
 }
@@ -6243,10 +6220,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Test Draft Virtual Users
-   ========================================== */
-
+/* *** TEST DRAFT VIRTUAL USERS *** */
 .campaign-test-draft-virtual-dialog {
   width: 90vw;
   height: 90vh;
@@ -6571,10 +6545,7 @@ body:has(
     grid-template-columns: 1fr;
   }
 }
-/* ==========================================
-   Test Draft Workspace
-   ========================================== */
-
+/* *** TEST DRAFT WORKSPACE *** */
 .campaign-test-draft-workspace {
   --campaign-test-draft-side-width: 340px;
   --campaign-test-draft-deck-flex: 0.55;
@@ -8470,10 +8441,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Sets
-   ========================================== */
-
+/* *** CUSTOM DRAFT SETS *** */
 .custom-draft-set-add-panel {
   margin-top: 16px;
   margin-bottom: 16px;
@@ -8650,10 +8618,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Set Card List
-   ========================================== */
-
+/* *** CUSTOM DRAFT SET CARD LIST *** */
 .custom-draft-card-list-header {
   display: flex;
   align-items: flex-start;
@@ -8987,10 +8952,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Set Card List Refinements
-   ========================================== */
-
+/* *** CUSTOM DRAFT SET CARD LIST REFINEMENTS *** */
 .custom-draft-current-card-row {
   align-items: end;
 }
@@ -9218,10 +9180,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Pack Layout Editor
-   ========================================== */
-
+/* *** CUSTOM DRAFT PACK LAYOUT EDITOR *** */
 .custom-draft-layout-header-row {
   display: flex;
   justify-content: space-between;
@@ -9411,10 +9370,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Pack Generation
-   ========================================== */
-
+/* *** CUSTOM DRAFT PACK GENERATION *** */
 .custom-draft-pack-layout-actions {
   display: flex;
   align-items: center;
@@ -9503,10 +9459,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Advanced Card Search
-   ========================================== */
-
+/* *** CUSTOM DRAFT ADVANCED CARD SEARCH *** */
 .custom-draft-search-builder-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -9526,10 +9479,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Search Panel Maximize
-   ========================================== */
-
+/* *** CUSTOM DRAFT SEARCH PANEL MAXIMIZE *** */
 .custom-draft-card-search-meta-line {
   color: var(--muted);
   font-size: 0.88rem;
@@ -9560,10 +9510,7 @@ body:has(
   overflow: hidden;
 }
 
-/* ==========================================
-   Custom Draft Add Cards Modal
-   ========================================== */
-
+/* *** CUSTOM DRAFT ADD CARDS MODAL *** */
 .custom-draft-add-card-launch-panel .custom-draft-card-list-header {
   align-items: center;
 }
@@ -9745,10 +9692,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Add Cards Grouped Results
-   ========================================== */
-
+/* *** CUSTOM DRAFT ADD CARDS GROUPED RESULTS *** */
 .custom-draft-card-search-group {
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -9897,10 +9841,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Add Cards Grouped Results Fix
-   ========================================== */
-
+/* *** CUSTOM DRAFT ADD CARDS GROUPED RESULTS FIX *** */
 .custom-draft-card-search-overlay:not(.hidden) {
   display: block;
 }
@@ -10079,10 +10020,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Bulk Import Search
-   ========================================== */
-
+/* *** CUSTOM DRAFT BULK IMPORT SEARCH *** */
 .custom-draft-bulk-import-panel {
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -10150,10 +10088,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Add Cards Group Added State
-   ========================================== */
-
+/* *** CUSTOM DRAFT ADD CARDS GROUP ADDED STATE *** */
 .custom-draft-card-search-group-added-pill {
   min-height: 28px;
   padding: 5px 10px;
@@ -10299,10 +10234,7 @@ body:has(
   color: #ffd0d0;
 }
 
-/* ==========================================
-   Custom Draft Current Card Bulk Selection
-   ========================================== */
-
+/* *** CUSTOM DRAFT CURRENT CARD BULK SELECTION *** */
 .custom-draft-current-selection-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -10398,10 +10330,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Set Card List Filter Collapse
-   ========================================== */
-
+/* *** CUSTOM DRAFT SET CARD LIST FILTER COLLAPSE *** */
 .custom-draft-current-card-tools {
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -10475,10 +10404,7 @@ body:has(
   transform: rotate(180deg);
 }
 
-/* ==========================================
-   Custom Draft Set Card List View Toggle / Grid View
-   ========================================== */
-
+/* *** CUSTOM DRAFT SET CARD LIST VIEW TOGGLE / GRID VIEW *** */
 .custom-draft-header-icon-button {
   width: 44px;
   min-width: 44px;
@@ -10597,10 +10523,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Set Card List Stats / Maximize
-   ========================================== */
-
+/* *** CUSTOM DRAFT SET CARD LIST STATS / MAXIMIZE *** */
 .custom-draft-card-list-header-actions {
   display: flex;
   align-items: center;
@@ -10828,10 +10751,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Custom Draft Set Card List Maximize Fill Fix
-   ========================================== */
-
+/* *** CUSTOM DRAFT SET CARD LIST MAXIMIZE FILL FIX *** */
 .custom-draft-set-card-list-panel-maximized {
   height: calc(100vh - 24px);
   max-height: calc(100vh - 24px);
@@ -10957,10 +10877,7 @@ body:has(
   }
 }
 
-/* ==========================================
-   Upscaled Image Indicator
-   ========================================== */
-
+/* *** UPSCALED IMAGE INDICATOR *** */
 .imomir-upscale-card-active {
   color: #7dff9f !important;
 }

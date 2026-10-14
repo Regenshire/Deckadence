@@ -1,3 +1,4 @@
+# *** RULES TEXT - Restore Card Text ***
 import os
 import time
 

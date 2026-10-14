@@ -1,3 +1,4 @@
+{# *** PACK DETAILS - Saved Pack Cards *** #}
 {% extends "base.html" %} {% block title %}Deckadence - Pack {{
 pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
 <link
@@ -516,5 +517,5 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
 <script src="{{ url_for('static', filename='js/campaign_pack_detail.js', v='card-effects-1') }}"></script>
 {% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
-<script src="{{ url_for('static', filename='js/upscale_batch.js') }}"></script>
+<script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
 {% endblock %}

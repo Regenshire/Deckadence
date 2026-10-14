@@ -1,4 +1,4 @@
-"""Local, reusable wrapper composition and conservative perspective correction."""
+# *** PACK ART - Draw Pack Wrappers and Correct Image Angles ***
 from io import BytesIO
 from pathlib import Path
 from statistics import median

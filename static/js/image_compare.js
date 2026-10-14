@@ -1,3 +1,4 @@
+// *** IMAGE COMPARISON - Compare Original and Upscaled Images ***
 (function () {
   let overlay = null;
   let titleElement = null;

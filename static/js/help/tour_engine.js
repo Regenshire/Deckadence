@@ -1,3 +1,4 @@
+// *** GUIDED TOURS - Show Tour Steps ***
 (function () {
   if (window.DeckadenceTours) {
     return;
