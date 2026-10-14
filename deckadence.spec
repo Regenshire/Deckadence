@@ -68,6 +68,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name='Deckadence',
+    icon=str(ROOT / 'static' / 'img' / 'Logos' / 'deckadence_d.ico'),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

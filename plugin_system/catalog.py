@@ -16,8 +16,8 @@ PLUGIN_CATALOG = {
             "graphics card."
         ),
         "requirements": (
-            "Windows; NVIDIA RTX 50 Series GPU; "
-            "Python 3.12 (64-bit)"
+            "Windows or Linux x86-64; NVIDIA RTX 50 Series GPU; "
+            "Python included"
         ),
 
         "github_owner": "Regenshire",
@@ -28,7 +28,7 @@ PLUGIN_CATALOG = {
         ),
 
         "release_asset_name": (
-            "deckadence-upscaler-nvidia.zip"
+            "deckadence-upscaler-nvidia-runtime.zip"
         ),
     },
 
@@ -47,8 +47,8 @@ PLUGIN_CATALOG = {
             "No NVIDIA GPU is required."
         ),
         "requirements": (
-            "Windows; 64-bit CPU; "
-            "Python 3.12 (64-bit)"
+            "Windows or Linux x86-64; 64-bit CPU; "
+            "Python included"
         ),
 
         "github_owner": "Regenshire",
@@ -59,7 +59,7 @@ PLUGIN_CATALOG = {
         ),
 
         "release_asset_name": (
-            "deckadence-upscaler-cpu.zip"
+            "deckadence-upscaler-cpu-runtime.zip"
         ),
     },
 
@@ -77,9 +77,9 @@ PLUGIN_CATALOG = {
             "AMD Radeon GPUs using ROCm/HIP."
         ),
         "requirements": (
-            "Windows 11 25H2; supported AMD "
+            "Windows 11 25H2 or supported Linux x86-64; AMD "
             "Radeon RX 7000 or RX 9000 GPU; "
-            "Python 3.12 (64-bit)"
+            "Python included"
         ),
 
         "github_owner": "Regenshire",
@@ -90,7 +90,7 @@ PLUGIN_CATALOG = {
         ),
 
         "release_asset_name": (
-            "deckadence-upscaler-amd-rocm.zip"
+            "deckadence-upscaler-amd-rocm-runtime.zip"
         ),
     },
 }

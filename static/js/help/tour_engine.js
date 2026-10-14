@@ -234,6 +234,7 @@
     }
 
     clearTarget() {
+      if (this.surgeHighlight) this.surgeHighlight.hidden = true;
       if (this.target) {
         this.target.classList.remove("deck-help-tour-target");
       }
@@ -266,6 +267,7 @@
     }
 
     hideTourUi() {
+      this.releaseDialog();
       this.clearTarget();
 
       if (this.panel) {
@@ -292,6 +294,24 @@
     }
 
     positionPanel(target) {
+      if (this.layer) {
+        if (!this.surgeHighlight) {
+          this.surgeHighlight = document.createElement("div");
+          this.surgeHighlight.className = "surge-highlight deck-help-surge-highlight";
+          this.surgeHighlight.setAttribute("aria-hidden", "true");
+        }
+        this.layer.prepend(this.surgeHighlight);
+        this.surgeHighlight.hidden = !target || !target.getClientRects().length;
+        if (!this.surgeHighlight.hidden) {
+          const rect = target.getBoundingClientRect();
+          Object.assign(this.surgeHighlight.style, {
+            left: `${rect.left}px`, top: `${rect.top}px`,
+            width: `${rect.width}px`, height: `${rect.height}px`,
+            borderRadius: getComputedStyle(target).borderRadius || "14px",
+          });
+        }
+      }
+
       if (!this.panel || this.panel.hidden) {
         return;
       }
@@ -359,6 +379,32 @@
       );
     }
 
+    releaseDialog() {
+      if (!this.dialog) return;
+      const dialog = this.dialog;
+      this.dialog = null;
+      dialog.removeEventListener("close", this.dialogCloseHandler);
+      this.layerHome.append(this.layer);
+      if (dialog.open) dialog.close();
+    }
+
+    prepareDialog(step) {
+      const dialog = step.dialog && document.querySelector(step.dialog);
+      if (this.dialog !== dialog) this.releaseDialog();
+      if (!dialog || this.dialog === dialog) return;
+      this.dialog = dialog;
+      dialog.append(this.layer);
+      this.dialogCloseHandler = () => this.skip();
+      dialog.addEventListener("close", this.dialogCloseHandler);
+      if (!dialog.open) document.querySelector(step.dialogOpener)?.click();
+    }
+
+    async skip() {
+      const step = this.getCurrentStep();
+      if (!step?.skipTo) return;
+      await this.moveToStep(this.findStepIndex(this.activeTour, step.skipTo));
+    }
+
     renderCurrentStep() {
       const step = this.getCurrentStep();
 
@@ -377,6 +423,7 @@
       this.body.textContent = step.body || "";
 
       this.backButton.hidden = this.stepIndex <= 0;
+      if (this.skipButton) this.skipButton.hidden = !step.skipTo;
 
       // Guided tours are informational. Never require a user action
       // before allowing them to continue.
@@ -396,6 +443,8 @@
 
         return;
       }
+
+      this.prepareDialog(step);
 
       const targetSelector = this.resolveStepTarget(step);
 
@@ -607,6 +656,10 @@
 
       this.stepIndex = nextIndex;
 
+      if (this.dialog && this.activeTour.steps[nextIndex].dialog !== `#${this.dialog.id}`) {
+        this.releaseDialog();
+      }
+
       await this.saveProgress("active");
 
       const step = this.getCurrentStep();
@@ -715,6 +768,9 @@
 
     initialize() {
       this.layer = document.getElementById("deckHelpLayer");
+      this.layerHome = this.layer?.parentElement;
+      this.skipButton = document.getElementById("deckHelpTourSkipButton");
+      this.skipButton?.addEventListener("click", () => this.skip());
 
       this.exitButton = document.getElementById("deckHelpExitButton");
 
@@ -736,6 +792,7 @@
 
       document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && this.activeTour) {
+          event.preventDefault();
           this.reset();
         }
       });

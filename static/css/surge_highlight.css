@@ -1,0 +1,13 @@
+/* Reusable decorative emphasis: add .surge-highlight to a positioned container.
+   For controls with existing pseudo-elements, use a separate overlay element. */
+.surge-highlight { position:relative; isolation:isolate; border-radius:var(--surge-radius,18px); box-shadow:0 0 18px color-mix(in srgb,var(--accent) 28%,transparent),0 0 34px color-mix(in srgb,var(--menuborder) 20%,transparent); }
+.surge-highlight::before { content:"";position:absolute;inset:-3px;border-radius:inherit;padding:3px;background-image:url('../img/card-effects/surge-foil.png'),linear-gradient(120deg,var(--accent),#54c5b4,#a07cda,var(--menuborder),var(--accent));background-size:150% 300%,300% 300%;background-blend-mode:soft-light;mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);mask-composite:exclude;pointer-events:none;animation:deckadence-surge-emphasis 9s ease-in-out infinite; }
+@keyframes deckadence-surge-emphasis {0%,100%{background-position:0% 0%,0% 50%;filter:brightness(1)}50%{background-position:100% 100%,100% 50%;filter:brightness(1.25)}}
+@media(prefers-reduced-motion:reduce){.surge-highlight::before{animation:none}}
+.deck-help-surge-highlight {position:fixed;pointer-events:none;z-index:-1;}
+html[data-theme] .deck-help-tour-target {outline:none!important;box-shadow:none!important;}
+html[data-theme] #homeScreen .home-card-lock {margin:0 -24px;padding:16px 24px;min-height:54px;border-top:1px solid var(--border);background:var(--panel-2);border-radius:0 0 18px 18px;}
+html[data-theme] #homeScreen .home-primary-card-setup {overflow:visible;border:2px solid transparent;border-radius:18px;background:var(--panel);padding:26px;box-shadow:0 0 18px color-mix(in srgb,var(--accent) 28%,transparent),0 0 34px color-mix(in srgb,var(--menuborder) 20%,transparent);}
+html[data-theme] #homeScreen .home-primary-card-setup .home-card-copy {color:var(--text)}
+html[data-theme] #homeScreen .home-primary-card-setup .home-card-copy p {color:var(--muted)}
+html[data-theme] #homeScreen .home-primary-card-setup .home-card-action {color:var(--theme-highlight)}

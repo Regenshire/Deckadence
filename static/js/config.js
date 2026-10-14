@@ -167,6 +167,9 @@ function initializePackDownloader() {
     modal.showModal();
     revision += 1;
     refresh();
+    document.dispatchEvent(new CustomEvent("deckadence:help-event", {
+      detail: { name: "pack_downloader_opened" },
+    }));
   });
   get("closePackDownloader").addEventListener("click", () => modal.close());
   modal.addEventListener("close", () => {
@@ -308,6 +311,7 @@ function initializeRefreshCards() {
   }
 
   let refreshPollTimer = null;
+  let refreshPollPending = false;
   let lastRefreshFinishedAtPrompted = null;
   let refreshObservedRunning = Boolean(refreshButton.disabled);
 
@@ -324,6 +328,28 @@ function initializeRefreshCards() {
   }
 
   function applyRefreshStatus(status) {
+    const progress = document.getElementById("refreshProgress");
+    const summary = document.getElementById("refreshProgressSummary");
+    const timing = document.getElementById("refreshTiming");
+    const total = Number(status.progress_total) || 0;
+    const current = Number(status.progress_current) || 0;
+    if (progress) {
+      progress.hidden = !status.is_running && status.stage !== "Complete";
+      progress.max = total || 1;
+      if (total) progress.value = Math.min(current, total);
+      else if (status.stage === "Complete") progress.value = 1;
+      else progress.removeAttribute("value");
+    }
+    if (summary) summary.textContent = total
+      ? `${current.toLocaleString()} of ${total.toLocaleString()} ${status.progress_unit || "items"} (${Math.floor(current / total * 100)}%)`
+      : status.is_running ? "Working — this stage has no measurable total yet." : "";
+    if (timing) {
+      const now = Date.now() / 1000;
+      const age = Math.max(0, Math.floor(now - (status.updated_epoch || now)));
+      const elapsed = Math.max(0, Math.floor((status.is_running ? now : status.updated_epoch) - status.started_epoch));
+      timing.textContent = status.started_epoch
+        ? `Elapsed: ${Math.floor(elapsed / 60)}m ${elapsed % 60}s · ${status.is_running ? `Server responding · Last progress update ${age}s ago` : status.stage}` : "";
+    }
     if (refreshStage) {
       refreshStage.textContent = status.stage || "Idle";
     }
@@ -388,6 +414,7 @@ function initializeRefreshCards() {
 
   async function fetchRefreshStatus() {
     const response = await fetch("/refresh-cards/status", {
+      signal: AbortSignal.timeout(15000),
       method: "GET",
       cache: "no-store",
       headers: {
@@ -403,14 +430,12 @@ function initializeRefreshCards() {
   }
 
   async function pollRefreshStatus() {
+    if (refreshPollPending) return;
+    refreshPollPending = true;
+    clearTimeout(refreshPollTimer);
     try {
       const status = await fetchRefreshStatus();
       applyRefreshStatus(status);
-
-      if (!status.is_running && refreshPollTimer) {
-        clearInterval(refreshPollTimer);
-        refreshPollTimer = null;
-      }
 
       if (
         refreshObservedRunning &&
@@ -425,6 +450,8 @@ function initializeRefreshCards() {
         window.alert("Card database download complete.");
       }
     } catch (error) {
+      const timing = document.getElementById("refreshTiming");
+      if (timing) timing.textContent = "Status unavailable — reconnecting. The download may still be running.";
       if (refreshError) {
         refreshError.textContent = error.message;
         refreshError.classList.remove("hidden");
@@ -436,6 +463,9 @@ function initializeRefreshCards() {
       }
 
       setRefreshRunningUi(false);
+    } finally {
+      refreshPollPending = false;
+      refreshPollTimer = setTimeout(pollRefreshStatus, 2000);
     }
   }
 
@@ -478,9 +508,6 @@ function initializeRefreshCards() {
 
       await pollRefreshStatus();
 
-      if (!refreshPollTimer) {
-        refreshPollTimer = setInterval(pollRefreshStatus, 1000);
-      }
     } catch (error) {
       setRefreshRunningUi(false);
 

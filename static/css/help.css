@@ -16,6 +16,7 @@
 .deck-help-layer[hidden],
 .deck-help-tooltip[hidden],
 .deck-help-tour-panel[hidden],
+.deck-help-tour-button[hidden],
 .deck-help-exit-button[hidden] {
   display: none !important;
 }
@@ -429,7 +430,7 @@ html[data-theme] :is(.deck-help-tour-button,.deck-help-exit-button) {
   box-shadow: none;
 }
 html[data-theme] .deck-help-tour-target {
-  outline: 2px solid var(--accent) !important;
+  outline: none !important;
   outline-offset: 0;
   border-radius: 14px !important;
   box-shadow: none !important;

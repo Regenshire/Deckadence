@@ -1,3 +1,7 @@
+param(
+    [string]$PythonRuntime = $env:DECKADENCE_PLUGIN_RUNTIME
+)
+
 $ErrorActionPreference = "Stop"
 
 Write-Host ""
@@ -20,7 +24,7 @@ $ManifestPath = Join-Path `
 
 $BuildRoot = Join-Path `
     $RepoRoot `
-    "build\upscaler-cpu"
+    ".dev_prompts\ai_work\build\upscaler-cpu"
 
 $DistRoot = Join-Path `
     $RepoRoot `
@@ -28,7 +32,7 @@ $DistRoot = Join-Path `
 
 $OutputZip = Join-Path `
     $DistRoot `
-    "deckadence-upscaler-cpu.zip"
+    "deckadence-upscaler-cpu-runtime.zip"
 
 
 Write-Host "[1/7] Checking plugin source..."
@@ -56,6 +60,13 @@ Write-Host "      Plugin version: $Version"
 Write-Host "      Source: $PluginSource"
 Write-Host ""
 
+
+if (-not $PythonRuntime) {
+    $RuntimeCache = Join-Path $RepoRoot ".dev_prompts/ai_work/python-runtime"
+    & python -B (Join-Path $PluginSrcRoot "package_runtime.py") --prepare $RuntimeCache
+    if ($LASTEXITCODE -ne 0) { throw "Could not download Python for the addon. See the error above." }
+    $PythonRuntime = Join-Path $RuntimeCache "python"
+}
 
 Write-Host "[2/7] Preparing clean build folder..."
 
@@ -151,6 +162,12 @@ Write-Host "      $($ProcessorFiles.Count) processor files copied."
 Write-Host ""
 
 
+Write-Host "Adding private Python runtime..."
+& (Join-Path $PythonRuntime "python.exe") -I (Join-Path $PluginSrcRoot "package_runtime.py") $PythonRuntime $BuildRoot
+if ($LASTEXITCODE -ne 0) {
+    throw "Private Python runtime packaging failed."
+}
+
 Write-Host "[5/7] Verifying package contents..."
 
 $PackageFiles = Get-ChildItem `
@@ -219,7 +236,7 @@ Write-Host "GitHub release tag:"
 Write-Host "  plugin-upscaler-cpu-v$Version"
 Write-Host ""
 Write-Host "GitHub asset name:"
-Write-Host "  deckadence-upscaler-cpu.zip"
+Write-Host "  deckadence-upscaler-cpu-runtime.zip"
 Write-Host ""
 Write-Host "========================================"
 Write-Host " Build completed successfully"

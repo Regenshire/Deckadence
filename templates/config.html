@@ -739,6 +739,9 @@
                     <div class="refresh-status-text">
                         <div><strong id="refreshStage">{{ refresh_status.get("stage", "Idle") }}</strong></div>
                         <div id="refreshMessage">{{ refresh_status.get("message", "No refresh has been run yet.") }}</div>
+                        <progress id="refreshProgress" aria-label="Current stage progress" hidden></progress>
+                        <div id="refreshProgressSummary" role="status"></div>
+                        <div id="refreshTiming"></div>
                         <div id="refreshError" class="refresh-error {% if not refresh_status.get('error') %}hidden{% endif %}">
                             {{ refresh_status.get("error", "") }}
                         </div>
@@ -2547,7 +2550,7 @@
 {% endblock %}
 
 {% block page_scripts_before_app %}
-<script src="{{ url_for('static', filename='js/config.js', v='reminders-first-8') }}"></script>
+<script src="{{ url_for('static', filename='js/config.js', v='refresh-progress-9') }}"></script>
 {% endblock %}
 
 {% block page_scripts_after_app %}

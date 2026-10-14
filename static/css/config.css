@@ -226,6 +226,16 @@
   padding: 12px 14px;
 }
 
+#refreshProgress {
+    display: block;
+    width: 100%;
+    height: 16px;
+    margin: 12px 0 6px;
+    accent-color: var(--accent, #6c9b64);
+}
+#refreshProgress[hidden] { display: none; }
+#refreshTiming { margin-top: 6px; font-size: 0.85em; opacity: 0.8; }
+
 .refresh-status-text {
   display: flex;
   flex-direction: column;

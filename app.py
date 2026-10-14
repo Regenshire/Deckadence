@@ -2557,6 +2557,12 @@ upscaling_batch_lock = threading.Lock()
 # *** BACKGROUND PROGRESS - Update Download and Image Status ***
 def set_refresh_status(**kwargs):
     with refresh_lock:
+        now = time.time()
+        if kwargs.get("stage", refresh_status.get("stage")) != refresh_status.get("stage"):
+            refresh_status.update(progress_current=0, progress_total=0, progress_unit="")
+        if kwargs.get("is_running") and kwargs.get("stage") == "Starting":
+            refresh_status["started_epoch"] = now
+        refresh_status["updated_epoch"] = now
         refresh_status.update(kwargs)
 
     try:
@@ -3088,7 +3094,7 @@ def parse_bool_csv(value):
     return str(value or "").strip().upper() == "TRUE"
 
 # *** CARD DATA - Import Sets and Booster Contents ***
-def ensure_chaos_pack_art_set_folders():
+def ensure_chaos_pack_art_set_folders(report_progress=False):
     os.makedirs(PACK_ART_DIR, exist_ok=True)
 
     conn = get_db_connection()
@@ -3109,7 +3115,11 @@ def ensure_chaos_pack_art_set_folders():
 
     created_count = 0
 
-    for row in rows:
+    for index, row in enumerate(rows, start=1):
+        if report_progress:
+            set_refresh_status(stage="Preparing Pack Artwork Storage",
+                message=f"Preparing artwork folder {index} of {len(rows)}.",
+                progress_current=index, progress_total=len(rows), progress_unit="folders")
         set_code = (row["set_code"] or "").strip().lower()
         if not set_code:
             continue
@@ -18137,11 +18147,12 @@ def download_scryfall_set_icons():
     if not set_items:
         raise ValueError("Scryfall sets response did not contain any set data.")
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    with closing(get_db_connection()) as conn:
+        ensure_column_exists(conn.cursor(), "sets", "scryfall_icon_svg_uri", "TEXT")
+        ensure_column_exists(conn.cursor(), "sets", "local_icon_svg_path", "TEXT")
+        conn.commit()
 
-    ensure_column_exists(cursor, "sets", "scryfall_icon_svg_uri", "TEXT")
-    ensure_column_exists(cursor, "sets", "local_icon_svg_path", "TEXT")
+    icon_updates = []
 
     downloaded_count = 0
     skipped_count = 0
@@ -18152,13 +18163,19 @@ def download_scryfall_set_icons():
         "Accept": "image/svg+xml,*/*;q=0.8",
     }
 
-    for set_item in set_items:
+    for index, set_item in enumerate(set_items, start=1):
         set_code = (set_item.get("code") or "").strip().upper()
         icon_svg_uri = (set_item.get("icon_svg_uri") or "").strip()
 
         if not set_code or not icon_svg_uri:
             skipped_count += 1
             continue
+
+        set_refresh_status(
+            stage="Downloading Set Icons",
+            message=f"Checking icon {index} of {len(set_items)} ({set_code}). Downloaded {downloaded_count}; kept or skipped {skipped_count}.",
+            progress_current=index - 1, progress_total=len(set_items), progress_unit="icons checked",
+        )
 
         local_filename = f"{safe_filename(set_code)}.svg"
         local_abs_path = os.path.join(set_icon_dir, local_filename)
@@ -18190,22 +18207,7 @@ def download_scryfall_set_icons():
             else:
                 skipped_count += 1
 
-            cursor.execute(
-                """
-                UPDATE sets
-                SET scryfall_icon_svg_uri = ?,
-                    local_icon_svg_path = ?
-                WHERE set_code = ?
-                """,
-                (
-                    icon_svg_uri,
-                    local_rel_path,
-                    set_code,
-                ),
-            )
-
-            if cursor.rowcount > 0:
-                updated_count += 1
+            icon_updates.append((icon_svg_uri, local_rel_path, set_code))
 
         except Exception as exc:
             skipped_count += 1
@@ -18214,8 +18216,14 @@ def download_scryfall_set_icons():
             )
             continue
 
-    conn.commit()
-    conn.close()
+    # Network requests must not hold the card database's write lock.
+    with closing(get_db_connection()) as conn:
+        cursor = conn.executemany(
+            "UPDATE sets SET scryfall_icon_svg_uri = ?, local_icon_svg_path = ? WHERE set_code = ?",
+            icon_updates,
+        )
+        updated_count = cursor.rowcount
+        conn.commit()
 
     append_refresh_detail_line(
         f"=== SCRYFALL SET ICONS COMPLETE === downloaded={downloaded_count}, skipped={skipped_count}, updated_sets={updated_count}"
@@ -18224,6 +18232,7 @@ def download_scryfall_set_icons():
     set_refresh_status(
         stage="Downloading Set Icons",
         message=f"Set icon sync complete. Downloaded {downloaded_count}; updated {updated_count} set rows.",
+        progress_current=len(set_items), progress_total=len(set_items), progress_unit="icons checked",
     )
 
     return {
@@ -18444,6 +18453,7 @@ def import_atomic_cards_into_database():
             set_refresh_status(
                 stage="Importing - DO NOT LEAVE PAGE",
                 message=f"Imported {imported_count} of {total_cards} atomic cards...",
+                progress_current=index, progress_total=total_cards, progress_unit="cards processed",
                 cards_processed=index,
                 cards_imported=imported_count,
                 sets_represented=len(represented_sets),
@@ -18761,7 +18771,7 @@ def run_refresh_job(force_download=False):
             sets_represented=imported_sets,
         )
 
-        created_pack_art_folders = ensure_chaos_pack_art_set_folders()
+        created_pack_art_folders = ensure_chaos_pack_art_set_folders(report_progress=True)
 
         summary = import_atomic_cards_into_database()
 
@@ -19065,6 +19075,13 @@ def help_save_progress():
             "ok": False,
             "message": str(exc),
         }), 400
+
+    except sqlite3.Error as exc:
+        write_error_log("HELP PROGRESS SAVE FAILED", exc=exc)
+        return jsonify({
+            "ok": False,
+            "message": "Tour progress could not be saved while the database is busy or unavailable. You can continue the guide and try again later.",
+        }), 503
 
     return jsonify({
         "ok": True,

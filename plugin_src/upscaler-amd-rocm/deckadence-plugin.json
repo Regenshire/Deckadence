@@ -4,7 +4,7 @@
   "plugin_id": "upscaler-amd-rocm",
   "plugin_type": "upscaler",
   "name": "AMD ROCm Upscaler",
-  "version": "0.1.0",
+  "version": "0.25.0",
   "entrypoint": "plugin.py",
   "requirements_file": "requirements.txt"
 }

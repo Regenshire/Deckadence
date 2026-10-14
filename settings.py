@@ -1,6 +1,9 @@
 # *** SETTINGS - App Defaults and Adjustable Values ***
 import secrets
 
+# Deckadance App Version
+APP_VERSION = "2.3.5"
+
 # Card sizes (millimeters)
 STANDARD_CARD_WIDTH_MM = 63.0
 STANDARD_CARD_HEIGHT_MM = 88.0
@@ -69,7 +72,6 @@ PRINT_EXPORT_PROGRESS_TTL_SECONDS = 15 * 60
 PRINT_EXPORT_PROGRESS_MAX_JOBS = 100
 
 # Application
-APP_VERSION = "2.3.3"
 GITHUB_RELEASE_OWNER = "Regenshire"
 GITHUB_RELEASE_REPO = "Deckadence"
 GITHUB_LATEST_RELEASE_API_URL = (

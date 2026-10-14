@@ -71,6 +71,12 @@ The packaged Windows release is the easiest way to use Deckadence. You do **not*
 
 You can also run **`Deckadence.exe`** directly. The Deckadence window will display the local and network addresses you can open in a browser.
 
+### Desktop and Start menu shortcuts
+
+After extracting Deckadence to the folder where you want to keep it, double-click **`Install_Shortcuts.bat`**. Choose **Desktop**, **Start menu**, or **Both**. No administrator access is required.
+
+The shortcuts start Deckadence and open your browser, preserving normal browser tabs. If you move the Deckadence folder, run the shortcut installer again to update them. You can remove a shortcut by deleting it; this does not remove Deckadence or your data.
+
 Deckadence normally uses:
 
 ```text
@@ -142,17 +148,19 @@ The exact address depends on the computer running Deckadence.
 
 ## 6. Optional: Install an Image Upscaler
 
-Deckadence provides seperate image upscaling addons. These optional addons all Deckadence to use local language models hosted on your PC to upscale images.
+Deckadence provides optional AI image upscalers that run locally on your PC.
 
 Compatible upscalers can be managed under:
 
-**Settings → Plugins → Plugin Manager**
+**Settings â†’ Plugins â†’ Plugin Manager**
 
-Upscaling plugins are installed separately from the main Deckadence application because the LLM libraries and hardware requirements are significantly larger than the core application.
+Choose an upscaler and select **Download & Install**. The bundled-runtime plugin packages include their own Python; Deckadence automatically downloads the selected upscaler's libraries and required models. No separate Python installation or terminal commands are needed. Keep an Internet connection available until installation finishes.
+
+These large libraries are downloaded only when you install an upscaler, keeping the main Deckadence download small. CPU upscaling does not require a dedicated GPU. NVIDIA and AMD upscalers require compatible graphics hardware and drivers.
 
 ## 7. Optional: Pack and product art downloader
 
-Open **Settings → Card Database → Pack Image Downloader** to download pack art files for sets you want to simulate opening.
+Open **Settings â†’ Card Database â†’ Pack Image Downloader** to download pack art files for sets you want to simulate opening.
 
 ---
 
@@ -168,17 +176,17 @@ Deckadence is intended for personal local network use only. It is not intended f
 
 ## Main Python Dependencies
 
-- **Flask** — application and web-interface framework
-- **Waitress** — local application server used by the packaged release
-- **Jinja2** — HTML template rendering
-- **Werkzeug** — Flask HTTP and utility support
-- **Pillow** — card, artwork, and image processing
-- **ReportLab** — PDF creation and print layouts
-- **pypdf** — PDF processing and combination
-- **Requests / urllib3** — downloads and communication with supported third-party data services
-- **qrcode / Pillow** — QR-code support
-- **CairoSVG** — SVG rendering used by artwork and set-icon workflows
-- **PyInstaller** — creates the packaged Windows application
+- **Flask** â€” application and web-interface framework
+- **Waitress** â€” local application server used by the packaged release
+- **Jinja2** â€” HTML template rendering
+- **Werkzeug** â€” Flask HTTP and utility support
+- **Pillow** â€” card, artwork, and image processing
+- **ReportLab** â€” PDF creation and print layouts
+- **pypdf** â€” PDF processing and combination
+- **Requests / urllib3** â€” downloads and communication with supported third-party data services
+- **qrcode / Pillow** â€” QR-code support
+- **CairoSVG** â€” SVG rendering used by artwork and set-icon workflows
+- **PyInstaller** â€” creates the packaged Windows application
 
 Deckadence also uses supporting Python packages including `blinker`, `certifi`, `charset-normalizer`, `click`, `colorama`, `idna`, `itsdangerous`, `MarkupSafe`, and `setuptools`. These are bundled or installed as part of the normal application/build requirements.
 
@@ -203,6 +211,37 @@ http://127.0.0.1:5000
 
 ---
 
+## Building a Windows Release
+
+Run `.dev_prompts/build_Deckadence_release.ps1` to build the application and check all three addons. An addon is rebuilt when its manifest version differs from the existing ZIP in `dist`, or the ZIP is missing or unreadable. Bump the addon's `deckadence-plugin.json` version when changing it. To force a same-version rebuild, remove its ZIP from `dist` first.
+
+Run this from your usual Deckadence PowerShell environment:
+
+```powershell
+.\.dev_prompts\build_Deckadence_release.ps1
+```
+
+The builder automatically downloads the small private Python copy needed for addon packages on the first build and reuses it afterwards. No extra setup or environment variables are needed. Use `-SkipAddons` to build only the application. Addon ZIPs remain separate from the application ZIP; this command builds packages but does not publish them.
+
+## Building Linux Upscaler Packages
+
+Inside x86-64 Linux or Ubuntu WSL, run `python3 -B plugin_src/build_linux_plugins.py`
+from the repository. Use `--plugin cpu`, `--plugin nvidia-rtx50`, or
+`--plugin amd-rocm` to build just one. Final ZIPs and checksums go in `dist/`,
+alongside the Windows releases. Temporary build files stay under
+`.dev_prompts/ai_work/linux-plugins/`.
+
+The builder bundles standalone Python 3.12. Libraries and models download when
+the user installs the plugin. Linux packages use CPU, CUDA 12.8, or ROCm 7.2
+PyTorch wheels. GPU drivers and compatible hardware are still required; verify
+health and an image upscale on the target machine before treating a release as
+tested. Linux support currently targets x86-64 only.
+
+Publish each `*-runtime-linux-x86_64.zip` alongside its Windows asset on the
+plugin release tag printed by the builder. The updated plugin manager selects
+the asset for the running operating system. Building packages does not publish
+them or establish GPU compatibility.
+
 # Privacy and Third-Party Services
 
 ## No Deckadence Telemetry
@@ -215,11 +254,11 @@ Deckadence does make normal Internet requests when you use features that require
 
 ## Services Used by Deckadence
 
-- **MTGJSON** — provides Magic card data, set information, booster definitions, and supported pricing data used to build Deckadence's local databases.
-- **Scryfall** — provides card images, bulk card information, set information, and set icons used by Deckadence image and card workflows.
-- **GitHub** — hosts Deckadence releases and optional plugin packages. Deckadence can check GitHub for a newer release and can download selected plugins from GitHub when requested.
-- **Moxfield** — used only when you choose Deckadence features that search for or import an external Moxfield deck.
-- **cdnjs / Font Awesome** — provides the Font Awesome icon stylesheet used by the browser interface.
+- **MTGJSON** â€” provides Magic card data, set information, booster definitions, and supported pricing data used to build Deckadence's local databases.
+- **Scryfall** â€” provides card images, bulk card information, set information, and set icons used by Deckadence image and card workflows.
+- **GitHub** â€” hosts Deckadence releases and optional plugin packages. Deckadence can check GitHub for a newer release and can download selected plugins from GitHub when requested.
+- **Moxfield** â€” used only when you choose Deckadence features that search for or import an external Moxfield deck.
+- **cdnjs / Font Awesome** â€” provides the Font Awesome icon stylesheet used by the browser interface.
 
 Third-party services are independent of Deckadence and are governed by their own availability, terms, and privacy practices.
 
@@ -293,7 +332,7 @@ Optional upscaling plugins use separately distributed open-source machine-learni
     alt="Deckadence Set Card List"
   >
   <br>
-  <em>Custom Set — Manage the cards in custom sets</em>
+  <em>Custom Set â€” Manage the cards in custom sets</em>
 </p>
 
 <p align="center">

@@ -4,7 +4,7 @@
   "plugin_id": "upscaler-cpu",
   "plugin_type": "upscaler",
   "name": "CPU Upscaler",
-  "version": "0.1.0",
+  "version": "0.25.0",
   "entrypoint": "plugin.py",
   "requirements_file": "requirements.txt"
 }

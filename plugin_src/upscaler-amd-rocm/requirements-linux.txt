@@ -1,0 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/rocm7.2
+
+torch==2.11.0+rocm7.2
+torchvision==0.26.0+rocm7.2
+
+spandrel==0.4.2
+safetensors==0.8.0
+einops==0.8.2

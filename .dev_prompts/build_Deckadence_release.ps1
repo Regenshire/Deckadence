@@ -1,4 +1,41 @@
+param(
+    [switch]$SkipAddons,
+    [string]$PythonRuntime = $env:DECKADENCE_PLUGIN_RUNTIME
+)
+
 $ErrorActionPreference = "Stop"
+
+function Test-AddonPackageCurrent {
+    param([string]$Path, [string]$PluginId, [string]$Version)
+
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $Archive = $null
+    $Reader = $null
+    try {
+        $Archive = [System.IO.Compression.ZipFile]::OpenRead($Path)
+        $ManifestEntry = $Archive.GetEntry("deckadence-plugin.json")
+        # Windows PowerShell's Compress-Archive writes backslash entry names.
+        $RuntimeEntry = $Archive.GetEntry("runtime/python.exe")
+        if (-not $RuntimeEntry) { $RuntimeEntry = $Archive.GetEntry("runtime\python.exe") }
+        if (-not $ManifestEntry -or -not $RuntimeEntry) {
+            return $false
+        }
+        $Reader = New-Object System.IO.StreamReader($ManifestEntry.Open())
+        $PackagedManifest = $Reader.ReadToEnd() | ConvertFrom-Json
+        return (
+            $PackagedManifest.plugin_id -ceq $PluginId -and
+            $PackagedManifest.version -ceq $Version -and
+            $PackagedManifest.bundled_runtime -eq $true
+        )
+    } catch {
+        # An unreadable or incomplete previous package must be rebuilt.
+        return $false
+    } finally {
+        if ($Reader) { $Reader.Dispose() }
+        if ($Archive) { $Archive.Dispose() }
+    }
+}
 
 Write-Host ""
 Write-Host "========================================"
@@ -32,6 +69,47 @@ $DistRoot = Join-Path `
 $AppDistDir = Join-Path `
     $DistRoot `
     "Deckadence"
+
+# Compare the version inside each existing ZIP with its source manifest.
+# No separate build-state file is needed, and standalone addon builds count too.
+$AddonBuilds = @()
+if (-not $SkipAddons) {
+    $AddonDefinitions = @(
+        @{ Id = "upscaler-cpu"; Script = "build_cpu_plugin.ps1"; Asset = "deckadence-upscaler-cpu-runtime.zip" },
+        @{ Id = "upscaler-nvidia-rtx50"; Script = "build_nvidia_plugin.ps1"; Asset = "deckadence-upscaler-nvidia-runtime.zip" },
+        @{ Id = "upscaler-amd-rocm"; Script = "build_amd_rocm_plugin.ps1"; Asset = "deckadence-upscaler-amd-rocm-runtime.zip" }
+    )
+    foreach ($Addon in $AddonDefinitions) {
+        $ManifestPath = Join-Path $RepoRoot "plugin_src/$($Addon.Id)/deckadence-plugin.json"
+        $Manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+        if ($Manifest.plugin_id -cne $Addon.Id -or [string]::IsNullOrWhiteSpace([string]$Manifest.version)) {
+            throw "Invalid addon ID or version in $ManifestPath"
+        }
+        $Addon.Version = [string]$Manifest.version
+        $Addon.Output = Join-Path $DistRoot $Addon.Asset
+        $Addon.Builder = Join-Path $RepoRoot "plugin_src/$($Addon.Script)"
+        if (Test-AddonPackageCurrent -Path $Addon.Output -PluginId $Addon.Id -Version $Addon.Version) {
+            Write-Host "Addon unchanged: $($Addon.Id) v$($Addon.Version)"
+        } else {
+            if (-not (Test-Path -LiteralPath $Addon.Builder -PathType Leaf)) {
+                throw "Addon builder not found: $($Addon.Builder)"
+            }
+            $AddonBuilds += $Addon
+            Write-Host "Addon queued: $($Addon.Id) v$($Addon.Version)"
+        }
+    }
+    if ($AddonBuilds.Count -gt 0) {
+        if (-not $PythonRuntime) {
+            $RuntimeCache = Join-Path $RepoRoot ".dev_prompts/ai_work/python-runtime"
+            & python -B (Join-Path $RepoRoot "plugin_src/package_runtime.py") --prepare $RuntimeCache
+            if ($LASTEXITCODE -ne 0) { throw "Could not download Python for the addons. See the error above." }
+            $PythonRuntime = Join-Path $RuntimeCache "python"
+        }
+        $PythonRuntime = (Resolve-Path -LiteralPath $PythonRuntime).Path
+    }
+} else {
+    Write-Host "Addon builds skipped (-SkipAddons)."
+}
 
 
 Write-Host "[1/6] Reading release version..."
@@ -199,6 +277,88 @@ Write-Host "      Copied:"
 Write-Host "      $StartBatDestination"
 Write-Host ""
 
+# Ship a per-user shortcut installer alongside the portable launcher.
+$ShortcutInstaller = @'
+param(
+    [ValidateSet("Desktop", "StartMenu", "Both")]
+    [string]$Location = "Both"
+)
+$ErrorActionPreference = "Stop"
+try {
+    $Launcher = Join-Path $PSScriptRoot "Start_Deckadence.bat"
+    $Executable = Join-Path $PSScriptRoot "Deckadence.exe"
+    if (-not (Test-Path -LiteralPath $Launcher) -or -not (Test-Path -LiteralPath $Executable)) {
+        throw "Extract the complete Deckadence ZIP first, then run this installer from the extracted folder."
+    }
+    $Destinations = @()
+    if ($Location -in @("Desktop", "Both")) {
+        $Destinations += [Environment]::GetFolderPath("DesktopDirectory")
+    }
+    if ($Location -in @("StartMenu", "Both")) {
+        $Destinations += [Environment]::GetFolderPath("Programs")
+    }
+    $Shell = New-Object -ComObject WScript.Shell
+    foreach ($Destination in $Destinations) {
+        if ([string]::IsNullOrWhiteSpace($Destination)) {
+            throw "Windows could not find the selected shortcut folder."
+        }
+        New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+        $ShortcutPath = Join-Path $Destination "Deckadence.lnk"
+        $Shortcut = $Shell.CreateShortcut($ShortcutPath)
+        $Shortcut.TargetPath = $Launcher
+        $Shortcut.WorkingDirectory = $PSScriptRoot
+        $Shortcut.IconLocation = "$Executable,0"
+        $Shortcut.Description = "Start Deckadence in your web browser"
+        $Shortcut.Save()
+        Write-Host "Created: $ShortcutPath"
+    }
+    Write-Host ""
+    Write-Host "Done! Open Deckadence using your new shortcut."
+    Write-Host "If you move the Deckadence folder, run this installer again."
+    exit 0
+} catch {
+    Write-Host "Could not create shortcuts: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
+'@
+
+$ShortcutMenu = @'
+@echo off
+echo.
+echo Deckadence - Install Shortcuts
+echo.
+echo Where do you want to add icons?
+echo.
+echo 1. Desktop
+echo 2. Start menu
+echo 3. Both
+echo 4. Cancel
+echo.
+choice /c 1234 /n /m "Choose an option [1-4]: "
+if errorlevel 4 exit /b 0
+if errorlevel 3 goto both
+if errorlevel 2 goto startmenu
+if errorlevel 1 goto desktop
+exit /b 1
+:desktop
+set "DECKADENCE_SHORTCUT_LOCATION=Desktop"
+goto install
+:startmenu
+set "DECKADENCE_SHORTCUT_LOCATION=StartMenu"
+goto install
+:both
+set "DECKADENCE_SHORTCUT_LOCATION=Both"
+:install
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install_Deckadence_Shortcuts.ps1" -Location "%DECKADENCE_SHORTCUT_LOCATION%"
+set "DECKADENCE_SHORTCUT_RESULT=%ERRORLEVEL%"
+echo.
+pause
+exit /b %DECKADENCE_SHORTCUT_RESULT%
+'@
+
+Set-Content -LiteralPath (Join-Path $AppDistDir "Install_Deckadence_Shortcuts.ps1") -Value $ShortcutInstaller -Encoding UTF8
+Set-Content -LiteralPath (Join-Path $AppDistDir "Install_Shortcuts.bat") -Value $ShortcutMenu -Encoding ASCII
+
 
 Write-Host "[6/6] Creating release ZIP..."
 
@@ -364,6 +524,15 @@ $ZipSizeMB = [math]::Round(
 
 Write-Host "      Compression complete."
 Write-Host ""
+
+foreach ($Addon in $AddonBuilds) {
+    Write-Host "Building addon: $($Addon.Id) v$($Addon.Version)"
+    & $Addon.Builder -PythonRuntime $PythonRuntime
+    if (-not (Test-AddonPackageCurrent -Path $Addon.Output -PluginId $Addon.Id -Version $Addon.Version)) {
+        throw "Addon build did not produce the expected package: $($Addon.Output)"
+    }
+}
+
 Write-Host "========================================"
 Write-Host "       RELEASE BUILD COMPLETE"
 Write-Host "========================================"

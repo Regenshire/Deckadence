@@ -2,6 +2,7 @@
 import atexit
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
@@ -157,6 +158,10 @@ def get_plugin_venv_dir(
 def get_plugin_python_path(
     plugin_id,
 ):
+    bundled_python = _bundled_python_path(get_plugin_install_dir(plugin_id))
+    if os.path.isfile(bundled_python):
+        return bundled_python
+
     venv_dir = get_plugin_venv_dir(
         plugin_id
     )
@@ -191,9 +196,31 @@ def get_plugin_development_dir(
     )
 
 
+def _bundled_python_path(plugin_dir):
+    relative = ("python.exe",) if os.name == "nt" else ("bin", "python3.12")
+    return os.path.join(plugin_dir, "runtime", *relative)
+
+
+def _plugin_environment():
+    environment = {**os.environ, "DECKADENCE_DOWNLOAD_USER_AGENT": get_download_user_agent()}
+    # Frozen Linux apps prepend their own libraries. External Python must use
+    # its bundled libraries and the host driver, not the app's copies.
+    if sys.platform == "linux" and getattr(sys, "frozen", False):
+        original = environment.get("LD_LIBRARY_PATH_ORIG")
+        if original:
+            environment["LD_LIBRARY_PATH"] = original
+        else:
+            environment.pop("LD_LIBRARY_PATH", None)
+    return environment
+
+
 def _get_plugin_python_path_for_directory(
     plugin_dir,
 ):
+    bundled_python = _bundled_python_path(plugin_dir)
+    if os.path.isfile(bundled_python):
+        return bundled_python
+
     venv_dir = os.path.join(
         plugin_dir,
         ".venv",
@@ -695,6 +722,13 @@ def _validate_manifest(
             "match the requested plugin."
         )
 
+    if manifest.get("bundled_runtime"):
+        expected = manifest.get("runtime_platform", "win32")
+        if expected != sys.platform:
+            raise ValueError(f"This upscaler package requires {expected}, not {sys.platform}.")
+        if manifest.get("runtime_arch", "x86_64") == "x86_64" and platform.machine().lower() not in {"amd64", "x86_64"}:
+            raise ValueError("This upscaler package requires an x86-64 processor.")
+
     entrypoint = str(
         manifest.get(
             "entrypoint",
@@ -814,6 +848,33 @@ def _install_plugin_requirements(
         )
     )
 
+    if manifest.get("bundled_runtime"):
+        plugin_python = _bundled_python_path(plugin_dir)
+        if not os.path.isfile(plugin_python):
+            raise RuntimeError("The downloaded upscaler is missing its Python runtime. Download it again.")
+        if sys.platform == "linux":
+            # ZIP extraction does not restore executable permissions.
+            os.chmod(plugin_python, 0o755)
+        _set_install_status(plugin_id, stage="Installing Requirements", message="Downloading upscaler libraries. This may take several minutes.")
+        subprocess.run(
+            [plugin_python, "-I", "-m", "ensurepip", "--upgrade"], check=True, env=_plugin_environment(),
+        )
+        subprocess.run(
+            [plugin_python, "-I", "-m", "pip", "--isolated", "install", "--disable-pip-version-check",
+             "--prefix", os.path.join(plugin_dir, "runtime"),
+             "--no-cache-dir", "-r", os.path.join(plugin_dir, "requirements.txt")],
+            check=True, env=_plugin_environment(),
+        )
+        _set_install_status(plugin_id, stage="Preparing Models", message="Downloading and checking upscaler models.")
+        subprocess.run(
+            [plugin_python, "-E", "-s", "-c",
+             "import torch, torchvision, spandrel, safetensors, einops; "
+             "from PIL import Image; from model_runtime import MODEL_SPECS, ensure_model_file; "
+             "[ensure_model_file(model_id) for model_id in MODEL_SPECS]"],
+            cwd=plugin_dir, check=True, env=_plugin_environment(),
+        )
+        return
+
     venv_dir = get_plugin_venv_dir(
         plugin_id
     )
@@ -921,6 +982,12 @@ def _download_latest_release_asset(
     asset_name = catalog_entry[
         "release_asset_name"
     ]
+    if sys.platform == "linux":
+        if platform.machine().lower() not in {"x86_64", "amd64"}:
+            raise RuntimeError("Linux upscaler packages currently require x86-64.")
+        asset_name = asset_name.removesuffix(".zip") + "-linux-x86_64.zip"
+    elif sys.platform != "win32":
+        raise RuntimeError("Upscaler packages are available for Windows and Linux x86-64.")
 
     releases_url = (
         "https://api.github.com/repos/"
@@ -987,13 +1054,16 @@ def _download_latest_release_asset(
         ):
             continue
 
+        if not any(asset.get("name") == asset_name for asset in release.get("assets", [])):
+            continue
+
         matching_release = release
         break
 
     if not matching_release:
         raise RuntimeError(
-            "No compatible plugin release "
-            "was found on GitHub."
+            "The upscaler package with included Python is not available yet. "
+            "Please try again after the plugin release is published."
         )
 
     matching_asset = None
@@ -1128,6 +1198,8 @@ def install_plugin(
         plugin_dir + ".backup"
     )
 
+    replacement_started = False
+
     try:
         _safe_extract_zip(
             package_path,
@@ -1162,6 +1234,8 @@ def install_plugin(
                 backup_dir,
             )
 
+        replacement_started = True
+
         shutil.copytree(
             package_root,
             plugin_dir,
@@ -1180,14 +1254,14 @@ def install_plugin(
             )
 
     except Exception:
-        if os.path.exists(
+        if replacement_started and os.path.exists(
             plugin_dir
         ):
             shutil.rmtree(
                 plugin_dir
             )
 
-        if os.path.exists(
+        if replacement_started and os.path.exists(
             backup_dir
         ):
             os.replace(
@@ -1421,12 +1495,14 @@ def _get_plugin_worker(
                 runtime_context[
                     "plugin_python"
                 ],
+                "-E",
+                "-s",
                 runtime_context[
                     "entrypoint_path"
                 ],
                 "worker",
             ],
-            env={**os.environ, "DECKADENCE_DOWNLOAD_USER_AGENT": get_download_user_agent()},
+            env=_plugin_environment(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -1575,12 +1651,14 @@ def run_plugin_json(
             runtime_context[
                 "plugin_python"
             ],
+            "-E",
+            "-s",
             runtime_context[
                 "entrypoint_path"
             ],
             command,
         ],
-        env={**os.environ, "DECKADENCE_DOWNLOAD_USER_AGENT": get_download_user_agent()},
+        env=_plugin_environment(),
         input=json.dumps(
             payload or {}
         ),

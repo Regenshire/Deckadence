@@ -12,9 +12,9 @@
     "/static/js/help/help_loader.js";
 
   const assetUrls = {
-    helpCss: new URL("../../css/help.css?v=theme-3", loaderScriptUrl).href,
+    helpCss: new URL("../../css/help.css?v=surge-4", loaderScriptUrl).href,
     helpEngine: new URL("help_engine.js", loaderScriptUrl).href,
-    tourEngine: new URL("tour_engine.js", loaderScriptUrl).href,
+    tourEngine: new URL("tour_engine.js?v=surge-4", loaderScriptUrl).href,
   };
 
   const tourScripts = {
