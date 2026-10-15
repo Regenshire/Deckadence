@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Adding Paper Templates - Deckadence{% endblock %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/paper_template_guide.css', v='themes-2') }}">
+{% endblock %}
+{% block content %}
+<main class="paper-guide">
+  <header class="paper-guide-hero">
+    <a href="{{ url_for('index') }}">&larr; Home / Help &amp; Guided Learning</a>
+    <div class="paper-guide-eyebrow">Print setup · Reference guide</div>
+    <h1>Adding Paper Templates</h1>
+    <p>Create a paper layout for your printer, check the fit, and optionally pair it with a cutting-machine file.</p>
+    <div class="paper-guide-actions">
+      <a class="action-button" href="#start">Create a template</a>
+      <a class="action-button secondary-button" href="{{ url_for('config') }}?open=print_settings&amp;scroll=print_settings">Print Settings</a>
+    </div>
+  </header>
+  <div class="paper-guide-layout">
+    <nav class="paper-guide-nav" aria-label="Guide sections">
+      <span>On this page</span>
+      <a href="#start">1. Create your file</a>
+      <a href="#example">2. Starter template</a>
+      <a href="#geometry">3. Adjust the layout</a>
+      <a href="#verify">4. Test your sheet</a>
+      <a href="#cutters">Optional: cutter profiles</a>
+      <a href="#troubleshooting">Troubleshooting</a>
+    </nav>
+    <article class="paper-guide-body">
+      <section id="start" class="paper-guide-panel">
+        <div class="paper-guide-eyebrow">01 / Getting started</div>
+        <h2>Create your file</h2>
+        <p>A <strong>paper / print template</strong> is a plain-text <code>.ini</code> file that defines paper size, card dimensions, positions, and printing options. A <strong>cutter template</strong> is a separate file opened in your cutter software. You only need the first to print.</p>
+        <ol>
+          <li>Open <code>print/templates/</code> inside your Deckadence folder. For a packaged installation, this is beside the application executable; for a source checkout, it is inside the project folder. Create the folders if needed.</li>
+          <li>Copy a similar existing <code>.ini</code> file, or paste the starter below into a plain-text editor.</li>
+          <li>Save as a new file such as <code>My A4 Cards.ini</code>, using UTF-8 encoding. Make sure the filename ends in <code>.ini</code>, not <code>.ini.txt</code>. Put it directly in <code>print/templates/</code>; subfolders are not scanned for templates.</li>
+          <li>Give it a unique <code>Template_ID</code> and a clear <code>Display_Name</code>. Keep the ID stable once you use it: saved settings and cutter associations refer to that ID.</li>
+          <li>Reload the app page, open <strong>Print Settings</strong>, and select your template for the appropriate print flow. File changes are detected when the template registry is accessed.</li>
+        </ol>
+        <aside class="paper-guide-note">Use a new ID for a new layout. Duplicate IDs in the same folder cause a load error. In a packaged installation, a runtime file with the same ID can override a bundled template; use that only when deliberately replacing it.</aside>
+      </section>
+
+      <section id="example" class="paper-guide-panel">
+        <div class="paper-guide-eyebrow">02 / Ready to customize</div>
+        <h2>A4 · Nine cards · Hand cutting</h2>
+        <p>This example centers nine 63 × 88 mm cards on an A4 portrait sheet, with 0.5 mm bleed on each edge. It enables Card Print / Chaos Draft and leaves cutter registration off. Copy the entire block into your new file.</p>
+        <pre tabindex="0" aria-label="Starter paper template INI"><code>[Template]
+Schema_Version = 1
+Template_ID = my-a4-nine-card
+Display_Name = My A4 - 9 Cards
+Description = Centered A4 cards with 0.5 mm bleed.
+Enabled = True
+Momir_Support = False
+CardPrint_Support = True
+FeaturedTemplate = False
+
+[Metadata]
+Printer = Any
+Printer_Model = Any
+Paper_Stock = Any
+Paper_Stock_Type = Cardstock
+Paper_Size = A4
+Orientation = Vertical
+Silhouette_Support = False
+Tags = A4, Vertical, 3x3, Hand Cutting
+
+[Page]
+Width_mm = 210
+Height_mm = 297
+
+[Card]
+Finished_Width_mm = 63
+Finished_Height_mm = 88
+Bleed_mm = 0.5
+Rotation_Degrees = 0
+
+[Layout]
+Type = Grid
+Columns = 3
+Rows = 3
+Horizontal_Spacing_mm = 1
+Vertical_Spacing_mm = 1
+Horizontal_Alignment = Center
+Vertical_Alignment = Center
+Fill_Order = Top_Left_Row_Major
+
+[Rendering]
+Add_Edge_Bleed_Border = True
+Fill_Unused_Slots_With_White = True
+Corner_Radius_mm = 3.25
+Uses_Fixed_Inner_Margin = True
+
+[Duplex]
+Back_Side_Slot_Order = Mirror_Horizontal</code></pre>
+        <p>The required sections are <code>[Template]</code>, <code>[Page]</code>, <code>[Card]</code>, and <code>[Layout]</code>. Preserve their spelling. Use schema version <code>1</code>, numeric dimensions without units, and <code>True</code> / <code>False</code> for switches.</p>
+      </section>
+
+      <section id="geometry" class="paper-guide-panel">
+        <div class="paper-guide-eyebrow">03 / Make it fit</div>
+        <h2>Paper, bleed, and placement</h2>
+        <p>All physical measurements are in <strong>millimeters</strong>. Page dimensions control the actual sheet; metadata labels only help you find the template. For US Letter portrait use 215.9 × 279.4 mm; swap width and height for landscape.</p>
+        <div class="paper-guide-table-wrap"><table>
+          <caption>Common settings and what they change</caption>
+          <thead><tr><th scope="col">Setting</th><th scope="col">What to use it for</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Support switches</th><td><code>Enabled = True</code> makes the template available. <code>CardPrint_Support</code> and <code>Momir_Support</code> control the flows in which it appears. Enable Momir only for a layout you have tested in that flow.</td></tr>
+            <tr><th scope="row">Finished size &amp; bleed</th><td>Finished size is the cut card. Slot size includes bleed: finished size + twice <code>Bleed_mm</code>. Optional <code>Slot_Width_mm</code> and <code>Slot_Height_mm</code> override that calculation.</td></tr>
+            <tr><th scope="row">Spacing &amp; steps</th><td><code>Horizontal_Spacing_mm</code> / <code>Vertical_Spacing_mm</code> measure the gap between finished card edges. Steps default to finished width / height + spacing. Optional <code>Horizontal_Step_mm</code> / <code>Vertical_Step_mm</code> specify exact distances between slot origins.</td></tr>
+            <tr><th scope="row">Alignment &amp; origins</th><td>Horizontal alignment accepts <code>Left</code>, <code>Center</code>, <code>Right</code>; vertical accepts <code>Bottom</code>, <code>Center</code>, <code>Top</code>. Optional <code>Start_X_mm</code> / <code>Start_Y_mm</code> override alignment. The grid origin is its lower-left slot, measured from the page’s lower-left corner.</td></tr>
+            <tr><th scope="row">Order &amp; rotation</th><td>Grid fill order is <code>Top_Left_Row_Major</code>: left to right, then the next row down. Rotation accepts <code>0</code>, <code>90</code>, <code>180</code>, or <code>270</code>. For a rotated layout, check slot dimensions and steps explicitly; rotation does not swap the grid’s width and height settings.</td></tr>
+            <tr><th scope="row">Rendering</th><td><code>Uses_Fixed_Inner_Margin = True</code> uses the template’s physical slot positions. <code>Add_Edge_Bleed_Border</code> extends edge pixels when source bleed is unavailable; <code>Fill_Unused_Slots_With_White</code> fills empty card positions. <code>Corner_Radius_mm</code> controls generated card shapes.</td></tr>
+            <tr><th scope="row">Duplex mapping</th><td><code>Back_Side_Slot_Order</code> accepts <code>Same</code>, <code>Mirror_Horizontal</code>, <code>Mirror_Vertical</code>, or <code>Reverse</code>. Choose the mapping that matches your printing and sheet-flip workflow, then test front/back alignment.</td></tr>
+            <tr><th scope="row">Search labels</th><td>Use <code>Printer</code>, <code>Printer_Model</code>, <code>Paper_Stock</code>, <code>Paper_Stock_Type</code>, <code>Paper_Size</code>, <code>Orientation</code>, and comma-separated <code>Tags</code> to describe compatibility. They do not configure the printer driver.</td></tr>
+          </tbody>
+        </table></div>
+        <aside class="paper-guide-note">Check the whole grid: width = slot width + (columns − 1) × horizontal step; height = slot height + (rows − 1) × vertical step. The example occupies 192 × 267 mm, leaving 9 mm left/right and 15 mm top/bottom. Keep every slot inside the printable area and clear of any registration marks.</aside>
+        <details><summary>Advanced: individually positioned cards</summary>
+          <p>Use <code>Type = Explicit</code> in <code>[Layout]</code> for irregular placements, then add one numbered section per slot. Slots are assigned in numeric order. Each requires <code>X_mm</code>, <code>Y_mm</code>, <code>Width_mm</code>, and <code>Height_mm</code>; positions use the page’s lower-left origin. Width and height include bleed. Finished dimensions default to <code>[Card]</code>, but slot rotation defaults to zero.</p>
+          <pre tabindex="0"><code>[Layout]
+Type = Explicit
+
+[Slot_1]
+X_mm = 10
+Y_mm = 15
+Width_mm = 64
+Height_mm = 89
+Rotation_Degrees = 0</code></pre>
+          <p>Keep the required Template, Page, and Card sections, and add <code>[Slot_2]</code>, <code>[Slot_3]</code>, and so on as needed.</p>
+        </details>
+      </section>
+
+      <section id="verify" class="paper-guide-panel">
+        <div class="paper-guide-eyebrow">04 / Before a full batch</div>
+        <h2>Test your sheet</h2>
+        <ol>
+          <li>Select the template in Print Settings for Card Print / Chaos Draft or Momir, according to its support switches. Clear selector filters if necessary.</li>
+          <li>Preview or export a small print job. Check the page size, card count, orientation, margins, and any registration background.</li>
+          <li>Print one sheet on inexpensive paper at actual size / 100%, with scaling or “fit to page” disabled. Match the driver’s paper size to the template.</li>
+          <li>Measure finished card dimensions and spacing with a ruler. For duplex, print identifiable fronts and backs and check their alignment after your normal sheet flip.</li>
+          <li>Only after a successful test, use the intended stock and, if applicable, test the cutter on a single sheet.</li>
+        </ol>
+      </section>
+
+      <section id="cutters" class="paper-guide-panel">
+        <div class="paper-guide-eyebrow">Optional / Cutting machines</div>
+        <h2>Add Silhouette or other cutter profiles</h2>
+        <p>Deckadence’s cutter library stores files associated with print layouts. It does not generate cut paths, convert file formats, or configure blade depth, force, speed, or passes. Prepare those in your cutter software for your machine and material.</p>
+        <h3>Silhouette registration-mark layouts</h3>
+        <p>Start from a working Silhouette paper template with matching paper size and geometry. In <code>[Metadata]</code>, set <code>Silhouette_Support = True</code> and optionally <code>Silhouette_Model = Any</code> or your model. Add a registration background:</p>
+        <pre tabindex="0"><code>[Silhouette]
+Registration_Background = assets/my-registration-marks.png</code></pre>
+        <p>Place the image in <code>print/templates/assets/</code>. Its path is relative to the INI file. Match the background’s full-page proportions, mark positions, card locations, and orientation to your cutter document. Keep artwork outside the cutter’s registration exclusion areas. Setting the support flag alone does not create registration marks or a matching cut file.</p>
+        <h3>Upload and link the cutter file</h3>
+        <ol>
+          <li>Open <strong>Card Cutting Machine Templates</strong> from the application menu or the Card Print screen.</li>
+          <li>Choose <strong>Add Cutting Machine Template</strong> and select a <code>.studio3</code>, <code>.svg</code>, <code>.dxf</code>, or <code>.fcm</code> file.</li>
+          <li>Enter <strong>Cutting Machine Brand</strong> and <strong>Template Name</strong>, plus an optional description. Include useful model, paper, orientation, and material notes.</li>
+          <li>Choose the exact <strong>Linked Print Template</strong>, then select <strong>Upload Template</strong>. Any enabled Card Print template can be linked; Silhouette support is not required for other brands.</li>
+          <li>Filter the library by paper / print template and brand. Download the file, open it in compatible cutter software, and verify its dimensions and cut paths against your printed test sheet.</li>
+        </ol>
+        <p>For other brands, use a format your software can import and its own registration workflow. An accepted upload extension does not guarantee that a particular machine or software edition can use the file.</p>
+        <button type="button" class="action-button secondary-button" data-silhouette-template-library-open><i class="fa-solid fa-scissors" aria-hidden="true"></i> Open Cutter Template Library</button>
+      </section>
+
+      <section id="troubleshooting" class="paper-guide-panel">
+        <div class="paper-guide-eyebrow">Reference / Quick fixes</div>
+        <h2>Troubleshooting</h2>
+        <dl>
+          <dt>My paper template is missing</dt><dd>Check the folder and <code>.ini</code> extension, <code>Enabled</code>, and the relevant support switch. Reload the page and clear template filters. Look in Reminders for a <strong>Print Template Load Error</strong>, which includes the filename and parsing problem.</dd>
+          <dt>The template fails to load</dt><dd>Check required sections, schema version 1, a unique ID, positive page/card dimensions and row/column counts, and valid values. Use decimal points for numbers; keep units out of numeric fields.</dd>
+          <dt>Cards overlap or run off the page</dt><dd>Recheck slot size, bleed, steps, and origins together. Changing the paper label does not resize the page. A file that loads successfully still needs a physical layout check.</dd>
+          <dt>The whole sheet prints too small</dt><dd>Check printer scaling and paper size first. Changing card dimensions to compensate for “fit to page” can make the template incorrect on other printers.</dd>
+          <dt>Cut lines or card backs are offset</dt><dd>Confirm the exact linked print layout, orientation, registration background, duplex mapping, and printer scaling. Calibrate alignment in the appropriate printer or cutter workflow, then repeat a single-sheet test.</dd>
+          <dt>The print layout is missing from the cutter upload list</dt><dd>It must load successfully with <code>Enabled = True</code> and <code>CardPrint_Support = True</code>. Reload the page and reopen the library after saving the INI file.</dd>
+        </dl>
+      </section>
+    </article>
+  </div>
+</main>
+{% endblock %}

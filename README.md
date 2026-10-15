@@ -408,6 +408,15 @@ Deckadence offers optional AI image-upscaling plugins to improve the resolution 
 
 The upscalers are installed separately and are not required for Deckadence’s other features. An Internet connection is needed to download their libraries and models.
 
+All three upscalers (CPU, NVIDIA, and AMD) use the same two models from [Xintao Wang's Real-ESRGAN project](https://github.com/xinntao/Real-ESRGAN):
+
+| Model | Native scale | Download source |
+|---|---|---|
+| **RealESRGAN_x2plus** | 2× | [GitHub release v0.2.1](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.1) |
+| **RealESRNet_x4plus** | 4× | [GitHub release v0.1.1](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.1.1) |
+
+Deckadence automatically downloads the model files from these GitHub releases and verifies their SHA-256 checksums. These are image-restoration and upscaling models, not large language models (LLMs).
+
 AI upscaling features can alter fine details, lettering, and artwork.
 
 ## Development

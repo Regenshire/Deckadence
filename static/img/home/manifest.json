@@ -1,0 +1,163 @@
+{
+  "custom": [
+    "93163e1e7d572c6e.webp",
+    "9e99a1fbffeab501.webp",
+    "0fa786880e6cc0d9.webp"
+  ],
+  "magic": {
+    "Llanowar Elves": "fef7d068d342faa7.webp",
+    "Lightning Bolt": "f459de1c8412d376.webp",
+    "Dark Ritual": "5dc9ac6cdf4b4017.webp",
+    "Primeval Titan": "43a7f72d7bb23627.webp",
+    "Forest": "139b4375179a7afa.webp",
+    "Counterspell": "e0406c77f6f64815.webp",
+    "Serra Angel": "7793bda1ebe0f417.webp",
+    "Sol Ring": "8ea321427c5dffbe.webp",
+    "Swords to Plowshares": "a37a9a8e7bf77e8c.webp"
+  },
+  "decks": [
+    {
+      "name": "Post's Elrond",
+      "src": "cf107043ff235b50.webp"
+    },
+    {
+      "name": "Princess Takes Flight",
+      "src": "c54f86d1034a0299.webp"
+    },
+    {
+      "name": "E-Rata-cate",
+      "src": "cf2f335752869ff9.webp"
+    },
+    {
+      "name": "Second Darkness",
+      "src": "a1498d6abdbc2c43.webp"
+    }
+  ],
+  "roulettePointer": "d145e9490d66c6d6.png",
+  "builderColumns": [
+    [
+      {
+        "name": "Esika, God of the Tree // The Prismatic Bridge",
+        "src": "29bad9b0f4b6b910.webp"
+      }
+    ],
+    [
+      {
+        "name": "Ragavan, Nimble Pilferer",
+        "src": "936431f60547f49a.webp"
+      },
+      {
+        "name": "Delighted Halfling",
+        "src": "1a53da91018cb945.webp"
+      },
+      {
+        "name": "Mirri's Guile",
+        "src": "5aaf8cc93b9fc08d.webp"
+      }
+    ],
+    [
+      {
+        "name": "Cyclonic Rift",
+        "src": "65d8a74ea0c28e43.webp"
+      },
+      {
+        "name": "Demonic Tutor",
+        "src": "6cb8329483121525.webp"
+      },
+      {
+        "name": "Damn",
+        "src": "89c5c317b9bbe5a2.webp"
+      },
+      {
+        "name": "Lonis, Cryptozoologist",
+        "src": "80e78414dfca351d.webp"
+      },
+      {
+        "name": "Robe of Stars",
+        "src": "cd3b2589722dfb26.webp"
+      }
+    ],
+    [
+      {
+        "name": "Vivi Ornitier",
+        "src": "583b307b43c55cac.webp"
+      },
+      {
+        "name": "Bohn, Beguiling Balladeer",
+        "src": "7bf1255e4cf4b3d6.webp"
+      },
+      {
+        "name": "Cunning Rhetoric",
+        "src": "8df93f8a9d8fbdcf.webp"
+      },
+      {
+        "name": "Gimli of the Glittering Caves",
+        "src": "6b115fb14760a3a0.webp"
+      }
+    ],
+    [
+      {
+        "name": "Prosper, Tome-Bound",
+        "src": "e68d3bd64f7dbdde.webp"
+      },
+      {
+        "name": "Tyvar the Bellicose",
+        "src": "12ffc80342051984.webp"
+      },
+      {
+        "name": "Abstruse Appropriation",
+        "src": "4cff6e5de26d6938.webp"
+      }
+    ],
+    [
+      {
+        "name": "Karlach, Fury of Avernus",
+        "src": "907634c5d47f5b44.webp"
+      },
+      {
+        "name": "Gandalf the White",
+        "src": "a5b80bf2c97393a2.webp"
+      }
+    ],
+    [
+      {
+        "name": "Ink-Eyes, Servant of Oni",
+        "src": "4b2caf93cdc281eb.webp"
+      },
+      {
+        "name": "Clive, Ifrit's Dominant // Ifrit, Warden of Inferno",
+        "src": "ad5fadd12702539f.webp"
+      }
+    ],
+    [
+      {
+        "name": "Arid Mesa",
+        "src": "f9064fe1a0b0869e.webp"
+      },
+      {
+        "name": "Badlands",
+        "src": "36e9f154429e4f2b.webp"
+      },
+      {
+        "name": "Barad-d\u00fbr",
+        "src": "38d4f3589d9fa2f9.webp"
+      },
+      {
+        "name": "Bayou",
+        "src": "7d53c7fb152d7b5d.webp"
+      },
+      {
+        "name": "Blood Crypt",
+        "src": "c61e716949e77dc3.webp"
+      },
+      {
+        "name": "Bloodstained Mire",
+        "src": "92b29a387dae6932.webp"
+      },
+      {
+        "name": "Breeding Pool",
+        "src": "1055ac99cb6da50f.webp"
+      }
+    ]
+  ]
+}

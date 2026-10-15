@@ -372,7 +372,7 @@ DEFAULT_CONFIG = {
     "sound_enabled": "1",
     "debug_log": "0",
     "tower_pdf_draw_count": "7",
-    "chaos_pack_types": "core,default,draft,collector,set,play,jumpstart,jumpstart-v2,premium,six,collector-special",
+    "chaos_pack_types": "core,default,set,draft,play,collector,collector-special,jumpstart,jumpstart-v2,premium,vip,custom",
     "chaos_draft_export_format": "archidekt",
     "chaos_scryfall_image_quality": "png",
 

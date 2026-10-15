@@ -1,0 +1,82 @@
+{% set features = [
+  ('Chaos Draft', 'Draft through the ages', 'Build a draft from any era—or your own packs.', 'Start a draft', 'play_draft'),
+  ('Play Momir', 'Expect the unexpected', 'Turn a land and mana into an unexpected creature.', 'Play Momir', 'play_momir'),
+  ('Custom Sets', 'Your world. Your cards.', 'Bring your own art and ideas together into a playable set.', 'Open Custom Sets', 'sets'),
+  ('Deck Roulette', 'Let fate choose', 'Choose colors and a format. Discover your next deck.', 'Spin the wheel', 'deck_roulette'),
+  ('Pack Simulator', 'One more pack', 'Open boosters and reveal what’s inside, one card at a time.', 'Open some packs', 'pack_simulator'),
+  ('Deck Builder', 'Make every card count', 'Build a deck, test your ideas, and get ready to play.', 'Build a deck', 'deckbuilder_index')
+] %}
+<section id="homeSetup" class="home-setup" aria-labelledby="homeSetupTitle" {% if card_database_ready %}hidden{% endif %}>
+  <div>
+    <div class="home-section-eyebrow">Initial Setup</div>
+    <h2 id="homeSetupTitle">Install the card database</h2>
+    <p>Download the card and set data to start using Deckadence.</p>
+    <div class="home-actions">
+      <button type="button" id="homeInstall" disabled>Checking installation…</button>
+      <a href="{{ url_for('config') }}?open=card_database&amp;scroll=card_database">Database settings</a>
+    </div>
+    <noscript><p>Open Database settings to install the card database.</p></noscript>
+  </div>
+  <ol class="home-setup-steps">
+    <li>Install card database<span>Download cards and sets</span></li>
+    <li>Build and play<span>Create decks, open packs, or draft</span></li>
+    <li>Print proxies<span>Choose your paper and print your cards</span></li>
+  </ol>
+</section>
+
+<section id="homeDatabaseStatus" class="home-database-status" aria-label="Card database status" hidden>
+  <div role="status" aria-live="polite" aria-atomic="true">
+    <h3 id="homeDatabaseStage"></h3>
+    <p id="homeDatabaseMessage"></p>
+  </div>
+  <progress id="homeDatabaseProgress" aria-label="Current installation stage" hidden></progress>
+  <p id="homeDatabaseProgressText" class="home-status-note"></p>
+  <p id="homeDatabaseConnection" class="home-status-note" role="status"></p>
+  <p id="homeDatabaseError" role="alert" hidden></p>
+  <details id="homeDatabaseDetails">
+    <summary>Installation details</summary>
+    <dl class="home-database-counts">
+      <div><dt>Cards imported</dt><dd id="homeImportedCards">0</dd></div>
+      <div><dt>Sets</dt><dd id="homeImportedSets">0</dd></div>
+      <div><dt>Finished</dt><dd id="homeDatabaseFinished">—</dd></div>
+    </dl>
+    <p id="homeDatabaseTiming" class="home-status-note"></p>
+    <pre id="homeDatabaseLog"></pre>
+  </details>
+  <div class="home-actions">
+    <button type="button" id="homeRetry" hidden>Retry download</button>
+    <button type="button" id="homeCheckStatus" hidden>Check status</button>
+    <button type="button" id="homeDismissStatus" hidden>Dismiss</button>
+  </div>
+</section>
+
+<section id="homeShowcase" aria-label="Explore Deckadence" aria-roledescription="carousel" {% if not card_database_ready %}hidden{% endif %}
+  data-assets-url="{{ url_for('static', filename='img/home/manifest.json', v='1') }}">
+  <div class="home-showcase-panel">
+    <div class="home-showcase-copy">
+      <div id="homeFeatureEyebrow" class="home-section-eyebrow">{{ features[0][1] }}</div>
+      <h2 id="homeFeatureTitle">{{ features[0][0] }}</h2>
+      <p id="homeFeatureDescription">{{ features[0][2] }}</p>
+      <div class="home-actions">
+        <a id="homeFeatureLink" class="home-feature-link" href="{{ url_for(features[0][4]) }}">{{ features[0][3] }}</a>
+      </div>
+      <p id="homeMotionStatus" class="home-status-note" role="status"></p>
+    </div>
+    <div class="showcase-scene" role="img" aria-label="A carousel of boosters selects a pack and opens it into three cards."></div>
+  </div>
+  <div class="home-feature-controls">
+    <nav class="home-feature-tabs" aria-label="Choose a feature">
+      {% for title, eyebrow, description, action, endpoint in features %}
+      <a href="{{ url_for(endpoint) }}" data-feature="{{ loop.index0 }}"
+        data-eyebrow="{{ eyebrow }}" data-description="{{ description }}" data-action-label="{{ action }}">{{ title }}</a>
+      {% endfor %}
+    </nav>
+    <div class="home-carousel-controls" hidden>
+      <button type="button" id="homePrevious" aria-label="Previous feature" title="Previous feature"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+      <button type="button" id="homeRotation" aria-label="Pause automatic rotation" title="Pause automatic rotation"><i class="fa-solid fa-pause" aria-hidden="true"></i></button>
+      <button type="button" id="homeNext" aria-label="Next feature" title="Next feature"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+      <label class="home-motion-control" hidden><input type="checkbox" id="homeMotion" checked> Animations</label>
+    </div>
+  </div>
+</section>
+<script id="homeInitialState" type="application/json">{{ home_state | tojson }}</script>

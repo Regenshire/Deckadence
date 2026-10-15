@@ -2442,6 +2442,7 @@ refresh_status = {
     "error": "",
 }
 refresh_lock = threading.Lock()
+refresh_start_lock = threading.Lock()
 
 app.config["DEBUG_LOG_ENABLED"] = False
 
@@ -18951,6 +18952,7 @@ def run_refresh_job(force_download=False):
         if download_result.get("remote_timestamp"):
             set_import_metadata("source_last_updated", download_result["remote_timestamp"])
 
+        set_import_metadata("home_setup_pending", "0")
         set_refresh_status(
             is_running=False,
             stage="Complete",
@@ -19012,6 +19014,15 @@ def run_refresh_job(force_download=False):
                 f"{error_text}"
             ),
         )
+
+    # Preserve failure/interruption information across application restarts.
+    try:
+        # A new request may arrive immediately after is_running becomes false.
+        # Do not let an old worker overwrite that new job's persisted marker.
+        with refresh_start_lock:
+            set_import_metadata("home_refresh_snapshot", json.dumps(get_refresh_status_copy()))
+    except Exception as exc:
+        write_error_log("HOME REFRESH STATUS SAVE FAILED", exc=exc)
 
 # *** HELP - Load Help and Save Tour Progress ***
 @app.route(
@@ -19130,10 +19141,66 @@ def accept_personal_use_agreement():
 
 @app.route("/")
 def index():
+    home_state = build_home_state()
     return render_template(
         "home.html",
-        card_database_ready=is_card_database_ready(),
+        card_database_ready=home_state["database_ready"],
+        home_state=home_state,
     )
+
+
+def build_home_state():
+    """Keep first installation locked until the whole refresh has succeeded.
+
+    During an import, use the readiness captured before the worker started:
+    checking SQLite then could block behind the importer or mistake partial
+    card data for a completed installation.
+    """
+    status = get_refresh_status_copy()
+    if status.get("is_running"):
+        ready = bool(status.get("home_database_ready", False))
+    else:
+        metadata = get_import_metadata()
+        ready = (
+            metadata.get("home_setup_pending") != "1"
+            and bool(metadata.get("last_refresh_utc"))
+            and is_card_database_ready()
+        )
+        if status.get("stage") not in {"Complete", "Failed"}:
+            try:
+                saved = json.loads(metadata.get("home_refresh_snapshot", "{}"))
+            except (TypeError, ValueError):
+                saved = {}
+            if isinstance(saved, dict) and saved.get("is_running"):
+                status = {
+                    **status,
+                    "stage": "Interrupted",
+                    "message": "The previous database installation did not finish. Retry the download to continue setup."
+                    if not ready else "The previous database update did not finish. You can retry it in Database settings.",
+                    "error": "",
+                }
+            elif isinstance(saved, dict) and saved.get("stage") == "Failed":
+                status = {**status, **saved, "is_running": False}
+            else:
+                status = build_config_page_refresh_status(metadata)
+    return {
+        **status,
+        "database_ready": ready,
+        "status_url": url_for("home_status"),
+        "start_url": url_for("refresh_cards_start"),
+    }
+
+
+@app.get("/api/home/status")
+def home_status():
+    response = jsonify(build_home_state())
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/help/adding-paper-templates")
+def adding_paper_templates():
+    return render_template("adding_paper_templates.html")
 
 
 @app.route("/play/draft/mode", methods=["POST"])
@@ -22356,15 +22423,32 @@ def maintenance_clear_all_packs():
 def refresh_cards_start():
     if pack_art_jobs.busy:
         return jsonify(ok=False, message="Finish or cancel the pack download before refreshing the card database."), 409
-    current_status = get_refresh_status_copy()
-    if current_status["is_running"]:
-        return jsonify({"ok": False, "message": "Refresh is already running."}), 409
-
-    payload = request.get_json(silent=True) or {}
-    force_download = bool(payload.get("force_download", False))
-
-    worker = threading.Thread(target=run_refresh_job, kwargs={"force_download": force_download}, daemon=True)
-    worker.start()
+    # Reserve the job before dispatching it. Home and Settings may both be open.
+    with refresh_start_lock:
+        current_status = get_refresh_status_copy()
+        if current_status["is_running"]:
+            return jsonify({"ok": False, "message": "Refresh is already running."}), 409
+        payload = request.get_json(silent=True)
+        if payload is None:
+            payload = {}
+        if not isinstance(payload, dict):
+            return jsonify(ok=False, message="Expected a JSON object."), 400
+        force_download = bool(payload.get("force_download", False))
+        ready = build_home_state()["database_ready"]
+        if not ready:
+            set_import_metadata("home_setup_pending", "1")
+        set_import_metadata("home_refresh_snapshot", json.dumps({"is_running": True}))
+        set_refresh_status(
+            is_running=True, stage="Starting", message="Starting database download…",
+            home_database_ready=ready, error="", detail_lines=[], finished_at=None,
+        )
+        try:
+            worker = threading.Thread(target=run_refresh_job, kwargs={"force_download": force_download}, daemon=True)
+            worker.start()
+        except Exception as exc:
+            set_refresh_status(is_running=False, stage="Failed", message="Could not start the database download.", error=str(exc))
+            set_import_metadata("home_refresh_snapshot", json.dumps(get_refresh_status_copy()))
+            return jsonify(ok=False, message="Could not start the database download. Please retry."), 500
 
     return jsonify({"ok": True})
 

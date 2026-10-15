@@ -20,6 +20,7 @@ from settings import (
     CHAOS_DUPLICATE_MAX_REROLLS,
     CHAOS_DUPLICATE_REROLL_CHANCE,
     CHAOS_PACK_TYPE_OPTIONS,
+    DEFAULT_CONFIG,
 )
 from db.database import (
     clone_alternate_image_scope, isolation_operation, validate_preview_isolation, stamp_preview_isolation,
@@ -153,7 +154,7 @@ def parse_chaos_pack_types_config(raw_value):
             selected_pack_types.add(normalized_item)
 
     if not selected_pack_types:
-        selected_pack_types = set(ALLOWED_CHAOS_BOOSTER_TYPES)
+        selected_pack_types = set(DEFAULT_CONFIG["chaos_pack_types"].split(","))
 
     return selected_pack_types
 
