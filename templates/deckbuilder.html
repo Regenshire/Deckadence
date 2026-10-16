@@ -18,7 +18,7 @@
 
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/deckbuilder.css', v='shared-effects-1') }}"
+  href="{{ url_for('static', filename='css/deckbuilder.css', v='auto-card-size-1') }}"
 />
 <link
   rel="stylesheet"
@@ -46,7 +46,7 @@
   data-source-id="{{ deckbuilder.source_id }}"
   data-default-view-mode="{{ deckbuilder.default_view_mode or 'grid' }}"
   data-default-sort-mode="{{ deckbuilder.default_sort_mode or 'rarity-desc' }}"
-  data-default-card-size="{{ deckbuilder.default_card_size or 100 }}"
+  data-default-card-size="{{ deckbuilder.default_card_size or "auto" }}"
   data-sideboard-flex="{{ deckbuilder.sideboard_flex or 0.40 }}"
   data-deck-flex="{{ deckbuilder.deck_flex or 0.60 }}"
   data-save-url="{{ url_for('deckbuilder_save', deck_id=deckbuilder.deck_id) }}"
@@ -1519,7 +1519,7 @@
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
-<script src="{{ url_for('static', filename='js/deckbuilder.js', v='shared-effects-1') }}"></script>
+<script src="{{ url_for('static', filename='js/deckbuilder.js', v='auto-card-size-1') }}"></script>
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}

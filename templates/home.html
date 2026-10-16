@@ -5,7 +5,7 @@ block page_styles %}
   rel="stylesheet"
   href="{{ url_for('static', filename='css/home.css', v='showcase-1') }}"
 />
-<link rel="stylesheet" href="{{ url_for('static', filename='css/home_showcase.css', v='2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/home_showcase.css', v='22') }}">
 {% endblock %} {% block content %}
 <main class="home-screen" id="homeScreen">
   <section class="home-welcome-panel">
@@ -168,5 +168,5 @@ block page_styles %}
 {% endblock %}
 
 {% block page_scripts_after_app %}
-<script defer src="{{ url_for('static', filename='js/home.js', v='2') }}"></script>
+<script defer src="{{ url_for('static', filename='js/home.js', v='23') }}"></script>
 {% endblock %}

@@ -5,11 +5,13 @@
   rel="stylesheet"
   href="{{ url_for('static', filename='css/print_export_modal.css') }}"
 />
-<link rel="stylesheet" href="{{ url_for('static', filename='css/campaign_packs_theme.css', v='5') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/campaign_packs_theme.css', v='7') }}">
 {% endblock %} {% block content %}
 <div class="screen screen-wide campaign-packs-themed">
   <div
     id="campaignManagePacksConfig"
+    data-random-batch-url="{{ url_for('campaign_chaos_packs_add_random_batch') }}"
+    data-campaign-id="{{ selected_chaos_campaign.campaign_id if selected_chaos_campaign else '' }}"
     hidden
     data-campaign-print-url="{{ url_for('campaign_chaos_packs_print') }}"
     data-campaign-export-zip-url="{{ url_for('campaign_chaos_packs_export_zip') }}"
@@ -568,8 +570,16 @@
           </div>
 
           <p class="campaign-add-pack-option-text">
-            Generate a random eligible Chaos Draft pack to add to the campaign.
+            Add random packs using your Available Sets and booster type filters.
           </p>
+
+          <div class="campaign-random-quantity">
+            <label for="campaignRandomPackCount">Number of packs</label>
+            <input id="campaignRandomPackCount" type="number" min="1" max="99" step="1" value="1" required inputmode="numeric" aria-describedby="campaignRandomPackLimit">
+          </div>
+          <span id="campaignRandomPackLimit" class="campaign-random-quantity-hint">1–99 packs</span>
+          <p id="campaignRandomBatchStatus" role="status" aria-live="polite" hidden></p>
+          <progress id="campaignRandomBatchProgress" aria-label="Adding random packs" hidden></progress>
 
           <button
             type="button"
@@ -1668,6 +1678,13 @@
             </select>
           </label>
 
+          <label class="toggle-row" for="campaignTestDraftCardsPerPick">
+            <span>Draft format</span>
+            <select id="campaignTestDraftCardsPerPick" name="cards_per_pick">
+              <option value="1" selected>Pick 1</option>
+              <option value="2">Pick 2</option>
+            </select>
+          </label>
           <label class="toggle-row" for="campaignTestDraftPacksPerPlayer">
             <span>Packs Per Player</span>
             <select
@@ -1688,7 +1705,8 @@
 
         <div
           id="campaignTestDraftValidationMessage"
-          class="card-placeholder campaign-test-draft-validation-message"
+          class="campaign-test-draft-validation-message"
+          role="status"
         ></div>
 
         <div class="campaign-add-pack-custom-actions">
@@ -1706,5 +1724,5 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
-<script src="{{ url_for('static', filename='js/campaign_manage_packs.js') }}"></script>
+<script src="{{ url_for('static', filename='js/campaign_manage_packs.js', v='draft-selection-defaults-1') }}"></script>
 {% endblock %}

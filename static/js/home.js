@@ -43,7 +43,8 @@
     "Three custom cards spread into a fan.",
     "Generated deck artwork spins under a pointer and settles on a deck.",
     "A booster opens and reveals four different cards.",
-    "Distinct Second Darkness alternate cards form a deck in overlapping columns."
+    "Distinct Second Darkness alternate cards form a deck in overlapping columns.",
+    "Demonic Tutor moves from a two-row pack to your picks on the right. A second pack arrives with one fewer card; Cunning Rhetoric is picked, then the remaining cards dim."
   ];
   const tabs = [...root.querySelectorAll("[data-feature]")].map((link, i) => {
     const data = { title: link.textContent.trim(), href: link.href, ...link.dataset };
@@ -148,13 +149,16 @@
     if (element.textContent !== String(text)) element.textContent = text;
   }
 
-  function applyStatus(next) {
+  function applyStatus(next, confirmed = false) {
     state = next;
     statusKnown = true;
     const ready = Boolean(next.database_ready);
     const running = Boolean(next.is_running);
     const failed = next.stage === "Failed" || next.stage === "Interrupted";
-    setup.hidden = ready;
+    // Never expose setup from the initial page snapshot. A fresh status
+    // response must explicitly confirm that installation is still needed.
+    setup.hidden = !confirmed || next.database_ready !== false;
+    setup.style.display = setup.hidden ? 'none' : '';
     root.hidden = !ready;
     statusPanel.hidden = dismissed && !running || (!running && !failed && next.stage !== "Complete");
     install.disabled = starting || running;
@@ -209,7 +213,7 @@
         if (!next || typeof next.is_running !== "boolean" || typeof next.database_ready !== "boolean") {
           throw new Error("Invalid installation status");
         }
-        applyStatus(next);
+        applyStatus(next, true);
       } catch (_) {
         statusKnown = false;
         statusPanel.hidden = false;
@@ -314,9 +318,11 @@
 
   function pack(classes = '', style = '') {
     const face = '<strong>DECKADENCE</strong><span>PLAY BOOSTER</span>';
+    const foil = classes.includes('showcase-foil-pack')
+      ? '<span class="showcase-pack-surge card-effect-surge" aria-hidden="true"></span>' : '';
     return `<div class="showcase-booster ${classes}" style="${style}">
-      <div class="showcase-wrap showcase-body">${face}</div>
-      <div class="showcase-wrap showcase-cap">${face}</div>
+      <div class="showcase-wrap showcase-body">${face}${foil}</div>
+      <div class="showcase-wrap showcase-cap">${face}${foil}</div>
     </div>`;
   }
 
@@ -326,10 +332,16 @@
       case 4: {
         const draft = feature === 0;
         const packs = draft
-          ? Array.from({ length: 9 }, (_, i) => pack(
-              `showcase-draft-pack ${i === 4 ? 'showcase-center' : ''}`,
-              `transform:translateX(${(i - 4) * 145}px);z-index:${i === 4 ? 3 : 1}`
-            )).join('')
+          ? '<div class="showcase-draft-track">' + Array.from({ length: 45 }, (_, index) => {
+              const i = index - 8;
+              // Repeat the same five-pack foil falloff on every reel pass.
+              const distance = Math.abs(((i % 10) + 10) % 10 - 2);
+              const strength = [.8, .21, .1][distance] || 0;
+              return pack(
+                `showcase-draft-pack ${strength ? 'showcase-foil-pack' : ''} ${i === 32 ? 'showcase-center' : ''}`,
+                `transform:translateX(${(i - 4) * 145}px);z-index:${i === 32 ? 3 : 1};--home-pack-foil-opacity:${.48 * strength}`
+              );
+            }).join('') + '</div>'
           : pack('showcase-side', '--shift:-88px;--tilt:-12deg')
             + pack('showcase-side', '--shift:88px;--tilt:12deg') + pack('showcase-center');
         const names = draft
@@ -362,6 +374,17 @@
               decoding="async" style="--row:${row}">`).join('')}
           </div>`).join('')}</div>`;
       }
+      case 6: {
+        const packs = [
+          [...assets.builderColumns[2], ...assets.builderColumns[1], ...assets.builderColumns[3], ...assets.builderColumns[4], assets.builderColumns[5][0]],
+          [...assets.builderColumns[5], ...assets.builderColumns[6], ...assets.builderColumns[4], ...assets.builderColumns[3], ...assets.builderColumns[7]].slice(0, 15)
+        ];
+        return '<div class="showcase-test-pool">Your picks</div>'
+          + packs.map((cards, round) => cards.map((item, i) =>
+            `<div class="showcase-test-card" data-round="${round}" data-pick="${i}" aria-label="${attribute(item.name)}" style="opacity:${round ? 0 : 1}">
+              <img src="${item.src}" alt="${attribute(item.name)}" decoding="async"></div>`
+          ).join('')).join('');
+      }
       default:
         return '';
     }
@@ -371,6 +394,8 @@
     stop();
     const token = version;
     const sceneEl = root.querySelector('.showcase-scene');
+    sceneEl.classList.toggle('showcase-momir', feature === 1);
+    root.querySelector('.home-showcase-panel').classList.toggle('showcase-wide-draft', feature === 0);
     sceneEl.innerHTML = scene();
     // Decode only this pane's thumbnails. Other panes make no image requests;
     // repeated reel frames share URLs and the browser's decoded image cache.
@@ -378,55 +403,94 @@
     if (token !== version) return;
     const active = play && motionEnabled && !reduced.matches && !document.hidden && visible;
     const finished = [];
-    function move(element, frames, delay = 0, duration = 650, easing = 'cubic-bezier(.2,.7,.25,1)') {
+    function move(element, frames, delay = 0, duration = 650, easing = 'cubic-bezier(.2,.7,.25,1)', iterations = 1) {
       const animation = element.animate(frames, {
-        duration: active ? duration : 0, delay: active ? delay : 0, easing, fill: 'forwards'
+        duration: active ? duration : 0, delay: active ? delay : 0, easing, iterations: active ? iterations : 1, fill: 'forwards'
       });
       animations.push(animation);
       pauseOffscreen();
-      const done = animation.finished.catch(() => {});
+      const done = animation.finished.then(() => {
+        if (token !== version) return;
+        // Keep the final appearance as ordinary styles, then release the
+        // animation's composited layer instead of retaining fill-forwards.
+        Object.assign(element.style, frames[frames.length - 1]);
+        animation.cancel();
+        animations = animations.filter((item) => item !== animation);
+      }).catch(() => {});
       finished.push(done);
       return done;
     }
 
     if (feature === 0 || feature === 4) {
       const draft = feature === 0;
-      const lead = draft ? 2100 : 0;
+      const lead = draft ? 2800 : 0;
       const cards = [...sceneEl.querySelectorAll('.showcase-reveal')];
-      if (draft) {
-        sceneEl.querySelectorAll('.showcase-draft-pack').forEach((element, i) => {
-          move(element, [
-            { transform: `translateX(${(i - 4) * 145 + 650}px)` },
-            { transform: `translateX(${(i - 4) * 145}px)` }
-          ], 0, 1850);
-          if (i !== 4) move(element, [{ opacity: 1 }, { opacity: .15 }], 1950, 300);
+      if (!draft) {
+        // Clear the decorative wrappers before revealing cards. Their rotated
+        // borders can bleed through the 3D scene even with a lower z-index.
+        sceneEl.querySelectorAll('.showcase-side').forEach((element) => {
+          move(element, [{ opacity: .5 }, { opacity: 0 }], 100, 550).then(() => {
+            if (token === version) element.hidden = true;
+          });
         });
+      }
+      if (draft) {
+        const track = sceneEl.querySelector('.showcase-draft-track');
+        // Identical pack faces make a ten-pack loop seamless.
+        move(track, [
+          { transform: 'translateX(0)' },
+          { transform: 'translateX(-1450px)' }
+        ], 0, 142, 'linear', 10).then(async () => {
+          if (token !== version) return;
+          await move(track, [
+            { transform: 'translateX(-1450px)' },
+            { transform: 'translateX(-4060px)' }
+          ], 0, 1100, 'cubic-bezier(.2,.8,.3,1)');
+        });
+        move(track, [{ filter: 'blur(7px)', opacity: .8 }, { filter: 'blur(7px)', opacity: .8 }], 0, 1420, 'linear');
+        move(track, [{ filter: 'blur(7px)', opacity: .8 }, { filter: 'blur(0px)', opacity: 1 }], 1420, 850);
+        sceneEl.querySelectorAll('.showcase-draft-pack').forEach((element, i) => {
+          if (!element.classList.contains("showcase-center")) move(element, [{ opacity: 1 }, { opacity: .25 }], 2500, 200);
+        });
+        move(sceneEl.querySelector('.showcase-center'), [
+          { transform: 'translateX(4060px) scale(1)' },
+          { transform: 'translateX(4060px) scale(1.13) rotate(-4deg)' },
+          { transform: 'translateX(4060px) scale(1.06) rotate(0deg)' }
+        ], 2520, 280);
       }
       move(sceneEl.querySelector('.showcase-center .showcase-cap'), [
         { transform: 'translate(0,0)', opacity: 1 },
         { transform: 'translate(65px,-65px) rotate(-20deg)', opacity: 0 }
-      ], lead + 100, 550);
+      ], lead + 100, draft ? 240 : 550);
       move(sceneEl.querySelector('.showcase-center .showcase-body'), [
         { transform: 'translateY(0)', opacity: 1 },
         { transform: 'translateY(165px) rotate(8deg)', opacity: 0 }
-      ], lead + 600, 550).then(() => {
+      ], lead + (draft ? 260 : 600), draft ? 300 : 550).then(() => {
         if (token === version) sceneEl.querySelector('.showcase-center').hidden = true;
       });
       const spacing = draft ? Math.min(125, sceneEl.clientWidth * .17)
-        : Math.min(105, Math.max(0, (sceneEl.clientWidth - 122) / (cards.length - 1)));
+        : Math.min(166, Math.max(0, (sceneEl.clientWidth - cards[0].offsetWidth - 20) / (cards.length - 1)));
       cards.forEach((element, i) => move(element, [
         { opacity: 0, transform: 'translateY(60px) scale(.8)' },
         { opacity: 1, transform: `translate(${(i - (cards.length - 1) / 2) * spacing}px,${draft ? (i === 1 ? 0 : 10) : i * 8}px) rotate(${draft ? (i - 1) * 7 : 0}deg)` }
-      ], lead + (draft ? 760 : 760 + i * 340), 650));
+      ], lead + (draft ? 500 + i * 70 : 1160 + i * 340), draft ? 420 : 650));
     }
     if (feature === 1) {
+      const cardWidth = sceneEl.querySelector('.showcase-land').offsetWidth;
+      const shift = Math.min(115, Math.max(0, (sceneEl.clientWidth - cardWidth) / 2 - 16));
+      const narrow = sceneEl.clientWidth < 390;
+      const discardScale = narrow ? .36 : .7;
+      const discardWidth = discardScale * (cardWidth * Math.cos(70 * Math.PI / 180)
+        + sceneEl.querySelector('.showcase-land').offsetHeight * Math.sin(70 * Math.PI / 180));
+      const discardShift = Math.min(narrow ? Infinity : 125, Math.max(0, (sceneEl.clientWidth - discardWidth) / 2 - 12));
+      sceneEl.querySelector('.showcase-land').style.transform = `translateX(${-shift}px) rotate(-8deg)`;
       move(sceneEl.querySelector('.showcase-land'), [
-        { transform: 'translateX(-55px) rotate(-8deg)' },
-        { transform: 'translate(-95px,55px) rotate(-85deg)', opacity: .4 }
+        { transform: `translateX(${-shift}px) rotate(-8deg)` },
+        { transform: `translate(${-discardShift}px,${narrow ? 80 : 35}px) rotate(-70deg) scale(${discardScale})`, opacity: .4 }
       ], 100);
       move(sceneEl.querySelector('.showcase-creature'), [
-        { opacity: 0, transform: 'translateX(45px) rotateY(90deg)' },
-        { opacity: 1, transform: 'translateX(45px) rotateY(0deg)' }
+        { opacity: 0, transform: `translateX(${shift}px) rotateY(90deg)` },
+        { opacity: 1, transform: `translateX(${shift}px) rotateY(0deg)` }
       ], 650, 750);
     }
     if (feature === 2) {
@@ -462,7 +526,70 @@
         { transform: 'translate(0,0) rotate(0)', opacity: 1 }
       ], i * 45, 700));
     }
+    if (feature === 6) {
+      const cards = [...sceneEl.querySelectorAll('.showcase-test-card')];
+      const poolLeft = sceneEl.clientWidth * .76;
+      const gap = sceneEl.clientWidth < 420 ? 5 : 10;
+      const width = Math.min(90, Math.floor((poolLeft - 32 - 7 * gap) / 8));
+      const height = width * 1.4;
+      const rowGap = 18;
+      const gridTop = (sceneEl.clientHeight - 2 * height - rowGap) / 2;
+      const pickWidth = Math.min(94, (sceneEl.clientWidth - poolLeft - 24 - gap) / 2, (sceneEl.clientHeight - 100) / 2.8);
+      const pickScale = pickWidth / width;
+      const pickTop = 64;
+      cards.forEach((element) => {
+        const round = Number(element.dataset.round);
+        const i = Number(element.dataset.pick);
+        const columns = 8;
+        const row = Math.floor(i / columns);
+        const x = (poolLeft - columns * width - (columns - 1) * gap) / 2 + (i % columns) * (width + gap);
+        const y = gridTop + row * (height + rowGap);
+        const origin = `translate(${x}px,${y}px)`;
+        element.style.width = `${width}px`;
+        element.style.transform = origin;
+        const picked = element.getAttribute('aria-label') === (round === 0 ? 'Demonic Tutor' : 'Cunning Rhetoric');
+        if (round === 1) {
+          move(element, [
+            { transform: `translate(${x - 15}px,${y}px)`, opacity: 0 },
+            { transform: origin, opacity: 1 }
+          ], 2850, 550);
+        }
+        if (picked) {
+          element.style.zIndex = round + 3;
+          const highlightAt = round === 0 ? 950 : 3900;
+          const destination = poolLeft + (sceneEl.clientWidth - poolLeft - pickWidth) / 2;
+          const destinationTop = pickTop + round * (pickWidth * 1.4 + 16);
+          move(element, [{ borderColor: 'transparent' }, { borderColor: 'var(--theme-highlight)' }], highlightAt, 300);
+          move(element, [
+            { transform: `${origin} scale(1)` },
+            { transform: `translate(${x}px,${y - 5}px) scale(1.04)` },
+            { transform: `translate(${destination}px,${destinationTop}px) scale(${pickScale})` }
+          ], highlightAt + 350, 800);
+        } else if (round === 0) {
+          move(element, [
+            { transform: origin, opacity: 1 },
+            { transform: `translate(${x - 15}px,${y}px)`, opacity: 0 }
+          ], 2300, 400);
+        } else {
+          // Dim opaque card faces; transparency would show overlapping layers.
+          move(element, [{ filter: 'brightness(1) saturate(1)' }, { filter: 'brightness(.65) saturate(.65)' }], 5700, 550);
+        }
+      });
+    }
     await Promise.all(finished);
+    if (token === version && feature === 4) {
+      // The simulator ends in a flat row. No transformed layers are needed
+      // once its cards have landed (notably for Firefox repaint stability).
+      const cards = [...sceneEl.querySelectorAll('.showcase-reveal')];
+      const cardWidth = cards[0].offsetWidth;
+      const spacing = Math.min(166, Math.max(0, (sceneEl.clientWidth - cardWidth - 20) / (cards.length - 1)));
+      cards.forEach((element, i) => {
+        element.style.left = `calc(50% - ${cardWidth / 2}px + ${(i - (cards.length - 1) / 2) * spacing}px)`;
+        element.style.top = `${25 + i * 8}px`;
+        element.style.transform = 'none';
+      });
+      sceneEl.querySelectorAll('.showcase-booster').forEach((element) => element.remove());
+    }
   }
 
   applyStatus(initial);

@@ -15,7 +15,7 @@
         <div><div class="sets-eyebrow">CARDS / MAGIC SETS</div>
             <h1>Pick your sets. Or create new ones.</h1>
             <p>Manage custom sets and choose the sets available for play.</p></div>
-        <div class="sets-heading-actions"><a class="action-button secondary-button" href="{{ url_for('index') }}">Back</a>
+        <div class="sets-heading-actions"><a class="action-button secondary-button" href="{{ url_for('draft_testing_setup') if request.args.get('return_to') == 'draft-testing' else url_for('index') }}">Back</a>
             <button type="submit" form="setsForm" class="action-button">Save Changes</button></div>
     </header>
 
@@ -292,6 +292,7 @@
     </div>
 
     <form id="setsForm" method="post" class="config-form">
+        {% if request.args.get("return_to") == "draft-testing" %}<input type="hidden" name="return_to" value="draft-testing">{% endif %}
 
         <div class="page-panel sets-available-panel">
             <div class="sets-panel-header">

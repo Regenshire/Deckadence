@@ -11,7 +11,7 @@
     rel="stylesheet"
     href="{{ url_for('static', filename='css/card_views.css') }}"
 >
-<link rel="stylesheet" href="{{ url_for('static', filename='css/campaign_test_draft_theme.css', v='10') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/campaign_test_draft_theme.css', v='11') }}">
 {% endblock %}
 
 {# Page Content #}
@@ -61,7 +61,7 @@
         <div class="campaign-test-draft-topbar">
             <div class="campaign-test-draft-title-wrap">
                 <h2 class="campaign-test-draft-title">Pack {{ session.current_pack_number }} / Pick {{ session.current_pick_number }}</h2>
-                <span class="campaign-test-draft-subtitle">{{ draft_state.current_pack_cards|length }} cards available</span>
+                <span class="campaign-test-draft-subtitle">{{ draft_state.current_pack_cards|length }} cards available{% if session.cards_per_pick == 2 %} · Pick 2 — choose {{ draft_state.picks_remaining }} more{% endif %}</span>
             </div>
 
             <div class="campaign-test-draft-top-actions">
@@ -227,7 +227,7 @@
                     <div class="campaign-test-draft-card-footer">
                         <label class="campaign-test-draft-card-select-row">
                             <input
-                                type="radio"
+                                type="checkbox"
                                 name="selected_draft_test_card"
                                 value="{{ card.draft_test_pack_card_id }}"
                                 class="campaign-test-draft-card-radio"
@@ -275,9 +275,10 @@
                     <div class="campaign-test-draft-human-name">
                         {{ human_player.item.display_name if human_player.item else "You" }}
                     </div>
+                    <div id="campaignTestDraftSelectedCardLabel" class="campaign-test-draft-selected-label" data-default-label=""></div>
                 </div>
 
-                <div id="campaignTestDraftSelectedCardLabel" class="campaign-test-draft-selected-label hidden" data-default-label=""></div>
+                <button type="button" id="returnPendingPick" class="campaign-test-draft-confirm-button" {% if not draft_state.can_return_pending_pick %}hidden{% endif %}>Return first pick to pack</button>
             </div>
 
             {% if session.status != "complete" %}
@@ -486,7 +487,7 @@
                                 {% if picked_card.pick_reason == "Basic land" %}
                                     Basic Land
                                 {% else %}
-                                    Pack {{ picked_card.pack_number }} • Pick {{ picked_card.pick_number }}
+                                    Pack {{ picked_card.pack_number }} · Pick {{ picked_card.pick_number }}
                                 {% endif %}
                             </div>
                         </div>
@@ -550,7 +551,7 @@
                         <div class="campaign-test-draft-picked-main">
                             <div class="campaign-test-draft-picked-name">{{ picked_card.card_name }}</div>
                             <div class="campaign-test-draft-picked-meta">
-                                Pick {{ picked_card.pick_number }} • Pack {{ picked_card.pack_number }}
+                                Pick {{ picked_card.pick_number }} · Pack {{ picked_card.pack_number }}
                             </div>
                         </div>
 
@@ -865,6 +866,9 @@
     let currentPage = 1;
     let currentViewMode = "grid";
     let selectedCardId = "";
+    const selectedCardIds = new Set();
+    let picksRequired = {{ draft_state.picks_remaining | default(1) | tojson }};
+    function selectionComplete() { return selectedCardIds.size === picksRequired && picksRequired > 0; }
     let draggedDraftItem = null;
     let pickedViewMode = "list";
     let pickedSortMode = "rarity-desc";
@@ -914,7 +918,7 @@
                 '</div>' +
                 '<div class="campaign-test-draft-card-footer">' +
                     '<label class="campaign-test-draft-card-select-row">' +
-                        '<input type="radio" name="selected_draft_test_card" value="' + escapeHtml(card.draft_test_pack_card_id) + '" class="campaign-test-draft-card-radio">' +
+                        '<input type="checkbox" name="selected_draft_test_card" value="' + escapeHtml(card.draft_test_pack_card_id) + '" class="campaign-test-draft-card-radio">' +
                         '<span class="campaign-test-draft-card-name">' + escapeHtml(card.card_name) + '</span>' +
                     '</label>' +
                 '</div>' +
@@ -925,7 +929,7 @@
     function renderPickedCard(pickedCard, targetZone) {
         const pickedMeta = pickedCard.is_basic_land
             ? "Basic Land"
-            : "Pack " + escapeHtml(pickedCard.pack_number) + " • Pick " + escapeHtml(pickedCard.pick_number);
+            : "Pack " + escapeHtml(pickedCard.pack_number) + " · Pick " + escapeHtml(pickedCard.pick_number);
 
         return (
             '<div class="campaign-test-draft-picked-row" draggable="true" data-drag-type="picked-card" data-draft-test-pick-id="' + escapeHtml(pickedCard.draft_test_pick_id) + '" data-current-zone="' + escapeHtml(targetZone) + '" data-card-name="' + escapeHtml(pickedCard.card_name || "") + '" data-card-uuid="' + escapeHtml(pickedCard.card_uuid || "") + '" data-card-rarity="' + escapeHtml(pickedCard.rarity || "") + '" data-card-mana-value="' + escapeHtml(pickedCard.mana_value ?? "") + '" data-card-type-line="' + escapeHtml(pickedCard.type_line || "") + '">' +
@@ -950,8 +954,15 @@
             }
 
             cardElement.dataset.cardEventsBound = "1";
+            cardElement.tabIndex = 0;
+            cardElement.setAttribute("role", "button");
+            cardElement.setAttribute("aria-label", "Select " + (cardElement.dataset.cardName || "card"));
+            cardElement.addEventListener("keydown", function (event) {
+                if (event.key === " " || event.key === "Enter") { event.preventDefault(); selectCard(cardElement); }
+            });
 
-            cardElement.addEventListener("click", function () {
+            cardElement.addEventListener("click", function (event) {
+                event.preventDefault();
                 selectCard(cardElement);
             });
 
@@ -971,11 +982,7 @@
                 hidePickedCardHoverPreview();
             });
 
-            if (radio) {
-                radio.addEventListener("change", function () {
-                    selectCard(cardElement);
-                });
-            }
+
 
             if (imageElement) {
                 imageElement.addEventListener("dblclick", function (event) {
@@ -1082,7 +1089,8 @@
             : null;
 
         getCardElements().forEach(function (cardElement) {
-            const isSelected = cardElement === selectedCard;
+            const isSelected = selectedCardIds.has(cardElement.dataset.draftTestPackCardId);
+            cardElement.setAttribute("aria-pressed", String(isSelected));
             const radio = cardElement.querySelector(".campaign-test-draft-card-radio");
 
             cardElement.classList.toggle("campaign-test-draft-card-selected", isSelected);
@@ -1093,11 +1101,11 @@
         });
 
         if (confirmPickButton) {
-            confirmPickButton.disabled = !selectedCard;
+            confirmPickButton.disabled = !selectionComplete();
         }
 
         if (sideboardPickButton) {
-            sideboardPickButton.disabled = !selectedCard;
+            sideboardPickButton.disabled = !selectionComplete();
         }
 
         if (selectedPackCardInput) {
@@ -1105,9 +1113,9 @@
         }
 
         if (selectedCardLabel) {
-            selectedCardLabel.textContent = selectedCard
-                ? "Selected: " + (selectedCard.dataset.cardName || "Card")
-                : "Select a card from the current pack.";
+            selectedCardLabel.textContent = selectedCardIds.size
+                ? selectedCardIds.size + " of " + picksRequired + " selected"
+                : "Select " + picksRequired + (picksRequired === 1 ? " card." : " cards.");
         }
     }
 
@@ -1116,7 +1124,11 @@
             return;
         }
 
-        selectedCardId = cardElement.dataset.draftTestPackCardId || "";
+        const id = cardElement.dataset.draftTestPackCardId || "";
+        if (selectedCardIds.has(id)) selectedCardIds.delete(id);
+        else if (picksRequired === 1) { selectedCardIds.clear(); selectedCardIds.add(id); }
+        else if (selectedCardIds.size < picksRequired) selectedCardIds.add(id);
+        selectedCardId = Array.from(selectedCardIds)[0] || "";
         updateSelectedCardState();
     }
 
@@ -1412,7 +1424,8 @@
 
     let virtualUsersViewMode = "list";
     let virtualUsersSortMode = "pick-asc";
-    let draftCardSize = 100;
+    let draftCardSize = "auto";
+    try { draftCardSize = localStorage.getItem("deckadence.testDraft.cardSize") || "auto"; } catch (_) {}
     let virtualUsersMaximized = false;
     let virtualStatsVisible = true;
     let lastVirtualUsersPayload = null;
@@ -1562,7 +1575,7 @@
             pickParts.push("[" + escapeHtml(score) + "]");
         }
 
-        return pickParts.join(" • ");
+        return pickParts.join(" · ");
     }
 
     function getVirtualCardRarityValue(card) {
@@ -1649,7 +1662,7 @@
     }
 
     function formatVirtualPickBaseLine(card) {
-        return "Pack " + escapeHtml(card.pack_number) + " • Pick " + escapeHtml(card.pick_number);
+        return "Pack " + escapeHtml(card.pack_number) + " · Pick " + escapeHtml(card.pick_number);
     }
 
     function formatVirtualPickScoreBadge(card) {
@@ -1659,7 +1672,7 @@
             return "";
         }
 
-        return ' <span class="campaign-test-draft-virtual-card-score">• [' + escapeHtml(score) + ']</span>';
+        return ' <span class="campaign-test-draft-virtual-card-score">· [' + escapeHtml(score) + ']</span>';
     }
 
     function renderVirtualCard(card) {
@@ -1672,7 +1685,7 @@
             card.collector_number || "",
             card.rarity || "",
             card.type_line || ""
-        ].filter(Boolean).join(" • ");
+        ].filter(Boolean).join(" · ");
 
         return (
             '<div class="campaign-test-draft-virtual-card" data-card-name="' + escapeHtml(cardName) + '" data-card-type-line="' + escapeHtml(card.type_line || "") + '" data-card-mana-value="' + escapeHtml(card.mana_value ?? "") + '">' +
@@ -1805,8 +1818,11 @@
         const safeSize = window.DeckadenceCardSizes.normalize(sizePercent);
 
         draftCardSize = safeSize;
+        workspace.classList.toggle("card-size-auto", safeSize === "auto");
+        if (virtualUsersModal) virtualUsersModal.classList.toggle("card-size-auto", safeSize === "auto");
+        try { localStorage.setItem("deckadence.testDraft.cardSize", String(safeSize)); } catch (_) {}
 
-        const cardWidth = window.DeckadenceCardSizes.pixels(safeSize);
+        const cardWidth = window.DeckadenceCardSizes.pixels(safeSize, cardList);
         const stackColumnWidth = Math.max(112, cardWidth);
         const stackCardWidth = Math.max(96, stackColumnWidth - 16);
         const visibleStackStrip = Math.max(30, Math.round(stackCardWidth * 0.22));
@@ -1957,7 +1973,8 @@
         const subtitle = document.querySelector(".campaign-test-draft-subtitle");
 
         if (title) title.textContent = "Pack " + payload.session.current_pack_number + " / Pick " + payload.session.current_pick_number;
-        if (subtitle) subtitle.textContent = (payload.current_pack_cards || []).length + " cards available";
+        if (subtitle) subtitle.textContent = (payload.current_pack_cards || []).length + " cards available"
+            + (payload.session.cards_per_pick === 2 ? " · Pick 2 — choose " + payload.picks_remaining + " more" : "");
     }
 
     function getPickedCardRarityValue(rarity) {
@@ -2340,6 +2357,9 @@
         }
 
         selectedCardId = "";
+        selectedCardIds.clear();
+        document.getElementById("returnPendingPick").hidden = !payload.can_return_pending_pick;
+        picksRequired = Number(payload.picks_remaining || 0);
 
         const currentPackCards = payload.current_pack_cards || [];
         const hasCurrentPackCards = currentPackCards.length > 0;
@@ -2400,23 +2420,37 @@
         }
     }
 
+    let draftMutationPending = false;
     async function submitAjaxData(actionUrl, formData) {
-        const response = await fetch(actionUrl, {
-            method: "POST",
-            headers: {
-                "Accept": "application/json",
-                "X-Requested-With": "XMLHttpRequest"
-            },
-            body: formData
-        });
-
-        const payload = await response.json();
-
-        if (!response.ok || !payload.ok) {
-            throw new Error(payload.message || "Draft update failed.");
+        if (draftMutationPending) {
+            throw new Error("Wait for the current pick to finish.");
         }
+        draftMutationPending = true;
+        const wasInert = workspace.inert;
+        workspace.inert = true;
+        workspace.setAttribute("aria-busy", "true");
+        try {
+            const response = await fetch(actionUrl, {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json",
+                    "X-Requested-With": "XMLHttpRequest"
+                },
+                body: formData
+            });
 
-        return payload;
+            const payload = await response.json();
+
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.message || "Draft update failed.");
+            }
+
+            return payload;
+        } finally {
+            draftMutationPending = false;
+            workspace.inert = wasInert;
+            workspace.removeAttribute("aria-busy");
+        }
     }
 
     async function submitAjaxForm(formElement) {
@@ -2813,7 +2847,15 @@
                     let payload = null;
 
                     if (droppedItem.type === "pack-card") {
-                        payload = await pickDraftCardToZone(droppedItem.packCardId, targetZone);
+                        if (picksRequired > 1) {
+                            selectedCardIds.add(droppedItem.packCardId);
+                            if (selectedCardIds.size > picksRequired) selectedCardIds.delete(droppedItem.packCardId);
+                            selectedCardId = Array.from(selectedCardIds)[0] || "";
+                            deckZoneInput.value = targetZone;
+                            updateSelectedCardState();
+                        } else {
+                            payload = await pickDraftCardToZone(droppedItem.packCardId, targetZone);
+                        }
                     } else if (droppedItem.type === "picked-card") {
                         if (droppedItem.currentZone === targetZone) {
                             dropZone.classList.remove("campaign-test-draft-drop-zone-working");
@@ -2942,7 +2984,7 @@
 
     if (cardSizeSelect) {
         cardSizeSelect.addEventListener("change", function () {
-            setDraftCardSize(cardSizeSelect.value || "100");
+            setDraftCardSize(cardSizeSelect.value || "auto");
         });
     }
 
@@ -3133,6 +3175,13 @@
         });
     }
 
+    document.getElementById("returnPendingPick").addEventListener("click", async function () {
+        try {
+            const payload = await submitAjaxData({{ url_for('campaign_chaos_test_draft_return_pending', draft_test_id=session.draft_test_id) | tojson }}, new FormData());
+            applyDraftStatePayload(payload);
+        } catch (error) { showDraftAjaxError(error); }
+    });
+
     if (pickForm) {
         pickForm.addEventListener("submit", async function (event) {
             event.preventDefault();
@@ -3140,7 +3189,7 @@
             const submitter = event.submitter;
             const isContinueAction = submitter === continueButton;
 
-            if (!isContinueAction && !selectedCardId) {
+            if (!isContinueAction && !selectionComplete()) {
                 return;
             }
 
@@ -3169,18 +3218,23 @@
             }
 
             try {
-                const payload = await submitAjaxForm(pickForm);
+                const formData = new FormData(pickForm);
+                if (!isContinueAction) {
+                    formData.delete("draft_test_pack_card_id");
+                    selectedCardIds.forEach(id => formData.append("draft_test_pack_card_ids", id));
+                }
+                const payload = await submitAjaxData(pickForm.action, formData);
                 applyDraftStatePayload(payload);
             } catch (error) {
                 showDraftAjaxError(error);
 
                 if (confirmPickButton) {
-                    confirmPickButton.disabled = !selectedCardId;
+                    confirmPickButton.disabled = !selectionComplete();
                     confirmPickButton.textContent = "Confirm Pick";
                 }
 
                 if (sideboardPickButton) {
-                    sideboardPickButton.disabled = !selectedCardId;
+                    sideboardPickButton.disabled = !selectionComplete();
                     sideboardPickButton.textContent = "Pick to Sideboard";
                 }
 
@@ -3221,6 +3275,9 @@
         human_sideboard_cards: Array.from(document.querySelectorAll("#campaignTestDraftSideboardList .campaign-test-draft-picked-row"))
     });
 
+    window.DeckadenceCardSizes.observe(cardList, () => {
+        if (draftCardSize === "auto") setDraftCardSize("auto");
+    });
     setDraftCardSize(draftCardSize);
     setViewMode("grid");
     setPickedViewMode("list");

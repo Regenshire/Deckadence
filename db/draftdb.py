@@ -263,8 +263,23 @@ def ensure_draft_testing_schema():
 
     ensure_isolation_storage_schema(conn)
     ensure_column_exists(cursor, "draft_test_pack_cards", "image_scope_id", "TEXT")
+    ensure_column_exists(cursor, "draft_test_sessions", "cards_per_pick", "INTEGER NOT NULL DEFAULT 1")
     conn.commit()
     conn.close()
+
+
+def normalize_draft_test_cards_per_pick(value):
+    return 2 if str(value).strip() == "2" else 1
+
+
+def count_human_picks_this_step(cursor, session_row):
+    cursor.execute("""
+        SELECT COUNT(*) FROM draft_test_picks
+        WHERE draft_test_id = ? AND seat_index = 0
+          AND pack_number = ? AND pick_number = ?
+          AND draft_test_pack_card_id IS NOT NULL
+    """, (session_row["draft_test_id"], session_row["current_pack_number"], session_row["current_pick_number"]))
+    return int(cursor.fetchone()[0])
 
 
 def normalize_draft_test_pod_size(value):
@@ -538,6 +553,9 @@ def normalize_draft_test_pack_ids(values):
 
 
 def get_tracked_pack_rows_for_draft_pool(tracked_pack_ids, campaign_id=None):
+    from modes.chaos import ensure_tracked_pack_campaign_schema, get_campaign_membership_key
+
+    ensure_tracked_pack_campaign_schema()
     pack_ids = normalize_draft_test_pack_ids(tracked_pack_ids)
 
     if not pack_ids:
@@ -548,25 +566,23 @@ def get_tracked_pack_rows_for_draft_pool(tracked_pack_ids, campaign_id=None):
 
     sql = f"""
         SELECT
-            tracked_pack_id,
-            pack_tracking_code,
-            pack_display_name,
-            set_code,
-            booster_name,
-            booster_index,
-            total_cards,
-            campaign_enabled
-        FROM tracked_chaos_packs
-        WHERE tracked_pack_id IN ({placeholders})
+            tcp.tracked_pack_id,
+            tcp.pack_tracking_code,
+            tcp.pack_display_name,
+            tcp.set_code,
+            tcp.booster_name,
+            tcp.booster_index,
+            tcp.total_cards,
+            tpc.campaign_enabled
+        FROM tracked_chaos_packs tcp
+        JOIN tracked_chaos_pack_campaigns tpc ON tpc.tracked_pack_id = tcp.tracked_pack_id
+        WHERE tcp.tracked_pack_id IN ({placeholders})
     """
 
     params = list(pack_ids)
 
-    if parsed_campaign_id is None:
-        sql += " AND campaign_id IS NULL"
-    else:
-        sql += " AND campaign_id = ?"
-        params.append(parsed_campaign_id)
+    sql += " AND tpc.campaign_key = ?"
+    params.append(get_campaign_membership_key(parsed_campaign_id))
 
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -636,6 +652,7 @@ def create_draft_test_session_from_pack_pool(
     human_player_name="You",
     human_player_id=None,
     human_portrait_image_path="",
+    cards_per_pick=1,
 ):
     ensure_draft_testing_schema()
 
@@ -710,6 +727,8 @@ def create_draft_test_session_from_pack_pool(
     )
 
     draft_test_id = int(cursor.lastrowid)
+    cursor.execute("UPDATE draft_test_sessions SET cards_per_pick = ? WHERE draft_test_id = ?",
+                   (normalize_draft_test_cards_per_pick(cards_per_pick), draft_test_id))
 
     for seat_index in range(parsed_pod_size):
         is_human = 1 if seat_index == 0 else 0
@@ -1082,6 +1101,9 @@ def get_draft_test_full_card_stats(draft_test_id):
 
 
 def get_draft_test_detail(draft_test_id):
+    from modes.chaos import ensure_campaign_player_schema
+
+    ensure_campaign_player_schema()
     ensure_draft_testing_schema()
 
     try:
@@ -1258,10 +1280,14 @@ def get_draft_test_detail(draft_test_id):
         draft_test_id=parsed_draft_test_id,
     )
 
+    picks_this_step = count_human_picks_this_step(cursor, session_row)
+    picks_remaining = min(len(current_pack_cards), max(0, int(session_row["cards_per_pick"]) - picks_this_step))
     conn.close()
 
     return {
         "ok": True,
+        "picks_remaining": picks_remaining,
+        "can_return_pending_pick": session_row["status"] == "drafting" and int(session_row["cards_per_pick"]) == 2 and picks_this_step == 1 and bool(current_pack_cards),
         "session": session_row,
         "players": player_rows,
         "packs": pack_rows,
@@ -1576,14 +1602,12 @@ def record_ai_draft_test_picks_for_round(cursor, session_row, current_pick_numbe
         if not pack_row:
             continue
 
-        record_ai_draft_test_pick(
-            cursor=cursor,
-            session_row=session_row,
-            player_row=player_row,
-            pack_row=pack_row,
-            current_pick_number=current_pick_number,
-            now_utc=now_utc,
-        )
+        for _ in range(normalize_draft_test_cards_per_pick(session_row["cards_per_pick"])):
+            if not record_ai_draft_test_pick(
+                cursor=cursor, session_row=session_row, player_row=player_row,
+                pack_row=pack_row, current_pick_number=current_pick_number, now_utc=now_utc,
+            ):
+                break
 
 
 def get_remaining_cards_for_draft_test_pack(cursor, draft_test_pack_id):
@@ -2161,6 +2185,27 @@ def move_human_draft_test_pick_zone(draft_test_id, draft_test_pick_id, deck_zone
     }
 
 
+def return_pending_draft_test_pick(draft_test_id):
+    """Allow an unfinished Pick 2 step from an older client to be changed."""
+    ensure_draft_testing_schema()
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        session = cursor.execute("SELECT * FROM draft_test_sessions WHERE draft_test_id=? AND status='drafting'", (draft_test_id,)).fetchone()
+        if not session or normalize_draft_test_cards_per_pick(session["cards_per_pick"]) != 2 or count_human_picks_this_step(cursor, session) != 1:
+            return {"ok": False, "message": "There is no unfinished pick to return."}
+        pick = cursor.execute("SELECT * FROM draft_test_picks WHERE draft_test_id=? AND seat_index=0 AND pack_number=? AND pick_number=? AND draft_test_pack_id=? AND draft_test_pack_card_id>0", (draft_test_id, session["current_pack_number"], session["current_pick_number"], session["current_human_pack_id"])).fetchone()
+        if not pick or get_remaining_cards_for_draft_test_pack(cursor, session["current_human_pack_id"]) < 1:
+            return {"ok": False, "message": "This pick has already been confirmed."}
+        cursor.execute("UPDATE draft_test_pack_cards SET is_picked=0,picked_by_seat_index=NULL,picked_at_pick_number=NULL,picked_at_utc=NULL WHERE draft_test_pack_card_id=? AND draft_test_id=?", (pick["draft_test_pack_card_id"], draft_test_id))
+        cursor.execute("DELETE FROM draft_test_picks WHERE draft_test_pick_id=?", (pick["draft_test_pick_id"],))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        conn.close()
+
+
 def record_human_draft_test_pick(draft_test_id, draft_test_pack_card_id, deck_zone="deck"):
     ensure_draft_testing_schema()
 
@@ -2172,7 +2217,15 @@ def record_human_draft_test_pick(draft_test_id, draft_test_pack_card_id, deck_zo
             "message": "Invalid draft selection.",
         }
 
-    raw_pack_card_id = str(draft_test_pack_card_id or "").strip()
+    batch_selection = isinstance(draft_test_pack_card_id, (list, tuple))
+    raw_ids = draft_test_pack_card_id if batch_selection else [draft_test_pack_card_id]
+    try:
+        selected_ids = [int(value) for value in raw_ids if str(value or "").strip()]
+    except (TypeError, ValueError):
+        return {"ok": False, "message": "Invalid card selection."}
+    if len(selected_ids) != len(set(selected_ids)):
+        return {"ok": False, "message": "Choose different cards."}
+    raw_pack_card_id = str(selected_ids[0]) if selected_ids else ""
     continue_without_pick = not raw_pack_card_id
     parsed_pack_card_id = None
 
@@ -2194,6 +2247,7 @@ def record_human_draft_test_pick(draft_test_id, draft_test_pack_card_id, deck_zo
 
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute("BEGIN IMMEDIATE")
 
     cursor.execute(
         """
@@ -2301,93 +2355,114 @@ def record_human_draft_test_pick(draft_test_id, draft_test_pack_card_id, deck_zo
             "message": "Current draft pack was not found.",
         }
 
-    cursor.execute(
-        """
-        SELECT *
-        FROM draft_test_pack_cards
-        WHERE draft_test_pack_card_id = ?
-          AND draft_test_id = ?
-          AND draft_test_pack_id = ?
-          AND is_picked = 0
-        """,
-        (
-            parsed_pack_card_id,
-            parsed_draft_test_id,
-            current_human_pack_id,
-        ),
-    )
-    selected_card_row = cursor.fetchone()
+    if batch_selection:
+        remaining = get_remaining_cards_for_draft_test_pack(cursor, current_human_pack_id)
+        required = min(remaining, normalize_draft_test_cards_per_pick(session_row["cards_per_pick"]) - count_human_picks_this_step(cursor, session_row))
+        if len(selected_ids) != required or required < 1:
+            conn.close()
+            return {"ok": False, "message": f"Select {required} card(s) before confirming."}
 
-    if not selected_card_row:
-        conn.close()
-        return {
-            "ok": False,
-            "message": "Selected card is not available in the current pack.",
-        }
-
-    cursor.execute(
-        """
-        UPDATE draft_test_pack_cards
-        SET is_picked = 1,
-            picked_by_seat_index = ?,
-            picked_at_pick_number = ?,
-            picked_at_utc = ?
-        WHERE draft_test_pack_card_id = ?
-          AND draft_test_id = ?
-          AND is_picked = 0
-        """,
-        (
-            int(human_player_row["seat_index"]),
-            current_pick_number,
-            now_utc,
-            parsed_pack_card_id,
-            parsed_draft_test_id,
-        ),
-    )
-
-    if cursor.rowcount <= 0:
-        conn.rollback()
-        conn.close()
-        return {
-            "ok": False,
-            "message": "Selected card could not be picked.",
-        }
-
-    cursor.execute(
-        """
-        INSERT INTO draft_test_picks (
-            draft_test_id,
-            draft_test_player_id,
-            draft_test_pack_id,
-            draft_test_pack_card_id,
-            seat_index,
-            pack_number,
-            pick_number,
-            card_uuid,
-            card_name,
-            deck_zone,
-            picked_at_utc,
-            pick_score,
-            pick_reason
+    for parsed_pack_card_id in selected_ids:
+        cursor.execute(
+            """
+            SELECT *
+            FROM draft_test_pack_cards
+            WHERE draft_test_pack_card_id = ?
+              AND draft_test_id = ?
+              AND draft_test_pack_id = ?
+              AND is_picked = 0
+            """,
+            (
+                parsed_pack_card_id,
+                parsed_draft_test_id,
+                current_human_pack_id,
+            ),
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            parsed_draft_test_id,
-            int(human_player_row["draft_test_player_id"]),
-            current_human_pack_id,
-            parsed_pack_card_id,
-            int(human_player_row["seat_index"]),
-            int(current_pack_row["pack_number"]),
-            current_pick_number,
-            selected_card_row["card_uuid"] or "",
-            selected_card_row["card_name"] or "",
-            clean_deck_zone,
-            now_utc,
-            None,
-            "Human pick",
-        ),
-    )
+        selected_card_row = cursor.fetchone()
+
+        if not selected_card_row:
+            conn.close()
+            return {
+                "ok": False,
+                "message": "Selected card is not available in the current pack.",
+            }
+
+        cursor.execute(
+            """
+            UPDATE draft_test_pack_cards
+            SET is_picked = 1,
+                picked_by_seat_index = ?,
+                picked_at_pick_number = ?,
+                picked_at_utc = ?
+            WHERE draft_test_pack_card_id = ?
+              AND draft_test_id = ?
+              AND is_picked = 0
+            """,
+            (
+                int(human_player_row["seat_index"]),
+                current_pick_number,
+                now_utc,
+                parsed_pack_card_id,
+                parsed_draft_test_id,
+            ),
+        )
+
+        if cursor.rowcount <= 0:
+            conn.rollback()
+            conn.close()
+            return {
+                "ok": False,
+                "message": "Selected card could not be picked.",
+            }
+
+        cursor.execute(
+            """
+            INSERT INTO draft_test_picks (
+                draft_test_id,
+                draft_test_player_id,
+                draft_test_pack_id,
+                draft_test_pack_card_id,
+                seat_index,
+                pack_number,
+                pick_number,
+                card_uuid,
+                card_name,
+                deck_zone,
+                picked_at_utc,
+                pick_score,
+                pick_reason
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                parsed_draft_test_id,
+                int(human_player_row["draft_test_player_id"]),
+                current_human_pack_id,
+                parsed_pack_card_id,
+                int(human_player_row["seat_index"]),
+                int(current_pack_row["pack_number"]),
+                current_pick_number,
+                selected_card_row["card_uuid"] or "",
+                selected_card_row["card_name"] or "",
+                clean_deck_zone,
+                now_utc,
+                None,
+                "Human pick",
+            ),
+        )
+
+    # Keep this pack until the human has taken the configured number of
+    # cards. A pack with one card left passes after that final pick.
+    picks_taken = count_human_picks_this_step(cursor, session_row)
+    picks_required = normalize_draft_test_cards_per_pick(session_row["cards_per_pick"])
+    remaining = get_remaining_cards_for_draft_test_pack(cursor, current_human_pack_id)
+    if picks_taken < picks_required and remaining > 0:
+        cursor.execute("UPDATE draft_test_sessions SET updated_at_utc = ? WHERE draft_test_id = ?",
+                       (now_utc, parsed_draft_test_id))
+        conn.commit()
+        conn.close()
+        return {"ok": True, "message": "Choose one more card from this pack.",
+                "draft_test_id": parsed_draft_test_id, "picks_remaining": picks_required - picks_taken}
 
     record_ai_draft_test_picks_for_round(
         cursor=cursor,

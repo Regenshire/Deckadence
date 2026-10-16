@@ -91,3 +91,15 @@ html[data-theme] #campaignTestDraftWorkspace .test-draft-empty-card {
   user-select:none;-webkit-user-drag:none;
 }
 .test-draft-empty-card svg{pointer-events:none;}
+
+/* Draft cards are selected on click; zoom remains available on double click. */
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card,
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card-image {cursor:pointer;}
+html[data-theme] #campaignTestDraftWorkspace .campaign-test-draft-card:not(.campaign-test-draft-card-selected):hover::after {
+  content:"+";position:absolute;top:6px;right:6px;z-index:25;
+  width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+  background:var(--panel);color:var(--text);border:1px solid var(--accent);pointer-events:none;
+}
+
+#returnPendingPick{grid-column:1/-1;}
+#returnPendingPick[hidden]{display:none;}

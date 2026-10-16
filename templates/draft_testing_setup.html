@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Draft Testing - Deckadence{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', filename='css/draft_testing_setup.css', v='2') }}">{% endblock %}
+{% block content %}
+<main class="screen screen-wide draft-setup" id="draftSetup" data-pack-count="{{ packs|length }}" data-campaign-id="{{ campaign.campaign_id if campaign else '' }}" data-populate-url="{{ url_for('draft_testing_populate') }}">
+  <header class="draft-setup-heading">
+    <div><div class="draft-setup-eyebrow">PLAY / DRAFT TESTING</div><h1>Draft Testing</h1><p>Draft with simulated players, then build a deck from your picks.</p></div>
+    <div class="draft-setup-actions">
+      {% if active_draft %}<a class="action-button" href="{{ url_for('campaign_chaos_test_draft', draft_test_id=active_draft.draft_test_id) }}">Resume draft</a>{% endif %}
+      <a class="action-button secondary-button" href="{{ url_for('index') }}">Back</a>
+    </div>
+  </header>
+  {% for message in get_flashed_messages() %}<div class="flash-message" role="status">{{ message }}</div>{% endfor %}
+  <section class="page-panel" aria-labelledby="draftCampaignTitle">
+    <div class="draft-setup-panel-header"><div><h2 id="draftCampaignTitle">Campaign</h2><p>Choose where to save your draft packs.</p></div></div>
+    <div class="draft-setup-panel-body">
+    {% if campaign %}<p>Selected: <strong>{{ campaign.campaign_name }}</strong></p>{% else %}<p>Create a campaign to hold the packs for your draft, or choose an existing campaign.</p>{% endif %}
+    {% if campaigns %}
+    <form method="post" action="{{ url_for('draft_testing_campaign') }}" class="draft-setup-row">
+      <input type="hidden" name="action" value="select">
+      <label>Campaign<select name="campaign_id" required><option value="">Choose a campaign</option>{% for item in campaigns %}<option value="{{ item.campaign_id }}" {% if campaign and item.campaign_id == campaign.campaign_id %}selected{% endif %}>{{ item.campaign_name }}</option>{% endfor %}</select></label>
+      <button type="submit" class="action-button">Use campaign</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{{ url_for('draft_testing_campaign') }}" class="draft-setup-row">
+      <input type="hidden" name="action" value="create">
+      <label>New campaign name<input name="campaign_name" required maxlength="120" placeholder="My draft campaign"></label>
+      <button type="submit" class="action-button">Setup a campaign</button>
+    </form>
+    </div>
+  </section>
+  <section class="page-panel" aria-labelledby="draftPacksTitle">
+    <div class="draft-setup-panel-header"><div><h2 id="draftPacksTitle">Packs</h2><p>Choose sets and booster types, then add packs.</p></div><a class="action-button secondary-button" href="{{ url_for('sets', return_to='draft-testing') }}">Available Sets</a></div>
+    <div class="draft-setup-panel-body">
+    <p class="draft-setup-note">Save your choices in Available Sets to return here. Those filters also apply elsewhere in the app.</p>
+    <p><strong id="draftSavedCount">{{ packs|length }}</strong> saved packs available{% if campaign %} in {{ campaign.campaign_name }}{% endif %}.</p>
+    <p>Four players use 12 packs. Eight players use 24 packs. Each player opens three packs.</p>
+    {% if not card_database_ready %}<p><a href="{{ url_for('index') }}">Install the card database</a> before generating packs.</p>{% endif %}
+    <div class="draft-setup-row">
+      <button type="button" class="action-button" data-populate="12" {% if not campaign or not card_database_ready %}disabled{% endif %}>Populate 12 packs</button>
+      <button type="button" class="action-button secondary-button" data-populate="24" {% if not campaign or not card_database_ready %}disabled{% endif %}>Populate 24 packs</button>
+      {% if campaign %}<a class="action-button secondary-button" href="{{ url_for('campaign_chaos_packs') }}">Manage packs</a>{% endif %}
+    </div>
+    <p class="draft-setup-note">Populate adds new packs to this campaign. Existing packs are kept.</p>
+    <p id="draftPopulateStatus" role="status" aria-live="polite"></p>
+    <progress id="draftPopulateProgress" aria-label="Generating packs" hidden></progress>
+    <a id="draftRefreshPacks" href="{{ url_for('draft_testing_setup') }}" hidden>Refresh pack count</a>
+    <noscript><p>Use Manage packs to add packs before starting your draft.</p></noscript>
+    </div>
+  </section>
+  <section class="page-panel" aria-labelledby="draftStartTitle">
+    <div class="draft-setup-panel-header"><div><h2 id="draftStartTitle">Draft settings</h2><p>You take one seat. Simulated players fill the rest.</p></div></div>
+    <div class="draft-setup-panel-body">
+    <form method="post" action="{{ url_for('campaign_chaos_test_draft_start') }}" id="draftSetupStart">
+      <input type="hidden" name="return_to" value="draft-testing">
+      <input type="hidden" name="campaign_id" value="{{ campaign.campaign_id if campaign else '' }}">
+      {% for pack in packs %}<input type="hidden" name="pack_ids" value="{{ pack.tracked_pack_id }}">{% endfor %}
+      <input type="hidden" name="human_player_name" value="You">
+      <div class="draft-setup-fields">
+        <label>Players, including you<select name="pod_size" id="draftSetupPlayers">{% for count in range(2,13) %}<option value="{{ count }}" {% if count == 4 %}selected{% endif %}>{{ count }}</option>{% endfor %}</select></label>
+        <label>Packs per player<select name="packs_per_player" id="draftSetupPacks">{% for count in range(1,10) %}<option value="{{ count }}" {% if count == 3 %}selected{% endif %}>{{ count }}</option>{% endfor %}</select></label>
+        <label>Draft format<select name="cards_per_pick"><option value="1">Pick 1</option><option value="2" selected>Pick 2</option></select></label>
+      </div>
+      <p id="draftFormatDescription">Pick two cards, one at a time, before passing the pack. If only one card remains, take that card.</p>
+      <div class="draft-setup-footer"><p id="draftPackRequirement" role="status">12 packs required. {% if packs|length < 12 %}Add {{ 12 - packs|length }} more packs.{% else %}Ready to draft.{% endif %}</p>
+      <button type="submit" class="action-button" id="draftSetupStartButton" {% if not campaign or packs|length < 12 %}disabled{% endif %}>Start draft</button></div>
+    </form>
+    </div>
+  </section>
+</main>
+{% endblock %}
+{% block page_scripts_after_app %}<script defer src="{{ url_for('static', filename='js/draft_testing_setup.js', v='2') }}"></script>{% endblock %}

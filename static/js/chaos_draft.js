@@ -128,6 +128,26 @@ function initializeChaosDraftPage() {
   const exportSaveButton = document.getElementById("chaosExportSaveButton");
   const inlineViewPanel = document.getElementById("chaosDraftInlineViewPanel");
   const inlineViewGrid = document.getElementById("chaosPackInlineGrid");
+  const cardSizeSelect = document.getElementById("chaosCardSizeSelect");
+  if (cardSizeSelect && inlineViewGrid) {
+    const sizes = window.DeckadenceCardSizes;
+    const preferenceKey = cardSizeSelect.dataset.sizePreference;
+    let selectedSize = "auto";
+    try { selectedSize = sizes.normalize(localStorage.getItem(preferenceKey)); } catch (_) {}
+    function applyCardSize() {
+      cardSizeSelect.value = String(selectedSize);
+      inlineViewGrid.style.gridTemplateColumns = selectedSize === "auto"
+        ? "repeat(auto-fill, minmax(min(100%, 230px), 1fr))"
+        : `repeat(auto-fill, minmax(0, min(100%, ${sizes.pixels(selectedSize)}px)))`;
+    }
+    cardSizeSelect.addEventListener("change", () => {
+      selectedSize = sizes.normalize(cardSizeSelect.value);
+      try { localStorage.setItem(preferenceKey, String(selectedSize)); } catch (_) {}
+      applyCardSize();
+    });
+    applyCardSize();
+  }
+
   const inlineViewTitle = document.getElementById("chaosPackInlineTitle");
   const inlineViewSubtitle = document.getElementById("chaosPackInlineSubtitle");
   const inlineViewUpscaleButton = document.getElementById(
@@ -234,6 +254,7 @@ function initializeChaosDraftPage() {
   }
 
   function setPackOpenedPresentation(opened) {
+    if (cardSizeSelect) cardSizeSelect.closest(".chaos-card-size-control").hidden = !opened || !inlinePackViewLoaded;
     if (viewButton) viewButton.classList.toggle("hidden", opened);
     const heading = document.querySelector(".campaign-opened-heading");
     if (heading) heading.textContent = opened

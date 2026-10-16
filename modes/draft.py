@@ -7,6 +7,7 @@ from db.draftdb import (
     get_draft_test_virtual_player_detail,
     move_human_draft_test_pick_zone,
     normalize_draft_test_packs_per_player,
+    normalize_draft_test_cards_per_pick,
     normalize_draft_test_pod_size,
     record_human_draft_test_pick,
     record_human_draft_test_basic_land,
@@ -22,8 +23,10 @@ def create_draft_test_from_pack_pool(
     human_player_name="You",
     human_player_id=None,
     human_portrait_image_path="",
+    cards_per_pick=1,
 ):
     return create_draft_test_session_from_pack_pool(
+        cards_per_pick=cards_per_pick,
         campaign_id=campaign_id,
         tracked_pack_ids=tracked_pack_ids or [],
         pod_size=pod_size,
@@ -86,6 +89,7 @@ def move_human_draft_test_pick_zone_state(draft_test_id, draft_test_pick_id, dec
 def normalize_draft_test_start_payload(form_data):
     return {
         "pod_size": normalize_draft_test_pod_size(form_data.get("pod_size")),
+        "cards_per_pick": normalize_draft_test_cards_per_pick(form_data.get("cards_per_pick")),
         "packs_per_player": normalize_draft_test_packs_per_player(form_data.get("packs_per_player")),
         "human_player_name": (form_data.get("human_player_name") or "You").strip() or "You",
     }

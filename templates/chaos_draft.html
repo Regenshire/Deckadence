@@ -130,7 +130,11 @@
       >
         Open
       </button>
-      <button
+      <label class="chaos-card-size-control" for="chaosCardSizeSelect" hidden>
+                <span>Card Size</span>
+                <select id="chaosCardSizeSelect" data-size-preference="deckadence.chaosDraft.cardSize">{% include "_card_size_options.html" %}</select>
+            </label>
+            <button
         type="button"
         id="chaosOpenButton"
         class="action-button chaos-draft-open-button"
@@ -191,6 +195,19 @@
         {% endif %}
       </div>
 
+      {% if global_card_upscaling_control_enabled %}
+      <button
+        type="button"
+        id="chaosPackInlineUpscaleButton"
+        class="action-button secondary-button chaos-pack-inline-upscale-pack-button campaign-pack-upscale-icon"
+        disabled
+        title="Upscale Pack"
+        aria-label="Upscale all cards in this pack"
+      >
+        <i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i>
+      </button>
+      {% endif %}
+
       {% if enable_track_packs %}
       <div class="chaos-auto-save-row">
         <label
@@ -216,20 +233,7 @@
           <p id="chaosPackInlineSubtitle" class="page-subtitle"></p>
         </div>
 
-        {% if global_card_upscaling_control_enabled %}
-        <div class="chaos-pack-inline-view-header-actions">
-          <button
-            type="button"
-            id="chaosPackInlineUpscaleButton"
-            class="action-button secondary-button chaos-pack-inline-upscale-pack-button"
-            title="Upscale Pack"
-            aria-label="Upscale all cards in this pack"
-          >
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
-            <span>Upscale Pack</span>
-          </button>
-        </div>
-        {% endif %}
+
       </div>
 
       <div id="chaosPackInlineGrid" class="chaos-pack-inline-grid"></div>
@@ -274,6 +278,6 @@
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
 {% endif %}
-<script src="{{ url_for('static', filename='js/chaos_draft.js', v='opening-visibility-3') }}"></script>
+<script src="{{ url_for('static', filename='js/chaos_draft.js', v='card-size-2') }}"></script>
 
 {% endblock %}

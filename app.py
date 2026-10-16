@@ -290,7 +290,7 @@ from db.database import (
     upsert_custom_draft_set,
 )
 
-from db.draftdb import ensure_draft_testing_schema
+from db.draftdb import ensure_draft_testing_schema, get_active_draft_test_session, get_tracked_pack_rows_for_draft_pool
 
 from db.helpdb import (
     HelpProgressRepository,
@@ -2443,6 +2443,7 @@ refresh_status = {
 }
 refresh_lock = threading.Lock()
 refresh_start_lock = threading.Lock()
+draft_setup_population_lock = threading.Lock()
 
 app.config["DEBUG_LOG_ENABLED"] = False
 
@@ -19146,6 +19147,7 @@ def index():
         "home.html",
         card_database_ready=home_state["database_ready"],
         home_state=home_state,
+        has_existing_campaigns=bool(get_chaos_campaigns(include_disabled=True)),
     )
 
 
@@ -19196,6 +19198,79 @@ def home_status():
     response = jsonify(build_home_state())
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@app.get("/draft-testing")
+def draft_testing_setup():
+    existing_campaigns = get_chaos_campaigns(include_disabled=True)
+    if existing_campaigns:
+        return redirect(url_for("campaign_chaos_packs"))
+    campaigns = []
+    campaign_id = get_pack_management_campaign_id()
+    campaign = get_chaos_campaign_by_id(campaign_id) if campaign_id else None
+    packs = get_tracked_pack_management_rows(app.static_folder, campaign_id=campaign_id) if campaign else []
+    pack_ids = [pack["tracked_pack_id"] for pack in packs if pack.get("campaign_enabled") and int(pack.get("total_cards") or 0) > 0]
+    valid_packs = get_tracked_pack_rows_for_draft_pool(pack_ids, campaign_id=campaign_id) if pack_ids else []
+    active_draft = get_active_draft_test_session(campaign_id) if campaign else None
+    return render_template("draft_testing_setup.html", campaigns=campaigns, campaign=campaign,
+                           packs=valid_packs, active_draft=active_draft,
+                           card_database_ready=is_card_database_ready())
+
+
+@app.post("/draft-testing/campaign")
+def draft_testing_campaign():
+    if request.form.get("action") == "create":
+        result = create_chaos_campaign((request.form.get("campaign_name") or "").strip())
+        if result.get("ok"):
+            result = set_pack_management_campaign_id(result["campaign_id"])
+    else:
+        result = set_pack_management_campaign_id(request.form.get("campaign_id"))
+    if not result.get("ok"):
+        flash(result.get("message") or "Could not select the campaign.")
+    return redirect(url_for("draft_testing_setup"))
+
+
+@app.post("/draft-testing/populate")
+@app.post("/campaign-chaos/packs/add-random-batch", endpoint="campaign_chaos_packs_add_random_batch")
+def draft_testing_populate():
+    payload = request.get_json(silent=True) or {}
+    raw_count = str(payload.get("count", "")) if isinstance(payload, dict) else ""
+    if not raw_count.isdecimal() or not 1 <= int(raw_count) <= 99:
+        return jsonify(ok=False, message="Choose a whole number from 1 to 99 packs."), 400
+    if request.endpoint == "draft_testing_populate" and raw_count not in {"12", "24"}:
+        return jsonify(ok=False, message="Choose 12 or 24 packs."), 400
+    campaign_id = get_pack_management_campaign_id()
+    if "campaign_id" not in payload or str(payload.get("campaign_id") or "") != str(campaign_id or ""):
+        return jsonify(ok=False, message="Select the campaign again before adding packs."), 409
+    if not is_card_database_ready():
+        return jsonify(ok=False, message="Install the card database before generating packs."), 409
+    if not draft_setup_population_lock.acquire(blocking=False):
+        return jsonify(ok=False, message="Packs are already being generated. Please wait."), 409
+    created = 0
+    try:
+        config = get_request_config()
+        if config.get("all_sets_enabled") == "0" and not get_selected_set_codes():
+            return jsonify(ok=False, message="Choose at least one set in Available Sets."), 400
+        eligible = get_eligible_chaos_packs(app.static_folder)
+        if not eligible:
+            return jsonify(ok=False, message="No packs match the selected sets and booster types. Update Available Sets."), 400
+        counts = {}
+        for _ in range(int(payload["count"])):
+            pack = random.choice(eligible)
+            result = create_specific_pack_and_save_for_manage_packs(
+                pack["set_code"], pack["booster_name"], app.static_folder,
+                campaign_id=campaign_id, batch_card_name_counts=counts, write_debug_log_fn=write_debug_log)
+            if not result.get("ok"):
+                return jsonify(ok=False, created=created, message=f"Added {created} packs. " + (result.get("message") or "Pack generation stopped.")), 400
+            created += 1
+            for name, count in (result.get("card_name_counts_delta") or {}).items():
+                counts[name] = counts.get(name, 0) + int(count)
+        return jsonify(ok=True, created=created, message=f"Added {created} packs to the campaign.")
+    except Exception as exc:
+        write_error_log("DRAFT SETUP PACK GENERATION FAILED", exc=exc)
+        return jsonify(ok=False, created=created, message=f"Added {created} packs before generation stopped. Refresh to check the campaign before adding more."), 500
+    finally:
+        draft_setup_population_lock.release()
 
 
 @app.route("/help/adding-paper-templates")
@@ -24833,6 +24908,10 @@ def campaign_chaos_pack_preview_save():
             "message": "No generated pack preview is available to save.",
         }), 400
 
+    expected_code = request.form.get("preview_tracking_code")
+    if expected_code is not None and expected_code != (preview_pack.get("pack_tracking_code") or ""):
+        return jsonify(ok=False, message="This preview has been replaced by another pack. Open the current preview before saving."), 409
+
     result = save_opened_chaos_pack_to_tracking_db(
         preview_pack,
         campaign_id=(
@@ -24845,6 +24924,7 @@ def campaign_chaos_pack_preview_save():
 
     clear_chaos_session_state("pending_manage_pack_preview")
 
+    result["view_url"] = url_for("campaign_chaos_pack_detail", tracked_pack_id=result["tracked_pack_id"])
     return jsonify(result)
 
 def get_campaign_print_export_pack_ids_from_form():
@@ -25017,6 +25097,10 @@ def campaign_chaos_test_draft_start():
     selected_chaos_campaign_id = (
         get_pack_management_campaign_id()
     )
+    return_endpoint = "draft_testing_setup" if request.form.get("return_to") == "draft-testing" else "campaign_chaos_packs"
+    if "campaign_id" in request.form and str(selected_chaos_campaign_id or "") != request.form.get("campaign_id"):
+        flash("The selected campaign changed. Review its packs before starting the draft.")
+        return redirect(url_for(return_endpoint))
     selected_pack_ids = normalize_tracked_pack_id_list(request.form.getlist("pack_ids"))
     start_payload = normalize_draft_test_start_payload(request.form)
 
@@ -25040,6 +25124,7 @@ def campaign_chaos_test_draft_start():
             campaign_id=selected_chaos_campaign_id,
             tracked_pack_ids=selected_pack_ids,
             pod_size=start_payload["pod_size"],
+            cards_per_pick=start_payload["cards_per_pick"],
             packs_per_player=start_payload["packs_per_player"],
             human_player_name=human_player_name,
             human_player_id=human_player_id,
@@ -25047,11 +25132,11 @@ def campaign_chaos_test_draft_start():
         )
     except Exception as exc:
         flash(str(exc))
-        return redirect(url_for("campaign_chaos_packs"))
+        return redirect(url_for(return_endpoint))
 
     if not result.get("ok"):
         flash(result.get("message") or "Could not start Test Draft.")
-        return redirect(url_for("campaign_chaos_packs"))
+        return redirect(url_for(return_endpoint))
 
     return redirect(url_for(
         "campaign_chaos_test_draft",
@@ -25461,6 +25546,8 @@ def serialize_draft_test_state_for_ajax(draft_state):
 
     return {
         "ok": True,
+        "picks_remaining": draft_state.get("picks_remaining", 1),
+        "can_return_pending_pick": draft_state.get("can_return_pending_pick", False),
         "session": serialize_draft_test_row(session),
         "deckbuilder_url": url_for(
             "campaign_chaos_test_draft_deck_builder",
@@ -25597,9 +25684,19 @@ def campaign_chaos_test_draft_virtual_player(draft_test_id):
 
     return jsonify(payload), 200 if payload.get("ok") else 400
 
+@app.post("/campaign-chaos/test-draft/<int:draft_test_id>/return-pending")
+def campaign_chaos_test_draft_return_pending(draft_test_id):
+    from db.draftdb import return_pending_draft_test_pick
+    result = return_pending_draft_test_pick(draft_test_id)
+    if not result.get("ok"):
+        return jsonify(result), 400
+    return jsonify(serialize_draft_test_state_for_ajax(get_draft_test_detail_state(draft_test_id)))
+
 @app.route("/campaign-chaos/test-draft/<int:draft_test_id>/pick", methods=["POST"])
 def campaign_chaos_test_draft_pick(draft_test_id):
-    selected_pack_card_id = request.form.get("draft_test_pack_card_id")
+    selected_pack_card_id = (request.form.getlist("draft_test_pack_card_ids")
+                             if "draft_test_pack_card_ids" in request.form
+                             else request.form.get("draft_test_pack_card_id"))
     deck_zone = request.form.get("deck_zone") or "deck"
 
     result = record_human_draft_test_pick_state(
@@ -38500,6 +38597,8 @@ def sets():
     if request.method == "POST":
         update_selected_sets_from_form(request.form)
         flash("Magic set selection saved.")
+        if request.form.get("return_to") == "draft-testing":
+            return redirect(url_for("draft_testing_setup"))
         return redirect(url_for("sets"))
 
     config_values = get_request_config()

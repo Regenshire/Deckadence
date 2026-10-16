@@ -249,7 +249,7 @@
   );
 
   const defaultDeckbuilderCardSize = normalizeDeckbuilderCardSize(
-    workspace.dataset.defaultCardSize || "100",
+    workspace.dataset.defaultCardSize || "auto",
   );
 
   let draggedDeckbuilderItem = null;
@@ -523,7 +523,7 @@
   }
 
   function getDeckbuilderCardSizePixels(sizePercent) {
-    return window.DeckadenceCardSizes.pixels(sizePercent);
+    return window.DeckadenceCardSizes.pixels(sizePercent, deckList);
   }
 
   function updateDeckbuilderCardSize(sizePercent) {
@@ -537,6 +537,7 @@
     const overlap = Math.max(0, cardHeight - visibleStackStrip);
 
     deckbuilderCardSize = normalizedSizePercent;
+    workspace.classList.toggle("card-size-auto", deckbuilderCardSize === "auto");
 
     deckbuilderPreferences.set(
       DECKBUILDER_PREFERENCE_KEYS.cardSize,
@@ -5571,7 +5572,7 @@
 
   if (cardSizeSelect) {
     cardSizeSelect.addEventListener("change", function () {
-      updateDeckbuilderCardSize(cardSizeSelect.value || "100");
+      updateDeckbuilderCardSize(cardSizeSelect.value || "auto");
     });
   }
 
@@ -6202,6 +6203,9 @@
 
   applyDeckbuilderResponsiveLayout();
   setDeckbuilderBasicLandCounts(getCurrentDeckBasicLandCounts());
+  window.DeckadenceCardSizes.observe(deckList, () => {
+    if (deckbuilderCardSize === "auto") updateDeckbuilderCardSize("auto");
+  });
   updateDeckbuilderCardSize(deckbuilderCardSize);
   setViewMode(deckbuilderViewMode);
   //sortDeckbuilderZones();

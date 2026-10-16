@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone
 from functools import lru_cache
 
-from settings import DECK_SEARCH_DEFAULT_LIMIT, DECK_SEARCH_MAX_LIMIT
+from settings import DECK_SEARCH_DEFAULT_LIMIT, DECK_SEARCH_MAX_LIMIT, CARD_SIZE_PERCENTAGES
 
 from db.database import (
     ensure_isolation_storage_schema,
@@ -2782,18 +2782,13 @@ def normalize_deck_sort_mode(value):
 
 
 def normalize_deck_card_size(value):
+    if value is None or str(value).strip().lower() == "auto":
+        return "auto"
     try:
         parsed_value = int(value)
     except (TypeError, ValueError):
-        parsed_value = 100
-
-    if parsed_value < 70:
-        parsed_value = 70
-
-    if parsed_value > 150:
-        parsed_value = 150
-
-    return parsed_value
+        return "auto"
+    return min(CARD_SIZE_PERCENTAGES, key=lambda size: abs(size - parsed_value))
 
 
 def normalize_deck_flex_value(value, fallback):
@@ -2864,7 +2859,7 @@ def update_deck_settings(
     deck_format=DECK_FORMAT_STANDARD,
     view_mode="grid",
     sort_mode="rarity-desc",
-    card_size=100,
+    card_size="auto",
     sideboard_flex=0.40,
     deck_flex=0.60,
 ):
@@ -3776,7 +3771,7 @@ def build_deckbuilder_context_for_deck(deck_id):
     default_sort_mode = normalize_deck_sort_mode(
         layout_row["sort_mode"] if layout_row else (deck_row["default_sort_mode"] or "rarity-desc")
     )
-    default_card_size = normalize_deck_card_size(layout_json.get("card_size", 100))
+    default_card_size = normalize_deck_card_size(layout_json.get("card_size", "auto"))
     sideboard_flex = normalize_deck_flex_value(layout_row["sideboard_flex"] if layout_row else 0.40, 0.40)
     deck_flex = normalize_deck_flex_value(layout_row["deck_flex"] if layout_row else 0.60, 0.60)
 
@@ -3901,7 +3896,7 @@ def build_deckbuilder_context_for_draft_test(draft_state, preferred_deck_id=None
     default_sort_mode = normalize_deck_sort_mode(
         layout_row["sort_mode"] if layout_row else (deck_row["default_sort_mode"] if deck_row else "rarity-desc")
     )
-    default_card_size = normalize_deck_card_size(layout_json.get("card_size", 100))
+    default_card_size = normalize_deck_card_size(layout_json.get("card_size", "auto"))
     sideboard_flex = normalize_deck_flex_value(layout_row["sideboard_flex"] if layout_row else 0.40, 0.40)
     deck_flex = normalize_deck_flex_value(layout_row["deck_flex"] if layout_row else 0.60, 0.60)
 

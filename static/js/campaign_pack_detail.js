@@ -4,6 +4,72 @@
     "campaignPackDetailScreen",
   );
 
+  const cardSizeSelect = document.getElementById("packDetailCardSizeSelect");
+  const cardGrid = campaignPackDetailScreen?.querySelector(".chaos-pack-view-grid");
+  const sortSelect = document.getElementById("packDetailSortSelect");
+  if (sortSelect && cardGrid) {
+    const rarityRank = {mythic: 5, "mythic rare": 5, rare: 4, uncommon: 3, common: 2, special: 1, bonus: 1};
+    function sortCards() {
+      const cards = Array.from(cardGrid.querySelectorAll(".chaos-pack-view-card"));
+      const originalOrder = (a, b) => Number(a.dataset.packOrder) - Number(b.dataset.packOrder);
+      cards.sort((a, b) => {
+        if (sortSelect.value === "rarity") {
+          return (rarityRank[(b.dataset.cardRarity || "").toLowerCase()] || 0)
+            - (rarityRank[(a.dataset.cardRarity || "").toLowerCase()] || 0) || originalOrder(a, b);
+        }
+        if (sortSelect.value === "name") return (a.dataset.cardName || "").localeCompare(b.dataset.cardName || "") || originalOrder(a, b);
+        return originalOrder(a, b);
+      });
+      cards.forEach(card => cardGrid.appendChild(card));
+    }
+    sortSelect.addEventListener("change", sortCards);
+    sortCards();
+  }
+
+  const previewSaveButton = document.getElementById("packPreviewSaveButton");
+  if (previewSaveButton) {
+    previewSaveButton.addEventListener("click", async () => {
+      if (previewSaveButton.disabled) return;
+      const status = document.getElementById("packPreviewSaveStatus");
+      previewSaveButton.disabled = true;
+      previewSaveButton.textContent = "Saving…";
+      status.hidden = true;
+      try {
+        const form = new FormData();
+        form.append("preview_tracking_code", previewSaveButton.dataset.previewCode);
+        const response = await fetch(previewSaveButton.dataset.saveUrl, {
+          method: "POST", headers: {Accept: "application/json"}, body: form,
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || "Could not save this pack.");
+        window.location.assign(result.view_url);
+      } catch (error) {
+        status.textContent = error.message || "Could not save this pack. Please try again.";
+        status.hidden = false;
+        previewSaveButton.disabled = false;
+        previewSaveButton.textContent = "Save";
+      }
+    });
+  }
+  if (cardSizeSelect && cardGrid) {
+    const sizes = window.DeckadenceCardSizes;
+    const preferenceKey = cardSizeSelect.dataset.sizePreference;
+    let selectedSize = "auto";
+    try { selectedSize = sizes.normalize(localStorage.getItem(preferenceKey)); } catch (_) {}
+    function applyCardSize() {
+      cardSizeSelect.value = String(selectedSize);
+      cardGrid.style.gridTemplateColumns = selectedSize === "auto"
+        ? "repeat(auto-fill, minmax(min(100%, 230px), 1fr))"
+        : `repeat(auto-fill, minmax(0, min(100%, ${sizes.pixels(selectedSize)}px)))`;
+    }
+    cardSizeSelect.addEventListener("change", () => {
+      selectedSize = sizes.normalize(cardSizeSelect.value);
+      try { localStorage.setItem(preferenceKey, String(selectedSize)); } catch (_) {}
+      applyCardSize();
+    });
+    applyCardSize();
+  }
+
   const zoomOverlay = document.getElementById("campaignPackZoomOverlay");
   const zoomBackdrop = document.getElementById("campaignPackZoomBackdrop");
   const zoomImage = document.getElementById("campaignPackZoomImage");

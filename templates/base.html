@@ -35,14 +35,14 @@
 
     {# Page Styles #}
     {% block page_styles %}{% endblock %}
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_sizes.css', v='1') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_sizes.css', v='6') }}">
     <script>
       window.DeckadenceDisplaySettings = {{ {
         'cardSizePercentages': global_card_size_percentages,
         'alternateImageDefaultMaxMb': global_alternate_image_default_max_mb
       } | tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/card_sizes.js', v='2') }}"></script>
+    <script src="{{ url_for('static', filename='js/card_sizes.js', v='4') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/pack_opening.css', v='1') }}">
     <script src="{{ url_for('static', filename='js/sealed_effects.js', v='shared-1') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/card_effects.css', v='6') }}">

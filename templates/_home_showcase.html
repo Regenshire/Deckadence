@@ -4,9 +4,10 @@
   ('Custom Sets', 'Your world. Your cards.', 'Bring your own art and ideas together into a playable set.', 'Open Custom Sets', 'sets'),
   ('Deck Roulette', 'Let fate choose', 'Choose colors and a format. Discover your next deck.', 'Spin the wheel', 'deck_roulette'),
   ('Pack Simulator', 'One more pack', 'Open boosters and reveal what’s inside, one card at a time.', 'Open some packs', 'pack_simulator'),
-  ('Deck Builder', 'Make every card count', 'Build a deck, test your ideas, and get ready to play.', 'Build a deck', 'deckbuilder_index')
+  ('Deck Builder', 'Make every card count', 'Build a deck, test your ideas, and get ready to play.', 'Build a deck', 'deckbuilder_index'),
+  ('Draft Testing', 'Pick. Pass. Build.', 'Draft with simulated players, then build a deck from your picks.', 'Draft Simulator' if has_existing_campaigns else 'Setup a campaign', 'draft_testing_setup')
 ] %}
-<section id="homeSetup" class="home-setup" aria-labelledby="homeSetupTitle" {% if card_database_ready %}hidden{% endif %}>
+<section id="homeSetup" class="home-setup" aria-labelledby="homeSetupTitle" hidden style="display:none">
   <div>
     <div class="home-section-eyebrow">Initial Setup</div>
     <h2 id="homeSetupTitle">Install the card database</h2>
@@ -15,7 +16,6 @@
       <button type="button" id="homeInstall" disabled>Checking installation…</button>
       <a href="{{ url_for('config') }}?open=card_database&amp;scroll=card_database">Database settings</a>
     </div>
-    <noscript><p>Open Database settings to install the card database.</p></noscript>
   </div>
   <ol class="home-setup-steps">
     <li>Install card database<span>Download cards and sets</span></li>
@@ -23,6 +23,9 @@
     <li>Print proxies<span>Choose your paper and print your cards</span></li>
   </ol>
 </section>
+{% if not card_database_ready %}
+<noscript><p>Open <a href="{{ url_for('config') }}?open=card_database&amp;scroll=card_database">Database settings</a> to install the card database.</p></noscript>
+{% endif %}
 
 <section id="homeDatabaseStatus" class="home-database-status" aria-label="Card database status" hidden>
   <div role="status" aria-live="polite" aria-atomic="true">

@@ -250,6 +250,10 @@
             <button type="button" id="chaosViewButton" class="action-button secondary-button chaos-draft-view-button" data-help-id="chaos_view" disabled>
                 Open
             </button>
+            <label class="chaos-card-size-control" for="chaosCardSizeSelect" hidden>
+                <span>Card Size</span>
+                <select id="chaosCardSizeSelect" data-size-preference="deckadence.campaignChaosDraft.cardSize">{% include "_card_size_options.html" %}</select>
+            </label>
             <button type="button" id="chaosOpenButton" class="action-button chaos-draft-open-button" data-help-id="chaos_print" disabled>
                 Print / Export
             </button>
@@ -354,7 +358,7 @@
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/deckadence_message_cards.js', v='shared-footer-5') }}"></script>
-<script src="{{ url_for('static', filename='js/chaos_draft.js', v='opening-visibility-3') }}"></script>
+<script src="{{ url_for('static', filename='js/chaos_draft.js', v='card-size-2') }}"></script>
 <script src="{{ url_for('static', filename='js/campaign_chaos_draft.js', v='next-player-1') }}"></script>
 
 {% endblock %}

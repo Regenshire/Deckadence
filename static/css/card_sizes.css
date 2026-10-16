@@ -2,7 +2,10 @@
 /* Match the Pack Simulator's Card Size control on each card workspace. */
 #deckbuilderCardSizeSelect,
 #campaignTestDraftWorkspace #campaignTestDraftCardSizeSelect,
-#cardSize {
+#cardSize,
+#chaosCardSizeSelect,
+#packDetailCardSizeSelect,
+#packDetailSortSelect {
   min-height: 40px;
   height: 40px;
   width: auto;
@@ -33,3 +36,18 @@
   font: inherit;
   text-transform: none;
 }
+
+/* Match the maximized Set Card List: fill the row with flexible 230px columns. */
+html[data-theme] .card-size-auto.deckbuilder-grid-active .deckbuilder-card-list,
+html[data-theme] .card-size-auto.deckbuilder-stack-active .deckbuilder-zone-sideboard .deckbuilder-card-list,
+html[data-theme] .card-size-auto .campaign-test-draft-card-list-grid,
+html[data-theme] .card-size-auto.campaign-test-draft-picked-grid-active .campaign-test-draft-zone-list,
+html[data-theme] .card-size-auto .campaign-test-draft-virtual-cards-grid {
+  grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));
+}
+html[data-theme] .card-size-auto .campaign-test-draft-virtual-cards-grid .campaign-test-draft-virtual-card {
+  width:auto;min-width:0;max-width:none;
+}
+
+.chaos-card-size-control{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font:400 12px/1.4 Arial,sans-serif;flex:0 0 auto;}
+.chaos-card-size-control[hidden]{display:none!important;}

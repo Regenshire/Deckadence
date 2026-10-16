@@ -38,29 +38,25 @@
     }
   };
   const cardSizeSelect = $("cardSize");
-  const savedCardSize = String(stored("cardSize", 100));
+  const savedCardSize = String(stored("cardSize", "auto"));
   cardSizeSelect.value = [...cardSizeSelect.options].some(
     (o) => o.value === savedCardSize,
   )
     ? savedCardSize
-    : "100";
+    : "auto";
   function applyCardSize() {
     const grid = $("previewCards");
     grid.style.removeProperty("grid-template-columns");
-    if (!grid.clientWidth || cardSizeSelect.value === "100") return;
-    const columns = getComputedStyle(grid)
-      .gridTemplateColumns.split(" ")
-      .filter(Boolean);
-    const baseWidth = parseFloat(columns[0]);
-    if (!Number.isFinite(baseWidth)) return;
-    const width = Math.min(
-      grid.clientWidth,
-      (baseWidth * Number(cardSizeSelect.value)) / 100,
-    );
-    grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(min(100%, ${width}px), 1fr))`;
+    if (!grid.clientWidth) return;
+    if (cardSizeSelect.value === "auto") {
+      grid.style.gridTemplateColumns = "repeat(auto-fill, minmax(min(100%, 230px), 1fr))";
+      return;
+    }
+    const width = window.DeckadenceCardSizes.pixels(cardSizeSelect.value);
+    grid.style.gridTemplateColumns = `repeat(auto-fill, minmax(0, min(100%, ${width}px)))`;
   }
   cardSizeSelect.onchange = () => {
-    store("cardSize", Number(cardSizeSelect.value));
+    store("cardSize", cardSizeSelect.value);
     applyCardSize();
   };
   let lastGridWidth = -1;

@@ -300,6 +300,7 @@
   let customTitlePackNameWasEdited = false;
 
   let addPackModalHasSavedChanges = false;
+  let randomBatchBusy = false;
 
   const campaignPrintExportModal = window.iMomirPrintExportModal.init({
     openButtonId: "campaignPrintExportUnusedButton",
@@ -641,11 +642,24 @@
     }
   }
 
+  let testDraftDefaultSelection = null;
   function openTestDraftModal() {
     if (!testDraftModal) {
       return;
     }
 
+    const selectedPackIds = getSelectedPackIdsForTestDraft();
+    const selectionKey = [...selectedPackIds].sort().join(",");
+    if (selectionKey !== testDraftDefaultSelection && testDraftPodSizeSelect && testDraftPacksPerPlayerSelect) {
+      const count = selectedPackIds.length;
+      const players = count >= 24 ? 8 : count >= 18 ? 6 : count >= 12 ? 4 : count >= 9 ? 3 : 2;
+      const packsPerPlayer = Math.max(1, Math.min(3, Math.floor(count / players)));
+      const format = document.getElementById("campaignTestDraftCardsPerPick");
+      testDraftPodSizeSelect.value = String(players);
+      testDraftPacksPerPlayerSelect.value = String(packsPerPlayer);
+      if (format) format.value = count >= 9 && count < 18 ? "2" : "1";
+      testDraftDefaultSelection = selectionKey;
+    }
     updateTestDraftValidationState();
 
     testDraftModal.classList.remove("hidden");
@@ -1010,6 +1024,7 @@
   }
 
   function closeAddPackModal() {
+    if (randomBatchBusy) return;
     if (!addPackModal) {
       return;
     }
@@ -2500,10 +2515,59 @@
     addPackCloseButton.addEventListener("click", closeAddPackModal);
   }
 
+  const randomPackCount = document.getElementById("campaignRandomPackCount");
+  function updateRandomPackButton() {
+    if (!addRandomPackButton || randomBatchBusy) return;
+    const count = Number(randomPackCount.value);
+    addRandomPackButton.textContent = randomPackCount.validity.valid && count > 1
+      ? `Add ${count} Random Packs` : "Add Random Pack";
+  }
+  if (randomPackCount) randomPackCount.addEventListener("input", updateRandomPackButton);
+
+  async function addRandomPackBatch(count) {
+    if (randomBatchBusy) return;
+    randomBatchBusy = true;
+    const controls = [...addPackModal.querySelectorAll("button,input,select,textarea")].map(element => [element, element.disabled]);
+    controls.forEach(([element]) => { element.disabled = true; });
+    const status = document.getElementById("campaignRandomBatchStatus");
+    const progress = document.getElementById("campaignRandomBatchProgress");
+    status.hidden = false;
+    progress.hidden = false;
+    status.textContent = `Generating and saving ${count} random packs…`;
+    addRandomPackButton.textContent = "Adding Packs…";
+    addPackModalHasSavedChanges = true;
+    clearGeneratedPackPreview();
+    if (addPackStatus) {
+      addPackStatus.textContent = "";
+      addPackStatus.classList.add("hidden");
+    }
+    try {
+      const response = await fetch(config.dataset.randomBatchUrl, {
+        method: "POST",
+        headers: {Accept: "application/json", "Content-Type": "application/json"},
+        body: JSON.stringify({count, campaign_id: config.dataset.campaignId})
+      });
+      const payload = await readJsonResponseOrThrow(response, "The response was interrupted. Close this window to check which packs were saved before trying again.");
+      if (!response.ok || !payload.ok) throw new Error(payload.message || "Could not add the packs.");
+      status.textContent = `Added ${payload.created} random packs. Close this window to see them.`;
+    } catch (error) {
+      status.textContent = error.message || "The response was interrupted. Close this window to check which packs were saved before trying again.";
+    } finally {
+      progress.hidden = true;
+      randomBatchBusy = false;
+      controls.forEach(([element, disabled]) => { element.disabled = disabled; });
+      updateRandomPackButton();
+    }
+  }
+
   if (addRandomPackButton) {
     addRandomPackButton.addEventListener("click", async function () {
+      if (!randomPackCount.reportValidity() || randomBatchBusy) return;
+      const count = Number(randomPackCount.value);
       setActiveAddPackMode("random");
       hideAddPackModePanels();
+      if (count > 1) { await addRandomPackBatch(count); return; }
+      document.getElementById("campaignRandomBatchStatus").hidden = true;
 
       addRandomPackButton.disabled = true;
       addRandomPackButton.classList.add("action-button-loading");
@@ -2536,14 +2600,14 @@
 
         addRandomPackButton.disabled = false;
         addRandomPackButton.classList.remove("action-button-loading");
-        addRandomPackButton.textContent = "Add Random Pack";
+        updateRandomPackButton();
       } catch (error) {
         console.error(error);
         setAddPackStatus(error.message || "Failed to add random pack.", true);
 
         addRandomPackButton.disabled = false;
         addRandomPackButton.classList.remove("action-button-loading");
-        addRandomPackButton.textContent = "Add Random Pack";
+        updateRandomPackButton();
       }
     });
   }
