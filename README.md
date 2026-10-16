@@ -163,7 +163,7 @@ The first time Deckadence opens, you will be asked to accept the Personal Use Ag
 
 ## 3. Download the Card Database (All)
 
-Before most Deckadence features can be used, the local card database must be created.
+Before most Deckadence features can be used, the local card database must be created. You will be prompted on the Home page to install the database. You can either do it from the Home page, or from the Settings page using these instructions:
 
 1. Open **Settings**.
 2. Open the **Card Database** section.
