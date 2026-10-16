@@ -6,7 +6,7 @@
 
 ## Custom Set Management & Testing Tool | Design -> Proxy -> Test
 
-Deckadence is a self-hosted local Windows web application for creating, managing, printing, and playtesting with Magic: The Gathering cards from any set, deck, or pack. Deckadence support Chaos Drafts, custom draft sets and cubes, deck management, proxy printing, draft testing, card-image management, pack rip simulation, and optional AI image upscaling in one application.
+Deckadence is a self-hosted local web application for creating, managing, printing, and playtesting with Magic: The Gathering cards from any set, deck, or pack. Deckadence support Chaos Drafts, custom draft sets and cubes, deck management, proxy printing, draft testing, card-image management, pack rip simulation, and optional AI image upscaling in one application.
 
 Deckadence runs on your own PC and opens in a web browser. Your Deckadence database, settings, custom sets, decks, cached images, and generated files are stored locally with the application. No account or hosted Deckadence service is required. You can also open Deckadence from a phone, tablet, or another computer on the same local network.
 
@@ -48,13 +48,25 @@ Because Deckadence is designed to work with large collections of card images and
 
 | Component        | Minimum                                        |
 | ---------------- | ---------------------------------------------- |
-| Operating System | 64-bit Linux                                   |
-| Processor        | 64-bit dual-core processor                     |
+| Operating System | Ubuntu 22.04 or compatible Linux (glibc 2.35+) |
+| Processor        | x86-64 dual-core processor                     |
 | Memory           | 8 GB RAM                                       |
 | Free Storage     | 20 GB; 50+ GB recommended                      |
 | Browser          | Current modern web browser                     |
 | Internet         | Required for initial setup and online features |
-| Dependencies     | Python 3.12, pip, venv, and Cairo              |
+| Python           | Included with the packaged release             |
+
+### macOS
+
+| Component        | Minimum                                        |
+| ---------------- | ---------------------------------------------- |
+| Operating System | macOS, 64-bit                                  |
+| Processor        | Apple Silicon (arm64)                          |
+| Memory           | 8 GB RAM                                       |
+| Free Storage     | 20 GB; 50+ GB recommended                      |
+| Browser          | Current modern web browser                     |
+| Internet         | Required for initial setup and online features |
+| Python           | Included with the packaged release             |
 
 ### Storage Considerations
 
@@ -67,7 +79,7 @@ Deckadence does not require every card image to be downloaded in advance. It dow
 ### Additional Notes
 
 - A dedicated graphics card is **not required** for normal Deckadence use.
-- Python is **not required** when using the packaged Windows release.
+- A separate Python installation is **not required** when using the packaged Windows, Linux, or macOS release.
 - Optional AI image-upscaling plugins may have substantially higher CPU, GPU, memory, and storage requirements.
 
 ---
@@ -96,45 +108,42 @@ Keep the Deckadence program window open while using the application. Closing tha
 
 ### Optional: Desktop and Start menu shortcuts
 
-After extracting Deckadence to the folder where you want to keep it, double-click **`Install_Shortcuts.bat`**. Choose **Desktop**, **Start menu**, or **Both**. No administrator access is required.
+If you want convenient shortcuts added to your Desktop or Start menu, there is a script to install them. After extracting Deckadence to the folder where you want to keep it, double-click **`Install_Shortcuts.bat`**. Choose **Desktop**, **Start menu**, or **Both**. No administrator access is required.
 
-The shortcuts start Deckadence and open your browser, preserving normal browser tabs. If you move the Deckadence folder, run the shortcut installer again to update them. You can remove a shortcut by deleting it; this does not remove Deckadence or your data.
+The shortcuts start Deckadence and open your browser to the Deckadence url.
 
 ### Windows Firewall
 
 Windows may ask whether Deckadence is allowed to communicate on your network. If you want to open Deckadence from a phone, tablet, or another computer on your home network, allow access on **Private networks**.
 
-Deckadence does not need to be exposed to the public Internet.
-
 ## Linux Installation
 
-1. Install Python 3.12, pip, venv, and Cairo using your distribution's package manager.
-2. Download and extract the **Source code (zip)** from the [Deckadence Releases page](https://github.com/Regenshire/Deckadence/releases).
-3. Open a terminal in the extracted Deckadence folder and run:
+1. Download `Deckadence_vX.X.X_Linux_x86_64.tar.gz` from the [Deckadence Releases page](https://github.com/Regenshire/Deckadence/releases).
+2. Extract the entire archive into a folder where you want to keep Deckadance.
+3. Open a terminal in the extracted `Deckadence` folder and run:
 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-DECKADENCE_USE_WAITRESS=1 python app.py
+./Start_Deckadence.sh
 ```
 
-4. Open **http://127.0.0.1:5000** in your browser.
+4. Open the address shown in the terminal, normally **http://127.0.0.1:5000**.
 
-Keep the terminal open while using Deckadence. Press **Ctrl+C** to stop it.
+Python is included in the package. Keep the terminal open while using Deckadence; press **Ctrl+C** to stop it. Run the same launcher to start it again.
 
-To start Deckadence again, open a terminal in its folder and run:
+## macOS Installation
 
-```bash
-source .venv/bin/activate
-DECKADENCE_USE_WAITRESS=1 python app.py
-```
+1. Download `Deckadence_vX.X.X_macOS_arm64.zip` from the [Deckadence Releases page](https://github.com/Regenshire/Deckadence/releases). This build is for **Apple Silicon Macs** only.
+2. Extract the ZIP into a folder where you want to save the application, such as Documents or Applications.
+3. Open **`Deckadence.app`** inside that folder. This will start Deckadence and opens your browser. It might take several seconds to initially load.
+4. If it does not automatically open, then open your preferred web browser such as Safari and open **http://127.0.0.1:5000** to go to Deckadence.
+
+Python is included in this package. You can also run **`Start_Deckadence.command`** to start Deckadence in your Terminal; keep the terminal window open while using it and press **Ctrl+C** to stop it.
 
 ---
 
 # First-Time Use
 
-The startup instructions below are for the packaged Windows release. Linux users should start Deckadence using the Linux Installation instructions above, then follow steps 2 onward in the browser.
+The startup instructions below are for the packaged Windows release. Linux and macOS users should start Deckadence using their installation instructions above, then follow steps 2 onward in the browser.
 
 An Internet connection is required for the initial card database download and for features that download card data or images.
 
@@ -215,7 +224,7 @@ CPU upscaling does not require a dedicated GPU. NVIDIA and AMD upscalers require
 
 # Technical Information
 
-Deckadence is written in Python and uses a local web interface. The packaged Windows release includes the Python runtime and Deckadence's normal runtime libraries, so end users do not need to install Python separately.
+Deckadence is written in Python and uses a local web interface. The packaged Windows, Linux, and macOS releases include the Python runtime and Deckadence's normal runtime libraries, so end users do not need to install Python separately.
 
 The packaged application uses **Waitress** as its local HTTP server and **Flask** as the application framework. Application data is stored locally using **SQLite** and normal files inside the Deckadence installation.
 
@@ -225,17 +234,17 @@ Deckadence is intended for personal local network use only. It is not intended f
 
 ## Main Python Dependencies
 
-- **Flask** â€” application and web-interface framework
-- **Waitress** â€” local application server used by the packaged release
-- **Jinja2** â€” HTML template rendering
-- **Werkzeug** â€” Flask HTTP and utility support
-- **Pillow** â€” card, artwork, and image processing
-- **ReportLab** â€” PDF creation and print layouts
-- **pypdf** â€” PDF processing and combination
-- **Requests / urllib3** â€” downloads and communication with supported third-party data services
-- **qrcode / Pillow** â€” QR-code support
-- **CairoSVG** â€” SVG rendering used by artwork and set-icon workflows
-- **PyInstaller** â€” creates the packaged Windows application
+- **Flask** - application and web-interface framework
+- **Waitress** - local application server used by the packaged release
+- **Jinja2** - HTML template rendering
+- **Werkzeug** - Flask HTTP and utility support
+- **Pillow** - card, artwork, and image processing
+- **ReportLab** - PDF creation and print layouts
+- **pypdf** - PDF processing and combination
+- **Requests / urllib3** - downloads and communication with supported third-party data services
+- **qrcode / Pillow** - QR-code support
+- **CairoSVG** - SVG rendering used by artwork and set-icon workflows
+- **PyInstaller** - creates the packaged Windows application
 
 Deckadence also uses supporting Python packages including `blinker`, `certifi`, `charset-normalizer`, `click`, `colorama`, `idna`, `itsdangerous`, `MarkupSafe`, and `setuptools`. These are bundled or installed as part of the normal application/build requirements.
 
@@ -295,19 +304,19 @@ them or establish GPU compatibility.
 
 ## No Deckadence Telemetry
 
-Deckadence does not include usage analytics, advertising tracking, or Deckadence-operated telemetry service.
+Deckadence does not include usage analytics, advertising tracking, or use any Deckadence-operated telemetry service.
 
 Deckadence does not upload your saved decks, custom sets, campaigns, settings, locally cached card images, or generated proxy files to an online server. These items are stored locally on the computer hosting Deckadence.
 
-Deckadence does make normal Internet requests when you use features that require external data, images, release information, or optional plugins. Those third-party services may receive normal network information associated with the request, such as your public IP address and browser/application request information. These requests may include downloading files from MTGJson, files from Scryfall, and information from Moxfield.
+Deckadence does make normal Internet requests when you use features that require external data, images, release information, or optional plugins. Those third-party services may receive normal network information associated with the request, such as your public IP address and browser/application request information. These requests may include downloading files from MTGJson, files from Scryfall, information from Moxfield, or downloads from Github.
 
 ## Services Used by Deckadence
 
-- **MTGJSON** â€” provides Magic card data, set information, booster definitions, and supported pricing data used to build Deckadence's local databases.
-- **Scryfall** â€” provides card images, bulk card information, set information, and set icons used by Deckadence image and card workflows.
-- **GitHub** â€” hosts Deckadence releases and optional plugin packages. Deckadence can check GitHub for a newer release and can download selected plugins from GitHub when requested.
-- **Moxfield** â€” used only when you choose Deckadence features that search for or import an external Moxfield deck.
-- **cdnjs / Font Awesome** â€” provides the Font Awesome icon stylesheet used by the browser interface.
+- **MTGJSON** - provides Magic card data, set information, booster definitions, and supported pricing data used to build Deckadence's local databases.
+- **Scryfall** - provides card images, bulk card information, set information, and set icons used by Deckadence image and card workflows.
+- **GitHub** - hosts Deckadence releases and optional plugin packages. Deckadence can check GitHub for a newer release and can download selected plugins from GitHub when requested.
+- **Moxfield** - used only when you choose Deckadence features that search for or import an external Moxfield deck.
+- **Font Awesome** - provides the Font Awesome icon stylesheet used by the browser interface.
 
 Third-party services are independent of Deckadence and are governed by their own availability, terms, and privacy practices.
 
@@ -349,57 +358,112 @@ Optional upscaling plugins use separately distributed open-source machine-learni
 
 # Screenshots
 
+## Chaos Draft
+
 <p align="center">
-  <img
-    src="docs/images/example_chaos_draft.jpg"
-    alt="Chaos Draft"
-  >
+  <img src="docs/images/chaos-draft-spinner.jpg" alt="Randomly select pack in one of two Chaos Draft modes." width="1000">
   <br>
-  <em>Roll on a Chaos Draft spinner for curated or random packs</em>
-</p>
-<p align="center">
-  <img
-    src="docs/images/example_deck_roulette.jpg"
-    alt="Deck Roulette"
-  >
-  <br>
-  <em>Spin on the Deck Roulette for deck ideas</em>
+  <em>Randomly select pack in one of two Chaos Draft modes.</em>
 </p>
 
 <p align="center">
-  <img
-    src="docs/images/example_momir_mode.jpg"
-    alt="Chaos Draft"
-  >
-  <br>
-  <em>Play Momir with friends</em>
+  <img src="docs/images/chaos-draft-opened-pack.jpg" alt="View the cards in an opened pack." width="1000">
 </p>
 
 <p align="center">
-  <img
-    src="docs/images/example_setcardlist.jpg"
-    alt="Deckadence Set Card List"
-  >
+  <img src="docs/images/chaos-draft-card-preview.jpg" alt="Inspect individual cards." width="1000">
+</p>
+
+## Deck Roulette
+
+<p align="center">
+  <img src="docs/images/deck-roulette-spinner.jpg" alt="Take a spin on the Deck Roulette wheel for new deck ideas" width="1000">
   <br>
-  <em>Custom Set â€” Manage the cards in custom sets</em>
+  <em>Take a spin on the Deck Roulette wheel for new deck ideas.</em>
+</p>
+
+## Momir
+
+<p align="center">
+  <img src="docs/images/momir-mode.jpg" alt="Play Momir with friends." width="1000">
+  <br>
+  <em>Play Momir with friends.</em>
+</p>
+
+## Custom Sets and Artwork
+
+<p align="center">
+  <img src="docs/images/custom-set-card-list.jpg" alt="Browse and manage cards in your own custom sets and cubes." width="1000">
+  <br>
+  <em>Browse and manage cards in your own custom sets and cubes.</em>
 </p>
 
 <p align="center">
-  <img
-    src="docs/images/example_AlternateImage.jpg"
-    alt="Set Alternate Images"
-  >
+  <img src="docs/images/alternate-image-settings.jpg" alt="Choose alternate card artwork." width="1000">
   <br>
-  <em>Set Alternate Images</em>
+  <em>Choose alternate card artwork.</em>
+</p>
+
+## Deck Builder
+
+<p align="center">
+  <img src="docs/images/deck-builder-stacked.jpg" alt="Use the Deckbuilder to create and manage decks." width="1000">
+  <br>
+  <em>Use the Deckbuilder to create and manage decks.</em>
 </p>
 
 <p align="center">
-  <img
-    src="docs/images/example_deckbuilder_stacked.jpg"
-    alt="Deckbuilder Stack View"
-  >
+  <img src="docs/images/deck-builder-grid.jpg" alt="View a deck as a grid of cards." width="1000">
+</p>
+
+<p align="center">
+  <img src="docs/images/deck-builder-deck-art.jpg" alt="Create a deck box with custom artwork." width="1000">
   <br>
-  <em>Use the Deckbuilder to create and manage deckss</em>
+  <em>Customize your deck box art.</em>
+</p>
+
+## Pack Simulator
+
+<p align="center">
+  <img src="docs/images/pack-simulator-opening.jpg" width="1000">
+  <br>
+  <em>Open some packs in your very own Pack Simulator!</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/pack-simulator-contents.jpg"  width="1000">
+</p>
+
+<p align="center">
+  <img src="docs/images/pack-simulator-card-preview.jpg" width="1000">
+</p>
+
+## Printing
+
+<p align="center">
+  <img src="docs/images/print-export-settings.jpg" width="1000">
+  <br>
+  <em>Export to PDF or a ZIP files with support for cutters and custom paper sizes.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/print-proxy-sheet.jpg" width="1000">
+</p>
+
+## Optional Image Upscaling
+
+<p align="center">
+  <img src="docs/images/upscaler-comparison.jpg" alt="Install an Upscaling addon to upscale low quality images." width="1000">
+  <br>
+  <em>Install an Upscaling addon to upscale low quality images.</em>
+</p>
+
+<p align="center">
+  <img src="docs/images/upscaler-detail-comparison.jpg" width="1000">
+</p>
+
+<p align="center">
+  <img src="docs/images/upscaler-batch-options.jpg" width="1000">
 </p>
 
 ## AI Usage in Deckadence (optional)
@@ -410,10 +474,10 @@ The upscalers are installed separately and are not required for Deckadence’s o
 
 All three upscalers (CPU, NVIDIA, and AMD) use the same two models from [Xintao Wang's Real-ESRGAN project](https://github.com/xinntao/Real-ESRGAN):
 
-| Model | Native scale | Download source |
-|---|---|---|
-| **RealESRGAN_x2plus** | 2× | [GitHub release v0.2.1](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.1) |
-| **RealESRNet_x4plus** | 4× | [GitHub release v0.1.1](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.1.1) |
+| Model                 | Native scale | Download source                                                                     |
+| --------------------- | ------------ | ----------------------------------------------------------------------------------- |
+| **RealESRGAN_x2plus** | 2×           | [GitHub release v0.2.1](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.2.1) |
+| **RealESRNet_x4plus** | 4×           | [GitHub release v0.1.1](https://github.com/xinntao/Real-ESRGAN/releases/tag/v0.1.1) |
 
 Deckadence automatically downloads the model files from these GitHub releases and verifies their SHA-256 checksums. These are image-restoration and upscaling models, not large language models (LLMs).
 
@@ -421,7 +485,7 @@ AI upscaling features can alter fine details, lettering, and artwork.
 
 ## Development
 
-Deckadence has been developed over the past six months and has been a passionate side project of mine, created for my own personal use.  I am providing it to the greater Magic proxy community as a resource to those who are interested.
+Deckadence has been developed over the past six months and has been a passionate side project of mine, created for my own personal use. I am providing it to the greater Magic proxy community as a resource to those who are interested.
 
 Disclaimer: AI tools have been used to assist with Deckadence’s development, including code generation, troubleshooting, documentation, and release tooling.
 
