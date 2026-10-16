@@ -2825,6 +2825,7 @@
     cardElement.dataset.cardName = cardName;
     cardElement.dataset.customSetCardId = row.dataset.customSetCardId || "";
     cardElement.dataset.isFoil = isFoil ? "1" : "0";
+    cardElement.dataset.foilType = row.dataset.foilType || "";
 
     const imageWrap = document.createElement("div");
     imageWrap.className = "chaos-pack-view-image-wrap";
@@ -4554,11 +4555,11 @@
 
     if (foilMenuItem) {
       foilMenuItem.textContent =
-        sourceRow.dataset.isFoil === "1" ? "Remove Foil" : "Set Foil";
+        "Set Foil ›";
     }
   }
 
-  async function handleCustomDraftCardContextAction(actionName, cardElement) {
+  async function handleCustomDraftCardContextAction(actionName, cardElement, actionButton) {
     const sourceRow = getCustomDraftContextSourceRow(cardElement);
 
     if (!sourceRow) {
@@ -4601,12 +4602,22 @@
       throw new Error("Foil controls are not available.");
     }
 
-    const nextIsFoil = sourceRow.dataset.isFoil !== "1";
+    const nextIsFoil = actionButton?.dataset.foilType !== "normal";
     const payload = await window.iMomirCardContextMenu.setFoil({
       updateUrl: alternateImageButton.dataset.foilUpdateUrl || "",
       cardUuid: sourceRow.dataset.cardUuid || "",
       isFoil: nextIsFoil,
+      foilType: actionButton?.dataset.foilType === "normal" ? "foil" : (actionButton?.dataset.foilType || "foil"),
     });
+    sourceRow.dataset.foilType = payload.foil_type || "";
+    sourceRow.querySelectorAll("[data-foil-type]").forEach(el => el.dataset.foilType = payload.foil_type || "");
+    document.querySelectorAll(".custom-draft-current-grid-card").forEach(card => {
+      if (card.dataset.customSetCardId === sourceRow.dataset.customSetCardId) {
+        card.dataset.foilType = payload.foil_type || "";
+        window.DeckadenceCardEffects?.enhance(card);
+      }
+    });
+    window.DeckadenceCardEffects?.enhance(sourceRow);
 
     showUiMessage(
       payload.message || (nextIsFoil ? "Foil enabled." : "Foil removed."),

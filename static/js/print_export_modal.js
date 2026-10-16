@@ -97,6 +97,39 @@
     const labelLocationRow = getElement("printExportLabelLocationRow");
     const backLabelNote = getElement("printExportBackLabelNote");
     const labelsCheckbox = form && form.querySelector('input[type="checkbox"][name="show_print_export_labels"]');
+    const foilCheckbox = form && form.querySelector('input[type="checkbox"][name="include_foil_overlay"]');
+    const foilIntensity = getElement("printFoilIntensity");
+    const foilIntensityRow = getElement("printFoilIntensityRow");
+    const foilIntensityValue = getElement("printFoilIntensityValue");
+    function syncFoilIntensity() {
+      if (foilIntensityRow) foilIntensityRow.hidden = !foilCheckbox?.checked;
+      if (foilIntensity && foilIntensityValue) {
+        foilIntensityValue.textContent = foilIntensity.value + "%";
+        foilIntensity.setAttribute("aria-valuetext", foilIntensity.value + "%");
+      }
+    }
+    if (foilIntensity) {
+      try {
+        const saved = localStorage.getItem("deckadence.print.foilIntensity");
+        if (saved !== null && Number.isFinite(Number(saved))) foilIntensity.value = Math.max(0, Math.min(200, Number(saved)));
+      } catch (_) {}
+      foilIntensity.defaultValue = foilIntensity.value;
+      foilIntensity.addEventListener("input", () => {
+        foilIntensity.defaultValue = foilIntensity.value;
+        syncFoilIntensity();
+        try { localStorage.setItem("deckadence.print.foilIntensity", foilIntensity.value); } catch (_) {}
+      });
+    }
+    if (foilCheckbox) {
+      try { const saved = localStorage.getItem("deckadence.print.includeFoilOverlay"); if (saved !== null) foilCheckbox.checked = saved === "1"; } catch (_) {}
+      foilCheckbox.defaultChecked = foilCheckbox.checked;
+      foilCheckbox.addEventListener("change", () => {
+        foilCheckbox.defaultChecked = foilCheckbox.checked;
+        syncFoilIntensity();
+        try { localStorage.setItem("deckadence.print.includeFoilOverlay", foilCheckbox.checked ? "1" : "0"); } catch (_) {}
+      });
+    }
+    syncFoilIntensity();
     const backsCheckbox = form && form.querySelector('input[type="checkbox"][name="print_card_backs"]');
     const cardBackInput = getElement("printExportCardBack");
     const cardBackButton = form && form.querySelector('[data-card-back-target-input="printExportCardBack"]');
@@ -722,6 +755,7 @@
             previousPrintBacks = null;
             if (backsCheckbox) backsCheckbox.disabled = false;
             form.reset();
+            syncFoilIntensity();
           }
 
           if (typeof config.beforeOpen === "function") {
@@ -817,6 +851,7 @@
           previousPrintBacks = null;
           if (backsCheckbox) backsCheckbox.disabled = false;
           form.reset();
+            syncFoilIntensity();
         }
 
         if (typeof options.beforeOpen === "function") {

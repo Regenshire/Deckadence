@@ -366,6 +366,12 @@
         return;
       }
 
+      if (actionButton.hasAttribute("data-foil-expand")) {
+        const choices = actionButton.nextElementSibling;
+        choices.hidden = !choices.hidden;
+        actionButton.setAttribute("aria-expanded", String(!choices.hidden));
+        return;
+      }
       const actionName = String(
         actionButton.dataset.cardContextAction || "",
       ).trim();
@@ -434,6 +440,7 @@
       },
       body: JSON.stringify({
         is_foil: isFoil,
+        foil_type: foilOptions.foilType || "foil",
       }),
     });
 

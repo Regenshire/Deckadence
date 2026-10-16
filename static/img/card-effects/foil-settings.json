@@ -1,0 +1,19 @@
+{
+  "_help": {
+    "scale": "Uniform size. 1.0 fills the card width; 0.96 is 96%. Proportions are preserved.",
+    "x_percent": "Horizontal offset as a percentage of card width. Positive moves right; negative moves left. 0 is centered.",
+    "y_percent": "Vertical offset as a percentage of card height. Positive moves down; negative moves up. 0 aligns the pattern's top with the card's top.",
+    "apply": "Save this file and refresh the card page. Printing reads the same settings on each new print; no server restart is needed.",
+    "color": "Hex color tint, e.g. #c8e6b8. #ffffff keeps the rainbow colors unchanged.",
+    "strength": "Effect strength from 0 (invisible) to 1 (strongest). Applies on screen and to printed overlays.",
+    "blend_mode": "normal keeps the pattern visible on light artwork. Other supported modes: screen, overlay, soft-light."
+  },
+  "chocobo": {
+    "scale": 1.0,
+    "x_percent": 0,
+    "y_percent": 2.24,
+    "color": "#ffffff",
+    "strength": 0.65,
+    "blend_mode": "normal"
+  }
+}

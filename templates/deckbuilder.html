@@ -18,7 +18,7 @@
 
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/deckbuilder.css', v='auto-card-size-1') }}"
+  href="{{ url_for('static', filename='css/deckbuilder.css', v='foil-types-1') }}"
 />
 <link
   rel="stylesheet"
@@ -30,7 +30,7 @@
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/print_export_modal.css') }}"
+  href="{{ url_for('static', filename='css/print_export_modal.css', v='foil-intensity-1') }}"
 />
 <link
   rel="stylesheet"
@@ -791,7 +791,7 @@
           data-card-set-code="{{ picked_card.set_code or '' }}"
           data-card-collector-number="{{ picked_card.collector_number or '' }}"
           data-is-basic-land="{% if picked_card.pick_reason == 'Basic land' %}1{% else %}0{% endif %}"
-          data-is-foil="{{ picked_card.sheet_is_foil or 0 }}"
+          data-is-foil="{{ picked_card.sheet_is_foil or 0 }}" data-foil-type="{{ picked_card.foil_type or '' }}"
           data-deck-role="{{ picked_card.deck_role or 'main' }}"
           data-has-alternate-image="{{ picked_card.has_alternate_image or 0 }}"
           data-alternate-image-remove-bleed="{{ picked_card.alternate_image_remove_bleed or 0 }}"
@@ -1051,7 +1051,7 @@
           data-card-set-code="{{ picked_card.set_code or '' }}"
           data-card-collector-number="{{ picked_card.collector_number or '' }}"
           data-is-basic-land="{% if picked_card.pick_reason == 'Basic land' %}1{% else %}0{% endif %}"
-          data-is-foil="{{ picked_card.sheet_is_foil or 0 }}"
+          data-is-foil="{{ picked_card.sheet_is_foil or 0 }}" data-foil-type="{{ picked_card.foil_type or '' }}"
           data-deck-role="{{ picked_card.deck_role or 'main' }}"
           data-has-alternate-image="{{ picked_card.has_alternate_image or 0 }}"
           data-alternate-image-remove-bleed="{{ picked_card.alternate_image_remove_bleed or 0 }}"
@@ -1136,13 +1136,18 @@
       Change Printing
     </button>
 
-    <button
-      type="button"
-      class="deckbuilder-card-context-menu-item"
-      data-context-action="foil"
-    >
-      Set Foil
-    </button>
+    <div class="deckbuilder-card-context-submenu-wrap">
+      <button type="button" class="deckbuilder-card-context-menu-item deckbuilder-card-context-menu-item-with-arrow" data-foil-menu-toggle aria-haspopup="true" aria-expanded="false">
+        <span>Set Foil</span><span aria-hidden="true">›</span>
+      </button>
+      <div class="deckbuilder-card-context-submenu hidden" data-foil-menu>
+        <button type="button" class="deckbuilder-card-context-menu-item" data-context-action="set_foil" data-foil-type="foil">Foil</button>
+        <button type="button" class="deckbuilder-card-context-menu-item" data-context-action="set_foil" data-foil-type="surge">Surge Foil</button>
+        <button type="button" class="deckbuilder-card-context-menu-item" data-context-action="set_foil" data-foil-type="chocobo">Chocobo Track Foil</button>
+        <div class="deckbuilder-card-context-menu-divider"></div>
+        <button type="button" class="deckbuilder-card-context-menu-item" data-context-action="remove_foil">Remove Foil</button>
+      </div>
+    </div>
 
     <button
       type="button"
@@ -1514,12 +1519,12 @@
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_search_modal.js', v='shared-price-1') }}"></script>
-<script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/print_export_modal.js', v='foil-intensity-1') }}"></script>
 <script src="{{ url_for('static', filename='js/moxfield_sync.js') }}"></script>
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
-<script src="{{ url_for('static', filename='js/deckbuilder.js', v='auto-card-size-1') }}"></script>
+<script src="{{ url_for('static', filename='js/deckbuilder.js', v='foil-types-1') }}"></script>
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}

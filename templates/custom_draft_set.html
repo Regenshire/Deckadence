@@ -20,7 +20,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/print_export_modal.css') }}"
+  href="{{ url_for('static', filename='css/print_export_modal.css', v='foil-intensity-1') }}"
 />
 <link
   rel="stylesheet"
@@ -1135,7 +1135,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
           data-has-alternate-source="{{ 1 if card.has_alternate_source else 0 }}"
           data-has-upscaled-image="{{ 1 if card.has_upscaled_image else 0 }}"
           data-alternate-remove-bleed="{{ 1 if card.alternate_remove_bleed else 0 }}"
-          data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
+          data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}" data-foil-type="{{ card.foil_type or '' }}"
           data-edhrec-rank="{{ card.edhrec_rank if card.edhrec_rank is not none else '' }}"
           data-edhrec-saltiness="{{ card.edhrec_saltiness if card.edhrec_saltiness is not none else '' }}"
           data-sort-price="{{ card.sort_price if card.sort_price is not none else '' }}"
@@ -1245,7 +1245,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
                 class="alternate-image-gear alternate-image-button {% if card.has_alternate_source %}custom-draft-alternate-image-active{% endif %}"
                 data-card-uuid="{{ card.card_uuid }}"
                 data-card-name="{{ card.card_name }}"
-                data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
+                data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}" data-foil-type="{{ card.foil_type or '' }}"
                 data-foil-update-url="{{ url_for('custom_draft_set_cards_update_foil', set_code=custom_set.set_code, custom_set_card_id=card.custom_set_card_id) }}"
                 title="Alternate image settings"
                 aria-label="Alternate image settings for {{ card.card_name }}"
@@ -1453,13 +1453,13 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
       Change Printing
     </button>
 
-    <button
+    <div class="foil-context-group"><button
       type="button"
       class="imomir-card-context-menu-item"
-      data-card-context-action="foil"
+      data-card-context-action="foil" data-foil-expand aria-expanded="false" aria-haspopup="true"
     >
       Set Foil
-    </button>
+    </button><div class="foil-context-choices" hidden><button type="button" class="card-context-menu-item" data-card-context-action="foil" data-foil-type="foil">Foil</button><button type="button" class="card-context-menu-item" data-card-context-action="foil" data-foil-type="surge">Surge Foil</button><button type="button" class="card-context-menu-item" data-card-context-action="foil" data-foil-type="chocobo">Chocobo Track Foil</button><button type="button" class="card-context-menu-item" data-card-context-action="foil" data-foil-type="normal">Remove Foil</button></div></div>
 
     <button
       type="button"
@@ -1508,11 +1508,11 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_search_modal.js', v='shared-price-1') }}"></script>
-<script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/print_export_modal.js', v='foil-intensity-1') }}"></script>
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
-<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=shared-effects-1"></script>
+<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=foil-types-1"></script>
 {% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>

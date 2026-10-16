@@ -411,6 +411,20 @@
               </label>
             </div>
           </section>
+
+          <label class="toggle-row">
+            <span>Include Foil Overlay</span>
+            <input type="hidden" name="include_foil_overlay" value="0" />
+            <input type="checkbox" name="include_foil_overlay" value="1"
+              {% if print_export_defaults and print_export_defaults.include_foil_overlay %}checked{% endif %} />
+          </label>
+          <div id="printFoilIntensityRow" class="print-foil-intensity"{% if not print_export_defaults or not print_export_defaults.include_foil_overlay %} hidden{% endif %}>
+            <label for="printFoilIntensity">Foil intensity</label>
+            <output id="printFoilIntensityValue" for="printFoilIntensity">{{ print_export_defaults.foil_print_intensity|default(100) }}%</output>
+            <input type="range" id="printFoilIntensity" name="foil_print_intensity" min="0" max="200" step="5"
+              value="{{ print_export_defaults.foil_print_intensity|default(100) }}" aria-describedby="printFoilIntensityHint" />
+            <span id="printFoilIntensityHint">100% uses the current effect strength. Applies to printing only.</span>
+          </div>
         </div>
 
         <div class="print-export-settings-section">

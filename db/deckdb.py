@@ -310,6 +310,8 @@ def ensure_deck_schema():
         """
     )
 
+    if "foil_type" not in deck_card_columns:
+        cursor.execute("ALTER TABLE deck_cards ADD COLUMN foil_type TEXT NOT NULL DEFAULT ''")
     ensure_isolation_storage_schema(conn)
     conn.commit()
     conn.close()
@@ -894,6 +896,7 @@ def get_saved_deckbuilder_cards_for_deck(deck_id, deck_zone=None, include_basic_
             dc.source_item_id,
             dc.is_basic_land,
             dc.sheet_is_foil,
+            dc.foil_type,
             dc.deck_role,
             dc.stack_column,
             dc.stack_order,
@@ -951,6 +954,7 @@ def get_saved_deckbuilder_cards_for_deck(deck_id, deck_zone=None, include_basic_
                 "pick_reason": "Basic land" if is_basic_land else (row["source_type"] or "Deck Builder"),
                 "is_basic_land": 1 if is_basic_land else 0,
                 "sheet_is_foil": int(row["sheet_is_foil"] or 0),
+                "foil_type": row["foil_type"] or "",
                 "deck_role": normalize_deck_role(row["deck_role"] if "deck_role" in row.keys() else DECK_ROLE_MAIN),
                 "stack_column": row["stack_column"] or "",
                 "stack_order": row["stack_order"],
@@ -1200,6 +1204,8 @@ def duplicate_deckbuilder_card(deck_id, deck_card_id):
     )
 
     new_deck_card_id = int(cursor.lastrowid)
+    cursor.execute("UPDATE deck_cards SET foil_type = ? WHERE deck_card_id = ?",
+                   (source_row["foil_type"] or "", new_deck_card_id))
 
     cursor.execute(
         """
@@ -1884,12 +1890,15 @@ def update_deckbuilder_card_role(deck_id, deck_card_id, deck_role):
         "action": "set_deck_role",
     }
 
-def update_deckbuilder_card_foil(deck_id, deck_card_id, is_foil):
+def update_deckbuilder_card_foil(deck_id, deck_card_id, is_foil, foil_type="foil"):
     ensure_deck_schema()
 
     parsed_deck_id = normalize_deck_optional_int(deck_id)
     parsed_deck_card_id = normalize_deck_optional_int(deck_card_id)
+    if foil_type not in {"foil", "surge", "chocobo"}:
+        return {"ok": False, "message": "Unknown foil type."}
     parsed_foil = 1 if is_foil else 0
+    saved_foil_type = foil_type if is_foil else ""
 
     if parsed_deck_id is None or parsed_deck_card_id is None:
         return {
@@ -1905,7 +1914,7 @@ def update_deckbuilder_card_foil(deck_id, deck_card_id, is_foil):
     cursor.execute(
         """
         UPDATE deck_cards
-        SET sheet_is_foil = ?,
+        SET sheet_is_foil = ?, foil_type = ?,
             updated_at_utc = ?
         WHERE deck_id = ?
           AND deck_card_id = ?
@@ -1913,6 +1922,7 @@ def update_deckbuilder_card_foil(deck_id, deck_card_id, is_foil):
         """,
         (
             parsed_foil,
+            saved_foil_type,
             now_utc,
             parsed_deck_id,
             parsed_deck_card_id,
@@ -1942,12 +1952,13 @@ def update_deckbuilder_card_foil(deck_id, deck_card_id, is_foil):
         "deck_id": parsed_deck_id,
         "deck_card_id": parsed_deck_card_id,
         "sheet_is_foil": parsed_foil,
+        "foil_type": saved_foil_type,
         "updated": int(updated),
         "action": "set_foil" if parsed_foil else "remove_foil",
     }
 
 
-def bulk_update_deckbuilder_card_foil(deck_id, deck_card_ids, is_foil):
+def bulk_update_deckbuilder_card_foil(deck_id, deck_card_ids, is_foil, foil_type="foil"):
     ensure_deck_schema()
 
     parsed_deck_id = normalize_deck_optional_int(deck_id)
@@ -1971,7 +1982,10 @@ def bulk_update_deckbuilder_card_foil(deck_id, deck_card_ids, is_foil):
             "message": "No deck cards were selected.",
         }
 
+    if foil_type not in {"foil", "surge", "chocobo"}:
+        return {"ok": False, "message": "Unknown foil type."}
     parsed_foil = 1 if is_foil else 0
+    saved_foil_type = foil_type if is_foil else ""
     placeholders = ",".join("?" for _ in parsed_card_ids)
     now_utc = deck_utc_now()
 
@@ -1981,13 +1995,13 @@ def bulk_update_deckbuilder_card_foil(deck_id, deck_card_ids, is_foil):
     cursor.execute(
         f"""
         UPDATE deck_cards
-        SET sheet_is_foil = ?,
+        SET sheet_is_foil = ?, foil_type = ?,
             updated_at_utc = ?
         WHERE deck_id = ?
           AND is_basic_land = 0
           AND deck_card_id IN ({placeholders})
         """,
-        [parsed_foil, now_utc, parsed_deck_id] + parsed_card_ids,
+        [parsed_foil, saved_foil_type, now_utc, parsed_deck_id] + parsed_card_ids,
     )
 
     updated = cursor.rowcount or 0
@@ -2012,13 +2026,14 @@ def bulk_update_deckbuilder_card_foil(deck_id, deck_card_ids, is_foil):
         "message": "Set foil on selected card(s)." if parsed_foil else "Removed foil from selected card(s).",
         "deck_id": parsed_deck_id,
         "sheet_is_foil": parsed_foil,
+        "foil_type": saved_foil_type,
         "updated": int(updated),
         "affected_count": int(updated),
         "action": "set_foil" if parsed_foil else "remove_foil",
     }
 
 
-def bulk_deckbuilder_card_action(deck_id, deck_card_ids, action, target_zone=""):
+def bulk_deckbuilder_card_action(deck_id, deck_card_ids, action, target_zone="", foil_type="foil"):
     ensure_deck_schema()
 
     parsed_deck_id = normalize_deck_optional_int(deck_id)
@@ -2061,6 +2076,7 @@ def bulk_deckbuilder_card_action(deck_id, deck_card_ids, action, target_zone="")
             parsed_deck_id,
             parsed_card_ids,
             is_foil=(clean_action == "set_foil"),
+            foil_type=foil_type,
         )
 
     now_utc = deck_utc_now()
@@ -3452,6 +3468,7 @@ def duplicate_deck(deck_id):
             source_item_id,
             is_basic_land,
             sheet_is_foil,
+            foil_type,
             deck_role,
             stack_column,
             stack_order,
@@ -3470,6 +3487,7 @@ def duplicate_deck(deck_id):
             deck_card_id,
             is_basic_land,
             sheet_is_foil,
+            foil_type,
             COALESCE(deck_role, 'main'),
             stack_column,
             stack_order,

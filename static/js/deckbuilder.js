@@ -2489,6 +2489,7 @@
       escapeHtml(isBasicLand ? "1" : "0") +
       '" data-is-foil="' +
       escapeHtml(isFoil ? "1" : "0") +
+      '" data-foil-type="' + escapeHtml(safeCard.foil_type || "") +
       '" data-deck-role="' +
       escapeHtml(deckRole || "main") +
       '" data-has-alternate-image="' +
@@ -2704,6 +2705,7 @@
 
       cardElements.forEach(function (cardElement) {
         cardElement.dataset.isFoil = isFoil ? "1" : "0";
+        cardElement.dataset.foilType = (payload.bulk_card_action_result || payload.card_action_result || {}).foil_type || "";
 
         const cardMain = cardElement.querySelector(
           ".campaign-test-draft-picked-main",
@@ -5098,14 +5100,6 @@
         targetZone === "deck" ? "Move to Deck" : "Move to Sideboard";
     }
 
-    const foilAction = payload.isFoil === "1" ? "remove_foil" : "set_foil";
-    const foilText = payload.isFoil === "1" ? "Remove Foil" : "Set Foil";
-
-    setDeckbuilderContextActionText(
-      "foil",
-      isMultiSelection ? foilText + " on Cards" : foilText,
-    );
-
     if (payload.deckRole === "commander") {
       setDeckbuilderContextActionText(
         "clear_deck_role",
@@ -5115,13 +5109,7 @@
       setDeckbuilderContextActionText("clear_deck_role", "Clear Partner Slot");
     }
 
-    const foilMenuItem = cardContextMenu
-      ? cardContextMenu.querySelector('[data-context-action="foil"]')
-      : null;
 
-    if (foilMenuItem) {
-      foilMenuItem.dataset.resolvedContextAction = foilAction;
-    }
   }
 
   function openCardContextMenu(event, cardElement) {
@@ -5173,6 +5161,7 @@
     const formData = new FormData();
 
     formData.append("action", actionName || "");
+    if (actionName === "set_foil") formData.append("foil_type", selectedFoilType);
     formData.append("target_zone", targetZone);
 
     if (["move", "remove", "set_foil", "remove_foil"].includes(actionName)) {
@@ -5201,6 +5190,7 @@
     const formData = new FormData();
 
     formData.append("action", actionName || "");
+    if (actionName === "set_foil") formData.append("foil_type", selectedFoilType);
     formData.append("deck_card_id", cardPayload.deckCardId || "");
     formData.append("card_name", cardPayload.cardName || "");
     formData.append("target_zone", targetZone);
@@ -5286,6 +5276,19 @@
     }
   }
 
+  const foilMenuWrap = document.querySelector("[data-foil-menu-toggle]")?.parentElement;
+  foilMenuWrap?.addEventListener("pointerenter", () => {
+    const menu = foilMenuWrap.querySelector("[data-foil-menu]");
+    menu.classList.remove("foil-menu-left");
+    if (menu.getBoundingClientRect().right > window.innerWidth - 8) menu.classList.add("foil-menu-left");
+  });
+  document.querySelector("[data-foil-menu-toggle]")?.addEventListener("click", event => {
+    event.stopPropagation();
+    const menu = document.querySelector("[data-foil-menu]");
+    const open = menu.classList.toggle("hidden") === false;
+    event.currentTarget.setAttribute("aria-expanded", String(open));
+  });
+  let selectedFoilType = "foil";
   async function handleDeckbuilderContextAction(actionName) {
     const contextCard = activeContextCard;
     const cardPayload = getCardContextPayload(contextCard);
@@ -5923,6 +5926,8 @@
       event.preventDefault();
       event.stopPropagation();
 
+      if (menuItem.hasAttribute("data-foil-menu-toggle")) return;
+
       if (
         menuItem.classList.contains(
           "deckbuilder-card-context-menu-item-disabled",
@@ -5935,6 +5940,7 @@
         return;
       }
 
+      selectedFoilType = menuItem.dataset.foilType || "foil";
       handleDeckbuilderContextAction(
         menuItem.dataset.resolvedContextAction ||
           menuItem.dataset.contextAction ||

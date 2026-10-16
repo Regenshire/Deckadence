@@ -19,7 +19,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/print_export_modal.css') }}"
+  href="{{ url_for('static', filename='css/print_export_modal.css', v='foil-intensity-1') }}"
 />
 <link
   rel="stylesheet"
@@ -239,7 +239,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
       data-card-name="{{ card.card_name }}"
       data-card-rarity="{{ card.rarity or '' }}"
       data-pack-order="{{ loop.index0 }}"
-      data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
+      data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}" data-foil-type="{{ card.foil_type or '' }}"
       {%
       if
       not
@@ -350,7 +350,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
             data-has-alternate-source="{{ 1 if card.has_alternate_source else 0 }}"
             data-card-uuid="{{ card.card_uuid }}"
             data-card-name="{{ card.card_name }}"
-            data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}"
+            data-is-foil="{{ 1 if card.sheet_is_foil else 0 }}" data-foil-type="{{ card.foil_type or '' }}"
             {%
             if
             not
@@ -460,13 +460,13 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
       Change Printing
     </button>
 
-    <button
+    <div class="foil-context-group"><button
       type="button"
       class="imomir-card-context-menu-item"
-      data-card-context-action="foil"
+      data-card-context-action="foil" data-foil-expand aria-expanded="false" aria-haspopup="true"
     >
       Set Foil
-    </button>
+    </button><div class="foil-context-choices" hidden><button type="button" class="card-context-menu-item" data-card-context-action="foil" data-foil-type="foil">Foil</button><button type="button" class="card-context-menu-item" data-card-context-action="foil" data-foil-type="surge">Surge Foil</button><button type="button" class="card-context-menu-item" data-card-context-action="foil" data-foil-type="chocobo">Chocobo Track Foil</button><button type="button" class="card-context-menu-item" data-card-context-action="foil" data-foil-type="normal">Remove Foil</button></div></div>
 
     <button
       type="button"
@@ -543,8 +543,8 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/print_export_modal.js') }}"></script>
-<script src="{{ url_for('static', filename='js/campaign_pack_detail.js', v='sort-save-1') }}"></script>
+<script src="{{ url_for('static', filename='js/print_export_modal.js', v='foil-intensity-1') }}"></script>
+<script src="{{ url_for('static', filename='js/campaign_pack_detail.js', v='foil-types-1') }}"></script>
 {% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>

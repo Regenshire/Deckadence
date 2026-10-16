@@ -9,6 +9,27 @@
   if (window.DeckadenceCardEffects) return;
   const selector = "[data-card-effects]";
   const candidates = selector + ", .deckbuilder-card-image-wrap, .custom-draft-current-card-image-wrap, .custom-draft-current-grid-card .chaos-pack-view-image-wrap";
+  const foilSettingsUrl = new URL("../img/card-effects/foil-settings.json", document.currentScript.src);
+  let foilSettingsPromise;
+  function applyCustomPlacement(surface) {
+    if (!foilSettingsPromise) {
+      foilSettingsPromise = fetch(foilSettingsUrl, {cache: "no-store"})
+        .then(response => { if (!response.ok) throw new Error("Could not load foil settings"); return response.json(); })
+        .catch(error => { console.warn(error); return {}; });
+    }
+    foilSettingsPromise.then(settings => {
+      const preset = settings[surface.dataset.cardEffectFinish] || {};
+      const number = (value, fallback, min, max) => Number.isFinite(Number(value)) ? Math.max(min, Math.min(max, Number(value))) : fallback;
+      surface.style.setProperty("--foil-scale", number(preset.scale, 1, .1, 2));
+      surface.style.setProperty("--foil-x", number(preset.x_percent, 0, -100, 100) + "%");
+      surface.style.setProperty("--foil-y", number(preset.y_percent, 0, -100, 100) + "%");
+      const color = /^#[0-9a-f]{6}$/i.test(preset.color || "") ? preset.color : "#ffffff";
+      surface.style.setProperty("--foil-color", color);
+      surface.style.setProperty("--foil-strength", number(preset.strength, .65, 0, 1));
+      surface.style.setProperty("--foil-blend", ["normal", "screen", "overlay", "soft-light"].includes(preset.blend_mode) ? preset.blend_mode : "normal");
+      surface.dataset.foilPlacementReady = "1";
+    });
+  }
   const states = new WeakMap();
   const moving = new Set();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
@@ -19,9 +40,11 @@
 
   function finishFor(surface) {
     const explicit = surface.dataset.cardFinish;
-    if (["normal", "foil", "surge"].includes(explicit)) return explicit;
+    if (["normal", "foil", "surge", "chocobo"].includes(explicit)) return explicit;
     const foilHost = surface.closest("[data-is-foil]");
     if (!isTrue(foilHost?.dataset.isFoil)) return "normal";
+    const selected = surface.closest("[data-foil-type]")?.dataset.foilType;
+    if (["foil", "surge", "chocobo"].includes(selected)) return selected;
     return surface.dataset.cardSurge === "1" ? "surge" : "foil";
   }
 
@@ -34,11 +57,12 @@
       surface.dataset.cardSurge = options.promo_types.includes("surgefoil") ? "1" : "0";
     }
     surface.dataset.cardEffectFinish = finishFor(surface);
+    if (surface.dataset.cardEffectFinish === "chocobo") applyCustomPlacement(surface);
     if (states.has(surface)) return states.get(surface);
     surface.classList.add("card-effects");
     // Grid/stack views clone card DOM; copied layers have no animation state.
     surface.querySelectorAll(":scope > .card-effect-layer").forEach(layer => layer.remove());
-    for (const kind of ["rainbow", "surge", "glare"]) {
+    for (const kind of ["rainbow", "surge", "custom", "glare"]) {
       const layer = document.createElement("span");
       layer.className = `card-effect-layer card-effect-${kind}`;
       layer.setAttribute("aria-hidden", "true");
@@ -188,7 +212,7 @@
         }
       }
     }).observe(document.body, {childList:true, subtree:true, attributes:true,
-      attributeFilter:["data-is-foil", "data-card-surge", "data-card-finish"]});
+      attributeFilter:["data-foil-type", "data-is-foil", "data-card-surge", "data-card-finish"]});
   }
   async function flip(image, changeFace) {
     if (!image || image.dataset.cardFlipping) return;

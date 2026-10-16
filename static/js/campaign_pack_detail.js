@@ -1041,11 +1041,11 @@
 
     if (foilMenuItem) {
       foilMenuItem.textContent =
-        cardElement.dataset.isFoil === "1" ? "Remove Foil" : "Set Foil";
+        "Set Foil ›";
     }
   }
 
-  async function handleCampaignPackCardContextAction(actionName, cardElement) {
+  async function handleCampaignPackCardContextAction(actionName, cardElement, actionButton) {
     const changePrintingButton = cardElement.querySelector(
       ".campaign-pack-change-printing-button",
     );
@@ -1082,12 +1082,16 @@
       throw new Error("Foil controls are not available.");
     }
 
-    const nextIsFoil = cardElement.dataset.isFoil !== "1";
+    const nextIsFoil = actionButton?.dataset.foilType !== "normal";
     const payload = await window.iMomirCardContextMenu.setFoil({
       updateUrl: alternateImageButton.dataset.foilUpdateUrl || "",
       cardUuid: cardElement.dataset.cardUuid || "",
       isFoil: nextIsFoil,
+      foilType: actionButton?.dataset.foilType === "normal" ? "foil" : (actionButton?.dataset.foilType || "foil"),
     });
+    cardElement.dataset.foilType = payload.foil_type || "";
+    cardElement.querySelectorAll("[data-foil-type]").forEach(el => el.dataset.foilType = payload.foil_type || "");
+    window.DeckadenceCardEffects?.enhance(cardElement);
 
     showCampaignPackMessage(
       payload.message || (nextIsFoil ? "Foil enabled." : "Foil removed."),

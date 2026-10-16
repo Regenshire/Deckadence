@@ -1,3 +1,4 @@
+from foil_effects import render_print_foil, normalize_print_foil_intensity
 # *** DECKADENCE - Setup the App and Handle Page Actions ***
 from user_backup_system import recover_interrupted_import
 
@@ -1128,6 +1129,16 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
         "chaos",
     )
 
+    if "include_foil_overlay" in form_data:
+        g.print_export_foil_override = parse_print_export_override_bool(get_form_values("include_foil_overlay"))
+        g.pop("_pdf_print_settings_cache", None)
+        set_config_value("include_foil_overlay", "1" if g.print_export_foil_override else "0")
+
+    if "foil_print_intensity" in form_data:
+        g.print_export_foil_intensity_override = normalize_print_foil_intensity(form_data.get("foil_print_intensity"))
+        g.pop("_pdf_print_settings_cache", None)
+        set_config_value("foil_print_intensity", str(g.print_export_foil_intensity_override))
+
     if "print_card_backs" in form_data:
         g.print_export_card_backs_override = parse_print_export_override_bool(
             get_form_values("print_card_backs"))
@@ -1398,6 +1409,12 @@ def get_effective_print_config(config=None, scope=None):
         effective_scope,
     )
 
+    resolved_config["foil_print_intensity"] = config.get("foil_print_intensity", "100")
+    if has_request_context() and hasattr(g, "print_export_foil_intensity_override"):
+        resolved_config["foil_print_intensity"] = str(g.print_export_foil_intensity_override)
+    resolved_config["include_foil_overlay"] = config.get("include_foil_overlay", "0")
+    if has_request_context() and hasattr(g, "print_export_foil_override"):
+        resolved_config["include_foil_overlay"] = "1" if g.print_export_foil_override else "0"
     if effective_scope == "chaos" and has_request_context():
         if hasattr(g, "print_export_card_backs_override"):
             resolved_config["print_card_backs"] = "1" if g.print_export_card_backs_override else "0"
@@ -1663,6 +1680,8 @@ def _build_pdf_print_settings(config, print_labels_enabled_override=None):
         "pdf_width_mm": pdf_width_mm,
         "pdf_height_mm": pdf_height_mm,
         "pdf_crop_border": crop_border,
+        "foil_print_intensity": normalize_print_foil_intensity(config.get("foil_print_intensity", 100)),
+        "include_foil_overlay": (config.get("include_foil_overlay") or "0") == "1",
         "print_card_backs": (config.get("print_card_backs") or "0").strip() == "1",
 
         "default_card_back": normalize_card_back_key(
@@ -14421,6 +14440,7 @@ def build_chaos_pack_pdf(
     card_back_rendered_entries = []
     pack_label_rendered_entries = []
     label_back_temp_paths = []
+    foil_temp_paths = []
 
     print_card_backs = bool(
         pdf_settings.get("print_card_backs")
@@ -14862,14 +14882,21 @@ def build_chaos_pack_pdf(
                     if not cached_result:
                         raise ValueError("No cached result returned for chaos image download.")
 
+                    foil_path = None
+                    if pdf_settings.get("include_foil_overlay") and int(card.get("sheet_is_foil") or card.get("is_foil") or 0):
+                        foil_path = get_chaos_temp_file_path("foil_" + uuid4().hex + ".png")
+                        foil_temp_paths.append(foil_path)
+                        render_print_foil(cached_result["absolute_path"], foil_path, card.get("foil_type") or "foil",
+                                          intensity=pdf_settings.get("foil_print_intensity", 100))
+
                     rendered_image_entries.append({
-                        "temp_path": cached_result["absolute_path"],
+                        "temp_path": foil_path or cached_result["absolute_path"],
                         "page_kind": (page_entry.get("page_kind") or "").strip().lower(),
                         "card_uuid": (page_entry.get("card_uuid") or card_uuid or "").strip(),
                         "card_row": card_row,
                         "pack_tracking_code": card_tracking_code,
                         "is_dual_faced": int(card_row["is_dual_faced"] or 0),
-                        "is_persistent_cache_file": True,
+                        "is_persistent_cache_file": not bool(foil_path),
                         "is_template_rendered": False,
                         "progress_name": (
                             page_entry.get("card_name")
@@ -15214,7 +15241,7 @@ def build_chaos_pack_pdf(
                     os.remove(temp_path)
             except Exception:
                 pass
-        for temp_path in label_back_temp_paths:
+        for temp_path in label_back_temp_paths + foil_temp_paths:
             try:
                 if os.path.isfile(temp_path):
                     os.remove(temp_path)
@@ -16171,6 +16198,7 @@ def get_tracked_pack_card_export_rows(tracked_pack_ids):
             tcpc.card_name,
             tcpc.set_code AS card_set_code,
             tcpc.sheet_is_foil,
+            tcpc.foil_type,
             tcpc.rarity,
             tcpc.type_line,
             tcpc.scryfall_id,
@@ -16213,6 +16241,7 @@ def get_tracked_pack_card_export_rows(tracked_pack_ids):
             "card_name": row["card_name"] or "",
             "card_set_code": (row["card_set_code"] or row["pack_set_code"] or "").strip().upper(),
             "sheet_is_foil": int(row["sheet_is_foil"] or 0),
+            "foil_type": row["foil_type"] if "foil_type" in row.keys() else "",
             "rarity": row["rarity"] or "",
             "type_line": row["type_line"] or "",
             "scryfall_id": row["scryfall_id"] or "",
@@ -16373,6 +16402,8 @@ def get_custom_draft_set_print_cards(set_code, selected_card_ids=None):
             "card_uuid": (card["card_uuid"] or "").strip(),
             "card_name": card["card_name"] or "",
             "image_scope_id": card["image_scope_id"],
+            "sheet_is_foil": int(card["sheet_is_foil"] or 0),
+            "foil_type": card["foil_type"] or "",
         }
         for card in custom_set_cards
         if (card["card_uuid"] or "").strip()
@@ -16440,6 +16471,7 @@ def build_custom_draft_set_image_export_rows(set_code, selected_card_ids=None):
             "card_name": card["card_name"] or "",
             "card_set_code": (card["card_set_code"] or "").strip().upper(),
             "sheet_is_foil": int(card["sheet_is_foil"] or 0),
+            "foil_type": card["foil_type"] if "foil_type" in card.keys() else "",
             "rarity": card["rarity"] or "",
             "type_line": card["type_line"] or "",
             "scryfall_id": "",
@@ -24728,6 +24760,7 @@ def build_campaign_preview_image_export_rows(preview_pack, card_packs=None):
                 or ""
             ).strip().upper(),
             "sheet_is_foil": int(card.get("sheet_is_foil") or 0),
+            "foil_type": card.get("foil_type") or "",
             "rarity": card.get("rarity") or (card_row["rarity"] if card_row else "") or "",
             "type_line": card.get("type_line") or (card_row["type_line"] if card_row else "") or "",
             "scryfall_id": "",
@@ -25287,6 +25320,7 @@ def serialize_deckbuilder_card(card):
         "pick_reason": pick_reason,
         "is_basic_land": 1 if int(is_basic_land or 0) == 1 else 0,
         "sheet_is_foil": 1 if int(deckbuilder_row_get(card, "sheet_is_foil", 0) or 0) == 1 else 0,
+        "foil_type": deckbuilder_row_get(card, "foil_type", "") or "",
         "deck_role": deckbuilder_row_get(card, "deck_role", "main") or "main",
         "stack_column": deckbuilder_row_get(card, "stack_column", "") or "",
         "stack_order": deckbuilder_row_get(card, "stack_order", None),
@@ -26070,6 +26104,8 @@ def get_print_export_defaults_from_config(config):
         label_text_mode = "pack_code"
 
     return {
+        "foil_print_intensity": normalize_print_foil_intensity(config.get("foil_print_intensity", 100)),
+        "include_foil_overlay": get_config_bool(config, "include_foil_overlay", "0"),
         "print_card_backs": get_config_bool(chaos_print_config, "print_card_backs", "0"),
         "default_card_back": get_chaos_default_card_back_key(config),
         "show_print_export_labels": get_config_bool(
@@ -26175,6 +26211,7 @@ def build_deckbuilder_image_export_rows(
             "card_name": card.get("card_name") or "",
             "card_set_code": (card.get("set_code") or "").strip().upper(),
             "sheet_is_foil": 1 if int(card.get("sheet_is_foil") or 0) == 1 else 0,
+            "foil_type": card.get("foil_type") or "",
             "rarity": card.get("rarity") or "",
             "type_line": card.get("type_line") or "",
             "scryfall_id": "",
@@ -30078,6 +30115,7 @@ def deckbuilder_card_action_bulk(deck_id):
         deck_card_ids=deck_card_ids,
         action=action,
         target_zone=target_zone,
+        foil_type=request.form.get("foil_type", "foil"),
     )
 
     if not result.get("ok"):
@@ -30154,6 +30192,7 @@ def deckbuilder_card_action(deck_id):
             deck_id=deck_id,
             deck_card_id=deck_card_id,
             is_foil=True,
+            foil_type=request.form.get("foil_type", "foil"),
         )
     elif action == "remove_foil":
         result = update_deckbuilder_card_foil(
@@ -31006,6 +31045,7 @@ def campaign_chaos_pack_card_update_foil(tracked_pack_card_id):
         result = update_tracked_pack_card_foil(
             tracked_pack_card_id,
             is_foil,
+            foil_type=payload.get("foil_type", "foil"),
         )
     except Exception as exc:
         return jsonify({
@@ -36762,6 +36802,7 @@ def chaos_draft_view_data():
             "image_src": url_for("chaos_card_image", card_uuid=card.get("card_uuid")),
             "finish_type": card.get("finish_type"),
             "sheet_is_foil": int(card.get("sheet_is_foil") or 0),
+            "foil_type": card.get("foil_type") or "",
             "special_badges": card.get("special_badges") or [],
             "prices": card.get("prices") or {},
             "currency": "USD",
@@ -38535,6 +38576,7 @@ def custom_draft_set_cards_update_foil(set_code, custom_set_card_id):
             clean_set_code,
             custom_set_card_id,
             is_foil,
+            foil_type=payload.get("foil_type", "foil"),
         )
     except Exception as exc:
         return jsonify({

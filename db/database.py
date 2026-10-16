@@ -1678,6 +1678,8 @@ def initialize_database():
     )
 
     ensure_column_exists(cursor, "custom_draft_set_cards", "sheet_is_foil", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_exists(cursor, "custom_draft_set_cards", "foil_type", "TEXT NOT NULL DEFAULT ''")
+    ensure_column_exists(cursor, "tracked_chaos_pack_cards", "foil_type", "TEXT NOT NULL DEFAULT ''")
 
     cursor.execute(
         """
@@ -3571,6 +3573,7 @@ def get_custom_draft_set_card_rows(set_code, search_text=""):
             cdsc.card_uuid,
             cdsc.special_category_index,
             cdsc.sheet_is_foil,
+            cdsc.foil_type,
             cdsc.sort_name,
             cdsc.added_at_utc,
 
@@ -5219,12 +5222,15 @@ def bulk_delete_custom_draft_set_cards(set_code, custom_set_card_ids):
         "message": f"Removed {int(deleted or 0)} card(s).",
     }
 
-def update_tracked_pack_card_foil(tracked_pack_card_id, is_foil):
+def update_tracked_pack_card_foil(tracked_pack_card_id, is_foil, foil_type="foil"):
     try:
         parsed_card_id = int(tracked_pack_card_id)
     except (TypeError, ValueError):
         raise ValueError("Invalid tracked pack card id.")
 
+    if foil_type not in {"foil", "surge", "chocobo"}:
+        raise ValueError("Unknown foil type.")
+    saved_foil_type = foil_type if is_foil else ""
     parsed_foil = 1 if is_foil else 0
 
     conn = get_db_connection()
@@ -5233,11 +5239,12 @@ def update_tracked_pack_card_foil(tracked_pack_card_id, is_foil):
     cursor.execute(
         """
         UPDATE tracked_chaos_pack_cards
-        SET sheet_is_foil = ?
+        SET sheet_is_foil = ?, foil_type = ?
         WHERE tracked_pack_card_id = ?
         """,
         (
             parsed_foil,
+            saved_foil_type,
             parsed_card_id,
         ),
     )
@@ -5251,11 +5258,12 @@ def update_tracked_pack_card_foil(tracked_pack_card_id, is_foil):
         "ok": True,
         "updated": int(updated or 0),
         "sheet_is_foil": parsed_foil,
+        "foil_type": saved_foil_type,
         "message": "Foil status updated.",
     }
 
 
-def update_custom_draft_set_card_foil(set_code, custom_set_card_id, is_foil):
+def update_custom_draft_set_card_foil(set_code, custom_set_card_id, is_foil, foil_type="foil"):
     clean_set_code = normalize_custom_draft_set_code(set_code)
 
     try:
@@ -5263,6 +5271,9 @@ def update_custom_draft_set_card_foil(set_code, custom_set_card_id, is_foil):
     except (TypeError, ValueError):
         raise ValueError("Invalid custom set card id.")
 
+    if foil_type not in {"foil", "surge", "chocobo"}:
+        raise ValueError("Unknown foil type.")
+    saved_foil_type = foil_type if is_foil else ""
     parsed_foil = 1 if is_foil else 0
 
     conn = get_db_connection()
@@ -5271,12 +5282,13 @@ def update_custom_draft_set_card_foil(set_code, custom_set_card_id, is_foil):
     cursor.execute(
         """
         UPDATE custom_draft_set_cards
-        SET sheet_is_foil = ?
+        SET sheet_is_foil = ?, foil_type = ?
         WHERE custom_set_card_id = ?
           AND set_code = ?
         """,
         (
             parsed_foil,
+            saved_foil_type,
             parsed_card_id,
             clean_set_code,
         ),
@@ -5291,6 +5303,7 @@ def update_custom_draft_set_card_foil(set_code, custom_set_card_id, is_foil):
         "ok": True,
         "updated": int(updated or 0),
         "sheet_is_foil": parsed_foil,
+        "foil_type": saved_foil_type,
         "message": "Foil status updated.",
     }
 
