@@ -17,6 +17,7 @@
   let pollTimer;
   let pollPending = null;
   let starting = false;
+  let monitoringInstall = Boolean(initial.is_running);
   let statusKnown = true;
   let dismissed = false;
   let assets;
@@ -154,6 +155,7 @@
     statusKnown = true;
     const ready = Boolean(next.database_ready);
     const running = Boolean(next.is_running);
+    monitoringInstall = running;
     const failed = next.stage === "Failed" || next.stage === "Interrupted";
     // Never expose setup from the initial page snapshot. A fresh status
     // response must explicitly confirm that installation is still needed.
@@ -200,7 +202,8 @@
     scheduleRotation();
   }
 
-  async function pollStatus() {
+  async function pollStatus(force = false) {
+    if (!force && !monitoringInstall && !starting) return;
     if (pollPending) return pollPending;
     clearTimeout(pollTimer);
     pollPending = (async () => {
@@ -220,11 +223,13 @@
         install.disabled = true;
         retry.disabled = true;
         check.hidden = false;
-        setText("homeDatabaseConnection", "Cannot reach the server. Reconnecting to check installation status; the download may still be running.");
+        setText("homeDatabaseConnection", monitoringInstall
+          ? "Cannot reach the server. Reconnecting to check installation status; the download may still be running."
+          : "Cannot reach the server to check setup. Use Check status when the server is available.");
       } finally {
         pollPending = null;
-        if (!document.hidden && (!statusKnown || state.is_running || !state.database_ready)) {
-          pollTimer = setTimeout(pollStatus, !statusKnown ? 5000 : state.is_running ? 2000 : 15000);
+        if (!document.hidden && monitoringInstall) {
+          pollTimer = setTimeout(() => pollStatus(), !statusKnown ? 5000 : 2000);
         }
       }
     })();
@@ -234,6 +239,7 @@
   async function startInstall() {
     if (starting || !statusKnown || state.is_running) return;
     starting = true;
+    monitoringInstall = true;
     dismissed = false;
     install.disabled = retry.disabled = true;
     statusPanel.hidden = false;
@@ -261,6 +267,7 @@
     } catch (_) {
       // A lost POST response does not mean the server failed to start the job.
       statusKnown = false;
+      monitoringInstall = true;
       await pollStatus();
     } finally {
       starting = false;
@@ -270,7 +277,7 @@
 
   install.addEventListener("click", startInstall);
   retry.addEventListener("click", startInstall);
-  check.addEventListener("click", pollStatus);
+  check.addEventListener("click", () => pollStatus(true));
   dismiss.addEventListener("click", () => { dismissed = true; statusPanel.hidden = true; });
   motion.addEventListener("change", () => {
     motionEnabled = motion.checked;
@@ -376,8 +383,8 @@
       }
       case 6: {
         const packs = [
-          [...assets.builderColumns[2], ...assets.builderColumns[1], ...assets.builderColumns[3], ...assets.builderColumns[4], assets.builderColumns[5][0]],
-          [...assets.builderColumns[5], ...assets.builderColumns[6], ...assets.builderColumns[4], ...assets.builderColumns[3], ...assets.builderColumns[7]].slice(0, 15)
+          [...assets.builderColumns[2], ...assets.builderColumns[1], ...assets.builderColumns[3], ...assets.builderColumns[4], assets.builderColumns[5][0]].slice(0, 14),
+          [...assets.builderColumns[5], ...assets.builderColumns[6], ...assets.builderColumns[4], ...assets.builderColumns[3], ...assets.builderColumns[7]].slice(0, 13)
         ];
         return '<div class="showcase-test-pool">Your picks</div>'
           + packs.map((cards, round) => cards.map((item, i) =>
@@ -530,7 +537,7 @@
       const cards = [...sceneEl.querySelectorAll('.showcase-test-card')];
       const poolLeft = sceneEl.clientWidth * .76;
       const gap = sceneEl.clientWidth < 420 ? 5 : 10;
-      const width = Math.min(90, Math.floor((poolLeft - 32 - 7 * gap) / 8));
+      const width = Math.min(90, Math.floor((poolLeft - 32 - 6 * gap) / 7));
       const height = width * 1.4;
       const rowGap = 18;
       const gridTop = (sceneEl.clientHeight - 2 * height - rowGap) / 2;
@@ -540,7 +547,7 @@
       cards.forEach((element) => {
         const round = Number(element.dataset.round);
         const i = Number(element.dataset.pick);
-        const columns = 8;
+        const columns = 7;
         const row = Math.floor(i / columns);
         const x = (poolLeft - columns * width - (columns - 1) * gap) / 2 + (i % columns) * (width + gap);
         const y = gridTop + row * (height + rowGap);
@@ -593,5 +600,5 @@
   }
 
   applyStatus(initial);
-  pollStatus();
+  if (!initial.database_ready || initial.is_running) pollStatus(true);
 })();

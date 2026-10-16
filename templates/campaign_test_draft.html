@@ -2848,11 +2848,21 @@
 
                     if (droppedItem.type === "pack-card") {
                         if (picksRequired > 1) {
+                            // Dropping a complete selection confirms the pair in
+                            // one transaction, just like the Confirm Pick button.
+                            // Never submit a different pair when an unselected
+                            // third card is dragged onto a full selection.
+                            if (!selectedCardIds.has(droppedItem.packCardId) && selectionComplete()) return;
                             selectedCardIds.add(droppedItem.packCardId);
-                            if (selectedCardIds.size > picksRequired) selectedCardIds.delete(droppedItem.packCardId);
                             selectedCardId = Array.from(selectedCardIds)[0] || "";
                             deckZoneInput.value = targetZone;
                             updateSelectedCardState();
+                            if (selectionComplete()) {
+                                const formData = new FormData();
+                                selectedCardIds.forEach(id => formData.append("draft_test_pack_card_ids", id));
+                                formData.append("deck_zone", targetZone);
+                                payload = await submitAjaxData(pickUrl || pickForm.action, formData);
+                            }
                         } else {
                             payload = await pickDraftCardToZone(droppedItem.packCardId, targetZone);
                         }
