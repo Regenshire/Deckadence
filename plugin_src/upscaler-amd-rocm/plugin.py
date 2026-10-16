@@ -11,7 +11,7 @@ from processors.rules_text import (
 
 PLUGIN_ID = "upscaler-amd-rocm"
 PLUGIN_NAME = "AMD ROCm Upscaler"
-PLUGIN_VERSION = "0.1.0"
+PLUGIN_VERSION = "1.0.0"
 PROTOCOL_VERSION = 1
 
 MODEL_CAPABILITY_SCHEMA_VERSION = 1
