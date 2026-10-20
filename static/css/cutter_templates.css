@@ -1,0 +1,79 @@
+/* Cutter setup shares the surface, control, and status tokens used in Settings. */
+.cutter-template-dialog {
+  width: min(700px, calc(100vw - 32px)); max-height: calc(100dvh - 40px);
+  box-sizing: border-box; padding: 0; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 16px;
+  background: var(--panel); color: var(--text); box-shadow: 0 24px 70px #0008;
+}
+.cutter-template-dialog[open] { display: flex; flex-direction: column; }
+.cutter-template-dialog::backdrop { background: #05070bcc; }
+.cutter-template-header { display: flex; flex-shrink: 0; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 16px 22px; border-bottom: 1px solid var(--border); }
+.cutter-template-header h2 { margin: 0; font-size: 1.3rem; line-height: 1.4; }
+.cutter-template-header h2 i { margin-right: 6px; color: var(--muted); }
+.cutter-template-header p { margin: 5px 0 0; color: var(--muted); line-height: 1.5; font-size: .9rem; }
+.cutter-template-close { width: 36px; height: 36px; flex: 0 0 36px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font-size: 28px; cursor: pointer; }
+.cutter-template-close:hover { background: var(--button-hover); }
+#cutterTemplateForm { display: flex; flex-direction: column; min-height: 0; margin: 0; }
+.cutter-template-body { padding: 16px 22px; overflow-y: auto; overscroll-behavior: contain; }
+.cutter-template-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; padding: 5px; margin-bottom: 20px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; }
+.cutter-template-modes button { display: flex; justify-content: center; align-items: center; gap: 8px; border: 1px solid transparent; padding: 10px 8px; border-radius: 8px; color: var(--muted); background: transparent; font: inherit; font-size: .9rem; cursor: pointer; }
+.cutter-template-modes button:hover { color: var(--text); background: var(--button-hover); }
+.cutter-template-modes button[data-cutter-task="export"] { --cutter-step-color: var(--accent); }
+.cutter-template-modes button[data-cutter-task="registration"] { --cutter-step-color: var(--theme-success, #8dd4a7); }
+.cutter-template-modes button { background: color-mix(in srgb, var(--cutter-step-color) 12%, var(--panel)); border-color: color-mix(in srgb, var(--cutter-step-color) 45%, var(--border)); color: var(--text); }
+.cutter-template-modes button:hover { background: color-mix(in srgb, var(--cutter-step-color) 22%, var(--panel)); }
+.cutter-template-modes button[aria-pressed="true"] { background: color-mix(in srgb, var(--cutter-step-color) 30%, var(--panel)); border-color: var(--cutter-step-color); color: var(--text); font-weight: 700; box-shadow: inset 0 -3px var(--cutter-step-color); }
+.cutter-template-modes .cutter-step-number { background: color-mix(in srgb, var(--cutter-step-color) 25%, var(--panel)); border-color: var(--cutter-step-color); }
+.cutter-step-number { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: 0 0 24px; border: 1px solid var(--border); border-radius: 50%; font-size: .8rem; font-weight: 700; color: var(--text); }
+.cutter-template-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.cutter-template-dialog label { display: flex; flex-direction: column; gap: 7px; min-width: 0; font-size: .9rem; font-weight: 600; }
+.cutter-template-wide { grid-column: 1 / -1; }
+.cutter-template-dialog input, .cutter-template-dialog select, #printExportCutterProfile {
+  width: 100%; min-width: 0; box-sizing: border-box; padding: 10px 12px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--button); color: var(--text); font: inherit; font-weight: 400;
+}
+.cutter-template-dialog input::placeholder { color: var(--muted); opacity: .8; }
+.cutter-template-dialog :is(input, select, button):focus-visible, .cutter-settings-card button:focus-visible { outline: 2px solid var(--theme-highlight, var(--menuborder)); outline-offset: 3px; }
+.cutter-template-dialog :disabled { opacity: .6; cursor: wait; }
+.cutter-template-note { font-size: .84rem; color: var(--muted); line-height: 1.5; margin: 0; }
+#cutterTemplateDimensions { margin-top: -7px; }
+.cutter-template-step { margin-top: 18px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); }
+#cutterExportPanel { border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); background: color-mix(in srgb, var(--accent) 14%, var(--panel)); }
+#cutterRegistrationPanel { border-color: color-mix(in srgb, var(--theme-success, #8dd4a7) 50%, var(--border)); background: color-mix(in srgb, var(--theme-success, #8dd4a7) 14%, var(--panel)); }
+.cutter-template-step p { line-height: 1.5; font-size: .9rem; margin: 12px 0 0; }
+.cutter-template-step p:first-child { margin-top: 0; margin-bottom: 14px; }
+.cutter-template-step .cutter-template-note { font-size: .84rem; margin-top: 8px; }
+.cutter-template-step label { display: grid; grid-template-columns: minmax(0, 1fr) 120px; align-items: center; }
+#cutterRegistrationPanel label { display: flex; align-items: stretch; }
+.cutter-registration-details { margin-bottom: 16px; }
+#cutterTemplateRegistration { padding: 8px; font-size: .87rem; }
+#cutterTemplateRegistration::file-selector-button { padding: 8px 10px; margin-right: 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
+.cutter-template-footer { display: grid; grid-template-columns: minmax(0, 1fr); flex-shrink: 0; align-items: center; gap: 12px 16px; padding: 16px 22px; border-top: 1px solid var(--border); }
+.cutter-template-footer .action-button { justify-self: end; width: auto; min-width: 170px; min-height: 44px; border-radius: 10px; font-size: .95rem; gap: 8px; }
+#cutterTemplateStatus { grid-column: 1 / -1; max-height: 18vh; overflow-y: auto; margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font-size: .9rem; line-height: 1.5; overflow-wrap: anywhere; }
+#cutterTemplateStatus[data-error="true"] { border-color: var(--theme-error, #ffb4b4); color: var(--theme-error, #ffb4b4); }
+#cutterTemplateStatus[data-success="true"] { border-color: var(--theme-success, #8dd4a7); color: var(--theme-success, #8dd4a7); }
+#printExportCutterStatus { color: var(--muted); line-height: 1.5; }
+#printExportCutterStatus[data-error="true"] { color: var(--theme-error, #ffb4b4); }
+.cutter-selection-control { display: grid; gap: 8px; min-width: 0; flex: 1; }
+#printExportCutterRow { align-items: flex-start; }
+.cutter-template-dialog [hidden], #printExportCutterRow[hidden] { display: none !important; }
+.cutter-settings-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.cutter-settings-card { display: flex; flex-direction: column; gap: 12px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+.cutter-settings-card h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1rem; }
+.cutter-settings-card p, .cutter-settings-hint { color: var(--muted); line-height: 1.5; font-size: .9rem; margin: 0; }
+.cutter-settings-card .action-button { margin-top: auto; gap: 8px; min-height: 44px; font-size: .95rem; border-radius: 10px; }
+.cutter-settings-card .secondary-button { color: var(--text); }
+.cutter-settings-hint { margin-top: 16px; }
+.cutter-settings-hint a { color: var(--theme-highlight, var(--menuborder)); }
+@media (max-width: 540px) {
+  .cutter-template-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
+  .cutter-template-fields, .cutter-settings-actions { grid-template-columns: minmax(0, 1fr); }
+  .cutter-template-header, .cutter-template-footer { padding: 14px 16px; }
+  .cutter-template-body { padding: 16px; }
+  .cutter-template-header h2 { font-size: 1.1rem; }
+  .cutter-template-modes button { flex-direction: column; font-size: .83rem; gap: 6px; }
+  .cutter-template-footer { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .cutter-template-footer .action-button { width: 100%; }
+  #printExportCutterRow { flex-direction: column; }
+}

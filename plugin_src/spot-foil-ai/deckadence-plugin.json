@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "protocol_version": 1,
+  "plugin_id": "spot-foil-ai",
+  "plugin_type": "text_detection",
+  "name": "AI Text Detection",
+  "version": "1.0.0",
+  "entrypoint": "plugin.py",
+  "requirements_file": "requirements.txt"
+}

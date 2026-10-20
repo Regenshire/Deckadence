@@ -41,6 +41,7 @@ ARCHIVE_FILE_ROOT = "files"
 
 
 PACK_TABLE_NAMES = {
+    "card_spot_foil",
     "tracked_chaos_packs",
     "tracked_chaos_pack_cards",
     "tracked_chaos_pack_openings",
@@ -88,6 +89,7 @@ CAMPAIGN_EXPORT_MODE_DATA_ONLY = "data_only"
 CAMPAIGN_EXPORT_MODE_CARDS_AND_IMAGES = "cards_and_images"
 
 CAMPAIGN_IMAGE_TABLE_NAMES = {
+    "card_spot_foil",
     "alternate_sources",
     "alternate_image_scopes",
     "alternate_image_isolation",
@@ -103,6 +105,7 @@ PORTABLE_IMPORT_ID_FIELDS = {
 }
 
 PORTABLE_IMPORT_TABLE_ORDER = {
+    "card_spot_foil": 35,
     "alternate_image_scopes": 10,
     "alternate_sources": 20,
     "alternate_image_isolation": 30,
@@ -563,6 +566,16 @@ def get_rows_for_pack_table(table_name, tracked_pack_ids):
     if not pack_ids:
         return []
 
+    if table_name == "card_spot_foil":
+        placeholders = ",".join("?" for _ in pack_ids)
+        return fetch_table_rows(table_name, where_clause=(
+            "scope_token IN (SELECT alternate_image_scope_id FROM tracked_chaos_packs "
+            f"WHERE tracked_pack_id IN ({placeholders})) OR "
+            "(scope_token='global' AND card_uuid IN (SELECT c.card_uuid "
+            "FROM tracked_chaos_pack_cards c JOIN tracked_chaos_packs p "
+            "ON p.tracked_pack_id=c.tracked_pack_id WHERE p.alternate_image_scope_id IS NULL "
+            f"AND p.tracked_pack_id IN ({placeholders})))"), params=pack_ids + pack_ids)
+
     if table_name in {"alternate_image_scopes", "alternate_image_isolation"}:
         placeholders = ",".join("?" for _ in pack_ids)
 
@@ -1021,6 +1034,7 @@ def include_isolated_archive_dependencies(
                 or row.get(
                     "alternate_image_scope_id"
                 )
+                or (row.get("scope_token") if row.get("scope_token") != "global" else None)
             )
 
             if scope:
@@ -1066,12 +1080,16 @@ def include_isolated_archive_dependencies(
             for table in (
                 "alternate_image_scopes",
                 "alternate_image_isolation",
+                "card_spot_foil",
             ):
+                if not table_exists(table):
+                    continue
+                scope_column = "scope_token" if table == "card_spot_foil" else "image_scope_id"
                 required = [
                     dict(item)
                     for item in conn.execute(
                         f"SELECT * FROM {table} "
-                        "WHERE image_scope_id = ?",
+                        f"WHERE {scope_column} = ?",
                         (scope,),
                     )
                 ]
@@ -1117,6 +1135,8 @@ def build_full_rows_by_table():
 
 
 def get_row_identity(row):
+    if {"scope_token", "card_uuid", "face"}.issubset(row):
+        return ("spot_mask", row["scope_token"], row["card_uuid"], row["face"])
     if "image_scope_id" in row and (
         "alternate_source_id" in row or set(row).issubset({
             "image_scope_id", "revision", "created_at_utc", "updated_at_utc"
@@ -2947,7 +2967,9 @@ def prepare_isolated_archive_import(zip_file, root):
         result = dict(value)
 
         for key, item in result.items():
-            if key in {"image_scope_id", "alternate_image_scope_id"} and item:
+            if key in {"image_scope_id", "alternate_image_scope_id", "scope_token"} and item:
+                if key == "scope_token" and item == "global":
+                    continue
                 if item not in mapping:
                     raise ValueError(
                         "Archive references an image scope it does not contain."

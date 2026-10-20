@@ -25,6 +25,7 @@
       rel="stylesheet"
       href="{{ url_for('static', filename='css/silhouette_template_library.css') }}"
     />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cutter_templates.css') }}">
 
     {% if global_personal_use_agreement_required %}
     <link
@@ -45,8 +46,9 @@
     <script src="{{ url_for('static', filename='js/card_sizes.js', v='4') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/pack_opening.css', v='1') }}">
     <script src="{{ url_for('static', filename='js/sealed_effects.js', v='shared-1') }}"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_effects.css', v='8') }}">
-    <script src="{{ url_for('static', filename='js/card_effects.js', v='5') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_effects.css', v='spot-1') }}">
+    <script src="{{ url_for('static', filename='js/card_effects.js', v='spot-2') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_spot_foil.css', v='2') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/card_prices.css', v='compact-3') }}">
     <script src="{{ url_for('static', filename='js/card_prices.js', v='compact-4') }}" data-default-price-source="{{ global_price_source }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css', v='theme-surfaces-20') }}">
@@ -338,7 +340,7 @@
                   <span class="app-nav-item-icon">
                     <i class="fa-solid fa-scissors"></i>
                   </span>
-                  <span>Card Cutting Machine Templates</span>
+                  <span>Card Cutting Templates</span>
                 </button>
 
                 <a
@@ -520,6 +522,9 @@
 
     {% include "_print_template_selector_modal.html" %}
     {% include "_silhouette_template_library_modal.html" %}
+    {% include "_silhouette_template_upload_modal.html" %}
+    {% include "_cutter_template_modal.html" %}
+    {% include "_card_spot_foil_modal.html" %}
     {% include "_help_layer.html" %}
 
     <div
@@ -569,9 +574,12 @@
 
     <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
     <script src="{{ url_for('static', filename='js/dialog_focus.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/spot_foil_selection.js', v='5') }}"></script>
+    <script src="{{ url_for('static', filename='js/card_spot_foil.js', v='6') }}"></script>
 
     <script src="{{ url_for('static', filename='js/print_template_selector.js') }}"></script>
     <script src="{{ url_for('static', filename='js/silhouette_template_library.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/cutter_templates.js') }}"></script>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/holofoil_options.css', v='viewport-1') }}">
     <script src="{{ url_for('static', filename='js/holofoil_options.js', v='viewport-1') }}"></script>

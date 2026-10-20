@@ -6,7 +6,8 @@
 {# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/application_backups.css', v='1') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css', v='foil-intensity-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/spot_foil_workflows.css', v='4') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-ink-1') }}">
 <link
     rel="stylesheet"
     href="{{ url_for('static', filename='css/upscale_batch.css') }}"
@@ -540,6 +541,32 @@
                     no_waste_label_options,
                     false
                 ) }}
+            </div>
+        </div>
+
+        <div id="section_cutter_templates" class="page-panel collapsible-panel" data-section="cutter_templates">
+            <button type="button" class="collapsible-header">
+                <span>Cutter Template Setup</span>
+                <span class="collapsible-chevron">▾</span>
+            </button>
+            <div class="collapsible-body">
+                <div class="cutter-settings-actions">
+                    <section class="cutter-settings-card">
+                        <h3><span class="cutter-step-number">1</span> Create your cutting template</h3>
+                        <p>Download cut outlines for your paper, then open them in your cutter software.</p>
+                        <button type="button" class="action-button" data-cutter-setup-open data-cutter-mode="export" data-cutter-paper-target="chaos_print_template">
+                            <i class="fa-solid fa-file-zipper" aria-hidden="true"></i> Export Cut Paths
+                        </button>
+                    </section>
+                    <section class="cutter-settings-card">
+                        <h3><span class="cutter-step-number">2</span> Upload Registration Marks</h3>
+                        <p>Name your cutter template and upload its registration marks into Deckadence for the selected paper layout.</p>
+                        <button type="button" class="action-button secondary-button" data-cutter-setup-open data-cutter-mode="registration" data-cutter-paper-target="chaos_print_template">
+                            <i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i> Upload Registration Marks
+                        </button>
+                    </section>
+                </div>
+                <p class="cutter-settings-hint">Each paper layout can have multiple cutter templates. Choose one in Print / Export. <a href="{{ url_for('adding_paper_templates') }}#cutters">Read the setup guide</a>.</p>
             </div>
         </div>
 
@@ -1102,9 +1129,16 @@
                     </div>
                 {% endmacro %}
 
+                <div class="plugin-companion-panels" data-plugin-companions>
+                    {% include "_spot_foil_workflows.html" %}
+                    {% for plugin in plugin_catalog_items if plugin.get('plugin_id') == 'spot-foil-ai' %}
+                        {{ render_plugin_card(plugin) }}
+                    {% endfor %}
+                </div>
+
                 {% set plugin_counts = namespace(installed=0, available=0) %}
 
-                {% for plugin in plugin_catalog_items %}
+                {% for plugin in plugin_catalog_items if plugin.get('plugin_id') != 'spot-foil-ai' %}
                     {% if plugin.get("status", {}).get("installed") %}
                         {% set plugin_counts.installed = plugin_counts.installed + 1 %}
                     {% else %}
@@ -1130,7 +1164,7 @@
                         class="plugin-list"
                         data-plugin-list="installed"
                     >
-                        {% for plugin in plugin_catalog_items %}
+                        {% for plugin in plugin_catalog_items if plugin.get('plugin_id') != 'spot-foil-ai' %}
                             {% if plugin.get("status", {}).get("installed") %}
                                 {{ render_plugin_card(plugin) }}
                             {% endif %}
@@ -1156,7 +1190,7 @@
                         class="plugin-list {% if plugin_counts.available == 0 %}hidden{% endif %}"
                         data-plugin-list="available"
                     >
-                        {% for plugin in plugin_catalog_items %}
+                        {% for plugin in plugin_catalog_items if plugin.get('plugin_id') != 'spot-foil-ai' %}
                             {% if not plugin.get("status", {}).get("installed") %}
                                 {{ render_plugin_card(plugin) }}
                             {% endif %}
@@ -1402,8 +1436,9 @@
 
 
 <script
-    src="{{ url_for('static', filename='js/plugin_manager.js') }}"
+    src="{{ url_for('static', filename='js/plugin_manager.js', v='2') }}"
 ></script>
+<script src="{{ url_for('static', filename='js/spot_foil_workflows.js', v='3') }}"></script>
 
 <script>
 (function () {

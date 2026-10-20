@@ -88,6 +88,7 @@ Fill_Order = Top_Left_Row_Major
 Add_Edge_Bleed_Border = True
 Fill_Unused_Slots_With_White = True
 Corner_Radius_mm = 3.25
+Round_The_Corners = False
 Uses_Fixed_Inner_Margin = True
 
 [Duplex]
@@ -108,7 +109,7 @@ Back_Side_Slot_Order = Mirror_Horizontal</code></pre>
             <tr><th scope="row">Spacing &amp; steps</th><td><code>Horizontal_Spacing_mm</code> / <code>Vertical_Spacing_mm</code> measure the gap between finished card edges. Steps default to finished width / height + spacing. Optional <code>Horizontal_Step_mm</code> / <code>Vertical_Step_mm</code> specify exact distances between slot origins.</td></tr>
             <tr><th scope="row">Alignment &amp; origins</th><td>Horizontal alignment accepts <code>Left</code>, <code>Center</code>, <code>Right</code>; vertical accepts <code>Bottom</code>, <code>Center</code>, <code>Top</code>. Optional <code>Start_X_mm</code> / <code>Start_Y_mm</code> override alignment. The grid origin is its lower-left slot, measured from the page’s lower-left corner.</td></tr>
             <tr><th scope="row">Order &amp; rotation</th><td>Grid fill order is <code>Top_Left_Row_Major</code>: left to right, then the next row down. Rotation accepts <code>0</code>, <code>90</code>, <code>180</code>, or <code>270</code>. For a rotated layout, check slot dimensions and steps explicitly; rotation does not swap the grid’s width and height settings.</td></tr>
-            <tr><th scope="row">Rendering</th><td><code>Uses_Fixed_Inner_Margin = True</code> uses the template’s physical slot positions. <code>Add_Edge_Bleed_Border</code> extends edge pixels when source bleed is unavailable; <code>Fill_Unused_Slots_With_White</code> fills empty card positions. <code>Corner_Radius_mm</code> controls generated card shapes.</td></tr>
+            <tr><th scope="row">Rendering</th><td><code>Uses_Fixed_Inner_Margin = True</code> uses the template’s physical slot positions. <code>Add_Edge_Bleed_Border</code> extends edge pixels when source bleed is unavailable; <code>Fill_Unused_Slots_With_White</code> fills empty card positions. <code>Corner_Radius_mm</code> controls generated card shapes. Set <code>Round_The_Corners = True</code> to clip printed cards to their finished size with that corner radius, leaving the page visible outside the rounded corners. This also clips any bleed outside the finished card. It defaults to <code>False</code>, keeping existing print behavior.</td></tr>
             <tr><th scope="row">Duplex mapping</th><td><code>Back_Side_Slot_Order</code> accepts <code>Same</code>, <code>Mirror_Horizontal</code>, <code>Mirror_Vertical</code>, or <code>Reverse</code>. Choose the mapping that matches your printing and sheet-flip workflow, then test front/back alignment.</td></tr>
             <tr><th scope="row">Search labels</th><td>Use <code>Printer</code>, <code>Printer_Model</code>, <code>Paper_Stock</code>, <code>Paper_Stock_Type</code>, <code>Paper_Size</code>, <code>Orientation</code>, and comma-separated <code>Tags</code> to describe compatibility. They do not configure the printer driver.</td></tr>
           </tbody>
@@ -144,8 +145,19 @@ Rotation_Degrees = 0</code></pre>
       <section id="cutters" class="paper-guide-panel">
         <div class="paper-guide-eyebrow">Optional / Cutting machines</div>
         <h2>Add Silhouette or other cutter profiles</h2>
-        <p>Deckadence’s cutter library stores files associated with print layouts. It does not generate cut paths, convert file formats, or configure blade depth, force, speed, or passes. Prepare those in your cutter software for your machine and material.</p>
-        <h3>Silhouette registration-mark layouts</h3>
+        <p>Export the paper’s cut paths to your cutter software, then bring its registration artwork back to Deckadence. Configure blade depth, force, speed, and passes in your cutter software for your machine and material.</p>
+        <h3>Create a template in your cutter software</h3>
+        <ol>
+          <li>Open <strong>Settings → Card Cutting Machine Templates → Cutter Template Setup</strong> and select your existing paper layout.</li>
+          <li>Download the ZIP and open its SVG, PDF, or EPS cut paths in your cutter software. Keep the full page size, actual scale, and path positions. The ZIP also includes instructions and JSON geometry for programmers.</li>
+          <li>Create the cutting template in that software, then export a full-page file containing only its registration marks.</li>
+          <li>Return to Deckadence and choose <strong>Upload Registration Marks</strong> for the same paper layout. Enter a friendly name, cutter brand, and model, then browse for PNG, SVG, PDF, JPG, JPEG, or WebP artwork. The format is detected automatically.</li>
+          <li>In Print / Export, enable <strong>Cutter Registration Marks</strong> and choose your cutter template from <strong>Select Cutter</strong>. Deckadence remembers the selection for this paper. Print a test at 100% scale before cutting.</li>
+        </ol>
+        <p>Each paper layout can have multiple cutter templates. Uploading registration marks adds a cutter choice to the existing paper; it does not create or change a paper layout.</p>
+        <p>To manage saved files, open <strong>Settings → Card Cutting Machine Templates</strong>. Choose <strong>Registration Marks</strong> to download or remove an uploaded registration file, or <strong>Cutting Templates</strong> for your cutting-machine files. Removal asks for confirmation and keeps the paper layout.</p>
+        <button type="button" class="action-button secondary-button" data-cutter-setup-open>Open Cutter Template Setup</button>
+        <h3>Manual setup and existing Silhouette layouts</h3>
         <p>Start from a working Silhouette paper template with matching paper size and geometry. In <code>[Metadata]</code>, set <code>Silhouette_Support = True</code> and optionally <code>Silhouette_Model = Any</code> or your model. Add a registration background:</p>
         <pre tabindex="0"><code>[Silhouette]
 Registration_Background = assets/my-registration-marks.png</code></pre>

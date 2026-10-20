@@ -31,6 +31,7 @@
     });
   }
   const states = new WeakMap();
+  const spotMasks = new WeakMap();
   const moving = new Set();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   const motionScale = .65;
@@ -39,6 +40,7 @@
   const isTrue = value => value === true || value === 1 || value === "1" || value === "true";
 
   function finishFor(surface) {
+    if (spotMasks.has(surface)) return spotMasks.get(surface).finish;
     const explicit = surface.dataset.cardFinish;
     if (["normal", "foil", "surge", "chocobo"].includes(explicit)) return explicit;
     const foilHost = surface.closest("[data-is-foil]");
@@ -58,10 +60,10 @@
     }
     surface.dataset.cardEffectFinish = finishFor(surface);
     if (surface.dataset.cardEffectFinish === "chocobo") applyCustomPlacement(surface);
-    if (states.has(surface)) return states.get(surface);
+    if (states.has(surface)) { syncSpotMask(surface); return states.get(surface); }
     surface.classList.add("card-effects");
     // Grid/stack views clone card DOM; copied layers have no animation state.
-    surface.querySelectorAll(":scope > .card-effect-layer").forEach(layer => layer.remove());
+    surface.querySelectorAll(":scope > .card-effect-layer, :scope > .card-spot-clip").forEach(layer => layer.remove());
     for (const kind of ["rainbow", "surge", "custom", "glare"]) {
       const layer = document.createElement("span");
       layer.className = `card-effect-layer card-effect-${kind}`;
@@ -70,8 +72,42 @@
     }
     const state = {surface, x:0, y:0, tx:0, ty:0, vx:0, vy:0, light:0, targetLight:0, bounds:null};
     states.set(surface, state);
+    syncSpotMask(surface);
     reset(state);
     return state;
+  }
+
+  function syncSpotMask(surface) {
+    const spot = spotMasks.get(surface);
+    if (!spot) {
+      surface.querySelectorAll(":scope > .card-spot-clip").forEach(clip => clip.replaceWith(...clip.childNodes));
+      surface.style.removeProperty("--spot-foil-mask");
+      surface.style.removeProperty("--spot-foil-strength");
+      return;
+    }
+    surface.style.setProperty("--spot-foil-mask", `url("${spot.maskUrl}")`);
+    surface.style.setProperty("--spot-foil-strength", spot.strength / 100);
+    // Clip outside each effect's own transforms and texture mask. Moving light and
+    // custom-pattern placement must never move the painted selection itself.
+    surface.querySelectorAll(":scope > .card-effect-layer").forEach(layer => {
+      const clip = document.createElement("span");
+      clip.className = "card-spot-clip " + [...layer.classList].find(name => name !== "card-effect-layer") + "-clip";
+      clip.setAttribute("aria-hidden", "true");
+      layer.before(clip); clip.appendChild(layer);
+    });
+  }
+
+  function setSpotFoil(surface, spot) {
+    if (!surface) return;
+    if (spot) spotMasks.set(surface, spot);
+    else spotMasks.delete(surface);
+    attach(surface);
+  }
+
+  function setInteractive(surface, enabled) {
+    surface.dataset.cardEffectsInteractive = String(enabled);
+    const state = states.get(surface);
+    if (state) reset(state);
   }
 
   function paint(state) {
@@ -136,7 +172,7 @@
   document.addEventListener("pointermove", event => {
     if (event.pointerType === "touch" || event.buttons || reduced.matches) return;
     const surface = fromEvent(event);
-    if (!surface) return;
+    if (!surface || surface.dataset.cardEffectsInteractive === "false") return;
     const state = attach(surface);
     if (!state) return;
     if (!state.bounds) state.bounds = surface.getBoundingClientRect();
@@ -154,7 +190,7 @@
   }, {passive:true});
   document.addEventListener("focusin", event => {
     const surface = fromEvent(event);
-    if (surface) move(attach(surface), 0, 0, .4);
+    if (surface && surface.dataset.cardEffectsInteractive !== "false") move(attach(surface), 0, 0, .4);
   });
   document.addEventListener("focusout", event => {
     const state = states.get(fromEvent(event));
@@ -189,7 +225,7 @@
     if (!zoomImage) return;
     if (!source) {
       const previous = zoomImage.closest(selector);
-      if (previous) attach(previous, {finish: "normal"});
+      if (previous) { setSpotFoil(previous, null); attach(previous, {finish: "normal"}); }
       return;
     }
     let surface = zoomImage.closest(selector);
@@ -199,6 +235,7 @@
       zoomImage.before(surface);
       surface.appendChild(zoomImage);
     }
+    setSpotFoil(surface, spotMasks.get(source) || null);
     const state = attach(surface, {finish: finishFor(source)});
     reset(state);
   }
@@ -249,7 +286,7 @@
       }
     }
   }
-  window.DeckadenceCardEffects = {attach, enhance, applyMetadata, copyToZoom, flip, reset:resetAll};
+  window.DeckadenceCardEffects = {attach, enhance, applyMetadata, copyToZoom, flip, reset:resetAll, setSpotFoil, setInteractive};
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, {once:true});
   else start();
 })();

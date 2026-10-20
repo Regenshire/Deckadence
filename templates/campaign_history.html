@@ -5,7 +5,7 @@
 
 {# Page Content #}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css', v='foil-intensity-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-ink-1') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/campaign_history_theme.css', v='3') }}">
 <div class="screen screen-wide campaign-history-themed">
     <div class="page-panel campaign-history-page-heading">
@@ -360,7 +360,7 @@
 
 {% set print_export_subject_label = "selected packs" %}
 {% include "_print_export_modal.html" %}
-<script src="{{ url_for('static', filename='js/print_export_modal.js', v='foil-intensity-1') }}"></script>
+<script src="{{ url_for('static', filename='js/print_export_modal.js', v='spot-ink-1') }}"></script>
 <script>
 (function () {
     const localTimeElements = Array.from(document.querySelectorAll(".js-local-time"));

@@ -203,3 +203,10 @@
 .print-foil-intensity output { color: var(--text); font-variant-numeric: tabular-nums; }
 .print-foil-intensity input[type="range"] { grid-column: 1 / -1; width: 100%; min-width: 0; margin: 0; padding: 0; accent-color: var(--accent); cursor: pointer; }
 .print-foil-intensity > span { grid-column: 1 / -1; font-size: .85rem; color: var(--muted); }
+
+.print-spot-foil-options { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text); }
+.print-spot-foil-options[hidden] { display: none !important; }
+.print-spot-foil-options label { font-weight: 600; }
+.print-spot-foil-options select { width: 100%; min-width: 0; background: var(--panel-2, var(--panel)); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+.print-spot-foil-options p { margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.5; }
+.print-spot-foil-options a { color: var(--accent); }

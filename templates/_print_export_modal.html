@@ -258,7 +258,7 @@
           </label>
 
           <label class="toggle-row">
-            <span>Silhouette Registration Marks</span>
+            <span>Cutter Registration Marks</span>
             <input
               type="hidden"
               name="silhouette_registration_marks"
@@ -279,6 +279,13 @@
               %}
             />
           </label>
+          <div class="toggle-row" id="printExportCutterRow" hidden>
+            <label for="printExportCutterProfile">Select Cutter</label>
+            <div class="cutter-selection-control">
+              <select id="printExportCutterProfile" name="cutter_profile" aria-describedby="printExportCutterStatus" disabled></select>
+              <small id="printExportCutterStatus" aria-live="polite"></small>
+            </div>
+          </div>
           <label class="toggle-row">
             <span>PDF Cutting Guides</span>
             <input type="hidden" name="pdf_cutting_guides" value="0" />
@@ -429,6 +436,28 @@
 
         <div class="print-export-settings-section">
           <div class="print-export-settings-section-title">Export</div>
+
+          <label class="toggle-row">
+            <span>Include saved spot-foiling ink layers · PDF</span>
+            <input type="hidden" name="include_spot_foil" value="0" />
+            <input type="checkbox" name="include_spot_foil" value="1" aria-controls="printSpotFoilOptions" />
+          </label>
+          <div id="printSpotFoilOptions" class="print-spot-foil-options" hidden>
+            <p>Uses the masks saved in each card’s Spot foiling editor, including its image-library Isolation setting. Cards without a saved mask receive no spot ink.</p>
+            <label for="printSpotFoilOutput">PDF handoff</label>
+            <select id="printSpotFoilOutput" name="spot_foil_pdf_output">
+              <option value="spot_pdf">Artwork + named spot layers · Roland / VersaWorks</option>
+              <option value="mask_pdf">Black-only ink mask · separate pass</option>
+            </select>
+            <label for="printSpotFoilTone">Ink coverage for this export</label>
+            <select id="printSpotFoilTone" name="spot_foil_pdf_tone">
+              <option value="grayscale">Preserve tool percentages · UV white / varnish</option>
+              <option value="binary">Solid areas only · threshold at 50%</option>
+            </select>
+            <p>The saved workflow supplies the ink purpose and channel name. Roland uses <strong>RDG_WHITE</strong>: opaque areas receive white ink; foiled areas expose the stock. Foil-transfer and toner workflows always use solid coverage.</p>
+            <p>Spot plates use the display color selected in the plugin’s workflow settings (magenta by default). This identifies a separate ink channel; it does not set the printed ink color. The decorative Foil Overlay is omitted while spot-ink export is on.</p>
+            <a href="{{ url_for('spot_foil_help') }}#formats" target="_blank" rel="noopener">PDF handoff guide ↗</a>
+          </div>
 
           <label class="toggle-row">
             <span>Export - Add Bleed</span>

@@ -22,7 +22,7 @@
 {% endif %}
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/print_export_modal.css', v='foil-intensity-1') }}"
+  href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-ink-1') }}"
 />
 <link rel="stylesheet" href="{{ url_for('static', filename='css/basic_chaos_theme.css', v='3') }}">
 <script defer src="{{ url_for('static', filename='js/campaign_stage_summary.js', v='3') }}"></script>
@@ -272,7 +272,7 @@
 {% set print_export_subject_label = "pack" %} {% include
 "_print_export_modal.html" %}
 
-<script src="{{ url_for('static', filename='js/print_export_modal.js', v='foil-intensity-1') }}"></script>
+<script src="{{ url_for('static', filename='js/print_export_modal.js', v='spot-ink-1') }}"></script>
 {% endblock %} {% block page_scripts_after_app %}
 {% if global_card_upscaling_control_enabled %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>

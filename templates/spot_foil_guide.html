@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+{% block title %}Spot Foiling Guide - Deckadence{% endblock %}
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/spot_foil_guide.css', v='1') }}">
+{% endblock %}
+{% macro example_card(mode, title, description) %}
+<svg class="foil-example-card" viewBox="0 0 240 310" role="img" aria-labelledby="{{ mode }}-title {{ mode }}-desc">
+  <title id="{{ mode }}-title">{{ title }}</title><desc id="{{ mode }}-desc">{{ description }}</desc>
+  <defs>
+    <linearGradient id="{{ mode }}-metal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8d98c"/><stop offset=".22" stop-color="#c9ebee"/><stop offset=".42" stop-color="#a8a4dd"/><stop offset=".6" stop-color="#f7d7b6"/><stop offset=".8" stop-color="#fcf4bc"/><stop offset="1" stop-color="#93d1c6"/></linearGradient>
+    <linearGradient id="{{ mode }}-sky" x2="0" y2="1"><stop stop-color="#142c40"/><stop offset="1" stop-color="#426c7a"/></linearGradient>
+    <pattern id="{{ mode }}-checks" width="16" height="16" patternUnits="userSpaceOnUse"><path fill="#eee" d="M0 0h16v16H0z"/><path fill="#ccc" d="M0 0h8v8H0zM8 8h8v8H8z"/></pattern>
+    <path id="{{ mode }}-star" d="m120 65 15 47 45 18-45 18-15 47-15-47-45-18 45-18Z"/>
+    <mask id="{{ mode }}-white"><rect width="240" height="310" fill="white"/><use href="#{{ mode }}-star" fill="black"/></mask>
+  </defs>
+  {% if mode == 'separation' %}
+  <rect x="1" y="1" width="238" height="308" rx="16" fill="url(#{{ mode }}-checks)"/>
+  <rect x="1" y="1" width="238" height="308" rx="16" fill="#b92e91" mask="url(#{{ mode }}-white)"/>
+  <text x="120" y="251" text-anchor="middle" fill="white" font-size="13" font-family="monospace">RDG_WHITE</text>
+  <text x="120" y="273" text-anchor="middle" fill="white" font-size="10">Preview color only</text>
+  {% else %}
+  <rect x="1" y="1" width="238" height="308" rx="16" fill="#162e3e"/>
+  <rect x="14" y="14" width="212" height="282" rx="9" fill="none" stroke="#a8c6c5" stroke-opacity=".5"/>
+  <path d="M28 217V116a92 92 0 0 1 184 0v101Z" fill="url(#{{ mode }}-sky)" stroke="#91b8ba" stroke-opacity=".45"/>
+  <circle cx="120" cy="130" r="72" fill="none" stroke="#91b8ba" stroke-opacity=".4"/>
+  <path d="m29 216 44-52 39 52 43-39 57 39" fill="#244954" stroke="#91b8ba" stroke-opacity=".4"/>
+  <use href="#{{ mode }}-star" fill="{{ 'url(#' ~ mode ~ '-metal)' if mode == 'result' else '#c4dfdc' }}"/>
+  <g fill="#c4dfdc"><circle cx="55" cy="75" r="2"/><circle cx="184" cy="91" r="2"/><circle cx="170" cy="179" r="1.5"/><circle cx="71" cy="154" r="1.5"/></g>
+  <text x="120" y="250" text-anchor="middle" fill="#e8f0e6" font-size="14" letter-spacing="3">STARLIGHT</text>
+  <path d="M72 264h96M90 273h60" stroke="#91b8ba" stroke-width="2" stroke-linecap="round"/>
+  {% endif %}
+</svg>
+{% endmacro %}
+{% block content %}
+<main class="foil-guide">
+  <header class="foil-guide-hero">
+    <div>
+      <a class="foil-guide-back" href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins">← Plugin Manager</a>
+      <p class="foil-guide-eyebrow">Deckadence / Print finishing guide</p>
+      <h1>Choose where<br>the light lands.</h1>
+      <p class="foil-guide-lead">A practical guide to spot foiling, white ink, and masks. Start with Roland, or find the workflow that fits your printer.</p>
+      <a class="foil-guide-button" href="#white-ink">See how white ink works <span aria-hidden="true">↓</span></a>
+    </div>
+    <div class="foil-guide-visual" role="img" aria-label="Three aligned layers: reflective stock, a selective white underbase, and color artwork.">
+      <div class="foil-guide-stack" aria-hidden="true">
+        <div class="foil-guide-sheet foil-guide-stock"></div>
+        <div class="foil-guide-sheet foil-guide-underbase"></div>
+        <div class="foil-guide-sheet foil-guide-art"><div class="foil-guide-star"></div></div>
+      </div>
+      <p class="foil-guide-stack-legend" aria-hidden="true">Reflective stock <span>→</span> White <span>→</span> Color</p>
+    </div>
+  </header>
+  <aside class="foil-guide-status"><strong>From card selection to PDF ink layers.</strong> Choose a mode, Apply, review, touch up, and Save. Enable saved spot-foiling ink layers in Print / Export settings for a named spot PDF or a separate black-only mask. The optional AI Text Detection plugin finds text regions locally.</aside>
+  <nav class="foil-guide-nav" aria-label="Guide sections">
+    <a href="#card-editor">Card editor</a><a href="#text-borders">Text &amp; borders</a><a href="#white-ink">White ink</a><a href="#modes">Workflow modes</a><a href="#formats">File formats</a><a href="#settings">Settings</a><a href="#roland">Roland checklist</a>
+  </nav>
+
+  <section class="foil-guide-panel" id="card-editor">
+    <p class="foil-guide-eyebrow">Start here / One card at a time</p><h2>Choose. Apply. Refine.</h2>
+    <ol class="foil-guide-steps">
+      <li><strong>Open the card’s spot foiling icon.</strong><span>The card appears on the left with a live Rainbow, Surge, or Chocobo foil preview. New cards start without a saved mask.</span></li>
+      <li><strong>Choose a selection mode and Apply.</strong><span>Highlights, color accents, details, and shadows analyze the image locally. Solid area selects the chosen region evenly. These modes are image analysis, not AI subject recognition. Choose the whole card for full-art layouts; the standard art box is only an approximate rectangle.</span></li>
+      <li><strong>Decide what happens to matching areas.</strong><span><strong>Show foil there</strong> makes the matches reflective. <strong>Keep them opaque · foil the rest</strong> removes foil from the matches and adds it elsewhere in the chosen region. For opaque bright areas, choose this second action and <strong>Bright areas</strong>. Text and border treatments can override the result.</span></li>
+      <li><strong>Choose how much area to match.</strong><span>With Bright areas and 35%, the selection starts with roughly the brightest 35% of your chosen region. Increase the slider to include more areas; decrease it for fewer. Equal colors and text/border overrides can change the final percentage. This controls area, not foil strength. Click Apply after changing it.</span></li>
+      <li><strong>Review, then touch up.</strong><span>Paint adds foil and Erase removes it. Magic Wand selects connected colors; Match Color selects similar colors anywhere on the card. Editing preserves your selected preview tab. With Pan selected in Foil Preview, hover to tilt the card and inspect the finish; drag to pan when zoomed in. Editing tools keep the card flat. Undo and Redo preserve up to 40 selection states.</span></li>
+      <li><strong>Set the foil amount.</strong><span>Foil amount · tool strength controls mask alpha for Apply and all editing tools. A 50% brush stroke adds half coverage; separate strokes can build it up. Pink in Mask overlay marks foil areas; faint pink means less foil. Preview effect strength changes the on-screen finish only. Partial mask coverage does not guarantee an equal physical foil intensity.</span></li>
+      <li><strong>Save when it looks right.</strong><span>Apply and painting change only your draft. Save persists it; Cancel leaves the previous finish intact. Remove spot foiling followed by Save restores the regular card finish.</span></li>
+    </ol>
+    <div class="foil-guide-rule"><strong>The same Isolation rules as alternate images.</strong><span>Isolation OFF: this printing and face share their saved spot foiling across decks, sets, and packs using the shared library.</span><span>Isolation ON: edits stay in that collection’s separate image library. Enabling Isolation snapshots its existing shared masks; turning it off returns to the shared masks.</span></div>
+    <p class="foil-guide-caption">Plugin Manager stores starting preferences. Changing them does not automatically foil cards or overwrite existing selections. A saved mask is tied to the printing and face; review its alignment after changing alternate artwork.</p>
+  </section>
+
+  <section class="foil-guide-panel" id="text-borders">
+    <p class="foil-guide-eyebrow">Full-art cards / Lettering and frames</p><h2>Give text and borders their own treatment.</h2>
+    <div class="foil-guide-formats">
+      <article><span class="foil-guide-file-icon" aria-hidden="true">Aa</span><h3>Text — Opaque</h3><p>Remove foil from the chosen lettering or text regions. In a white-underbase PDF, those areas retain white ink.</p></article>
+      <article><span class="foil-guide-file-icon" aria-hidden="true">Aa ✦</span><h3>Text — Foiled</h3><p>Add foil to lettering at the selected Foil amount percentage, even when the automatic artwork selection excludes it.</p></article>
+      <article><span class="foil-guide-file-icon" aria-hidden="true">▣</span><h3>Border — Opaque / Foiled</h3><p>Control an outer strip independently. Its width is a percentage of card width; <strong>0%</strong> applies no border override. Use Magic Wand, Match Color, or painting for decorative borders inside the artwork.</p></article>
+      <article><span class="foil-guide-file-icon" aria-hidden="true">AI</span><h3>Detect text locally</h3><p>Install <strong>AI Text Detection</strong> beside Spot Foiling in Plugin Manager. This separate, reusable plugin requires a compatible Python installation and downloads its libraries once; card images stay on your computer. The other foiling tools work without it.</p></article>
+    </div>
+    <p>For curved, angled, or illustrated lettering, choose <strong>AI detected regions</strong>, then <strong>Detect text with AI</strong>. <strong>Show text regions</strong> displays a cyan overlay. Lettering mode estimates the glyphs from local contrast; Entire text regions includes the surrounding area. Both need review on decorative cards. Standard frame regions are fixed areas and should not be used as text detection for full-art cards.</p>
+    <p class="foil-guide-callout"><strong>Review difficult cards before applying.</strong> The detector can miss stylized lettering or select nearby artwork. Apply the suggested treatment, then correct it with selection and painting tools. Apply replaces the draft selection; Undo restores it. Text treatment runs before border treatment where they overlap.</p>
+    <p class="foil-guide-caption">Local text-region detection uses <a href="https://github.com/RapidAI/RapidOCR/tree/v1.4.4" target="_blank" rel="noopener">RapidOCR / PaddleOCR ↗</a>. Imported transparent PNGs use alpha as the foil selection; opaque PNGs use white for foil and black for no foil. Imported masks are scaled to the card.</p>
+  </section>
+
+  <section class="foil-guide-panel" id="white-ink">
+    <p class="foil-guide-eyebrow">01 / The white-ink principle</p>
+    <h2>The foil is already in the stock.</h2>
+    <p>On reflective media, a white underbase covers the areas that should look opaque. Leave white ink out of the star, and the reflective surface can show through the color artwork there. Color ink remains a separate part of the print. <a href="https://www.rolanddg.com.au/en-gb/blog/6-ways-to-print-metallic-effects" target="_blank" rel="noopener">Roland’s metallic-media explanation ↗</a></p>
+    <div class="foil-guide-separation">
+      <figure>{{ example_card('artwork', 'Color artwork', 'A blue illustrated card with a pale star. The color artwork remains intact.') }}<figcaption><span>01</span><strong>Color artwork</strong><small>The original image stays intact.</small></figcaption></figure>
+      <figure>{{ example_card('separation', 'White-ink separation', 'Magenta represents deposited white ink. The checkerboard star is a hole in the white ink, not a hole in the color artwork.') }}<figcaption><span>02</span><strong>White-ink separation</strong><small>Magenta = white ink. Checks = no white.</small></figcaption></figure>
+      <figure>{{ example_card('result', 'Illustrated foil result', 'Only the star is reflective. White ink hides the reflective stock beneath the rest of the card.') }}<figcaption><span>03</span><strong>Intended foil effect</strong><small>The star reveals the reflective stock.</small></figcaption></figure>
+    </div>
+    <p class="foil-guide-caption">Original explanatory graphics. The magenta is a separation preview; it does not print as magenta. The foil appearance is illustrative, not a calibrated print proof.</p>
+    <div class="foil-guide-rule"><strong>Select the finish first.</strong><span>White underbase: invert the foil selection within the card.</span><span>Adhesive / varnish: deposit material inside the selection.</span></div>
+    <div class="foil-guide-density" data-foil-density-demo>
+      <div class="foil-guide-density-sample" aria-hidden="true"><div></div><span>Reflective stock</span></div>
+      <div>
+        <h3>Explore white coverage</h3>
+        <p>More white generally conceals more of the reflective surface. Intermediate mask values need a physical test on your stock.</p>
+        <label for="foilGuideCoverage">White channel value <output id="foilGuideCoverageValue" for="foilGuideCoverage">50%</output></label>
+        <input type="range" id="foilGuideCoverage" min="0" max="100" step="1" value="50" aria-describedby="foilGuideDensityNote">
+        <div class="foil-guide-range-labels"><span>0% · no white</span><span>100% · solid channel</span></div>
+        <p class="foil-guide-caption" id="foilGuideDensityNote">This slider is an illustration only. A 50% mask does not guarantee 50% opacity or 50% visible foil.</p>
+      </div>
+    </div>
+    <noscript><p>The coverage example shows 50% white. Enable JavaScript to move the demonstration slider.</p></noscript>
+  </section>
+
+  <section class="foil-guide-panel" id="modes">
+    <p class="foil-guide-eyebrow">02 / Choose your process</p><h2>Eight workflows. Independent defaults.</h2>
+    <p>Use <strong>Configure workflows → Workflow type</strong>. Switching workflows preserves your draft changes; <strong>Save workflows</strong> saves them together. Cancel discards the unsaved changes. These presets describe file preparation, not certified printer profiles.</p>
+    {% set notes = {
+      'roland_uv': ('Reveal existing foil', 'Start here for white-capable Roland UV printing on reflective stock. Preserve RDG_WHITE as a spot color in the PDF; a layer merely named White is not an ink separation.'),
+      'mimaki_uv': ('Reveal existing foil', 'Map the separate monochrome mask to white ink and align it with the color job. The linked RasterLink example demonstrates black-to-white mapping; menus vary with software version.'),
+      'cadlink_uv': ('Reveal existing foil', 'Configure a queue for the supplied white layer. CADlink can derive white from alpha, but its settings determine that behavior. Keep the finish mask independent from the color artwork.'),
+      'uv_foil_transfer': ('Apply foil', 'Selected areas become the bonding-material mask. This preset uses solid coverage. Use a printer-supported foil-transfer process and the operator’s material, curing, and finishing settings.'),
+      'spot_varnish': ('Add a clear finish', 'Selected areas receive clear ink or varnish. Replace the generic Varnish name with the exact swatch your RIP expects. A clear coating alone does not add metallic foil.'),
+      'commercial_foil': ('Apply foil', 'Supply a solid mask for the areas to foil. Your provider determines the plate or die requirements, minimum detail, registration, and edge clearance. This preset does not create tooling.'),
+      'toner_foil': ('Apply foil', 'The solid mask defines the separate toner pass that attracts toner-reactive foil. Keep it registered to the artwork and confirm compatible toner, foil, substrate, and finishing equipment.'),
+      'custom': ('Define your own process', 'Choose white underbase, foil / adhesive, or varnish, then match the output format and channel name to your operator’s instructions. Layer purpose determines whether the selection is inverted.')
+    } %}
+    {% set sources = {
+      'roland_uv': ('Roland: preparing white data', 'https://downloadcenter.rolanddg.com/contents/manuals/UV-Guide_USE_EN_R1/sjr1605050982690.html'),
+      'mimaki_uv': ('Mimaki: special-ink setup', 'https://mimaki.com/topics/application/rasterlink.html/'),
+      'cadlink_uv': ('CADlink: layer and alpha options', 'https://help.cadlink.com/website/digital_factory/en/production/menus/layer_tab.htm'),
+      'uv_foil_transfer': ('Roland: metallic-effect processes', 'https://www.rolanddg.com.au/en-gb/blog/6-ways-to-print-metallic-effects'),
+      'commercial_foil': ('Example provider: Solopress foil guide', 'https://www.solopress.com/support-guides/foil/'),
+      'toner_foil': ('FSEA: toner-based digital foil', 'https://fsea.com/design/2021/digital-foils-toner-based-adhesive/')
+    } %}
+    <div class="foil-guide-mode-grid">
+      {% for workflow in workflows %}
+      <article class="foil-guide-mode{{ ' is-default' if workflow.id == 'roland_uv' else '' }}" id="mode-{{ workflow.id }}">
+        <div class="foil-guide-mode-meta"><span>{{ notes[workflow.id][0] }}</span>{% if workflow.id == 'roland_uv' %}<strong>Default</strong>{% endif %}</div>
+        <h3>{{ workflow.label }}</h3><p>{{ notes[workflow.id][1] }}</p>
+        <dl><div><dt>Starting output</dt><dd>{{ output_formats[workflow.defaults.output_format] }}</dd></div><div><dt>Mask tones</dt><dd>{{ 'Solid 100% only' if workflow.mask_tones|length == 1 else 'Binary or grayscale' }}</dd></div></dl>
+        {% if workflow.id in sources %}<a href="{{ sources[workflow.id][1] }}" target="_blank" rel="noopener">{{ sources[workflow.id][0] }} ↗</a>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="foil-guide-panel" id="formats">
+    <p class="foil-guide-eyebrow">03 / Hand off the right file</p><h2>A PDF layer is not an ink channel.</h2>
+    <p>A named spot separation carries print intent. A PDF visibility layer organizes objects. An alpha channel carries transparency. The RIP—the software that prepares printer passes—must interpret the chosen format correctly.</p>
+    <ol class="foil-guide-steps">
+      <li><strong>Save the masks on your cards.</strong><span>Only saved masks in the active image library are exported. Cards without a saved mask get no spot ink. To make a card fully opaque on reflective stock, Apply Entire chosen region with Keep them opaque and Save; this produces a full white plate.</span></li>
+      <li><strong>Open Print / Export → Settings.</strong><span>Enable <strong>Include saved spot-foiling ink layers · PDF</strong>. Choose <strong>Artwork + named spot layers</strong> for Roland. The export uses the saved ink names, purposes, resolution, edge adjustment, and safety margins. The job’s format and coverage choices override the corresponding profile preferences.</span></li>
+      <li><strong>Choose percentage or solid coverage.</strong><span>Preserve tool percentages keeps the saved alpha values. For white underbase, 100% foil becomes 0% white, and 0% foil becomes 100% white before the ink coverage limit is applied. Solid areas only uses a 50% ink threshold. Foil transfer, commercial foil, and toner always use solid masks.</span></li>
+      <li><strong>Check the PDF in the RIP.</strong><span>Named spot export contains true ink separations plus visibility layers for artwork and each ink. The spot plate uses your workflow’s display color (magenta by default); it is not the rainbow screen effect. Turn its visibility off in a layer-capable viewer to inspect the artwork. Check the ink channel in the RIP and print a small proof on your actual stock.</span></li>
+      <li><strong>For a separate mask pass.</strong><span>Choose Black-only ink mask, then export the artwork with spot ink and decorative Foil Overlay off. Keep identical page, card, bleed, back-face, and registration settings. Use 100% print scale for both. A mask PDF supports one ink name at a time; named spot PDFs support multiple inks with distinct names.</span></li>
+    </ol>
+    <p class="foil-guide-callout"><strong>The PDF keeps artwork and finishing separate.</strong> The original card pixels are retained; decorative screen foil is omitted during spot export. Masks follow card rotation, back-face placement, bleed, and rounded-corner clipping. Labels and registration marks remain in the artwork layer. New masks use the artwork’s available detail, up to 3024 × 4224 pixels. The editor shows the actual dimensions. Increasing export PPI alone cannot restore detail in an older saved mask.</p>
+    <div class="foil-guide-formats">
+      <article><span class="foil-guide-file-icon" aria-hidden="true">SPOT</span><h3>Named spot PDF</h3><p>Artwork plus a shape filled with a real spot color such as <code>RDG_WHITE</code>. A grayscale opacity mask controls where that ink appears and its percentage. The fill is a named ink; the coverage mask remains a high-resolution bitmap. Preserve spot colors and transparency when saving from an editor.</p><strong>Roland starting choice</strong></article>
+      <article><span class="foil-guide-file-icon" aria-hidden="true">K</span><h3>Black-only mask PDF</h3><p>A separate, aligned mask: black marks the deposited material. Its page size, placement, and scale must match the artwork. The operator maps black to the intended ink or finish.</p><strong>Simple separate handoff</strong></article>
+      <article><span class="foil-guide-file-icon" aria-hidden="true">GRAY</span><h3>Grayscale PNG</h3><p>A raster coverage map. Explicitly choose whether white or black means deposition. Match both pixel dimensions and physical placement to the artwork.</p><strong>Format reference · PNG export not yet available</strong></article>
+      <article><span class="foil-guide-file-icon" aria-hidden="true">α</span><h3>Alpha mask PNG</h3><p>A separate transparency mask for a configured RIP layer. Opaque means deposition in the intended mask convention. Alpha is not automatically a white-ink plate.</p><strong>Format reference · PNG export not yet available</strong></article>
+    </div>
+    <p class="foil-guide-callout"><strong>Keep color and finish independent.</strong> Removing transparency from the artwork to expose foil can also remove its color. Use a separate finish mask when you need color to remain over the reflective areas.</p>
+  </section>
+
+  <section class="foil-guide-panel" id="settings">
+    <p class="foil-guide-eyebrow">04 / Tune the mask</p><h2>What each setting controls</h2>
+    <p>Selection defaults start new card edits. Saved card settings supply the ink purpose, spot name, resolution, margins, and overprint behavior. Print / Export chooses the PDF format and coverage for the whole job. The printer’s RIP controls ink passes, physical print order, curing, and media profiles.</p>
+    <dl class="foil-guide-settings">
+      <div><dt>Layer purpose</dt><dd>White underbase hides foil; foil / adhesive applies foil; varnish coats the selection. The custom workflow lets you choose among all three.</dd></div>
+      <div><dt>Spot channel name &amp; overprint</dt><dd>Use the RIP’s exact spot swatch name. Overprint is intended to retain artwork beneath the spot objects; it does not determine physical print order.</dd></div>
+      <div><dt>Spot display color</dt><dd>In Plugin Manager → Spot Foiling → Configure workflows, choose a color or enter a six-digit hex value such as <code>838588</code> or <code>#838588</code>. Each workflow remembers its own color. Save workflows and export a new PDF; existing card masks do not need to be reapplied. This changes the spot swatch’s display color, not its ink name or coverage. Keep <code>RDG_WHITE</code> for Roland white ink. Workflows using the same ink name in one PDF must use the same display color.</dd></div>
+      <div><dt>Binary or grayscale</dt><dd>Binary uses an on/off region. Grayscale permits intermediate coverage. Transfer, commercial foil, and toner presets require a solid 100% mask.</dd></div>
+      <div><dt>Maximum coverage</dt><dd>Caps the intended ink / material channel value. It is not a calibrated foil-strength control or a replacement for the RIP’s ink limits.</dd></div>
+      <div><dt>Expand / shrink ink area</dt><dd>Positive millimeters expand deposition; negative values shrink it. Shrinking white can reduce white fringes. Check small details and registration with a sample.</dd></div>
+      <div><dt>Inset from card trim</dt><dd>Excludes deposited material near the cut edge. For white-underbase work, that can leave reflective stock exposed at the edge. Set it for the selected process.</dd></div>
+      <div><dt>Mask resolution</dt><dd>300, 600, or 1200 PPI sets the exported coverage mask resolution at final size. Automatic selection analyzes the available source detail, up to 3024 × 4224 pixels, without first shrinking it to a thumbnail. More pixels cannot recover details missing from the source. It is not the printer’s hardware DPI.</dd></div>
+      <div><dt>Automatic selection cleanup</dt><dd>Balanced smooths small edge irregularities and removes tiny disconnected dots and holes. Stronger produces broader, cleaner areas and can remove fine lettering or texture. Off preserves every selected detail. Cleanup runs only when you click Apply, before text and border overrides; it does not change later brush edits during PDF export.</dd></div>
+      <div><dt>Remove small pockets</dt><dd>Use this section in the card editor to clean an existing mask, including brush edits. Remove foil dots, fill clear holes, or do both. Choose a closely spaced preset or <strong>Custom</strong> and enter any whole number from 1 to 65,536 pixels. The maximum is total connected area: a 5 × 5 pocket contains 25 pixels. It uses the mask dimensions shown below the preview, so the same count covers less physical area in a higher-resolution mask. Click <strong>Apply pocket cleanup</strong>, inspect the result, then Save. Undo restores the previous mask. Diagonally connected pixels count as one pocket, and areas touching the card edge stay intact. Filled holes inherit the strongest foil percentage along their edge; existing surrounding coverage is preserved. Larger limits can remove small lettering and decorative details.</dd></div>
+      <div><dt>Initial selection</dt><dd>Highlights, color accents, details, shadows, or a solid area. Set the selection amount and tool coverage, then Apply on a specific card. AI text detection provides an additional editable starting point for lettering.</dd></div>
+      <div><dt>Text &amp; border treatment</dt><dd>Use the image selection, keep these areas opaque, or foil them. The standard artwork-area checkboxes start inside an approximate frame rectangle; use whole-card selection and detected text regions for full-art cards.</dd></div>
+      <div><dt>Review &amp; reset</dt><dd>Review is on by default for future generated masks. Reset restores only the selected workflow’s draft; Save commits it and Cancel leaves saved preferences unchanged.</dd></div>
+    </dl>
+  </section>
+
+  <section class="foil-guide-panel" id="roland">
+    <p class="foil-guide-eyebrow">05 / Illustrator → VersaWorks</p><h2>A Roland handoff checklist</h2>
+    <ol class="foil-guide-steps">
+      <li><strong>Choose the process.</strong><span>For white ink on reflective stock, start with Roland UV / VersaWorks. Confirm the printer has white ink and a suitable media setup.</span></li>
+      <li><strong>Prepare the separation.</strong><span>In Illustrator, keep the color art and white shapes aligned. Assign the Roland <code>RDG_WHITE</code> spot swatch to white-printing areas; keep foil-reveal areas out of that separation.</span></li>
+      <li><strong>Preserve the spot color.</strong><span>Save a PDF with the intended artboard dimensions. Check that the white separation survives export as a spot color rather than being converted into process color.</span></li>
+      <li><strong>Inspect the RIP preview.</strong><span>Verify the white plate, color plate, scale, and registration. Use the supplied mask without an automatic full-white underbase filling its intentional openings.</span></li>
+      <li><strong>Print a small proof.</strong><span>Check white opacity, foil visibility, edge alignment, text, and fine details. Try solid coverage first; assess intermediate tints on the actual materials before a full run.</span></li>
+    </ol>
+    <p class="foil-guide-caption">White-data preparation follows <a href="https://downloadcenter.rolanddg.com/contents/manuals/UV-Guide_USE_EN_R1/sjr1605050982690.html" target="_blank" rel="noopener">Roland’s Illustrator guide ↗</a>. RIP controls depend on the installed printer and VersaWorks version.</p>
+    <details><summary>The foil vanished, or the whole card is reflective</summary><p>Check mask inversion and the RIP’s generated-underbase settings. A full white flood can cover intended foil openings; a missing or unrecognized white separation can leave the entire stock exposed.</p></details>
+    <details><summary>The white plate is missing or prints as a color</summary><p>Confirm that the file contains a true spot separation, its name matches the RIP swatch, and export did not convert it to CMYK. The color used to display a spot on screen is not the physical ink assignment.</p></details>
+    <details><summary>I only see the spot display color when opening the PDF</summary><p>The spot plate is above the artwork and uses your configured display color (magenta by default) to identify white ink. In a PDF viewer with layer controls, hide the RDG_WHITE layer to inspect the retained color artwork. In an editor, inspect the image objects beneath the spot objects. A black-only mask PDF intentionally omits card artwork; use Artwork + named spot layers for both in one file.</p></details>
+    <details><summary>How do I check the spot fill in Illustrator?</summary><p>Use a newly exported <strong>Artwork + named spot layers</strong> PDF. In Illustrator, expand its clipping group in Layers and select the filled path, rather than the clipping path or artwork image. Its Fill should be the <code>RDG_WHITE</code> spot swatch. The Transparency panel contains the coverage mask. For ink visibility, choose <strong>File → Document Color Mode → CMYK Color</strong>, open <strong>Window → Separations Preview</strong>, and enable <strong>Overprint Preview</strong>. Toggle <code>RDG_WHITE</code> to inspect the ink separately. A blank Fill for an image or clipping path does not identify the ink used elsewhere in the document.</p></details>
+    <details><summary>The white plate looks blocky or speckled</summary><p>For dots and holes in a mask you want to keep, use <strong>Remove small pockets</strong>, choose a maximum area, and click <strong>Apply pocket cleanup</strong>. Start small and increase gradually, or use Custom for one-pixel increments. This keeps larger shapes and current brush edits. Older automatic masks were generated from a small analysis image; to rebuild one, reopen the card with high-quality artwork, choose <strong>Balanced</strong> cleanup, and click <strong>Apply spot foiling</strong> to regenerate at the dimensions shown below the preview. Regeneration replaces previous touch-ups, so review and refine before saving; Undo is available in the editor. Save the card and export a new PDF. A bitmap still reveals pixels at extreme zoom. Intermediate ink percentages may also be screened into dots by the RIP; test those percentages on the intended stock.</p></details>
+    <details><summary>Edges have a white halo or masks do not line up</summary><p>Check identical page dimensions, rotation, scale, and placement before adjusting the ink-area shrink setting. Avoid applying the same choke in both the file and the RIP without accounting for their combined effect.</p></details>
+    <a class="foil-guide-button" href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins">Open Plugin Manager <span aria-hidden="true">→</span></a>
+  </section>
+  <footer class="foil-guide-footer">Deckadence · Spot foiling guide <span>Illustrations explain the process. Physical proofs establish the result.</span></footer>
+</main>
+<script src="{{ url_for('static', filename='js/spot_foil_guide.js', v='1') }}"></script>
+{% endblock %}

@@ -5,6 +5,7 @@
     aria-hidden="true"
     data-options-url="{{ url_for('silhouette_template_options') }}"
     data-upload-url="{{ url_for('silhouette_template_upload') }}"
+    data-registration-library-url="{{ url_for('cutter_profile_library') }}"
 >
     <div
         class="silhouette-template-library-backdrop"
@@ -24,7 +25,7 @@
                 </h2>
 
                 <p>
-                    Download cutting templates compatible with your Deckadence print layout and card cutting machine.
+                    Manage cutting templates and the registration marks saved for your paper layouts.
                 </p>
             </div>
 
@@ -40,6 +41,10 @@
         </div>
 
         <div class="silhouette-template-library-body">
+            <div class="silhouette-template-library-views" role="group" aria-label="Template files">
+                <button type="button" data-template-view="cutting" aria-pressed="true">Cutting Templates</button>
+                <button type="button" data-template-view="registration" aria-pressed="false">Registration Marks</button>
+            </div>
             <div class="silhouette-template-library-toolbar">
                 <label
                     class="silhouette-template-library-filter"
@@ -84,106 +89,33 @@
             <div class="silhouette-template-library-admin-row">
                 <button
                     type="button"
+                    class="action-button"
+                    data-cutter-setup-open
+                    data-cutter-paper-target="silhouetteTemplateLibraryFilter"
+                >
+                    <i class="fa-solid fa-pen-ruler" aria-hidden="true"></i>
+                    Cutter Template Setup
+                </button>
+                <button
+                    type="button"
                     id="silhouetteTemplateUploadToggle"
                     class="action-button secondary-button"
-                    aria-expanded="false"
+                    aria-haspopup="dialog"
+                    aria-controls="silhouetteTemplateUploadModal"
                 >
                     <i class="fa-solid fa-plus"></i>
                     Add Cutting Machine Template
                 </button>
             </div>
 
-            <section
-                id="silhouetteTemplateUploadSection"
-                class="silhouette-template-upload-section hidden"
-            >
-                <h3>
-                    Add Cutting Machine Template
-                </h3>
+        </div>
 
-                <p>
-                    Upload a cutting-machine template and associate it with a Deckadence Print Template.
-                    Supported formats are .studio3, .svg, .dxf, and .fcm.
-                </p>
-
-                <form
-                    id="silhouetteTemplateUploadForm"
-                    class="silhouette-template-upload-form"
-                >
-                    <label>
-                        <span>Template File</span>
-
-                        <input
-                            type="file"
-                            id="silhouetteTemplateUploadFile"
-                            class="silhouette-template-upload-file-input"
-                            accept=".studio3,.svg,.dxf,.fcm"
-                            required
-                        >
-                    </label>
-
-                    <label>
-                        <span>Cutting Machine Brand</span>
-
-                        <input
-                            type="text"
-                            id="silhouetteTemplateUploadBrand"
-                            maxlength="80"
-                            placeholder="Silhouette, Cricut, Brother, Siser..."
-                            required
-                        >
-                    </label>
-
-                    <label>
-                        <span>Template Name</span>
-
-                        <input
-                            type="text"
-                            id="silhouetteTemplateUploadName"
-                            maxlength="120"
-                            required
-                        >
-                    </label>
-
-                    <label class="silhouette-template-upload-description-field">
-                        <span>Description</span>
-
-                        <textarea
-                            id="silhouetteTemplateUploadDescription"
-                            maxlength="1000"
-                            rows="3"
-                        ></textarea>
-                    </label>
-
-                    <label>
-                        <span>Linked Print Template</span>
-
-                        <select
-                            id="silhouetteTemplateUploadPrintTemplate"
-                            required
-                        ></select>
-                    </label>
-
-                    <div class="silhouette-template-upload-actions">
-                        <button
-                            type="submit"
-                            id="silhouetteTemplateUploadButton"
-                            class="action-button"
-                        >
-                            Upload Template
-                        </button>
-                    </div>
-                </form>
-            </section>
-
+        <div class="silhouette-template-library-footer">
             <div
                 id="silhouetteTemplateLibraryStatus"
                 class="silhouette-template-library-status hidden"
                 role="status"
             ></div>
-        </div>
-
-        <div class="silhouette-template-library-footer">
             <button
                 type="button"
                 class="action-button secondary-button"

@@ -870,6 +870,9 @@ class AlternateImageIsolationService:
                     ],
                 )
                 # Ascending original IDs preserve the existing selection order.
+                from plugin_system.card_spot_foil import copy_spot_foil_scope
+                copy_spot_foil_scope(connection, "global", scope_id,
+                                     [member["card_uuid"] for member in original_state[0]])
                 updated = connection.execute(
                     f"UPDATE {table_name} "
                     "SET alternate_image_scope_id = ?, updated_at_utc = ? "
@@ -915,6 +918,8 @@ def clone_alternate_image_scope(connection, scope_id):
         (new_scope_id, now, now, scope_id),
     )
 
+    from plugin_system.card_spot_foil import copy_spot_foil_scope
+    copy_spot_foil_scope(connection, scope_id, new_scope_id)
     return new_scope_id
 
 @contextmanager
@@ -932,6 +937,7 @@ def prepare_draft_image_import(connection, deck_id, cards):
         (deck_id, deck_id),
     )}
     fingerprints = {}
+    has_spot_masks = table_exists_with_cursor(connection.cursor(), "card_spot_foil")
 
     def file_fingerprint(value, external_url=""):
         if not value:
@@ -957,6 +963,13 @@ def prepare_draft_image_import(connection, deck_id, cards):
                 source["remove_bleed"], source["bleed_size_mm"],
                 source["bleed_processing_version"], source["export_frame_template"],
             ))
+            if has_spot_masks:
+                mask = connection.execute(
+                    "SELECT settings, mask_png_base64 FROM card_spot_foil "
+                    "WHERE scope_token=? AND card_uuid=? AND face=?",
+                    (context.scope_id or "global", card_uuid, face),
+                ).fetchone()
+                signatures.append(tuple(mask) if mask else None)
         return signatures
 
     desired = {}
@@ -970,7 +983,7 @@ def prepare_draft_image_import(connection, deck_id, cards):
             if selected_artwork(previous, card_uuid) == selected_artwork(context, card_uuid):
                 continue
             raise ValueError(
-                f"Different artwork was drafted for {card.get('card_name') or card_uuid}. "
+                f"Different artwork or spot foiling was drafted for {card.get('card_name') or card_uuid}. "
                 "Import those copies separately and choose the destination artwork explicitly."
             )
         desired[card_uuid] = context
@@ -1018,6 +1031,11 @@ def prepare_draft_image_import(connection, deck_id, cards):
         for source in prepared:
             target.insert({**{key: source[key] for key in fields},
                            "created_at_utc": now, "updated_at_utc": now})
+        from plugin_system.card_spot_foil import copy_spot_foil_scope
+        if not owner.context.is_isolated:
+            copy_spot_foil_scope(connection, "global", new_scope, existing_ids)
+        for card_uuid, context in desired.items():
+            copy_spot_foil_scope(connection, context.scope_id, new_scope, [card_uuid])
         yield files.keep
 
 @isolation_operation
@@ -1554,6 +1572,9 @@ def initialize_database():
         )
         """
     )
+
+    from plugin_system.card_spot_foil import ensure_schema as ensure_spot_foil_schema
+    ensure_spot_foil_schema(conn)
 
     cursor.execute(
         """
@@ -3731,6 +3752,15 @@ def get_custom_draft_digital_set_sql(
         )
     """
 
+def normalize_card_search_set_codes(value):
+    """Accept one set code or a comma-separated list for the shared card search."""
+    return list(dict.fromkeys(
+        code.strip().upper()
+        for code in str(value or "").split(",")
+        if code.strip()
+    ))
+
+
 def search_chaos_cards_for_custom_draft_set(
     set_code,
     search_text="",
@@ -3801,7 +3831,7 @@ def search_chaos_cards_for_custom_draft_set(
     clean_color_identity_filter = ",".join(clean_color_identity_filters)
     clean_mana_operator = str(mana_operator or "").strip()
     clean_type_filter = str(type_filter or "").strip().lower()
-    clean_set_code_filter = str(set_code_filter or "").strip().upper()
+    clean_set_code_filters = normalize_card_search_set_codes(set_code_filter)
     clean_sort_option = str(sort_option or "name_asc").strip().lower()
     clean_digital_filter = str(digital_filter or "").strip().lower()
     clean_exclude_added_filter = str(exclude_added_filter or "").strip().lower()
@@ -3867,7 +3897,7 @@ def search_chaos_cards_for_custom_draft_set(
         clean_color_identity_filter,
         clean_mana_operator and parsed_mana_value is not None,
         clean_type_filter,
-        clean_set_code_filter,
+        clean_set_code_filters,
         parsed_year_start is not None,
         parsed_year_end is not None,
         clean_digital_filter == "only",
@@ -4063,9 +4093,10 @@ def search_chaos_cards_for_custom_draft_set(
         where_clauses.append("LOWER(COALESCE(cc.type_line, '')) LIKE ?")
         params.append(f"%{clean_type_filter}%")
 
-    if clean_set_code_filter:
-        where_clauses.append("UPPER(COALESCE(cc.set_code, '')) = ?")
-        params.append(clean_set_code_filter)
+    if clean_set_code_filters:
+        set_placeholders = ",".join("?" for _ in clean_set_code_filters)
+        where_clauses.append(f"UPPER(COALESCE(cc.set_code, '')) IN ({set_placeholders})")
+        params.extend(clean_set_code_filters)
 
     if parsed_year_start is not None:
         where_clauses.append("CAST(SUBSTR(COALESCE(s.release_date, ''), 1, 4) AS INTEGER) >= ?")

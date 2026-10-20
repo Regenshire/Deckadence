@@ -9,6 +9,7 @@ from io import BytesIO
 
 from flask import url_for
 from pypdf import PdfWriter
+from plugin_system.spot_foil_pdf import append_print_pdf, finish_print_pdf_merge
 
 from paths import RUNTIME_PACK_ART_DIR
 
@@ -3077,6 +3078,7 @@ def build_chaos_pack_pdf_from_variant(
     build_chaos_pack_pdf_fn,
     write_debug_log_fn,
     include_pack_labels=True,
+    allow_empty_spot_foil=False,
 ):
     open_result = open_chaos_pack_with_bonus_rule(
         set_code,
@@ -3112,6 +3114,7 @@ def build_chaos_pack_pdf_from_variant(
         booster_name=booster_name,
         pack_tracking_code=pack_tracking_code,
         include_pack_labels=include_pack_labels,
+        allow_empty_spot_foil=allow_empty_spot_foil,
     )
 
 # *** SAVED PACKS - Store Packs and Link Them to Campaigns ***
@@ -6276,9 +6279,10 @@ def build_tracked_packs_combined_pdf(
             pack_tracking_code=pack_state["pack_tracking_code"],
             include_pack_labels=False,
             print_labels_enabled_override=pack_state.get("print_labels_enabled_override"),
+            allow_empty_spot_foil=True,
         )
 
-        merger.append(pack_pdf_buffer)
+        append_print_pdf(merger, pack_pdf_buffer)
         appended_count += 1
         total_card_count += len(cards)
 
@@ -6319,7 +6323,7 @@ def build_tracked_packs_combined_pdf(
             pack_label_states=pack_label_states,
         )
 
-        merger.append(label_pdf_buffer)
+        append_print_pdf(merger, label_pdf_buffer)
 
     if len(printed_packs) == 1:
         printed_pack = printed_packs[0]
@@ -6355,6 +6359,7 @@ def build_tracked_packs_combined_pdf(
         ),
     })
 
+    finish_print_pdf_merge(merger)
     output_buffer = BytesIO()
     merger.write(output_buffer)
     merger.close()
@@ -6667,9 +6672,10 @@ def build_preprint_chaos_draft_pdf(
                 build_chaos_pack_pdf_fn,
                 write_debug_log_fn,
                 include_pack_labels=False,
+                allow_empty_spot_foil=True,
             )
 
-            merger.append(pack_pdf_buffer)
+            append_print_pdf(merger, pack_pdf_buffer)
             generated_pack_count += 1
 
             if print_pack_labels:
@@ -6698,8 +6704,9 @@ def build_preprint_chaos_draft_pdf(
             pack_label_states=pack_label_states,
         )
 
-        merger.append(label_pdf_buffer)
+        append_print_pdf(merger, label_pdf_buffer)
 
+    finish_print_pdf_merge(merger)
     output_buffer = BytesIO()
     merger.write(output_buffer)
     merger.close()

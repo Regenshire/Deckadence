@@ -1,0 +1,44 @@
+<dialog id="silhouetteTemplateUploadModal" class="silhouette-template-upload-dialog"
+    aria-labelledby="silhouetteTemplateUploadTitle" aria-describedby="silhouetteTemplateUploadIntro">
+    <div class="silhouette-template-library-header">
+        <div>
+            <h2 id="silhouetteTemplateUploadTitle">Add Cutting Machine Template</h2>
+            <p id="silhouetteTemplateUploadIntro">Upload a .studio3, .svg, .dxf, or .fcm cutting file and link it to a paper layout.</p>
+        </div>
+        <button type="button" class="silhouette-template-library-close"
+            data-silhouette-template-upload-close aria-label="Close Add Cutting Machine Template">×</button>
+    </div>
+    <form id="silhouetteTemplateUploadForm">
+        <div class="silhouette-template-upload-form silhouette-template-library-body">
+            <label>
+                <span>Template File</span>
+                <input type="file" id="silhouetteTemplateUploadFile" class="silhouette-template-upload-file-input"
+                    accept=".studio3,.svg,.dxf,.fcm" required>
+            </label>
+            <label>
+                <span>Cutting Machine Brand</span>
+                <input type="text" id="silhouetteTemplateUploadBrand" maxlength="80"
+                    placeholder="Silhouette, Cricut, Brother, Siser..." required>
+            </label>
+            <label>
+                <span>Template Name</span>
+                <input type="text" id="silhouetteTemplateUploadName" maxlength="120" required>
+            </label>
+            <label>
+                <span>Linked Print Template</span>
+                <select id="silhouetteTemplateUploadPrintTemplate" required></select>
+            </label>
+            <label class="silhouette-template-upload-description-field">
+                <span>Description</span>
+                <textarea id="silhouetteTemplateUploadDescription" maxlength="1000" rows="3"></textarea>
+            </label>
+        </div>
+        <div class="silhouette-template-upload-footer">
+            <p id="silhouetteTemplateUploadStatus" class="silhouette-template-library-status hidden" role="status" aria-live="polite"></p>
+            <div class="silhouette-template-upload-actions">
+                <button type="button" class="action-button secondary-button" data-silhouette-template-upload-close>Cancel</button>
+                <button type="submit" id="silhouetteTemplateUploadButton" class="action-button">Upload Template</button>
+            </div>
+        </div>
+    </form>
+</dialog>

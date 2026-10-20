@@ -1167,7 +1167,8 @@ def install_plugin(
             "Unknown plugin."
         )
 
-    package_path = (
+    bundled_source = bool(catalog_entry.get("bundled_source"))
+    package_path = None if bundled_source else (
         _download_latest_release_asset(
             plugin_id,
             catalog_entry,
@@ -1201,16 +1202,15 @@ def install_plugin(
     replacement_started = False
 
     try:
-        _safe_extract_zip(
-            package_path,
-            staging_dir,
-        )
-
-        package_root = (
-            _find_manifest_root(
-                staging_dir
-            )
-        )
+        if bundled_source:
+            # First-party small plugins ship source with the app; libraries are
+            # installed into the same isolated runtime as downloaded plugins.
+            package_root = get_plugin_development_dir(plugin_id)
+            if not os.path.isdir(package_root):
+                raise RuntimeError("This plugin's source is missing. Update Deckadence and try again.")
+        else:
+            _safe_extract_zip(package_path, staging_dir)
+            package_root = _find_manifest_root(staging_dir)
 
         manifest = (
             _validate_manifest(

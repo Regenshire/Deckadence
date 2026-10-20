@@ -1,5 +1,14 @@
 # *** PLUGIN CATALOG - List Available Plugins ***
 PLUGIN_CATALOG = {
+    "spot-foil-ai": {
+        "plugin_id": "spot-foil-ai",
+        "name": "AI Text Detection",
+        "plugin_type": "text_detection",
+        "type_label": "Text detection",
+        "description": "Reusable local AI text detection for card artwork and image tools. Spot foiling can use the detected lettering; its other tools work without this plugin.",
+        "requirements": "64-bit Python 3.10–3.13; CPU; internet for initial library installation",
+        "bundled_source": True,
+    },
     "upscaler-nvidia-rtx50": {
         "plugin_id": (
             "upscaler-nvidia-rtx50"

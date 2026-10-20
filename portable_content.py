@@ -18,7 +18,7 @@ DEPENDENCIES = {"sets", "chaos_cards", "cards"}
 SETTINGS = {"app_config", "selected_sets", "chaos_session_state"}
 TABLES = (
     "alternate_image_scopes", "sets", "chaos_cards", "cards", "alternate_sources",
-    "alternate_image_isolation", "upscaled_images", "custom_draft_sets",
+    "alternate_image_isolation", "card_spot_foil", "upscaled_images", "custom_draft_sets",
     "custom_draft_set_cards", "custom_draft_pack_slots", "chaos_pack_art",
     "chaos_booster_variants", "chaos_booster_variant_contents", "chaos_booster_sheets",
     "chaos_booster_sheet_cards", "chaos_campaigns", "chaos_players", "chaos_draft_games",
@@ -46,7 +46,7 @@ INTEGER_IDS = {
 REFERENCES = {field: table for table, field in INTEGER_IDS.items() if field not in {"alternate_source_id", "history_id"}}
 REFERENCES.update(opened_by_player_id="chaos_players", campaign_player_id="chaos_players",
                   current_human_pack_id="draft_test_packs", original_alternate_source_id="alternate_sources")
-SCOPE_FIELDS = {"image_scope_id", "alternate_image_scope_id", "source_image_scope_id"}
+SCOPE_FIELDS = {"image_scope_id", "alternate_image_scope_id", "source_image_scope_id", "scope_token"}
 KINDS = {
     "alternate": "data/alternate_sources", "isolated": "data/alternate_sources/isolation", "upscale": "data/upscaled_scryfall",
     "deck_source": "data/deck_art_sources", "deck_generated": "data/deck_art_generated",
@@ -758,6 +758,10 @@ class UserContentImporter:
                     sql += " ON CONFLICT(" + _quote(key) + ") DO UPDATE SET " + _quote(value) + "=excluded." + _quote(value)
                 elif table == "selected_sets":
                     sql += " ON CONFLICT(set_code) DO NOTHING"
+                elif table == "card_spot_foil":
+                    # Preserve established shared-library choices on merge.
+                    # Imported isolated scopes have fresh IDs and cannot collide.
+                    sql += " ON CONFLICT(scope_token,card_uuid,face) DO NOTHING"
                 elif table == "chaos_pack_art":
                     # Custom pack art for an existing official set is an intentional user override.
                     sql += " ON CONFLICT(set_code,booster_name) DO UPDATE SET " + ",".join(_quote(key) + "=excluded." + _quote(key) for key in columns if key not in {"set_code", "booster_name"})

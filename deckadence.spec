@@ -44,6 +44,7 @@ a = Analysis(
         ('print', 'print'),
         ('db', 'db'),
         ('modes', 'modes'),
+        ('plugin_src/spot-foil-ai', 'plugin_src/spot-foil-ai'),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],

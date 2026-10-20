@@ -6,7 +6,7 @@ class DialogFocusController {
     this.stack = [];
     this.lastOutsideFocus = document.activeElement;
     this.pendingOpeners = new WeakMap();
-    this.selector = '[role="dialog"][aria-modal="true"], .custom-draft-card-search-window';
+    this.selector = 'dialog, [role="dialog"][aria-modal="true"], .custom-draft-card-search-window';
     this.observer = new MutationObserver(() => this.sync());
   }
 
@@ -46,7 +46,7 @@ class DialogFocusController {
       }
     }, true);
     this.observer.observe(document.body, {subtree:true, childList:true, attributes:true,
-      attributeFilter:['class', 'style', 'aria-hidden', 'hidden']});
+      attributeFilter:['class', 'style', 'aria-hidden', 'hidden', 'open']});
     this.sync();
   }
 

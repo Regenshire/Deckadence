@@ -48,6 +48,7 @@ class PrintTemplate:
     rendering: dict
     silhouette: dict
     duplex: dict
+    cutter: dict
 
     @property
     def cards_per_page(self):
@@ -60,6 +61,7 @@ class PrintTemplate:
     @property
     def is_silhouette_layout(self):
         return bool(
+            self.cutter or
             self.metadata.get(
                 "silhouette_support",
                 False,
@@ -303,7 +305,11 @@ class PrintTemplateRegistry:
     def contains(self, template_id):
         return self.get(template_id) is not None
 
-    def list_templates(self, scope=None):
+    @property
+    def template_dirs(self):
+        return self._template_dirs
+
+    def list_templates(self, scope=None, include_cutter_profiles=True):
         with self._lock:
             templates = list(
                 self._templates.values()
@@ -318,6 +324,9 @@ class PrintTemplateRegistry:
                 )
             ]
 
+        if not include_cutter_profiles:
+            templates = [template for template in templates if not self._is_linked_cutter_profile(template)]
+
         return sorted(
             templates,
             key=lambda template: (
@@ -325,6 +334,16 @@ class PrintTemplateRegistry:
                 template.display_name.lower(),
                 template.template_id,
             ),
+        )
+
+    def _is_linked_cutter_profile(self, template):
+        base = self.get(template.cutter.get("base_template_id", ""))
+        return bool(
+            base and base.template_id != template.template_id
+            and base.page_width_mm == template.page_width_mm
+            and base.page_height_mm == template.page_height_mm
+            and base.slot_defs == template.slot_defs
+            and base.rendering.get("corner_radius_mm", 0) == template.rendering.get("corner_radius_mm", 0)
         )
 
     def get_options(self, scope=None):
@@ -335,7 +354,8 @@ class PrintTemplateRegistry:
             )
             for template
             in self.list_templates(
-                scope=scope
+                scope=scope,
+                include_cutter_profiles=False,
             )
         ]
 
@@ -367,6 +387,9 @@ class PrintTemplateRegistry:
                 template_file
             )
 
+        return self._parse_template(parser, template_path)
+
+    def _parse_template(self, parser, template_path):
         for section_name in (
             "Template",
             "Page",
@@ -631,6 +654,7 @@ class PrintTemplateRegistry:
             duplex=_read_duplex_settings(
                 parser
             ),
+            cutter=(dict(parser.items("Cutter")) if parser.has_section("Cutter") else {}),
         )
 
     # *** CARD POSITIONS - Calculate Card Placement ***
@@ -1322,6 +1346,7 @@ def _read_rendering_settings(
             "add_edge_bleed_border": False,
             "fill_unused_slots_with_white": False,
             "corner_radius_mm": 0.0,
+            "round_the_corners": False,
             "uses_fixed_inner_margin": False,
         }
 
@@ -1351,6 +1376,9 @@ def _read_rendering_settings(
                 minimum=0.0,
             )
         ),
+        "round_the_corners": _get_bool(
+            parser, "Rendering", "Round_The_Corners", fallback=False,
+        ),
         "uses_fixed_inner_margin": (
             _get_bool(
                 parser,
@@ -1366,15 +1394,14 @@ def _read_silhouette_settings(
     parser,
     template_path,
 ):
-    if not parser.has_section(
-        "Silhouette"
-    ):
+    section = "Cutter" if parser.has_section("Cutter") else "Silhouette"
+    if not parser.has_section(section):
         return {}
 
     background_filename = (
         _get_text(
             parser,
-            "Silhouette",
+            section,
             "Registration_Background",
             fallback="",
         )

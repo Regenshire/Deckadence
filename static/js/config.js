@@ -603,6 +603,10 @@ function initializeSettingsConsole() {
       description:
         "Shared print templates, PDF output, card backs, labels, and print defaults used outside Momir.",
     },
+    cutter_templates: {
+      description: "Create a template in your cutter software, then add its registration marks to Deckadence.",
+      showSave: false,
+    },
     card_database: {
       description:
         "Card database status, refresh controls, and source information.",
@@ -678,7 +682,7 @@ function initializeSettingsConsole() {
       description:
         "Configure shared printing and PDF defaults used throughout Deckadence outside Momir.",
       iconClass: "fa-solid fa-print",
-      sections: ["print_settings"],
+      sections: ["print_settings", "cutter_templates"],
       parent: "form",
     },
     {

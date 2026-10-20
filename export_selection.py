@@ -8,7 +8,7 @@ class ExportSelection:
         "custom_sets", "decks", "packs", "modified_cards", "deck_art", "custom_set_icons",
         "campaigns", "print_templates", "cutting_templates", "card_backs", "config_settings",
     )
-    MODIFIED = {"alternate_sources", "alternate_image_isolation", "upscaled_images", "alternate_image_scopes"}
+    MODIFIED = {"alternate_sources", "alternate_image_isolation", "upscaled_images", "alternate_image_scopes", "card_spot_foil"}
     CONFIG = {"app_config", "selected_sets", "chaos_session_state"}
     SETS = {"custom_draft_sets", "custom_draft_set_cards", "custom_draft_pack_slots", "chaos_pack_art"}
     PACKS = {"tracked_chaos_packs", "tracked_chaos_pack_cards", "tracked_chaos_pack_campaigns", "tracked_chaos_pack_openings"}
@@ -152,7 +152,7 @@ class ExportSelection:
         if table == "alternate_image_scopes":
             return row.get("image_scope_id") in self.scopes
         if table in self.MODIFIED:
-            scope = row.get("image_scope_id", row.get("source_image_scope_id"))
+            scope = row.get("scope_token", row.get("image_scope_id", row.get("source_image_scope_id")))
             matches = (row.get("card_uuid") in self.cards or row.get("card_key") in self.card_keys
                        or row.get("scryfall_id") in self.scryfall_ids
                        or (row.get("set_code"), row.get("collector_number")) in self.printings)

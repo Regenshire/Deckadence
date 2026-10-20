@@ -283,15 +283,18 @@
         </div>
 
         <label class="custom-draft-filter-field">
-          <span>Set Code</span>
+          <span>Set Codes</span>
           <input
             type="text"
             id="customDraftSearchSetCodeFilter"
             class="custom-draft-filter-input"
-            maxlength="12"
-            placeholder="Any"
+            maxlength="1000"
+            placeholder="Any, or LTR, LTC"
+            title="Enter one set code or a comma-separated list. Matches any listed set."
+            aria-describedby="customDraftSearchSetCodeHelp"
             autocomplete="off"
           />
+          <small id="customDraftSearchSetCodeHelp">Separate multiple codes with commas.</small>
         </label>
 
         <label class="custom-draft-filter-field">

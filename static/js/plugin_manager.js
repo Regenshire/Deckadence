@@ -93,7 +93,9 @@
             '[data-plugin-empty="available"]'
         );
 
-        const targetList = (
+        // Companion plugins keep their own card and install controls beside
+        // the feature that uses them, including while status polling updates.
+        const targetList = card.closest("[data-plugin-companions]") || (
             plugin.installed
             ? installedList
             : availableList

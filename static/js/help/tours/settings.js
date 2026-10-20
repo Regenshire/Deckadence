@@ -81,9 +81,9 @@
 
         target: '[name="chaos_silhouette_registration_marks"]',
 
-        title: "Silhouette Registration Marks",
+        title: "Cutter Registration Marks",
 
-        body: "This option enables or disables Silhouette Registration Marks when printing to PDF for the selected Print Template.  When enabled, this adds Silhouette Cameo compatible registration marks to the PDF image. A Silhouette Cameo is a type of cutting machine commonly used by the proxy community to cut out cards using templates.",
+        body: "Enable registration marks when printing to PDF. In Print / Export, Select Cutter lists available cutter templates for the selected paper layout and remembers your choice. In Settings → Card Cutting Machine Templates → Cutter Template Setup, download the paper's cut paths, create a template in your cutter software, and upload its registration marks. Each paper can have multiple cutter templates.",
       },
 
       {

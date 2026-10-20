@@ -3,6 +3,7 @@ import json
 import os
 import re
 import threading
+from pathlib import Path
 from paths import RUNTIME_BASE_DIR, BUNDLE_BASE_DIR
 
 
@@ -18,6 +19,18 @@ CUTTING_MACHINE_TEMPLATE_EXTENSIONS = {
 SILHOUETTE_TEMPLATE_MANIFEST_FILENAME = "templates.json"
 
 _manifest_lock = threading.Lock()
+
+
+def _is_uploaded_template(entry, static_folder):
+    if entry.get("user_uploaded") is True:
+        return True
+    # Older uploads did not record their origin. In packaged installs, an
+    # existing runtime file with no bundled counterpart is also user-owned.
+    runtime = Path(get_silhouette_studio3_dir(static_folder)).resolve()
+    bundled = (Path(static_folder) / "sil" / "Studio3").resolve()
+    filename = _validate_manifest_filename(entry.get("filename"))
+    return bool(filename and runtime != bundled and (runtime / filename).is_file()
+                and not (bundled / filename).exists())
 
 
 def get_silhouette_studio3_dir(static_folder):
@@ -232,7 +245,7 @@ def list_silhouette_templates(
             absolute_path
         ):
             absolute_path = os.path.join(static_folder, "sil", "Studio3", filename)
-            if not os.path.isfile(absolute_path):
+            if not os.path.isfile(absolute_path) and not _is_uploaded_template(raw_entry, static_folder):
                 continue
 
         name = str(
@@ -284,6 +297,8 @@ def list_silhouette_templates(
                 .upper()
             ),
             "absolute_path": absolute_path,
+            "removable": _is_uploaded_template(raw_entry, static_folder),
+            "available": os.path.isfile(absolute_path),
         })
 
     templates.sort(
@@ -467,6 +482,7 @@ def save_silhouette_template_upload(
         )
 
         new_entry = {
+            "user_uploaded": True,
             "filename": (
                 candidate_filename
             ),
@@ -532,3 +548,28 @@ def save_silhouette_template_upload(
         )
 
     return saved_entry
+
+
+def remove_silhouette_template(static_folder, filename):
+    clean_filename = _validate_manifest_filename(filename)
+    if not clean_filename:
+        raise ValueError("That cutting machine template was not found.")
+    with _manifest_lock:
+        document = _read_manifest_document(static_folder)
+        entry = next((item for item in document["templates"]
+                      if isinstance(item, dict) and item.get("filename") == clean_filename), None)
+        if not entry or not _is_uploaded_template(entry, static_folder):
+            raise ValueError("Only uploaded cutting machine templates can be removed.")
+        root = Path(get_silhouette_studio3_dir(static_folder)).resolve()
+        asset = root / clean_filename
+        if asset.is_symlink() or not asset.resolve().is_relative_to(root):
+            raise ValueError("The cutting machine template path is invalid.")
+        original = dict(document, templates=list(document["templates"]))
+        document["templates"] = [item for item in document["templates"] if item is not entry]
+        _write_manifest_document(static_folder, document)
+        try:
+            asset.unlink(missing_ok=True)
+        except OSError:
+            _write_manifest_document(static_folder, original)
+            raise
+    return entry

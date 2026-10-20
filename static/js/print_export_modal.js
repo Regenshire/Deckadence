@@ -101,13 +101,19 @@
     const foilIntensity = getElement("printFoilIntensity");
     const foilIntensityRow = getElement("printFoilIntensityRow");
     const foilIntensityValue = getElement("printFoilIntensityValue");
+    const spotFoilCheckbox = form && form.querySelector('input[type="checkbox"][name="include_spot_foil"]');
+    const spotFoilOptions = getElement("printSpotFoilOptions");
     function syncFoilIntensity() {
-      if (foilIntensityRow) foilIntensityRow.hidden = !foilCheckbox?.checked;
+      const spotEnabled = Boolean(spotFoilCheckbox?.checked);
+      if (spotFoilOptions) spotFoilOptions.hidden = !spotEnabled;
+      if (foilCheckbox) foilCheckbox.disabled = spotEnabled;
+      if (foilIntensityRow) foilIntensityRow.hidden = spotEnabled || !foilCheckbox?.checked;
       if (foilIntensity && foilIntensityValue) {
         foilIntensityValue.textContent = foilIntensity.value + "%";
         foilIntensity.setAttribute("aria-valuetext", foilIntensity.value + "%");
       }
     }
+    if (spotFoilCheckbox) spotFoilCheckbox.addEventListener("change", syncFoilIntensity);
     if (foilIntensity) {
       try {
         const saved = localStorage.getItem("deckadence.print.foilIntensity");
@@ -628,6 +634,13 @@
       }
 
       const isExport = actionType === "export";
+      if (!isExport && window.deckadenceCutters) {
+        const cutterError = window.deckadenceCutters.validate();
+        if (cutterError) {
+          showMessage(cutterError, true);
+          return;
+        }
+      }
       syncLabelLocation();
       const actionUrl = isExport ? activeExportZipUrl : activePrintUrl;
 

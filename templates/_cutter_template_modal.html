@@ -1,0 +1,55 @@
+<dialog id="cutterTemplateModal" class="cutter-template-dialog"
+  data-options-url="{{ url_for('cutter_profile_options') }}"
+  data-select-url="{{ url_for('cutter_profile_select') }}"
+  data-export-url="{{ url_for('cutter_profile_export') }}"
+  data-registration-url="{{ url_for('cutter_profile_registration') }}"
+  aria-labelledby="cutterTemplateTitle" aria-describedby="cutterTemplateIntro">
+  <div class="cutter-template-header">
+    <div>
+      <h2 id="cutterTemplateTitle"><i class="fa-solid fa-pen-ruler" aria-hidden="true"></i> Cutter Template Setup</h2>
+      <p id="cutterTemplateIntro">Download cut paths, then bring your cutter software's registration marks back to Deckadence.</p>
+    </div>
+    <button type="button" class="cutter-template-close" data-cutter-close aria-label="Close cutter setup">×</button>
+  </div>
+  <form id="cutterTemplateForm">
+    <div class="cutter-template-body">
+      <div class="cutter-template-modes" role="group" aria-label="Setup task">
+        <button type="button" data-cutter-task="export" aria-pressed="true" aria-controls="cutterExportPanel"><span class="cutter-step-number">1</span> Export cut paths</button>
+        <button type="button" data-cutter-task="registration" aria-pressed="false" aria-controls="cutterRegistrationPanel"><span class="cutter-step-number">2</span> Upload Registration Marks</button>
+      </div>
+      <div class="cutter-template-fields">
+        <label class="cutter-template-wide"><span>Paper / Layout</span>
+          <select name="print_template" id="cutterTemplatePaper" aria-describedby="cutterTemplateDimensions" required>
+            {% for paper in global_print_template_catalog %}
+            <option value="{{ paper.template_id }}">{{ paper.display_name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <p id="cutterTemplateDimensions" class="cutter-template-note cutter-template-wide" aria-live="polite"></p>
+      </div>
+      <section id="cutterExportPanel" class="cutter-template-step" aria-label="Export cut paths">
+        <p>Download the cut paths for this paper layout. Open the SVG, PDF, or EPS in your cutter software at <strong>100% scale</strong>, keeping the page size and positions.</p>
+        <p>Create your cutting template there, then export its registration marks and return to <strong>Upload Registration Marks</strong>.</p>
+        <p class="cutter-template-note">ZIP includes SVG, PDF, EPS, instructions, and JSON coordinates.</p>
+      </section>
+      <section id="cutterRegistrationPanel" class="cutter-template-step" aria-label="Upload Registration Marks" hidden>
+        <p>Upload a <strong>full-page file containing only registration marks</strong> from your cutter software into Deckadence for use with the selected paper layout.</p>
+        <div class="cutter-template-fields cutter-registration-details">
+          <label class="cutter-template-wide"><span>Friendly Name</span>
+            <input name="friendly_name" required disabled maxlength="80" placeholder="e.g. My blue-core card template" autocomplete="off">
+          </label>
+          <label><span>Cutter Brand</span><input name="brand" required disabled maxlength="80" placeholder="e.g. Silhouette" autocomplete="off"></label>
+          <label><span>Cutter Model</span><input name="model" required disabled maxlength="80" placeholder="Your cutter model" autocomplete="off"></label>
+        </div>
+        <label><span>Registration artwork</span>
+          <input type="file" name="registration_file" id="cutterTemplateRegistration" disabled accept=".png,.svg,.pdf,.jpg,.jpeg,.webp" aria-describedby="cutterTemplateFileHelp">
+        </label>
+        <p id="cutterTemplateFileHelp" class="cutter-template-note">PNG, SVG, single-page PDF, JPG, JPEG, or WebP · Up to 20 MB.<br>The format is detected automatically. Each upload adds a cutter template to this paper layout.</p>
+      </section>
+    </div>
+    <div class="cutter-template-footer">
+      <p id="cutterTemplateStatus" role="status" aria-live="polite" hidden></p>
+      <button type="submit" class="action-button" id="cutterTemplateAction"><i class="fa-solid fa-file-zipper" aria-hidden="true"></i> Download ZIP</button>
+    </div>
+  </form>
+</dialog>

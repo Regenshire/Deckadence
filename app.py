@@ -42,7 +42,10 @@ from qrcode.image.pil import PilImage
 from PIL import Image, ImageEnhance, ImageOps, ImageFilter, ImageChops, ImageDraw, ImageFont
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader, simpleSplit
-from reportlab.pdfgen import canvas
+from cutter_templates import (
+    CutterCanvas, compatible_profiles, cutter_registration_path, remembered_profiles,
+    register_cutter_routes,
+)
 from io import BytesIO, StringIO
 from pypdf import PdfWriter
 
@@ -182,6 +185,7 @@ from silhouette_templates import (
     get_silhouette_template_entry,
     list_silhouette_templates,
     save_silhouette_template_upload,
+    remove_silhouette_template,
 )
 
 from print_template_registry import (
@@ -208,6 +212,9 @@ from ui.ui import (
 )
 
 from plugin_system.catalog import PLUGIN_CATALOG
+from plugin_system.foil_workflows import register_foil_workflow_routes, load_preferences as load_spot_foil_preferences
+from plugin_system.card_spot_foil import register_card_spot_foil_routes
+from plugin_system.spot_foil_pdf import SpotFoilPdfJob, place_spot_foil, draw_print_artwork
 from plugin_system.manager import (
     get_plugin_install_status,
     get_plugin_status,
@@ -279,6 +286,7 @@ from db.database import (
     set_import_metadata,
     update_config_values,
     normalize_custom_draft_set_code,
+    normalize_card_search_set_codes,
     resolve_most_recent_chaos_card_printing_for_import_item,
     search_chaos_cards_for_custom_draft_import_list,
     search_chaos_cards_for_custom_draft_set,
@@ -1129,10 +1137,17 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
         "chaos",
     )
 
+    g.print_export_spot_foil = parse_print_export_override_bool(get_form_values("include_spot_foil"))
+    g.print_export_spot_foil_output = form_data.get("spot_foil_pdf_output", "spot_pdf")
+    g.print_export_spot_foil_tone = form_data.get("spot_foil_pdf_tone", "grayscale")
+    g.pop("_pdf_print_settings_cache", None)
+
     if "include_foil_overlay" in form_data:
         g.print_export_foil_override = parse_print_export_override_bool(get_form_values("include_foil_overlay"))
-        g.pop("_pdf_print_settings_cache", None)
-        set_config_value("include_foil_overlay", "1" if g.print_export_foil_override else "0")
+        # Spot exports omit decorative effects without changing the user's
+        # preference for ordinary printing on the next request.
+        if not g.print_export_spot_foil:
+            set_config_value("include_foil_overlay", "1" if g.print_export_foil_override else "0")
 
     if "foil_print_intensity" in form_data:
         g.print_export_foil_intensity_override = normalize_print_foil_intensity(form_data.get("foil_print_intensity"))
@@ -1242,6 +1257,15 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
         )
     )
 
+    g.print_export_cutter_profile_override = (form_data.get("cutter_profile") or "").strip()
+    if g.print_export_cutter_profile_override and g.print_export_silhouette_registration_marks_override:
+        paper = get_print_template_registry().get(
+            getattr(g, "print_export_print_template_override", "") or chaos_print_config.get("print_template"))
+        if not paper or g.print_export_cutter_profile_override not in {
+            item["id"] for item in compatible_profiles(get_print_template_registry(), paper)
+        }:
+            raise ValueError("The selected cutter is unavailable for this paper layout. Choose an available cutter or turn off Cutter Registration Marks.")
+
     no_waste_defaults = (
         resolve_no_waste_settings_from_config(
             get_request_config()
@@ -1341,6 +1365,11 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
             else "0"
         ),
     }
+
+    if g.print_export_cutter_profile_override and g.print_export_silhouette_registration_marks_override:
+        cutter_selections = remembered_profiles(get_request_config())
+        cutter_selections[persisted_print_template] = g.print_export_cutter_profile_override
+        persisted_values["cutter_profile_selections"] = json.dumps(cutter_selections)
 
     if g.print_export_labels_enabled_override and label_location == "custom_card_back":
         persisted_values["chaos_print_export_label_card_back"] = g.print_export_card_back_override
@@ -1682,6 +1711,10 @@ def _build_pdf_print_settings(config, print_labels_enabled_override=None):
         "pdf_crop_border": crop_border,
         "foil_print_intensity": normalize_print_foil_intensity(config.get("foil_print_intensity", 100)),
         "include_foil_overlay": (config.get("include_foil_overlay") or "0") == "1",
+        "include_spot_foil": has_request_context() and bool(getattr(g, "print_export_spot_foil", False)),
+        "spot_foil_pdf_output": getattr(g, "print_export_spot_foil_output", "spot_pdf") if has_request_context() else "spot_pdf",
+        "spot_foil_pdf_tone": getattr(g, "print_export_spot_foil_tone", "grayscale") if has_request_context() else "grayscale",
+        "spot_foil_display_colors": {key: profile["spot_display_color"] for key, profile in load_spot_foil_preferences(config)["profiles"].items()},
         "print_card_backs": (config.get("print_card_backs") or "0").strip() == "1",
 
         "default_card_back": normalize_card_back_key(
@@ -1840,6 +1873,7 @@ def _build_pdf_template_layout(
             )
             or 0.0
         ),
+        "round_the_corners": bool(template_layout.get("round_the_corners", False)),
         "registration_background_path": (
             template_layout.get(
                 "registration_background_path"
@@ -3569,7 +3603,7 @@ def get_print_template_catalog():
     registry = get_print_template_registry()
     catalog = []
 
-    for template in registry.list_templates():
+    for template in registry.list_templates(include_cutter_profiles=False):
         metadata = dict(
             template.metadata
             or {}
@@ -3751,6 +3785,10 @@ def build_registry_template_layout(
         scope,
     )
 
+    has_cutter_profile = template.is_silhouette_layout or bool(
+        compatible_profiles(get_print_template_registry(), template)
+    )
+
     slot_defs = [
         dict(slot_def)
         for slot_def in template.slot_defs
@@ -3842,7 +3880,7 @@ def build_registry_template_layout(
         ),
 
         "uses_fixed_inner_margin": bool(
-            rendering.get(
+            has_cutter_profile or rendering.get(
                 "uses_fixed_inner_margin",
                 False,
             )
@@ -3853,7 +3891,7 @@ def build_registry_template_layout(
         ),
 
         "is_silhouette_layout": (
-            template.is_silhouette_layout
+            has_cutter_profile
         ),
 
         "slot_defs": slot_defs,
@@ -3889,6 +3927,7 @@ def build_registry_template_layout(
             )
             or 0.0
         ),
+        "round_the_corners": bool(rendering.get("round_the_corners", False)),
 
         "registration_background_path": (
             silhouette.get(
@@ -4196,7 +4235,7 @@ def get_silhouette_print_template_options():
             "label": template.display_name,
         }
         for template
-        in get_print_template_registry().list_templates()
+        in get_print_template_registry().list_templates(include_cutter_profiles=False)
         if template.cardprint_support
     ]
 
@@ -4250,7 +4289,10 @@ def serialize_silhouette_template_entry(
         "download_url": url_for(
             "silhouette_template_download",
             filename=entry["filename"],
-        ),
+        ) if entry.get("available", True) else "",
+        "issue": "" if entry.get("available", True) else "The uploaded cutting file is missing.",
+        "removable": bool(entry.get("removable")),
+        "remove_url": url_for("silhouette_template_remove"),
     }
 
 
@@ -6125,6 +6167,9 @@ def load_pdf_slot_source_image(
 
 
 def draw_pdf_background_image(pdf_canvas, image_path, page_width_mm, page_height_mm):
+    if isinstance(pdf_canvas, CutterCanvas):
+        pdf_canvas.registration_background(image_path, page_width_mm, page_height_mm)
+        return
     background_reader = ImageReader(image_path)
 
     pdf_canvas.drawImage(
@@ -6172,44 +6217,29 @@ def is_silhouette_registration_marks_enabled():
 def get_print_template_registration_background_path(
     pdf_template_layout,
 ):
-    if not pdf_template_layout.get(
-        "is_silhouette_layout",
-        False,
-    ):
-        return None
-
     if (
         get_request_print_scope() == "chaos"
         and not is_silhouette_registration_marks_enabled()
     ):
         return None
 
-    background_abs_path = (
-        pdf_template_layout.get(
-            "registration_background_path"
-        )
-        or ""
-    ).strip()
-
-    if not background_abs_path:
-        raise ValueError(
-            "Silhouette print template does not "
-            "define a registration background."
-        )
-
-    background_abs_path = os.path.abspath(
-        background_abs_path
-    )
-
-    if not os.path.isfile(
-        background_abs_path
-    ):
-        raise FileNotFoundError(
-            f"Silhouette background not found: "
-            f"{background_abs_path}"
-        )
-
-    return background_abs_path
+    registry = get_print_template_registry()
+    paper = registry.get(pdf_template_layout.get("print_template"))
+    if not paper:
+        return None
+    profiles = compatible_profiles(registry, paper)
+    explicit = getattr(g, "print_export_cutter_profile_override", "") if has_request_context() else ""
+    config = get_request_config() if has_request_context() else get_config()
+    selected = explicit or remembered_profiles(config).get(paper.template_id, "")
+    ids = {profile["id"] for profile in profiles}
+    if explicit and explicit not in ids:
+        raise ValueError("The selected cutter is unavailable for this paper layout.")
+    if selected not in ids:
+        selected = profiles[0]["id"] if profiles else ""
+    if not selected:
+        return None
+    path = cutter_registration_path(registry, paper, selected)
+    return str(path) if path else None
 
 def is_pdf_cutting_guides_enabled():
     if has_request_context() and hasattr(g, "print_export_pdf_cutting_guides_override"):
@@ -6348,6 +6378,22 @@ def draw_pdf_cutting_guides_for_page(pdf_canvas, page_entries, slot_defs):
         draw_pdf_cutting_guide_corner_marks(pdf_canvas, cut_rect)
 
 # *** PDF CARD LAYOUT - Place Cards and Labels on the Page ***
+def get_print_card_shape(slot_def, corner_radius_mm):
+    """Finished-card bounds in page coordinates, shared by PDF and HTML clips."""
+    width = float(slot_def.get("finished_card_width_mm", slot_def["width_mm"]))
+    height = float(slot_def.get("finished_card_height_mm", slot_def["height_mm"]))
+    if int(slot_def.get("rotation_degrees", 0) or 0) % 360 in {90, 270}:
+        width, height = height, width
+    width = min(width, float(slot_def["width_mm"]))
+    height = min(height, float(slot_def["height_mm"]))
+    return {
+        "x_mm": float(slot_def["x_mm"]) + (float(slot_def["width_mm"]) - width) / 2,
+        "y_mm": float(slot_def["y_mm"]) + (float(slot_def["height_mm"]) - height) / 2,
+        "width_mm": width, "height_mm": height,
+        "radius_mm": min(max(0.0, float(corner_radius_mm or 0.0)), width / 2, height / 2),
+    }
+
+
 def draw_processed_image_into_slot(
     pdf_canvas,
     image_path,
@@ -6358,6 +6404,8 @@ def draw_processed_image_into_slot(
     blank_white_card=False,
     preserve_real_source_bleed=False,
     source_bleed_mm=0.0,
+    round_the_corners=False,
+    spot_foil_entry=None,
 ):
     slot_width_mm = float(slot_def["width_mm"])
     slot_height_mm = float(slot_def["height_mm"])
@@ -6439,6 +6487,7 @@ def draw_processed_image_into_slot(
             finished_height_px,
             bool(add_edge_bleed_border),
             radius_px,
+            bool(round_the_corners),
             rotation_degrees,
             bool(preserve_real_source_bleed),
             float(source_bleed_mm or 0.0),
@@ -6510,7 +6559,7 @@ def draw_processed_image_into_slot(
                     Image.LANCZOS,
                 )
 
-                if radius_px > 0:
+                if radius_px > 0 and not round_the_corners:
                     image = apply_rounded_corner_mask(
                         image,
                         radius_px,
@@ -6596,15 +6645,34 @@ def draw_processed_image_into_slot(
         BytesIO(slot_image_bytes)
     )
 
-    pdf_canvas.drawImage(
-        slot_reader,
-        slot_def["x_mm"] * mm,
-        slot_def["y_mm"] * mm,
-        width=slot_width_mm * mm,
-        height=slot_height_mm * mm,
-        preserveAspectRatio=False,
-        mask="auto",
-    )
+    if round_the_corners:
+        shape = get_print_card_shape(slot_def, rounded_corner_radius_mm)
+        pdf_canvas.saveState()
+        clip = pdf_canvas.beginPath()
+        clip.roundRect(shape["x_mm"] * mm, shape["y_mm"] * mm,
+                       shape["width_mm"] * mm, shape["height_mm"] * mm,
+                       shape["radius_mm"] * mm)
+        # Clip the final image, including real/duplicated bleed, without adding
+        # a black matte or scaling the card. Registration artwork stays intact.
+        pdf_canvas.clipPath(clip, stroke=0, fill=0)
+    try:
+        draw_print_artwork(pdf_canvas,
+            slot_reader,
+            slot_def["x_mm"] * mm,
+            slot_def["y_mm"] * mm,
+            width=slot_width_mm * mm,
+            height=slot_height_mm * mm,
+            preserveAspectRatio=False,
+            mask="auto",
+        )
+    finally:
+        if round_the_corners:
+            pdf_canvas.restoreState()
+
+    if spot_foil_entry is not None:
+        place_spot_foil(pdf_canvas, spot_foil_entry, slot_def,
+                        bleed=preserve_real_source_bleed or add_edge_bleed_border,
+                        round_corners=round_the_corners, radius=rounded_corner_radius_mm)
 
 def build_pdf_image_reader(image_path, print_mode):
     with Image.open(image_path) as source_image:
@@ -6917,7 +6985,7 @@ def build_single_image_pdf_buffer(image_path):
 
     buffer = BytesIO()
 
-    pdf_canvas = canvas.Canvas(
+    pdf_canvas = CutterCanvas(
         buffer,
         pagesize=(
             width_mm * mm,
@@ -6938,9 +7006,9 @@ def build_single_image_pdf_buffer(image_path):
 
     use_slot_compositor = bool(
         slot_defs
-        and pdf_template_layout.get(
-            "uses_fixed_inner_margin",
-            False,
+        and (
+            pdf_template_layout.get("uses_fixed_inner_margin", False)
+            or pdf_template_layout.get("round_the_corners", False)
         )
     )
 
@@ -6988,6 +7056,7 @@ def build_single_image_pdf_buffer(image_path):
                 rounded_corner_radius_mm=(
                     corner_radius_mm
                 ),
+                round_the_corners=bool(pdf_template_layout.get("round_the_corners", False)),
             )
 
         if is_pdf_cutting_guides_enabled():
@@ -7180,7 +7249,7 @@ def build_default_card_back_sheet_pdf():
         })
 
     buffer = BytesIO()
-    pdf_canvas = canvas.Canvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
+    pdf_canvas = CutterCanvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
 
     pages_rendered = draw_chaos_rendered_entries_into_pdf_layout(
         pdf_canvas,
@@ -7555,7 +7624,7 @@ def build_custom_title_sheet_pdf(
             })
 
         buffer = BytesIO()
-        pdf_canvas = canvas.Canvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
+        pdf_canvas = CutterCanvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
 
         pages_rendered = draw_chaos_rendered_entries_into_pdf_layout(
             pdf_canvas,
@@ -7759,6 +7828,16 @@ def build_html_print_slots(template_layout):
             image_top_mm = height_mm
             image_transform = "rotate(-90deg)"
 
+        corner_clip = ""
+        if template_layout.get("round_the_corners", False):
+            shape = get_print_card_shape(slot_def, template_layout.get("corner_radius_mm", 0.0))
+            inset_x = (width_mm - shape["width_mm"]) / 2
+            inset_y = (height_mm - shape["height_mm"]) / 2
+            corner_clip = (
+                f"clip-path:inset({format_mm(inset_y)}mm {format_mm(inset_x)}mm "
+                f"round {format_mm(shape['radius_mm'])}mm);"
+            )
+
         html_slots.append({
             "style": (
                 f"left:{format_mm(x_mm)}mm;"
@@ -7770,6 +7849,7 @@ def build_html_print_slots(template_layout):
                 f"--slot-image-width:{format_mm(image_width_mm)}mm;"
                 f"--slot-image-height:{format_mm(image_height_mm)}mm;"
                 f"--slot-image-transform:{image_transform};"
+                f"{corner_clip}"
             ),
         })
 
@@ -8861,6 +8941,7 @@ def draw_chaos_card_back_entries_into_pdf_layout(
         slot_defs
         and (
             len(slot_defs) > 1
+            or pdf_template_layout.get("round_the_corners", False)
             or pdf_template_layout.get(
                 "is_silhouette_layout",
                 False,
@@ -9049,7 +9130,8 @@ def draw_chaos_card_back_entries_into_pdf_layout(
                         add_edge_bleed_border
                         and not use_real_source_bleed
                     ),
-                    rounded_corner_radius_mm=0.0,
+                    rounded_corner_radius_mm=(corner_radius_mm if pdf_template_layout.get("round_the_corners") else 0.0),
+                    round_the_corners=bool(pdf_template_layout.get("round_the_corners", False)),
                     preserve_real_source_bleed=(
                         use_real_source_bleed
                     ),
@@ -9059,6 +9141,7 @@ def draw_chaos_card_back_entries_into_pdf_layout(
                         )
                         or 0.0
                     ),
+                    spot_foil_entry=rendered_entry,
                 )
 
             if fill_unused_slots:
@@ -9087,6 +9170,7 @@ def draw_chaos_card_back_entries_into_pdf_layout(
                         rounded_corner_radius_mm=(
                             corner_radius_mm
                         ),
+                        round_the_corners=bool(pdf_template_layout.get("round_the_corners", False)),
                         blank_white_card=True,
                     )
 
@@ -9159,7 +9243,7 @@ def draw_chaos_card_back_entries_into_pdf_layout(
             )
         )
 
-        pdf_canvas.drawImage(
+        draw_print_artwork(pdf_canvas,
             pdf_image_reader,
             draw_x_mm * mm,
             draw_y_mm * mm,
@@ -9174,6 +9258,9 @@ def draw_chaos_card_back_entries_into_pdf_layout(
             preserveAspectRatio=False,
             mask="auto",
         )
+
+        place_spot_foil(pdf_canvas, rendered_entry, dict(x_mm=draw_x_mm, y_mm=draw_y_mm,
+                        width_mm=draw_width_mm, height_mm=draw_height_mm))
 
         pdf_canvas.showPage()
         pages_rendered += 1
@@ -9457,6 +9544,7 @@ def draw_chaos_rendered_entries_into_pdf_layout(
         slot_defs
         and (
             len(slot_defs) > 1
+            or pdf_template_layout.get("round_the_corners", False)
             or pdf_template_layout.get(
                 "is_silhouette_layout",
                 False,
@@ -9591,9 +9679,10 @@ def draw_chaos_rendered_entries_into_pdf_layout(
 
                     rounded_corner_radius_mm=(
                         0.0
-                        if use_real_source_bleed
+                        if use_real_source_bleed and not pdf_template_layout.get("round_the_corners")
                         else corner_radius_mm
                     ),
+                    round_the_corners=bool(pdf_template_layout.get("round_the_corners", False)),
 
                     preserve_real_source_bleed=(
                         use_real_source_bleed
@@ -9605,6 +9694,7 @@ def draw_chaos_rendered_entries_into_pdf_layout(
                         )
                         or 0.0
                     ),
+                    spot_foil_entry=rendered_entry,
                 )
 
             if (
@@ -9633,6 +9723,7 @@ def draw_chaos_rendered_entries_into_pdf_layout(
                         rounded_corner_radius_mm=(
                             corner_radius_mm
                         ),
+                        round_the_corners=bool(pdf_template_layout.get("round_the_corners", False)),
                         blank_white_card=True,
                     )
 
@@ -9670,7 +9761,7 @@ def draw_chaos_rendered_entries_into_pdf_layout(
             )
         )
 
-        pdf_canvas.drawImage(
+        draw_print_artwork(pdf_canvas,
             pdf_image_reader,
             draw_x_mm * mm,
             draw_y_mm * mm,
@@ -9685,6 +9776,9 @@ def draw_chaos_rendered_entries_into_pdf_layout(
             preserveAspectRatio=False,
             mask="auto",
         )
+
+        place_spot_foil(pdf_canvas, rendered_entry, dict(x_mm=draw_x_mm, y_mm=draw_y_mm,
+                        width_mm=draw_width_mm, height_mm=draw_height_mm))
 
         pdf_canvas.showPage()
         pages_rendered += 1
@@ -13745,6 +13839,10 @@ def build_chaos_pdf_card_back_rendered_entry(
 
         "card_row": card_row,
 
+        "spot_foil_card_uuid": source_card_uuid,
+        "spot_foil_scope": dict(source_card_row).get("image_scope_id"),
+        "spot_foil_face": "back" if source_page_kind == "back" else "front",
+
         "is_dual_faced": int(
             card_row["is_dual_faced"] or 0
         ) if card_row else 0,
@@ -14397,6 +14495,7 @@ def build_chaos_pack_pdf(
     default_card_back_key=None,
     pack_label_image_path_override=None,
     card_tracking_codes=None,
+    allow_empty_spot_foil=False,
 ):
     if card_tracking_codes is not None and len(card_tracking_codes) != len(cards or []):
         raise ValueError("Each card must have a matching pack code.")
@@ -14413,7 +14512,11 @@ def build_chaos_pack_pdf(
     is_silhouette_layout = pdf_template_layout.get("is_silhouette_layout", False)
 
     buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
+    c = CutterCanvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
+    if pdf_settings.get("include_spot_foil"):
+        c.spot_foil_job = SpotFoilPdfJob(get_db_connection,
+                                       pdf_settings["spot_foil_pdf_output"], pdf_settings["spot_foil_pdf_tone"],
+                                       display_colors=pdf_settings.get("spot_foil_display_colors"))
     c.setTitle(
         str(
             pack_display_name
@@ -14883,7 +14986,7 @@ def build_chaos_pack_pdf(
                         raise ValueError("No cached result returned for chaos image download.")
 
                     foil_path = None
-                    if pdf_settings.get("include_foil_overlay") and int(card.get("sheet_is_foil") or card.get("is_foil") or 0):
+                    if pdf_settings.get("include_foil_overlay") and not pdf_settings.get("include_spot_foil") and int(card.get("sheet_is_foil") or card.get("is_foil") or 0):
                         foil_path = get_chaos_temp_file_path("foil_" + uuid4().hex + ".png")
                         foil_temp_paths.append(foil_path)
                         render_print_foil(cached_result["absolute_path"], foil_path, card.get("foil_type") or "foil",
@@ -15228,7 +15331,7 @@ def build_chaos_pack_pdf(
         c.save()
         buffer.seek(0)
 
-        return buffer
+        return c.spot_foil_job.finish(buffer, allow_empty=allow_empty_spot_foil or title_card_only) if getattr(c, "spot_foil_job", None) else buffer
 
     finally:
         for rendered_entry in rendered_image_entries + card_back_rendered_entries + pack_label_rendered_entries:
@@ -19501,6 +19604,14 @@ def result():
     )
 
 # *** PRINT ACTIONS - Print Cards and Game Tokens ***
+register_cutter_routes(app, get_request_config, update_config_values)
+register_foil_workflow_routes(app, get_request_config, update_config_values)
+register_card_spot_foil_routes(
+    app, get_db_connection, get_request_config,
+    lambda conn, writing: AlternateImageEditor.from_request().repository(conn, writing=writing).context,
+    alternate_image_api, isolation_operation,
+)
+
 @app.route(
     "/print-template-registration-background/"
     "<template_id>"
@@ -19654,7 +19765,7 @@ def print_tower_of_power_batch_pdf():
 
     buffer = BytesIO()
 
-    c = canvas.Canvas(
+    c = CutterCanvas(
         buffer,
         pagesize=(
             width_mm * mm,
@@ -19675,9 +19786,9 @@ def print_tower_of_power_batch_pdf():
 
     use_slot_compositor = bool(
         slot_defs
-        and pdf_template_layout.get(
-            "uses_fixed_inner_margin",
-            False,
+        and (
+            pdf_template_layout.get("uses_fixed_inner_margin", False)
+            or pdf_template_layout.get("round_the_corners", False)
         )
     )
 
@@ -19749,6 +19860,7 @@ def print_tower_of_power_batch_pdf():
                     rounded_corner_radius_mm=(
                         corner_radius_mm
                     ),
+                    round_the_corners=bool(pdf_template_layout.get("round_the_corners", False)),
                 )
 
             if is_pdf_cutting_guides_enabled():
@@ -21553,6 +21665,17 @@ def silhouette_template_upload():
         }), 500
 
 
+@app.post("/silhouette-templates/remove")
+def silhouette_template_remove():
+    try:
+        entry = remove_silhouette_template(app.static_folder, request.form.get("filename"))
+        return jsonify(ok=True, message=f"{entry['name']} removed.")
+    except ValueError as exc:
+        return jsonify(ok=False, message=str(exc)), 400
+    except OSError:
+        return jsonify(ok=False, message="The cutting machine template could not be removed. Check that its file is not open in another program."), 500
+
+
 @app.route(
     "/silhouette-templates/download/<path:filename>",
     methods=["GET"],
@@ -21567,7 +21690,7 @@ def silhouette_template_download(
         )
     )
 
-    if not entry:
+    if not entry or not entry.get("available", True):
         return (
             "Cutting machine template was not found.",
             404,
@@ -29650,7 +29773,7 @@ def deckbuilder_change_printing_options(deck_id):
     mana_operator = (request.args.get("mana_operator") or "").strip()
     mana_value = (request.args.get("mana_value") or "").strip()
     type_filter = (request.args.get("type") or "").strip().lower()
-    set_code_filter = (request.args.get("set_code") or "").strip().upper()
+    set_code_filters = normalize_card_search_set_codes(request.args.get("set_code"))
     year_start = (request.args.get("year_start") or "").strip()
     year_end = (request.args.get("year_end") or "").strip()
     sort_option = (request.args.get("sort") or "year_newest").strip()
@@ -29728,9 +29851,10 @@ def deckbuilder_change_printing_options(deck_id):
     if land_name:
         where_clauses.append("LOWER(cc.type_line) LIKE '%basic land%'")
 
-    if set_code_filter:
-        where_clauses.append("UPPER(cc.set_code) = ?")
-        params.append(set_code_filter)
+    if set_code_filters:
+        set_placeholders = ",".join("?" for _ in set_code_filters)
+        where_clauses.append(f"UPPER(cc.set_code) IN ({set_placeholders})")
+        params.extend(set_code_filters)
 
     if rarity_filters:
         rarity_placeholders = ",".join(["?"] * len(rarity_filters))

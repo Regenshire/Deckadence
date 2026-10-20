@@ -101,5 +101,16 @@ img:is(.card-image, .card-zoom-image, .card-search-preview-image,
 
 .card-effects[data-card-effect-finish="chocobo"]:not([data-foil-placement-ready]) .card-effect-custom { opacity: 0; }
 
+/* Per-card masks clip the existing finishes, without touching the artwork. */
+.card-spot-clip { position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  mask: var(--spot-foil-mask) center / 100% 100% no-repeat;
+  -webkit-mask: var(--spot-foil-mask) center / 100% 100% no-repeat;
+  opacity: var(--spot-foil-strength, 1); }
+.card-effect-rainbow-clip { mix-blend-mode: color-dodge; }
+.card-effect-surge-clip { mix-blend-mode: hard-light; }
+.card-effect-glare-clip { mix-blend-mode: screen; }
+.card-effect-custom-clip { mix-blend-mode: var(--foil-blend, normal); }
+.card-effects .card-spot-clip > .card-effect-layer { mix-blend-mode: normal; }
+
 [data-foil-menu] { width: 210px; }
 [data-foil-menu].foil-menu-left { left: auto; right: calc(100% - 1px); }

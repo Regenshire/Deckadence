@@ -80,8 +80,76 @@
 
 .silhouette-template-library-footer {
   justify-content: flex-end;
+  flex-wrap: wrap;
 
   border-top: 1px solid rgba(160, 170, 190, 0.18);
+}
+
+.silhouette-template-library-footer .silhouette-template-library-status {
+  flex: 1 1 260px;
+  margin: 0;
+  max-height: 16vh;
+  overflow-y: auto;
+  color: var(--text);
+  background: var(--button);
+}
+.silhouette-template-library-footer .silhouette-template-library-status.is-error {
+  color: var(--text);
+  background: color-mix(in srgb, var(--theme-error, #d75c64) 18%, var(--panel));
+}
+.silhouette-template-library-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.silhouette-template-library-views button {
+  flex: 1 1 200px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--button);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.silhouette-template-library-views button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+}
+.silhouette-template-library-views button[data-template-view="registration"][aria-pressed="true"] {
+  border-color: var(--theme-success, #5ab67c);
+  background: color-mix(in srgb, var(--theme-success, #5ab67c) 18%, var(--panel));
+}
+.silhouette-template-library-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.silhouette-template-library-card-actions .action-button {
+  flex: 1 1 auto;
+  width: auto;
+  min-height: 44px;
+  margin: 0;
+}
+.silhouette-template-library-card-actions .silhouette-template-remove {
+  flex: 0 1 auto;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--theme-error, #d75c64) 55%, var(--border));
+  background: color-mix(in srgb, var(--theme-error, #d75c64) 12%, var(--panel));
+  color: var(--text);
+}
+.silhouette-template-library-card .is-unavailable {
+  padding: 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--theme-error, #d75c64) 14%, var(--panel));
+  color: var(--text);
+}
+.silhouette-template-library-modal :is(button, a, select):focus-visible {
+  outline: 2px solid var(--theme-highlight, var(--menuborder));
+  outline-offset: 3px;
 }
 
 .silhouette-template-library-header h2 {
@@ -348,6 +416,8 @@
 
 .silhouette-template-library-admin-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   justify-content: flex-end;
 
   margin-top: 20px;
@@ -358,33 +428,35 @@
 
 .silhouette-template-library-admin-row .action-button {
   width: auto;
-  min-width: 220px;
+  min-width: min(220px, 100%);
+  max-width: 100%;
+  gap: 8px;
 }
 
-.silhouette-template-upload-section {
-  margin-top: 14px;
-  padding: 16px;
-
-  border: 1px solid rgba(160, 170, 190, 0.22);
-
-  border-radius: 12px;
-
-  background: rgba(255, 255, 255, 0.025);
+.silhouette-template-upload-dialog {
+  width: min(700px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  box-sizing: border-box;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 24px 70px #0008;
 }
-
-.silhouette-template-upload-section.hidden {
-  display: none;
-}
-
-.silhouette-template-upload-section h3 {
-  margin: 0 0 5px;
-}
-
-.silhouette-template-upload-section > p {
-  margin: 0 0 14px;
-
-  color: rgba(230, 234, 242, 0.68);
-}
+.silhouette-template-upload-dialog[open] { display: flex; flex-direction: column; }
+.silhouette-template-upload-dialog::backdrop { background: #05070bcc; }
+.silhouette-template-upload-dialog .silhouette-template-library-header { flex-shrink: 0; align-items: flex-start; border-color: var(--border); }
+.silhouette-template-upload-dialog h2 { font-size: 1.3rem; line-height: 1.4; }
+.silhouette-template-upload-dialog .silhouette-template-library-header p { color: var(--muted); font-size: .9rem; line-height: 1.5; }
+.silhouette-template-upload-dialog .silhouette-template-library-close { flex-shrink: 0; }
+#silhouetteTemplateUploadForm { display: flex; flex-direction: column; min-height: 0; margin: 0; }
+.silhouette-template-upload-dialog .silhouette-template-library-body { min-height: 0; overscroll-behavior: contain; }
+.silhouette-template-upload-footer { flex-shrink: 0; padding: 16px 18px; border-top: 1px solid var(--border); }
+.silhouette-template-upload-footer .silhouette-template-library-status { margin: 0 0 12px; max-height: 18vh; overflow-y: auto; }
+.silhouette-template-upload-dialog :is(input, select, textarea, button):focus-visible { outline: 2px solid var(--theme-highlight, var(--menuborder)); outline-offset: 3px; }
+.silhouette-template-upload-dialog :disabled { opacity: .6; cursor: wait; }
 
 .silhouette-template-upload-form {
   display: grid;
@@ -399,6 +471,7 @@
   flex-direction: column;
 
   gap: 6px;
+  min-width: 0;
 }
 
 .silhouette-template-upload-form label > span {
@@ -417,12 +490,12 @@
 
   box-sizing: border-box;
 
-  border: 1px solid rgba(160, 170, 190, 0.3);
+  border: 1px solid var(--border);
 
   border-radius: 9px;
 
-  background: #12151b;
-  color: #f2f4f8;
+  background: var(--button);
+  color: var(--text);
 
   font: inherit;
 }
@@ -483,13 +556,17 @@
 
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
 
   margin-top: 2px;
 }
 
 .silhouette-template-upload-actions .action-button {
   width: auto;
-  min-width: 190px;
+  min-width: min(160px, 100%);
+  min-height: 44px;
+  border-radius: 10px;
 }
 
 .silhouette-template-library-status,
@@ -507,6 +584,7 @@
 }
 
 @media (max-width: 700px) {
+  .silhouette-template-upload-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
   .silhouette-template-library-modal {
     padding: 10px;
   }
@@ -522,6 +600,7 @@
 
   .silhouette-template-library-filter {
     min-width: 0;
+    flex: 0 0 auto;
   }
 
   .silhouette-template-library-filter-summary {

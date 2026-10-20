@@ -30,9 +30,10 @@
     "silhouetteTemplateUploadToggle",
   );
 
-  const uploadSection = document.getElementById(
-    "silhouetteTemplateUploadSection",
+  const uploadDialog = document.getElementById(
+    "silhouetteTemplateUploadModal",
   );
+  const uploadStatus = document.getElementById("silhouetteTemplateUploadStatus");
 
   const uploadForm = document.getElementById("silhouetteTemplateUploadForm");
 
@@ -56,15 +57,17 @@
     "silhouetteTemplateUploadPrintTemplate",
   );
 
-  const uploadButton = document.getElementById(
-    "silhouetteTemplateUploadButton",
-  );
-
   let templates = [];
+  let registrationTemplates = [];
+  let activeView = "cutting";
+  let removing = false;
+  const viewButtons = [...modal.querySelectorAll("[data-template-view]")];
   let printTemplateOptions = [];
   let activePrintTemplate = "";
   let selectedPrintTemplateFilter = "";
   let selectedMachineBrandFilter = "";
+  let uploading = false;
+  let previousUploadOverflow = "";
 
   function setStatus(message, isError) {
     const cleanMessage = String(message || "").trim();
@@ -83,26 +86,15 @@
     );
   }
 
-  function setUploadSectionExpanded(isExpanded) {
-    const expanded = Boolean(isExpanded);
+  function setUploadStatus(message, isError) {
+    uploadStatus.textContent = message || "";
+    uploadStatus.classList.toggle("hidden", !message);
+    uploadStatus.classList.toggle("is-error", Boolean(message && isError));
+  }
 
-    if (uploadSection) {
-      uploadSection.classList.toggle("hidden", !expanded);
-    }
-
-    if (uploadToggleButton) {
-      uploadToggleButton.setAttribute(
-        "aria-expanded",
-        expanded ? "true" : "false",
-      );
-
-      uploadToggleButton.innerHTML = expanded
-        ? "Hide Add Template"
-        : "Add Cutting Machine Template";
-    }
-
+  function openUploadModal() {
+    if (!uploadDialog || uploadDialog.open) return;
     if (
-      expanded &&
       uploadPrintTemplateSelect &&
       selectedPrintTemplateFilter &&
       printTemplateOptions.some(function (option) {
@@ -111,16 +103,20 @@
     ) {
       uploadPrintTemplateSelect.value = selectedPrintTemplateFilter;
     }
+    setUploadStatus("", false);
+    previousUploadOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    uploadDialog.showModal();
   }
 
   function closeModal() {
+    if (uploading || removing) return;
+    if (uploadDialog?.open) uploadDialog.close();
     modal.classList.add("hidden");
 
     modal.setAttribute("aria-hidden", "true");
 
     setStatus("", false);
-
-    setUploadSectionExpanded(false);
   }
 
   function populatePrintTemplateOptions() {
@@ -200,7 +196,7 @@
 
     const brands = Array.from(
       new Set(
-        templates
+        currentTemplates()
           .map(function (template) {
             return String(template.machine_brand || "Other").trim();
           })
@@ -229,7 +225,59 @@
       brandFilterSelect.appendChild(optionElement);
     });
 
+    if (!brands.some(brand => brand.toLowerCase() === selectedMachineBrandFilter)) selectedMachineBrandFilter = "";
     brandFilterSelect.value = selectedMachineBrandFilter;
+  }
+
+  function currentTemplates() {
+    return activeView === "registration" ? registrationTemplates : templates;
+  }
+
+  function setView(view) {
+    activeView = view;
+    viewButtons.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.templateView === view)));
+    populateMachineBrandFilterOptions();
+    renderTemplates();
+  }
+
+  async function removeTemplate(template, opener) {
+    if (removing) return;
+    removing = true;
+    const registration = activeView === "registration";
+    const confirmed = await window.iMomirConfirm.show({
+      title: registration ? "Remove Registration Marks?" : "Remove Cutting Template?",
+      message: `Remove “${template.name}” from Deckadence? ${registration ? "Its registration file will be deleted and it will no longer be available in Print / Export." : "Its uploaded cutting file will be deleted."} The paper layout will be kept.`,
+      confirmText: "Remove", cancelText: "Cancel", danger: true,
+    });
+    if (!confirmed) { removing = false; opener.focus(); return; }
+    const controls = [...modal.querySelectorAll("button, select")];
+    const disabledStates = controls.map(control => control.disabled);
+    controls.forEach(control => { control.disabled = true; });
+    grid.setAttribute("aria-busy", "true");
+    setStatus("Removing template…", false);
+    try {
+      const data = new FormData();
+      if (!registration) data.set("filename", template.filename);
+      const response = await fetch(template.remove_url, { method: "POST", body: data });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.error || payload.message || "The template could not be removed.");
+      if (registration) {
+        try {
+          const key = "deckadence.cutterSelection." + template.print_template;
+          if (JSON.parse(localStorage.getItem(key)) === template.id) localStorage.removeItem(key);
+        } catch (_) { /* Storage can be disabled. */ }
+        await window.deckadenceCutters?.refresh();
+      }
+      await loadOptions();
+      setStatus(payload.message, false);
+    } catch (error) {
+      setStatus(error.message || "The template could not be removed.", true);
+    } finally {
+      removing = false;
+      grid.removeAttribute("aria-busy");
+      controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
+      viewButtons.find(button => button.dataset.templateView === activeView)?.focus();
+    }
   }
 
   function renderTemplates() {
@@ -239,7 +287,9 @@
 
     grid.innerHTML = "";
 
-    const filteredTemplates = templates.filter(function (template) {
+    const entries = currentTemplates();
+    const registration = activeView === "registration";
+    const filteredTemplates = entries.filter(function (template) {
       const matchesPrintTemplate =
         !selectedPrintTemplateFilter ||
         template.print_template === selectedPrintTemplateFilter;
@@ -323,6 +373,7 @@
 
       machineLabel.textContent = [
         template.machine_brand || "Other",
+        template.model || "",
         template.file_format || "Template",
       ]
         .filter(Boolean)
@@ -339,7 +390,8 @@
 
       downloadLink.innerHTML =
         '<i class="fa-solid fa-download"></i>' +
-        "<span>Download Template</span>";
+        `<span>${registration ? "Download Marks" : "Download Template"}</span>`;
+      downloadLink.setAttribute("aria-label", `Download ${template.name}`);
 
       downloadLink.setAttribute(
         "download",
@@ -353,7 +405,8 @@
       description.className = "silhouette-template-library-description";
 
       description.textContent =
-        template.description || "No description provided.";
+        template.issue || (registration ? "Registration marks used by Deckadence when printing this paper layout." : template.description || "No description provided.");
+      if (template.issue) description.classList.add("is-unavailable");
 
       const filename = document.createElement("div");
 
@@ -367,16 +420,30 @@
 
       card.appendChild(filename);
 
-      card.appendChild(downloadLink);
+      const actions = document.createElement("div");
+      actions.className = "silhouette-template-library-card-actions";
+      if (template.download_url) actions.appendChild(downloadLink);
+      if (template.removable) {
+        const removeButton = document.createElement("button");
+        removeButton.type = "button";
+        removeButton.className = "action-button secondary-button silhouette-template-remove";
+        removeButton.innerHTML = '<i class="fa-solid fa-trash-can" aria-hidden="true"></i> Remove';
+        removeButton.setAttribute("aria-label", `Remove ${template.name}`);
+        removeButton.addEventListener("click", () => removeTemplate(template, removeButton));
+        actions.appendChild(removeButton);
+      }
+      card.appendChild(actions);
 
       grid.appendChild(card);
     });
 
     if (emptyState) {
+      emptyState.classList.toggle("hidden", sortedTemplates.length > 0);
       emptyState.textContent =
         selectedPrintTemplateFilter || selectedMachineBrandFilter
-          ? "No card cutting machine templates " + "match the selected filters."
-          : "No card cutting machine templates " + "are currently available.";
+          ? `No ${registration ? "registration marks" : "cutting templates"} match the selected filters.`
+          : registration ? "No registration marks have been uploaded. Add them using Cutter Template Setup."
+            : "No cutting machine templates are currently available.";
     }
 
     if (filterSummary) {
@@ -384,9 +451,9 @@
         "Showing " +
         sortedTemplates.length +
         " of " +
-        templates.length +
+        entries.length +
         " template" +
-        (templates.length === 1 ? "" : "s");
+        (entries.length === 1 ? "" : "s");
     }
   }
 
@@ -401,22 +468,17 @@
 
     setStatus("Loading card cutting machine templates...", false);
 
-    const response = await fetch(optionsUrl, {
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    const payload = await response.json();
-
-    if (!response.ok || !payload.ok) {
-      throw new Error(
-        payload.message ||
-          "Card cutting machine templates could not be loaded.",
-      );
-    }
+    const [payload, registrationPayload] = await Promise.all(
+      [optionsUrl, modal.dataset.registrationLibraryUrl].map(async url => {
+        const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(data.message || data.error || "Template files could not be loaded.");
+        return data;
+      }),
+    );
 
     templates = Array.isArray(payload.templates) ? payload.templates : [];
+    registrationTemplates = Array.isArray(registrationPayload.templates) ? registrationPayload.templates : [];
 
     printTemplateOptions = Array.isArray(payload.print_template_options)
       ? payload.print_template_options
@@ -428,10 +490,6 @@
 
     if (!activePrintTemplate) {
       activePrintTemplate = apiActivePrintTemplate;
-    }
-
-    if (!selectedPrintTemplateFilter) {
-      selectedPrintTemplateFilter = activePrintTemplate;
     }
 
     populatePrintTemplateOptions();
@@ -452,8 +510,6 @@
     selectedPrintTemplateFilter = activePrintTemplate;
     selectedMachineBrandFilter = "";
 
-    setUploadSectionExpanded(false);
-
     modal.classList.remove("hidden");
 
     modal.setAttribute("aria-hidden", "false");
@@ -472,6 +528,7 @@
 
   async function uploadTemplate(event) {
     event.preventDefault();
+    if (uploading) return;
 
     if (
       !uploadForm ||
@@ -479,7 +536,7 @@
       !uploadFileInput.files ||
       !uploadFileInput.files[0]
     ) {
-      setStatus("Choose a cutting machine template file to upload.", true);
+      setUploadStatus("Choose a cutting machine template file to upload.", true);
 
       return;
     }
@@ -495,7 +552,7 @@
     );
 
     if (!hasSupportedExtension) {
-      setStatus("Supported formats are .studio3, .svg, .dxf, and .fcm.", true);
+      setUploadStatus("Supported formats are .studio3, .svg, .dxf, and .fcm.", true);
 
       return;
     }
@@ -503,7 +560,7 @@
     const uploadUrl = String(modal.dataset.uploadUrl || "").trim();
 
     if (!uploadUrl) {
-      setStatus(
+      setUploadStatus(
         "Card cutting machine template upload URL is not configured.",
         true,
       );
@@ -532,11 +589,12 @@
       uploadPrintTemplateSelect ? uploadPrintTemplateSelect.value : "",
     );
 
-    if (uploadButton) {
-      uploadButton.disabled = true;
-    }
-
-    setStatus("Uploading cutting machine template...", false);
+    const controls = [...uploadDialog.querySelectorAll("input, select, textarea, button")];
+    const disabledStates = controls.map(control => control.disabled);
+    uploading = true;
+    uploadForm.setAttribute("aria-busy", "true");
+    controls.forEach(control => { control.disabled = true; });
+    setUploadStatus("Uploading cutting machine template...", false);
 
     try {
       const response = await fetch(uploadUrl, {
@@ -561,24 +619,27 @@
 
       uploadForm.reset();
 
+      selectedPrintTemplateFilter = formData.get("print_template");
+      selectedMachineBrandFilter = "";
+      setView("cutting");
       populatePrintTemplateOptions();
       populateTemplateFilterOptions();
       populateMachineBrandFilterOptions();
-      setUploadSectionExpanded(false);
+      uploadDialog.close();
       renderTemplates();
 
       setStatus(payload.message || "Cutting machine template uploaded.", false);
     } catch (error) {
-      setStatus(
+      setUploadStatus(
         error && error.message
           ? error.message
           : "Cutting machine template upload failed.",
         true,
       );
     } finally {
-      if (uploadButton) {
-        uploadButton.disabled = false;
-      }
+      uploading = false;
+      uploadForm.removeAttribute("aria-busy");
+      controls.forEach((control, index) => { control.disabled = disabledStates[index]; });
     }
   }
 
@@ -596,9 +657,14 @@
       button.addEventListener("click", closeModal);
     });
 
-  if (uploadToggleButton && uploadSection) {
-    uploadToggleButton.addEventListener("click", function () {
-      setUploadSectionExpanded(uploadSection.classList.contains("hidden"));
+  if (uploadToggleButton && uploadDialog) {
+    uploadToggleButton.addEventListener("click", openUploadModal);
+    uploadDialog.querySelectorAll("[data-silhouette-template-upload-close]").forEach(button => {
+      button.addEventListener("click", () => { if (!uploading) uploadDialog.close(); });
+    });
+    uploadDialog.addEventListener("cancel", event => { if (uploading) event.preventDefault(); });
+    uploadDialog.addEventListener("close", () => {
+      document.body.style.overflow = previousUploadOverflow;
     });
   }
 
@@ -626,7 +692,23 @@
     uploadForm.addEventListener("submit", uploadTemplate);
   }
 
+  viewButtons.forEach(button => button.addEventListener("click", () => {
+    setView(button.dataset.templateView);
+    setStatus("", false);
+  }));
+
+  document.addEventListener("cutter-registration-saved", async event => {
+    selectedPrintTemplateFilter = event.detail.paperId;
+    selectedMachineBrandFilter = "";
+    setView("registration");
+    if (!modal.classList.contains("hidden")) {
+      try { await loadOptions(); }
+      catch (error) { setStatus(error.message, true); }
+    }
+  });
+
   document.addEventListener("keydown", function (event) {
+    if (removing || document.querySelector("dialog[open]")) return;
     if (event.key === "Escape" && !modal.classList.contains("hidden")) {
       event.preventDefault();
       closeModal();
