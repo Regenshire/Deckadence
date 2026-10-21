@@ -13,9 +13,11 @@ from flask import jsonify, request, send_file, url_for
 from PIL import Image, UnidentifiedImageError
 from .foil_workflows import WORKFLOWS, OUTPUTS, LAYER_TYPES, load_preferences, normalize_display_color
 from .manager import get_plugin_status, run_plugin_json
-from .finishing_effects import EFFECT_TYPES, validate_effect, parameters, render_overlay, cached_overlay
-from .mirror_shards import TEMPLATES as SHARD_TEMPLATES, THEMES as MIRROR_THEMES
+from .finishing_effects import EFFECT_TYPES, validate_effect, parameters, render_overlay, cached_overlay, chocobo_selection
+from .finishing_patterns import PATH_EFFECTS, pattern_selection
+from .mirror_shards import TEMPLATES as SHARD_TEMPLATES, THEMES as MIRROR_THEMES, shard_selection
 from .mirror_generation import register_mirror_generation_routes, generator_ready
+from .finishing_bakes import artwork_layers, cached_artwork
 
 MASK_SIZE = (756, 1056)
 MAX_MASK_SIZE = (3024, 4224)
@@ -124,7 +126,10 @@ def record_json(row, key):
             value["overlay_url"] = url_for("card_finishing_overlay", card_uuid=key[1], face=key[2], layer=layer,
                                           expected_scope=key[0], revision=row["revision"], **owner)
         settings[layer] = value
-    return {**settings, "revision": row["revision"],
+    baked_url = (url_for("card_finishing_baked_art", card_uuid=key[1], face=key[2],
+                        expected_scope=key[0], revision=row["revision"], **owner)
+                 if any(settings.get(layer) for layer in ("effect1", "effect2")) else None)
+    return {**settings, "revision": row["revision"], "baked_url": baked_url,
             "mask_url": url_for("card_spot_foil_mask", card_uuid=key[1], face=key[2],
                                 expected_scope=key[0], revision=row["revision"], **owner)}
 
@@ -244,7 +249,7 @@ def validate_settings(payload):
         value = payload[layer]
         if value is not None:
             keys = {"finish", "strength", "scale", "density", "seed", "overlay_color", "generation", "mask_data"}
-            if not isinstance(value, dict) or set(value)-{"color","translucence","shards","rotation"} != keys:
+            if not isinstance(value, dict) or set(value)-{"color","translucence","shards","rotation","position_x","position_y","transparency","black_depth","silver_brightness"} != keys:
                 raise ValueError("Provide valid printable effect settings.")
             value = {**validate_effect(parameters(value)), "overlay_color": normalize_display_color(value["overlay_color"]),
                      "generation": validate_generation(value["generation"]),
@@ -253,8 +258,33 @@ def validate_settings(payload):
     return result
 
 
-def register_card_spot_foil_routes(app, get_connection, get_config, resolve_context, api_errors, isolation_operation):
+def register_card_spot_foil_routes(app, get_connection, get_config, resolve_context, api_errors, isolation_operation, load_artwork=None):
     register_mirror_generation_routes(app,get_connection,resolve_context,api_errors,decode_mask,card_key)
+    # The app supplies its normal, scope-aware original-art resolver. Never load
+    # a browser-provided URL or another baked image as the source.
+    def bake(card, context, settings):
+        loader = load_artwork or app.config.get("FINISHING_ARTWORK_LOADER")
+        if not loader:
+            raise RuntimeError("The finishing artwork source is unavailable.")
+        path = loader(*card, context)
+        with Image.open(path) as source:
+            return cached_artwork(source, artwork_layers(settings))
+
+    @app.get("/cards/spot-foil/<card_uuid>/<face>/baked-art")
+    @api_errors
+    def card_finishing_baked_art(card_uuid, face):
+        card = card_key(dict(card_uuid=card_uuid, face=face))
+        with closing(get_connection()) as conn, conn:
+            ensure_schema(conn)
+            context = resolve_context(conn, False)
+            row = read_record(conn, (context.scope_id or "global", *card))
+            settings = json.loads(row["settings"]) if row else {}
+        path = bake(card, context, settings)
+        response = send_file(path, mimetype="image/png", etag=path.stem,
+                             download_name=f"{card_uuid}-{face}-finished.png")
+        # Source art may change independently of the finishing revision.
+        response.cache_control.no_cache = True
+        return response
     @app.route("/cards/spot-foil/lookup", methods=["POST"])
     @api_errors
     def card_spot_foil_lookup():
@@ -326,12 +356,12 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if request.method == "PUT":
             # Disposable view caches are optional: a cache error must never turn
             # a successful atomic save into a misleading save failure.
-            for layer in ("effect1", "effect2"):
-                if settings.get(layer):
-                    try:
-                        cached_overlay(base64.b64decode(settings[layer]["mask_png_base64"]), settings[layer])
-                    except Exception:
-                        app.logger.warning("Could not cache a finishing overlay", exc_info=True)
+            if any(settings.get(layer) for layer in ("effect1", "effect2")):
+                try:
+                    if load_artwork or app.config.get("FINISHING_ARTWORK_LOADER"):
+                        bake(card, context, settings)
+                except Exception:
+                    app.logger.warning("Could not bake finishing artwork; the next view will retry", exc_info=True)
         subject_detector = get_plugin_status("subject-detection-ai")
         return jsonify(ok=True, record=result, preferences=load_preferences(get_config()), workflows=WORKFLOWS,
                        output_formats=OUTPUTS, layer_types=LAYER_TYPES, effect_types=EFFECT_TYPES,
@@ -478,6 +508,54 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         effect = validate_effect(payload["effect"])
         png = render_overlay(decode_mask(payload["mask_data"]), effect, width=756)
         response = send_file(BytesIO(png), mimetype="image/png")
+        response.cache_control.no_store = True
+        return response
+
+    @app.route("/cards/spot-foil/<card_uuid>/<face>/effect-path", methods=["POST"])
+    @api_errors
+    def card_finishing_path(card_uuid, face):
+        """Copy template geometry without the artwork, tint or current mask."""
+        card_key(dict(card_uuid=card_uuid, face=face))
+        if request.content_length and request.content_length > 4096:
+            return jsonify(ok=False, message="Template settings are too large."), 413
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise ValueError('Provide the template and its size, rotation and position.')
+        finish = payload.get('finish')
+        keys = {'finish','scale','rotation','width'}
+        if finish == 'mirror_shards':
+            keys |= {'template','x','y'}
+        elif finish in PATH_EFFECTS:
+            keys |= {'density','seed'}
+        elif finish != 'chocobo_tracks':
+            raise ValueError('This effect does not have a copyable template path.')
+        # Older clients omit the new track offsets; their default is centered.
+        optional = {'x','y'} if finish == 'chocobo_tracks' or finish in PATH_EFFECTS else set()
+        if set(payload)-optional != keys:
+            raise ValueError('Provide valid template settings.')
+        width = payload['width']
+        if type(width) is not int or not MASK_SIZE[0] <= width <= MAX_MASK_SIZE[0]:
+            raise ValueError('Choose a mask width from 756 to 3024 pixels.')
+        height = round(width * MASK_SIZE[1] / MASK_SIZE[0])
+        if finish in PATH_EFFECTS:
+            effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=payload['density'],seed=payload['seed'],
+                                        rotation=payload['rotation'],position_x=payload.get('x',0),position_y=payload.get('y',0)))
+            alpha=pattern_selection(finish,width,height,effect['scale'],effect['density'],effect['seed'],effect['rotation'],effect['position_x'],effect['position_y'])
+        elif finish == 'chocobo_tracks':
+            effect = validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=100,seed=0,
+                                          rotation=payload['rotation'],position_x=payload.get('x',0),position_y=payload.get('y',0)))
+            alpha = chocobo_selection(width,height,effect['scale'],effect['rotation'],effect['position_x'],effect['position_y'])
+        else:
+            effect = validate_effect(dict(finish=finish,strength=100,scale=100,density=100,seed=0,
+                rotation=payload['rotation'],shards=dict(template=payload['template'],template_scale=payload['scale'],
+                template_x=payload['x'],template_y=payload['y'])))
+            settings = effect['shards']
+            alpha = shard_selection(settings['template'],width,height,effect['rotation'],settings['template_scale'],
+                                    settings['template_x'],settings['template_y'])
+        image = Image.new('RGBA',(width,height),'white')
+        image.putalpha(alpha)
+        output = BytesIO();image.save(output,format='PNG');output.seek(0)
+        response = send_file(output,mimetype='image/png')
         response.cache_control.no_store = True
         return response
 

@@ -38,6 +38,13 @@ img:is(.card-image, .card-zoom-image, .card-search-preview-image,
   position: absolute; inset: 0; border-radius: inherit;
   pointer-events: none; user-select: none; opacity: 0;
 }
+/* Preview stack: artwork, printable Effect 1/2, foil, then raised gloss.
+   Mask wrappers must occupy the same level as unmasked foil layers. */
+.card-effects > img { position: relative; z-index: 0; }
+/* The grid fades lazy artwork in. A separately composited opacity animation
+   can leave backdrop filters showing a stale image after that fade ends. */
+.card-effects[data-card-printed-backdrop] > img { transition: none; }
+.card-effects > :is(.card-effect-layer, .card-spot-clip) { z-index: 3; }
 .card-effect-rainbow {
   background: linear-gradient(115deg, #6be6fc 0%, #8159d4 18%, #fd86d1 32%, #ffd169 48%, #8ad8a4 63%, #51caf2 78%, #b78ced 100%);
   background-size: 260% 260%;
@@ -116,8 +123,9 @@ img:is(.card-image, .card-zoom-image, .card-search-preview-image,
    shade the composite; the clear interior leaves the underlying foil visible. */
 .card-gloss-layer { position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   z-index: 4; opacity: var(--card-gloss-strength, 1); }
-.card-printed-effect, .card-printed-glaze { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: center / 100% 100% no-repeat; z-index: 2; }
-.card-printed-effect[data-layer="2"], .card-printed-glaze[data-layer="2"] { z-index: 3; }
+.card-printed-effect, .card-printed-glaze { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: center / 100% 100% no-repeat; z-index: 1; }
+.card-printed-effect[data-layer="2"], .card-printed-glaze[data-layer="2"] { z-index: 2; }
+.card-printed-effect { mask-size: 100% 100%; mask-position: center; mask-repeat: no-repeat; }
 .card-printed-glaze { mix-blend-mode: color; }
 .imomir-card-flip-animating :is(.card-printed-effect, .card-printed-glaze), .card-effects:has(.chaos-pack-inline-card-flipping) :is(.card-printed-effect, .card-printed-glaze) { visibility: hidden; }
 .card-gloss-layer > svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border-radius: inherit; overflow: hidden; }

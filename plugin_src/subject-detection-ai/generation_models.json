@@ -21,7 +21,7 @@
   },
   "instruct_pix2pix": {
     "name": "InstructPix2Pix",
-    "description": "Compact instruction-based image editing. A smaller starting point for themed scene changes; less precise than FLUX.",
+    "description": "Compact instruction-based image editing. Less precise than FLUX. Not suitable for full-canvas outpainting used by Mirror scenes.",
     "repository": "timbrooks/instruct-pix2pix",
     "revision": "31519b5cb02a7fd89b906d88731cd4d6a7bbf88d",
     "download_gb": 2.8,

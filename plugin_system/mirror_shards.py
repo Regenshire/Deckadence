@@ -13,20 +13,57 @@ TEMPLATES={'falling':'Falling shards','impact':'Mirror impact','diagonal':'Diago
            'radiant':'Radiant burst','spell':'Spell splinters','cascade':'Crystal cascade','revelation':'Mirror revelation'}
 THEMES={
     'dark':'Dark','spooky':'Spooky','normal':'Normal','modern':'Modern',
-    'echo':'Echo','angelic':'Angelic','demonic':'Demonic',
+    'echo':'Echo','angelic':'Angelic','demonic':'Demonic','custom':'Custom',
 }
 ASSET_ROOT=Path(__file__).resolve().parents[1]/'static/img/card-effects/mirror-shards'
 SCENE_SELECTION_BYTES=756*1056//8
 
 
+def validate_custom_prompt(prompt):
+    if not isinstance(prompt,str) or len(prompt)>1000:
+        raise ValueError('Use a custom theme prompt of up to 1,000 characters.')
+    return prompt.strip()
+
+
+def expanded_scene_geometry(size,margin):
+    """Symmetric background padding, bounded by the saved scene image limits."""
+    factor=1+margin/50
+    scale=min(1,4096/(size[0]*factor),6144/(size[1]*factor))
+    core=tuple(max(64,math.floor(v*scale)) for v in size)
+    padding=tuple(math.floor(v*margin/100) for v in core)
+    return tuple(v+2*p for v,p in zip(core,padding)),padding
+
+
 def validate_shards(value):
-    if not isinstance(value,dict) or set(value)-{'template','theme','mirror','tint','scene','scene_theme','scene_source','scene_selection','scene_rotation','scene_zoom','scene_skew'}:
+    if not isinstance(value,dict) or set(value)-{'template','template_scale','template_x','template_y','theme','mirror','tint','scene','scene_theme','scene_source','scene_selection','scene_rotation','scene_zoom','scene_skew','scene_x','scene_y','custom_prompt','scene_custom_prompt','outpaint_margin','scene_margin','scene_padding','maintain_style','scene_maintain_style'}:
         raise ValueError('Choose valid mirror shard settings.')
     value={'template':'falling','theme':'dark','mirror':False,'tint':18,'scene':'',**value}
     value.setdefault('scene_theme',value['theme'])
     value.setdefault('scene_source','')
     value.setdefault('scene_selection','')
     value.setdefault('scene_rotation',0)
+    value.setdefault('scene_margin',0)
+    value.setdefault('outpaint_margin',value['scene_margin'] if value['scene'] else 30)
+    value.setdefault('scene_padding',[0,0])
+    value.setdefault('maintain_style',not bool(value['scene']))
+    value.setdefault('scene_maintain_style',False)
+    for key in ('maintain_style','scene_maintain_style'):
+        if type(value[key]) is not bool:raise ValueError('Choose whether to maintain the source art style.')
+    for key in ('custom_prompt','scene_custom_prompt'):
+        value[key]=validate_custom_prompt(value.get(key,''))
+    for key in ('outpaint_margin','scene_margin'):
+        if type(value[key]) is not int or not 0<=value[key]<=100:
+            raise ValueError('Choose an outpainting margin from 0 to 100%.')
+    padding=value['scene_padding']
+    if not isinstance(padding,(list,tuple)) or len(padding)!=2 or any(type(v) is not int or v<0 for v in padding):
+        raise ValueError('The rendered scene has invalid background padding.')
+    value.setdefault('template_scale',100)
+    if type(value['template_scale']) is not int or not 25<=value['template_scale']<=200:
+        raise ValueError('Choose a shard size from 25 to 200%.')
+    for key in ('scene_x','scene_y','template_x','template_y'):
+        value.setdefault(key,0)
+        if type(value[key]) is not int or not -100<=value[key]<=100:
+            raise ValueError('Choose shard and image positions from -100 to 100%.')
     if type(value['scene_rotation']) is not int or not -180<=value['scene_rotation']<=180:
         raise ValueError('Choose an alternate image rotation from -180 to 180 degrees.')
     for key,default,low,high in (('scene_zoom',100,50,300),('scene_skew',0,-60,60)):
@@ -39,13 +76,21 @@ def validate_shards(value):
         raise ValueError('Choose a valid mirror state and tint from 0 to 100%.')
     if not isinstance(value['scene'],str) or len(value['scene'])>20_000_000:
         raise ValueError('The rendered mirror scene is too large.')
-    if value['scene']:decode_scene(value['scene'])
+    if value['scene']:
+        scene=decode_scene(value['scene'])
+        if any(v-2*p<64 for v,p in zip(scene.size,padding)):
+            raise ValueError('The rendered scene has invalid background padding.')
     if value['mirror'] and not value['scene']:
         raise ValueError('Generate a mirror scene before applying Mirror.')
     if not isinstance(value['scene_theme'],str) or value['scene_theme'] not in THEMES:
         raise ValueError('The rendered scene has an invalid theme.')
     if value['mirror'] and value['scene_theme']!=value['theme']:
         raise ValueError('Generate a new mirror scene for the selected theme.')
+    if value['mirror'] and value['maintain_style']!=value['scene_maintain_style']:
+        raise ValueError('Generate a new mirror scene to apply the art style setting.')
+    if value['mirror'] and (value['outpaint_margin']!=value['scene_margin'] or
+                           value['theme']=='custom' and (not value['custom_prompt'] or value['custom_prompt']!=value['scene_custom_prompt'])):
+        raise ValueError('Generate a new mirror scene for the selected prompt and outpainting margin.')
     if not isinstance(value['scene_source'],str) or not re.fullmatch(r'(?:[0-9a-f]{8})?',value['scene_source']):
         raise ValueError('The rendered scene has an invalid artwork signature.')
     selection=value['scene_selection']
@@ -82,59 +127,69 @@ def shard_polygons(template):
     return tuple(polygons)
 
 
-def rotated_polygons(template,width,height,rotation=0):
-    if rotation%360==0:
-        return [[(x*width/1000,y*height/1400) for x,y in polygon] for polygon in shard_polygons(template)]
-    angle=math.radians(rotation);c,s=math.cos(angle),math.sin(angle)
+def rotated_polygons(template,width,height,rotation=0,scale=100,offset_x=0,offset_y=0):
+    """Scale and rotate about the card center, then translate in card axes."""
+    dx,dy=width*offset_x/100,height*offset_y/100
+    if rotation%360==0 and scale==100:
+        return [[(x*width/1000+dx,y*height/1400+dy) for x,y in polygon] for polygon in shard_polygons(template)]
+    angle=math.radians(rotation);c,s=math.cos(angle)*scale/100,math.sin(angle)*scale/100
     cx,cy=width/2,height/2
-    return [[(cx+(x*width/1000-cx)*c-(y*height/1400-cy)*s,
-              cy+(x*width/1000-cx)*s+(y*height/1400-cy)*c) for x,y in polygon]
+    return [[(cx+(x*width/1000-cx)*c-(y*height/1400-cy)*s+dx,
+              cy+(x*width/1000-cx)*s+(y*height/1400-cy)*c+dy) for x,y in polygon]
             for polygon in shard_polygons(template)]
 
 
-def transform_image(image,degrees=0,zoom=100,skew=0):
+def transform_image(image,degrees=0,zoom=100,skew=0,output_size=None,offset_x=0,offset_y=0,content_padding=(0,0)):
     """Center rotation and horizontal shear, with 100% zoom covering the canvas.
 
     Zoom below 100% deliberately reveals space around the alternate image.
     Transform only the artwork; shard geometry and the user's mask stay fixed.
     """
-    if degrees%360==0 and zoom==100 and skew==0:return image
-    width,height=image.size;cx,cy=width/2,height/2
+    width,height=output_size or image.size;cx,cy=width/2,height/2
+    source_width,source_height=image.size
+    core_width,core_height=source_width-2*content_padding[0],source_height-2*content_padding[1]
+    if not any(content_padding) and degrees%360==0 and zoom==100 and skew==0 and offset_x==0 and offset_y==0 and source_width*height==source_height*width:
+        return image if image.size==(width,height) else image.resize((width,height),Image.Resampling.LANCZOS)
     angle=math.radians(degrees);c,s=math.cos(angle),math.sin(angle)
     shear=math.tan(math.radians(skew))
     # Inverse of rotation * horizontal shear, for Pillow's output-to-input map.
     a,b,d,e=c+shear*s,s-shear*c,-s,c
-    scale=max(abs(a)+abs(b)*height/width,abs(d)*width/height+abs(e))*zoom/100
+    # Cover-fit the original artwork without stretching it. Retain off-canvas
+    # source pixels so zooming out can reveal the rest of a landscape art crop.
+    # Fit the protected center, leaving generated background outside the normal
+    # view for translation/zoom. Fitting the whole padded PNG would lose it.
+    scale=max((abs(a)*width+abs(b)*height)/core_width,
+              (abs(d)*width+abs(e)*height)/core_height)*zoom/100
     a,b,d,e=a/scale,b/scale,d/scale,e/scale
-    return image.transform(image.size,Image.Transform.AFFINE,
-                           (a,b,cx-a*cx-b*cy,d,e,cy-d*cx-e*cy),Image.Resampling.BICUBIC)
+    cx+=width*offset_x/100;cy+=height*offset_y/100
+    return image.transform((width,height),Image.Transform.AFFINE,
+                           (a,b,source_width/2-a*cx-b*cy,d,e,source_height/2-d*cx-e*cy),Image.Resampling.BICUBIC)
 
 
-def shard_selection(template,width,height,rotation=0):
+def shard_selection(template,width,height,rotation=0,scale=100,offset_x=0,offset_y=0):
     mask=Image.new('L',(width,height))
     draw=ImageDraw.Draw(mask)
-    for polygon in rotated_polygons(template,width,height,rotation):
+    for polygon in rotated_polygons(template,width,height,rotation,scale,offset_x,offset_y):
         draw.polygon(polygon,fill=255)
     return mask
 
 
-def render_shards(template,color,tint,width,height,scene=None,rotation=0,scene_rotation=0,scene_zoom=100,scene_skew=0):
+def render_shards(template,color,tint,width,height,scene=None,rotation=0,scene_rotation=0,scene_zoom=100,scene_skew=0,template_scale=100,scene_x=0,scene_y=0,scene_padding=(0,0),template_x=0,template_y=0):
     """Render clean glass or one aligned scene inside the same exact shards.
 
     `scene` is already-generated artwork, never a procedural AI substitute.
     Selection masks and layer strength are applied by the common effect renderer.
     """
     rgb=tuple(int(color[i:i+2],16) for i in (1,3,5))
-    unit=width/756
+    unit=width/756*template_scale/100
     result=Image.new('RGBA',(width,height))
     if scene is not None:
-        result=scene.convert('RGBA').resize((width,height),Image.Resampling.LANCZOS)
-        result=transform_image(result,scene_rotation,scene_zoom,scene_skew)
+        result=transform_image(scene.convert('RGBA'),scene_rotation,scene_zoom,scene_skew,output_size=(width,height),offset_x=scene_x,offset_y=scene_y,content_padding=scene_padding)
         # Clip the scene without making its transparent pixels opaque. Glass
         # reflections still render over those areas as they do in glass mode.
-        result.putalpha(ImageChops.multiply(result.getchannel('A'),shard_selection(template,width,height,rotation)))
+        result.putalpha(ImageChops.multiply(result.getchannel('A'),shard_selection(template,width,height,rotation,template_scale,template_x,template_y)))
     glass=Image.new('RGBA',result.size)
-    for index,points in enumerate(rotated_polygons(template,width,height,rotation)):
+    for index,points in enumerate(rotated_polygons(template,width,height,rotation,template_scale,template_x,template_y)):
         left=max(0,math.floor(min(x for x,y in points))-2)
         top=max(0,math.floor(min(y for x,y in points))-2)
         right=min(width,math.ceil(max(x for x,y in points))+3)

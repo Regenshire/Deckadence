@@ -11,29 +11,34 @@ import re
 import tempfile
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageMath
+from foil_effects import custom_pattern_alpha
 from paths import IMAGE_CACHE_DIR
 from .finishing_materials import MATERIAL_EFFECTS, render_material
+from .finishing_patterns import EFFECTS as PATTERN_EFFECTS, COLORS as PATTERN_COLORS, PATH_EFFECTS, RETIRED_EFFECTS, render_pattern
 from .mirror_shards import validate_shards, decode_scene, render_shards, transform_image
 
 CACHE_ROOT = Path(IMAGE_CACHE_DIR) / "finishing_effects"
-RENDER_VERSION = 13
-COLOR_DEFAULTS = {'stars':'#FFF4C3','halftone':'#121930','neon':'#46F5FF','mirror_shards':'#B8EFFF'}
+RENDER_VERSION = 22
+COLOR_DEFAULTS = {'stars':'#FFF4C3','halftone':'#121930','neon':'#46F5FF','mirror_shards':'#B8EFFF','chocobo_tracks':'#FFFFFF'}
+COLOR_DEFAULTS.update(PATTERN_COLORS)
 MATERIAL_PATH = Path(__file__).resolve().parents[1] / 'static/img/card-effects/fracture-foil-material-v1.png'
 EFFECT_TYPES = {
     "glitter_1": "Glitter - Type 1", "glitter_2": "Glitter - Type 2", "glitter_3": "Glitter - Type 3",
     "stars": "Big Stars", "gold": "Gold Foil Effect", "silver": "Silver Foil Effect",
     "galaxy": "Galaxy Foil Effect", "fracture": "Fracture Foil Effect",
+    "chocobo_tracks": "Chocobo Track",
     "pearl": "Pearlescent Wash", "etched": "Etched Metal", "watercolor": "Watercolor Texture",
     "halftone": "Halftone Dots", "neon": "Neon Edge Glow",
     **MATERIAL_EFFECTS,
+    **PATTERN_EFFECTS,
     'mirror_shards':'Dark Mirror Shards · AI Effect',
 }
 
 
 def validate_effect(value):
-    if not isinstance(value, dict) or set(value)-{'color','translucence','shards','rotation'} != {"finish", "strength", "scale", "density", "seed"}:
+    if not isinstance(value, dict) or set(value)-{'color','translucence','shards','rotation','position_x','position_y','transparency','black_depth','silver_brightness'} != {"finish", "strength", "scale", "density", "seed"}:
         raise ValueError("Choose valid finishing effect settings.")
-    if not isinstance(value["finish"],str) or value["finish"] not in EFFECT_TYPES:
+    if not isinstance(value["finish"],str) or (value["finish"] not in EFFECT_TYPES and value["finish"] not in RETIRED_EFFECTS):
         raise ValueError("Choose a supported finishing effect.")
     for key, low, high in (("strength", 1, 100), ("scale", 25, 200), ("density", 25, 200), ("seed", 0, 2147483647)):
         if type(value[key]) is not int or not low <= value[key] <= high:
@@ -51,6 +56,25 @@ def validate_effect(value):
         value=dict(value,shards=validate_shards(value.get('shards',{})))
     elif 'shards' in value:
         raise ValueError('Shard settings only apply to Dark Mirror Shards.')
+    track_keys={'position_x','position_y','transparency'}
+    if value['finish']=='chocobo_tracks' or value['finish'] in PATH_EFFECTS:
+        value=dict(value)
+        for key,low,high in (('position_x',-100,100),('position_y',-100,100),('transparency',0,100)):
+            number=value.get(key,0)
+            if type(number) is not int or not low<=number<=high:
+                raise ValueError('Choose valid pattern position and transparency settings.')
+            value[key]=number
+    elif track_keys & set(value):
+        raise ValueError('Position and transparency only apply to shape patterns.')
+    if value['finish']=='silver_black':
+        value=dict(value)
+        for key,default in (('black_depth',0),('silver_brightness',90)):
+            number=value.get(key,default)
+            if type(number) is not int or not 0<=number<=100:
+                raise ValueError('Choose black depth and silver brightness from 0 to 100%.')
+            value[key]=number
+    elif {'black_depth','silver_brightness'} & set(value):
+        raise ValueError('Black depth and silver brightness only apply to Silver & Black Art.')
     return dict(value,color=color.upper(),translucence=translucence,rotation=rotation)
 
 
@@ -59,11 +83,36 @@ def parameters(value):
             'color':value.get('color',COLOR_DEFAULTS.get(value['finish'],'#FFE7A0')),
             'translucence':value.get('translucence',0),
             'rotation':value.get('rotation',0),
+            **({'black_depth':value.get('black_depth',0),'silver_brightness':value.get('silver_brightness',90)} if value['finish']=='silver_black' else {}),
+            **({key:value.get(key,0) for key in ('position_x','position_y','transparency')} if value['finish']=='chocobo_tracks' or value['finish'] in PATH_EFFECTS else {}),
             **({'shards':value.get('shards',{})} if value['finish']=='mirror_shards' else {})}
 
 
 def translucence_amount(effect):
+    if effect.get('finish')=='oil_slick':return 1
+    if effect.get('finish')=='neon_ink':return .85
     return effect.get('translucence',0)/100 if effect.get('finish')=='fracture' else 0
+
+
+def needs_backdrop(effect):
+    return effect.get('finish')=='silver_black' or bool(translucence_amount(effect))
+
+
+def composite_overlay(backdrop, overlay, effect):
+    if effect.get('finish')=='silver_black':
+        # Match the preview's grayscale, exposure, contrast and silver ceiling,
+        # clipping between operations. Coverage/strength stay in the mask.
+        gray=backdrop.convert('RGB').convert('L',(.2126,.7152,.0722,0))
+        contrast=1+effect.get('density',100)*.0035
+        black=effect.get('black_depth',0)*.006
+        silver=effect.get('silver_brightness',90)/100
+        def tone(p):
+            exposed=max(0,min(255,(min(255,p*1.5)-127.5)*contrast+127.5))
+            return round(max(0,(exposed-255*black)/(1-black))*silver)
+        gray=gray.point(tone)
+        result=gray.convert('RGBA');result.putalpha(overlay.getchannel('A'))
+        return result
+    return blend_overlay(backdrop,overlay,translucence_amount(effect))
 
 
 def _color_blend(backdrop, source):
@@ -111,6 +160,37 @@ def _rainbow(rng, alpha=255):
 
 def _watercolor_rainbow(rng, alpha=255):
     return (*[round(v * 255) for v in colorsys.hsv_to_rgb(rng.random(), .65 + rng.random() * .3, 1)], alpha)
+
+
+def chocobo_selection(width, height, scale=100, rotation=0, position_x=0, position_y=0):
+    """The original SVG tracks, shared by the printable layer and Copy Path.
+
+    Preserve the original proportions and placement; per-layer size/rotation
+    are independent of the legacy global foil settings.
+    """
+    pattern_width=max(1,round(width*scale/100))
+    alpha=custom_pattern_alpha('chocobo',pattern_width)
+    left,top=round((width-pattern_width)/2),round(height*.0224)
+    cx,cy=width/2,height/2
+    dx,dy=round(width*position_x/100),round(height*position_y/100)
+    angle=math.radians(rotation);c,s=math.cos(angle),math.sin(angle)
+    # Inverse of rotation around the card center, then screen-axis translation.
+    # Transform the full SVG raster so moving a large pattern can reveal tracks
+    # that were outside the card before the move.
+    return alpha.transform((width,height),Image.Transform.AFFINE,
+        (c,s,cx-left-c*(cx+dx)-s*(cy+dy),-s,c,cy-top+s*(cx+dx)-c*(cy+dy)),
+        Image.Resampling.BICUBIC)
+
+
+def _chocobo_overlay(width, height, effect):
+    # Use the original print foil's reflected colors, tinted by this layer.
+    gradient = Image.new('RGB', (128, 128))
+    gradient.putdata([tuple(round(c * 255) for c in colorsys.hsv_to_rgb(
+        ((x + y * .55) / 160) % 1, .45, 1)) for y in range(128) for x in range(128)])
+    image = ImageChops.multiply(gradient.resize((width, height), Image.Resampling.BICUBIC),
+                               Image.new('RGB', (width, height), effect['color'])).convert('RGBA')
+    image.putalpha(chocobo_selection(width,height,effect['scale'],effect['rotation'],effect['position_x'],effect['position_y']))
+    return image
 
 
 @lru_cache(maxsize=1)
@@ -210,12 +290,18 @@ def render_overlay(mask_png, effect, width=None):
         size=(width,round(width*source.height/source.width))
         alpha=source.getchannel("A").resize(size,Image.Resampling.LANCZOS)
     unit=width/756
-    if effect['finish']=='mirror_shards':
+    if effect['finish'] in PATTERN_EFFECTS or effect['finish'] in RETIRED_EFFECTS:
+        image=render_pattern(effect,*size)
+    elif effect['finish']=='mirror_shards':
         options=effect['shards']
         scene=decode_scene(options['scene']) if options['mirror'] else None
         image=render_shards(options['template'],effect['color'],options['tint'],*size,scene=scene,
                             rotation=effect['rotation'],scene_rotation=options['scene_rotation'],
-                            scene_zoom=options['scene_zoom'],scene_skew=options['scene_skew'])
+                            scene_zoom=options['scene_zoom'],scene_skew=options['scene_skew'],template_scale=options['template_scale'],
+                            scene_x=options['scene_x'],scene_y=options['scene_y'],scene_padding=options['scene_padding'],
+                            template_x=options['template_x'],template_y=options['template_y'])
+    elif effect['finish']=='chocobo_tracks':
+        image=_chocobo_overlay(*size,effect)
     elif effect["finish"]=="neon":
         # A clear interior with a luminous inner edge; never paints outside the mask.
         radius=max(3,round(5*effect["scale"]/100*unit))|1
@@ -230,10 +316,12 @@ def render_overlay(mask_png, effect, width=None):
         image=Image.new("RGBA",size,rgb);image.putalpha(glow)
     else:
         image=_texture(effect["finish"],effect["scale"],effect["density"],effect["seed"],*size,effect["color"]).copy()
-    if effect['finish']!='mirror_shards':
+    if effect['finish'] not in ('mirror_shards','chocobo_tracks','silver_black','neon_ink') and effect['finish'] not in PATH_EFFECTS:
         image=transform_image(image,effect['rotation'])
     image.putalpha(ImageChops.multiply(image.getchannel('A'),alpha))
     image.putalpha(image.getchannel("A").point(lambda v:round(v*effect["strength"]/100)))
+    if effect['finish']=='chocobo_tracks' or effect['finish'] in PATH_EFFECTS:
+        image.putalpha(image.getchannel('A').point(lambda v:round(v*(1-effect['transparency']/100))))
     if effect['finish']=='mirror_shards':
         # Generated scenes are detailed even behind transparent gaps. Drop only
         # fully hidden RGB so cached/print PNGs need not retain those pixels.
@@ -264,7 +352,7 @@ def cached_overlay(mask_png, effect, width=1512):
     return target
 
 
-def composite_effects(image, layers, trim_size=None):
+def composite_effects(image, layers, trim_size=None, *, extend_bleed=False):
     """Composite ordered artwork layers, with an optional centered trim footprint."""
     result=image.convert("RGBA")
     size=trim_size or image.size
@@ -272,6 +360,19 @@ def composite_effects(image, layers, trim_size=None):
     for layer in layers:
         overlay=Image.open(BytesIO(render_overlay(layer['png'],parameters(layer),min(3024,size[0]))))
         overlay=overlay.resize(size,Image.Resampling.LANCZOS)
-        backdrop=result.crop((*offset,offset[0]+size[0],offset[1]+size[1]))
-        result.alpha_composite(blend_overlay(backdrop,overlay,translucence_amount(layer)),offset)
+        if extend_bleed and size != image.size:
+            # Continue the edge pixels into print bleed, matching the artwork.
+            padded=Image.new('RGBA',image.size)
+            padded.paste(overlay,offset)
+            x,y=offset;w,h=size
+            for left,top,right,bottom,box in (
+                (0,y,x,y+h,(0,0,1,h)), (x+w,y,image.width,y+h,(w-1,0,w,h))):
+                if right>left:padded.paste(overlay.crop(box).resize((right-left,bottom-top)),(left,top))
+            if y:padded.paste(padded.crop((0,y,image.width,y+1)).resize((image.width,y)),(0,0))
+            bottom=image.height-y-h
+            if bottom>0:padded.paste(padded.crop((0,y+h-1,image.width,y+h)).resize((image.width,bottom)),(0,y+h))
+            result=Image.alpha_composite(result,composite_overlay(result,padded,layer))
+        else:
+            backdrop=result.crop((*offset,offset[0]+size[0],offset[1]+size[1]))
+            result.alpha_composite(composite_overlay(backdrop,overlay,layer),offset)
     return result.convert(image.mode)

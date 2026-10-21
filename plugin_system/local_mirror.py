@@ -19,7 +19,7 @@ from paths import BUNDLE_BASE_DIR, PLUGIN_ROOT_DIR
 
 SOURCE = Path(BUNDLE_BASE_DIR, 'plugin_src', 'subject-detection-ai')
 MODELS = json.loads((SOURCE / 'generation_models.json').read_text(encoding='utf-8'))
-DEFAULT_MODEL = 'instruct_pix2pix'
+DEFAULT_MODEL = 'sd_turbo'
 RUNTIME_VERSION = 1
 COMMON_PACKAGES = ['diffusers==0.41.0', 'transformers==5.20.2', 'accelerate==1.15.0',
                    'safetensors>=0.6,<1', 'sentencepiece>=0.2,<1', 'Pillow>=11.3,<13']
@@ -159,6 +159,8 @@ class LocalMirror:
                         failure = detail.read().decode('utf-8', errors='replace').lower()
                     if 'out of memory' in failure or 'not enough memory' in failure:
                         raise LocalMirrorError('The selected model ran out of memory. Close other GPU apps, choose a smaller model, or use CPU with enough system RAM.')
+                    if 'image model declined this render' in failure:
+                        raise LocalMirrorError('The image model declined this render. Try another theme or model. Your previous scene is unchanged.')
                     if 'cannot access a compatible gpu' in failure or 'no kernel image' in failure:
                         raise LocalMirrorError('The selected GPU runtime could not run on this GPU. Check the supported hardware and driver, or choose CPU.')
                     if 'option is for nvidia rtx 50' in failure:
@@ -243,10 +245,12 @@ class LocalMirror:
             if selected:
                 write_json(self.root / 'active.json', dict(selected, enabled=False))
 
-    def generate(self, *, image, mask, theme, prompt, seed, cancel, compact_prompt=None):
+    def generate(self, *, image, mask, theme, prompt, seed, cancel, compact_prompt=None, negative_prompt=None, canvas_size=None, image_box=None, outpaint_prompt=None, outpaint_description=None, outpaint_margin=0, background_prompt=None, background_description=None, background_negative=None):
         selected = self.active()
         if not selected:
             raise LocalMirrorError('Download and enable a local AI model in Card Finishing Studio settings.')
+        if canvas_size is not None and selected['model']=='instruct_pix2pix':
+            raise LocalMirrorError('InstructPix2Pix does not support full-canvas outpainting. Enable SD-Turbo, Stable Diffusion 1.5, SDXL or FLUX in Generative Art AI settings. Your previous scene is unchanged.')
         # Serialize GPU inference, keeping queued jobs cancellable.
         while not self.render_lock.acquire(timeout=.25):
             if cancel.is_set(): raise LocalMirrorError('Render cancelled.')
@@ -259,6 +263,14 @@ class LocalMirror:
                 model_prompt = compact_prompt if compact_prompt and selected['model'] != 'flux_klein' else prompt
                 payload = dict(selected, model_path=str(self.model_path(selected['model'])), prompt=model_prompt, seed=seed,
                                image=str(folder / 'source.png'), mask=str(folder / 'mask.png'), output=str(folder / 'scene.png'))
+                if negative_prompt: payload['negative_prompt'] = negative_prompt
+                if canvas_size is not None:
+                    from .mirror_shards import expanded_scene_geometry
+                    expanded_size,padding=expanded_scene_geometry(canvas_size,outpaint_margin)
+                    payload.update(canvas_size=canvas_size,image_box=image_box,outpaint_prompt=outpaint_prompt or model_prompt,
+                                   outpaint_description=outpaint_description or outpaint_prompt or model_prompt,
+                                   expanded_size=expanded_size,scene_padding=padding,background_prompt=background_prompt,
+                                   background_description=background_description,background_negative=background_negative)
                 write_json(folder / 'request.json', payload)
                 self.run([self.python(selected['hardware']), '-I', SOURCE / 'generation_worker.py', 'generate',
                           '--request', folder / 'request.json'], cancel, self.root / 'generation.log', 7200)

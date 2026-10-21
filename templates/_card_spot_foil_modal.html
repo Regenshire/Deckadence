@@ -26,6 +26,11 @@
           <button type="button" data-spot-undo disabled title="Undo (Ctrl+Z)">↶ Undo</button><button type="button" data-spot-redo disabled title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
         </div>
         </div>
+        <div class="spot-card-mask-transfer" role="group" aria-label="Copy selection between layers">
+          <button type="button" data-spot-copy-mask disabled>Copy Mask</button>
+          <button type="button" data-spot-paste-mask disabled>Paste Mask</button>
+          <button type="button" data-spot-append-mask disabled title="Merge the copied mask with this selection, keeping the stronger coverage where they overlap.">Append Paste</button>
+        </div>
         <p class="spot-card-caption" data-spot-preview-help>Foil appears only inside your selected areas. The rest stays opaque.</p>
         <div class="spot-card-overlay-legend" data-spot-overlay-legend hidden aria-label="Overlay colors">
           <span><i data-spot-legend-color="effect1" aria-hidden="true"></i>Effect 1</span>
@@ -202,55 +207,114 @@
           </details>
         </fieldset>
         </details>
-        <fieldset data-spot-edit-controls disabled>
+        <fieldset class="spot-finish-controls" data-spot-edit-controls disabled>
           <legend data-spot-finish-legend>Preview finish</legend>
-          <label><span data-spot-effect-label>Foil effect</span><select name="finish"><option value="foil">Rainbow foil</option><option value="surge">Surge foil</option><option value="chocobo">Chocobo foil</option></select></label>
+          <div class="spot-finish-effect-row">
+          <label><span data-spot-effect-label>Foil effect</span><select name="finish"><option value="foil">Rainbow foil</option><option value="surge">Surge foil</option></select></label>
           <label class="spot-card-range-label"><span data-spot-effect-strength-label>Effect strength</span> <output data-spot-strength-value>100%</output><input name="strength" type="range" min="1" max="100" value="100"></label>
+          </div>
           <p class="spot-card-caption" data-spot-preview-only>Screen preview only.</p>
           <div data-spot-pattern-controls hidden>
-            <label class="spot-card-range-label" data-spot-effect-rotation>Effect rotation <output data-spot-rotation-value>0°</output><input name="effect_rotation" type="range" min="-180" max="180" value="0" step="1"></label>
+            <div data-spot-pattern-rotation-slot><label class="spot-card-range-label" data-spot-effect-rotation>Effect rotation <output data-spot-rotation-value>0°</output><input name="effect_rotation" type="range" min="-180" max="180" value="0" step="1"></label></div>
             <label data-spot-pattern-size>Pattern size (%)<input name="effect_scale" type="number" min="25" max="200" value="100"></label>
-            <label data-spot-pattern-density>Density (%)<input name="effect_density" type="number" min="25" max="200" value="100"></label>
+            <label data-spot-pattern-density><span data-spot-density-label>Density (%)</span><input name="effect_density" type="number" min="25" max="200" value="100"></label>
+            <div class="spot-finish-pair" data-spot-silver-controls hidden>
+              <label class="spot-card-range-label">Black depth <output data-spot-black-depth-value>0%</output><input name="effect_black_depth" type="range" min="0" max="100" value="0" step="1"></label>
+              <label class="spot-card-range-label">Silver brightness <output data-spot-silver-brightness-value>90%</output><input name="effect_silver_brightness" type="range" min="0" max="100" value="90" step="1"></label>
+              <p class="spot-card-caption">Raise Black depth for deeper shadows. Lower Silver brightness for darker metal, or raise it for brighter highlights.</p>
+            </div>
             <input name="effect_seed" type="hidden" value="1">
+            <p class="spot-card-caption spot-finish-footnote" data-spot-effect-help hidden></p>
             <button type="button" data-spot-new-pattern>New pattern</button>
+            <div data-spot-pattern-path-slot hidden></div>
+            <div data-spot-track-controls hidden>
+              <div class="spot-finish-pair spot-finish-positions">
+                <label class="spot-card-range-label">Horizontal position <output data-spot-track-x-value>0%</output><input aria-label="Track horizontal position" name="effect_track_x" type="range" min="-100" max="100" value="0" step="1"></label>
+                <label class="spot-card-range-label">Vertical position <output data-spot-track-y-value>0%</output><input aria-label="Track vertical position" name="effect_track_y" type="range" min="-100" max="100" value="0" step="1"></label>
+              </div>
+              <label class="spot-card-range-label">Transparency <output data-spot-track-transparency-value>0%</output><input name="effect_track_transparency" type="range" min="0" max="100" value="0" step="1"></label>
+              <p class="spot-card-caption">0% keeps the full effect; 100% makes it invisible. Copy Path keeps full mask coverage.</p>
+            </div>
             <div data-spot-shard-controls hidden>
-              <span>Shard template</span>
+              <section class="spot-finish-group" aria-label="Shard layout">
+              <div class="spot-finish-group-heading" data-spot-shard-path-slot><h3>Shard layout</h3><button type="button" data-spot-copy-path title="Copy the shapes at their current size, rotation and position, then use Paste Mask or Append Paste on any layer.">Copy Path</button></div>
               <input type="hidden" name="effect_shard_template" value="falling">
               <div class="spot-shard-templates" role="group" aria-label="Shard template">
                 {% for key, label in [('falling','Falling shards'),('impact','Mirror impact'),('diagonal','Diagonal split'),('frame','Fractured frame'),('radiant','Radiant burst'),('spell','Spell splinters'),('cascade','Crystal cascade'),('revelation','Mirror revelation')] %}
                 <button type="button" data-spot-shard-template="{{ key }}" aria-pressed="{{ 'true' if key == 'falling' else 'false' }}"><img src="{{ url_for('static',filename='img/card-effects/mirror-shards/' ~ key ~ '.svg') }}" alt=""><span>{{ label }}</span></button>
                 {% endfor %}
               </div>
+              <div class="spot-finish-pair">
+                <label class="spot-card-range-label">Shard size <output data-spot-shard-size-value>100%</output><input type="range" name="effect_shard_size" min="25" max="200" step="1" value="100"></label>
+                <div data-spot-shard-rotation-slot></div>
+              </div>
+              <div class="spot-finish-pair spot-finish-positions">
+                <label class="spot-card-range-label">Horizontal position <output data-spot-shard-x-value>0%</output><input aria-label="Shard horizontal position" name="effect_shard_x" type="range" min="-100" max="100" value="0" step="1"></label>
+                <label class="spot-card-range-label">Vertical position <output data-spot-shard-y-value>0%</output><input aria-label="Shard vertical position" name="effect_shard_y" type="range" min="-100" max="100" value="0" step="1"></label>
+              </div>
+              <div class="spot-finish-pair spot-finish-glass">
               <label class="spot-card-range-label">Glass tint <output data-spot-tint-value>18%</output><input type="range" name="effect_tint" min="0" max="100" value="18"></label>
-              <label class="spot-card-check"><input type="checkbox" name="effect_mirror"> Mirror · AI scene</label>
+              <div data-spot-shard-color-slot></div>
+              </div>
+              </section>
+              <div class="spot-finish-mirror-line"><label class="spot-card-check"><input type="checkbox" name="effect_mirror"> Mirror · AI scene</label><span class="spot-card-caption" data-spot-mirror-mode>Glass effect with tint</span></div>
               <div data-spot-mirror-controls hidden>
-                <label class="spot-card-range-label">Alternate image rotation <output data-spot-scene-rotation-value>0°</output><input name="effect_scene_rotation" type="range" min="-180" max="180" value="0" step="1"></label>
-                <label class="spot-card-range-label">Alternate image zoom <output data-spot-scene-zoom-value>100%</output><input name="effect_scene_zoom" type="range" min="50" max="300" value="100" step="1"></label>
-                <label class="spot-card-range-label">Alternate image skew <output data-spot-scene-skew-value>0°</output><input name="effect_scene_skew" type="range" min="-60" max="60" value="0" step="1"></label>
-                <p class="spot-card-caption">Rotate, zoom, or skew the image horizontally inside the glass. No new render needed.</p>
-                <label>Theme<select name="effect_shard_theme">{% for key, label in [('dark','Dark'),('spooky','Spooky'),('normal','Normal'),('modern','Modern'),('echo','Echo'),('angelic','Angelic'),('demonic','Demonic')] %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+                <section class="spot-finish-group" aria-label="Image inside shards">
+                <div class="spot-finish-group-heading"><h3>Image inside shards</h3><span class="spot-card-caption">Adjust without regenerating</span></div>
+                <div class="spot-finish-pair spot-finish-positions">
+                  <label class="spot-card-range-label">Horizontal position <output data-spot-scene-x-value>0%</output><input aria-label="Alternate image horizontal position" name="effect_scene_x" type="range" min="-100" max="100" value="0" step="1"></label>
+                  <label class="spot-card-range-label">Vertical position <output data-spot-scene-y-value>0%</output><input aria-label="Alternate image vertical position" name="effect_scene_y" type="range" min="-100" max="100" value="0" step="1"></label>
+                </div>
+                <div class="spot-finish-triple">
+                  <label class="spot-card-range-label">Rotation <output data-spot-scene-rotation-value>0°</output><input aria-label="Alternate image rotation" name="effect_scene_rotation" type="range" min="-180" max="180" value="0" step="1"></label>
+                  <label class="spot-card-range-label">Zoom <output data-spot-scene-zoom-value>100%</output><input aria-label="Alternate image zoom" name="effect_scene_zoom" type="range" min="50" max="300" value="100" step="1"></label>
+                  <label class="spot-card-range-label">Skew <output data-spot-scene-skew-value>0°</output><input aria-label="Alternate image skew" name="effect_scene_skew" type="range" min="-60" max="60" value="0" step="1"></label>
+                </div>
+                </section>
+                <section class="spot-finish-group" aria-label="Generate artwork">
+                <div class="spot-finish-group-heading"><h3>Generate artwork</h3></div>
+                <div class="spot-finish-pair">
+                <label>Theme<select name="effect_shard_theme">{% for key, label in [('dark','Dark'),('spooky','Spooky'),('normal','Normal'),('modern','Modern'),('echo','Echo'),('angelic','Angelic'),('demonic','Demonic'),('custom','Custom')] %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+                <label class="spot-card-range-label">Outpainting margin <output data-spot-outpaint-margin-value>30%</output><input name="effect_outpaint_margin" type="range" min="0" max="100" value="30" step="1"></label>
+                </div>
+                <label data-spot-custom-theme hidden>Custom theme prompt<textarea name="effect_custom_prompt" rows="4" maxlength="1000" placeholder="Describe the alternate artwork, atmosphere, colors and style…"></textarea></label>
+                <label class="spot-card-check"><input type="checkbox" name="effect_maintain_style" checked> Maintain art style</label>
+                <p class="spot-card-caption">Keep the source’s medium, brushwork and shading while applying the theme.</p>
+                <p class="spot-card-caption">Margin adds background on each edge (% of image width or height). FLUX generates a wider view and may change details. Regenerate to apply new settings.</p>
                 <input type="hidden" name="effect_scene" value="">
                 <input type="hidden" name="effect_scene_theme" value="dark">
+                <input type="hidden" name="effect_scene_custom_prompt" value="">
+                <input type="hidden" name="effect_scene_maintain_style" value="false">
+                <input type="hidden" name="effect_scene_margin" value="0">
+                <input type="hidden" name="effect_scene_padding_x" value="0">
+                <input type="hidden" name="effect_scene_padding_y" value="0">
                 <input type="hidden" name="effect_scene_source" value="">
                 <input type="hidden" name="effect_scene_selection" value="">
-                <button type="button" data-spot-generate-mirror>Generate mirror scene</button>
+                <div class="spot-card-button-row spot-mirror-actions">
+                  <button type="button" data-spot-generate-mirror>Generate mirror scene</button>
+                  <button type="button" data-spot-view-art disabled>View generated art</button>
+                </div>
+                <div class="spot-finish-info">
                 <p class="spot-card-caption" data-spot-mirror-status role="status"></p>
                 <a class="spot-card-help" href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins#studio-local-ai" target="_blank" rel="noopener">Generative Art AI settings ↗</a>
+                </div>
+                <p class="spot-card-caption">Source: Fixed Art Box · Artwork only, without card text or frames.</p>
+                </section>
               </div>
             </div>
             <div data-spot-fracture-controls hidden>
               <label class="spot-card-range-label">Translucence <output data-spot-translucence-value>0%</output><input type="range" name="effect_translucence" min="0" max="100" value="0"></label>
               <p class="spot-card-caption">Reveals artwork detail while keeping the foil colors.</p>
             </div>
-            <div data-spot-effect-color-controls hidden>
+            <div data-spot-pattern-color-slot><div data-spot-effect-color-controls hidden>
               <label class="spot-card-color-picker"><span data-spot-effect-color-label>Effect color</span><input type="color" name="effect_color" value="#FFE7A0"><output data-spot-effect-color>#FFE7A0</output></label>
               <div class="spot-card-swatches" role="group" aria-label="Effect colors">
                 {% for color in ['#FFFFFF', '#FFE7A0', '#00DDFF', '#FF2FBB', '#8CFF45', '#18213B'] %}
                 <button type="button" class="spot-card-swatch" data-spot-effect-swatch="{{ color }}" style="--swatch: {{ color }}" aria-label="Use {{ color }} effect color"></button>
                 {% endfor %}
               </div>
-            </div>
-            <p class="spot-card-caption">Effect 2 sits above Effect 1. Both print as artwork.</p>
+            </div></div>
+            <p class="spot-card-caption spot-finish-footnote">Effect 2 sits above Effect 1. Both print as artwork.</p>
           </div>
           <label class="spot-card-color-picker"><span data-spot-overlay-label>Mask overlay color</span> <input type="color" name="overlay_color" value="#00D8FF"><output data-spot-overlay-color>#00D8FF</output></label>
           <div class="spot-card-swatches" role="group" aria-label="Mask overlay colors">
@@ -268,4 +332,12 @@
       <div class="spot-card-footer-actions"><button type="button" data-spot-cancel-generation hidden>Cancel render</button><button type="button" data-spot-close>Cancel</button><button type="submit" class="spot-card-save" disabled>Save for this card</button></div>
     </footer>
   </form>
+</dialog>
+<dialog id="spotGeneratedArtDialog" class="spot-art-dialog" aria-labelledby="spotGeneratedArtTitle">
+  <header>
+    <div><h2 id="spotGeneratedArtTitle">Generated art</h2><p data-spot-art-info></p></div>
+    <button type="button" data-spot-art-close aria-label="Close generated art">×</button>
+  </header>
+  <div class="spot-art-toolbar"><span>Full image, including the outpainted background.</span><div><button type="button" data-spot-art-fit aria-pressed="true">Fit</button><button type="button" data-spot-art-actual aria-pressed="false">100%</button></div></div>
+  <div class="spot-art-viewport" data-spot-art-viewport tabindex="0" aria-label="Generated artwork, scroll to inspect at full size"><img data-spot-art-image alt="Complete generated artwork before shard clipping"></div>
 </dialog>

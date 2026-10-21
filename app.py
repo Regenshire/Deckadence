@@ -215,7 +215,7 @@ from plugin_system.catalog import PLUGIN_CATALOG
 from plugin_system.foil_workflows import register_foil_workflow_routes, resolve_export_workflow
 from plugin_system.card_spot_foil import register_card_spot_foil_routes
 from plugin_system.spot_foil_pdf import SpotFoilPdfJob, place_spot_foil, draw_print_artwork
-from plugin_system.finishing_effects import composite_effects
+from plugin_system.finishing_bakes import baked_image
 from plugin_system.manager import (
     get_plugin_install_status,
     get_plugin_status,
@@ -6685,6 +6685,8 @@ def draw_processed_image_into_slot(
             height=slot_height_mm * mm,
             preserveAspectRatio=False,
             mask="auto",
+            finishing_entry=spot_foil_entry, finishing_slot=slot_def,
+            finishing_bleed=preserve_real_source_bleed or add_edge_bleed_border,
         )
     finally:
         if round_the_corners:
@@ -9278,6 +9280,8 @@ def draw_chaos_card_back_entries_into_pdf_layout(
             ),
             preserveAspectRatio=False,
             mask="auto",
+            finishing_entry=rendered_entry,
+            finishing_slot=dict(width_mm=draw_width_mm, height_mm=draw_height_mm),
         )
 
         place_spot_foil(pdf_canvas, rendered_entry, dict(x_mm=draw_x_mm, y_mm=draw_y_mm,
@@ -9796,6 +9800,8 @@ def draw_chaos_rendered_entries_into_pdf_layout(
             ),
             preserveAspectRatio=False,
             mask="auto",
+            finishing_entry=rendered_entry,
+            finishing_slot=dict(width_mm=draw_width_mm, height_mm=draw_height_mm),
         )
 
         place_spot_foil(pdf_canvas, rendered_entry, dict(x_mm=draw_x_mm, y_mm=draw_y_mm,
@@ -16146,7 +16152,7 @@ def build_export_card_image(
                 bleed_mm = get_configured_print_bleed_size_mm()
                 trim_size = (round(image.width * CARD_PRINT_WIDTH_MM / (CARD_PRINT_WIDTH_MM + 2*bleed_mm)),
                              round(image.height * CARD_PRINT_HEIGHT_MM / (CARD_PRINT_HEIGHT_MM + 2*bleed_mm)))
-            image = composite_effects(image, finishing_layers, trim_size)
+            image = baked_image(image, finishing_layers, trim_size)
 
         # If we are GENERATING bleed, clean up the original card corners first.
         # Do not do this for real full-bleed sources, because those already include
@@ -19654,10 +19660,30 @@ def result():
 # *** PRINT ACTIONS - Print Cards and Game Tokens ***
 register_cutter_routes(app, get_request_config, update_config_values)
 register_foil_workflow_routes(app, get_request_config, update_config_values)
+def load_finishing_original_artwork(card_uuid, face, context):
+    """Use the same selected source as the viewer, without any finishing layers."""
+    card = get_chaos_card_by_uuid(card_uuid)
+    info = get_chaos_card_image_face_context(card, face)
+    if not info:
+        raise LookupError("The card artwork is no longer available.")
+    source = resolve_card_image_source_for_page(card, info["page_kind"], info["image_url"], image_context=context)
+    if source.get("source_type") in ("alternate_source", "upscaled"):
+        path = source.get("absolute_path")
+        if path and os.path.isfile(path):
+            return path
+    if not info["image_url"]:
+        raise LookupError("The card artwork is unavailable.")
+    cached = download_chaos_image_to_cache(card_uuid, info["page_kind"], info["face_name"], info["image_url"])
+    if not cached or not os.path.isfile(cached["absolute_path"]):
+        raise LookupError("The card artwork could not be loaded. Try again when it is available.")
+    return cached["absolute_path"]
+
+
 register_card_spot_foil_routes(
     app, get_db_connection, get_request_config,
     lambda conn, writing: AlternateImageEditor.from_request().repository(conn, writing=writing).context,
     alternate_image_api, isolation_operation,
+    load_artwork=load_finishing_original_artwork,
 )
 
 @app.route(

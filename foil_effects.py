@@ -38,15 +38,21 @@ def _custom_mask(finish, width, height):
     return _positioned_mask(finish, width, height, settings["scale"], settings["x_percent"], settings["y_percent"])
 
 @lru_cache(maxsize=8)
-def _positioned_mask(finish, width, height, scale, x_percent, y_percent):
+def custom_pattern_alpha(finish, pattern_width):
+    """Rasterize the complete SVG before placement or clipping to a card."""
     import cairosvg
     import xml.etree.ElementTree as ET
     viewbox = ET.parse(ASSETS / CUSTOM_FOIL_MASKS[finish]).getroot().get("viewBox").split()
-    pattern_width = max(1, round(width * scale))
     pattern_height = max(1, round(pattern_width * float(viewbox[3]) / float(viewbox[2])))
     data = cairosvg.svg2png(url=str(ASSETS / CUSTOM_FOIL_MASKS[finish]),
                            output_width=pattern_width, output_height=pattern_height)
-    pattern = Image.open(BytesIO(data)).convert("RGBA").getchannel("A")
+    return Image.open(BytesIO(data)).convert("RGBA").getchannel("A")
+
+
+@lru_cache(maxsize=8)
+def _positioned_mask(finish, width, height, scale, x_percent, y_percent):
+    pattern_width = max(1, round(width * scale))
+    pattern = custom_pattern_alpha(finish, pattern_width)
     mask = Image.new("L", (width, height), 0)
     mask.paste(pattern, (round((width - pattern_width) / 2 + width * x_percent / 100), round(height * y_percent / 100)))
     return mask

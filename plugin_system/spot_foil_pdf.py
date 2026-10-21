@@ -14,7 +14,8 @@ from pypdf.generic import (ArrayObject, BooleanObject, DecodedStreamObject,
 
 from .card_spot_foil import ensure_schema, read_record
 from .foil_workflows import PRESETS, validate_options, normalize_display_color, resolve_export_workflow
-from .finishing_effects import render_overlay, parameters, translucence_amount, blend_overlay
+from .finishing_effects import render_overlay, parameters, needs_backdrop, composite_overlay
+from .finishing_bakes import baked_image
 
 MM = 72 / 25.4
 
@@ -147,6 +148,7 @@ class SpotFoilPdfJob:
         self.include_foil, self.include_gloss = bool(include_foil), bool(include_gloss)
         self.include_effects = {"effect1":bool(include_effect1), "effect2":bool(include_effect2)}
         self.effect_placements = []
+        self.has_baked_artwork = False
         if any(self.include_effects.values()) and self.mask_only:
             raise ValueError('Printable effects need artwork output. Turn off Effect 1 and Effect 2 for a black-only ink mask.')
         if self.include_gloss and self.mask_only:
@@ -192,9 +194,9 @@ class SpotFoilPdfJob:
             self.records[key] = record
         return self.records[key]
 
-    def place(self, page, entry, slot, bleed=False, round_corners=False, radius=0, artwork=None):
+    def place(self, page, entry, slot, bleed=False, round_corners=False, radius=0, artwork=None, baked=False):
         record = self.record_for(entry)
-        if not record or not any(enabled and record.get(layer) and translucence_amount(record[layer])
+        if not record or not any(enabled and record.get(layer) and needs_backdrop(record[layer])
                                  for layer,enabled in self.include_effects.items()):
             artwork = None
         if record and self.include_foil and record.get('enabled', True):
@@ -202,11 +204,33 @@ class SpotFoilPdfJob:
         if record and self.include_gloss and record.get('gloss'):
             self.placements.append((page, record['gloss'], dict(slot), bleed, round_corners, radius))
         for layer, enabled in self.include_effects.items():
-            if enabled and record and record.get(layer):
+            if enabled and record and record.get(layer) and not baked:
                 self.effect_placements.append((page, layer, record[layer], dict(slot), bleed, round_corners, radius, artwork))
 
+    def bake_artwork(self, artwork, entry, slot, bleed=False):
+        record = self.record_for(entry)
+        layers = [record[layer] for layer, enabled in self.include_effects.items()
+                  if enabled and record and record.get(layer)]
+        if not layers:
+            return artwork, False
+        from reportlab.lib.utils import ImageReader
+        reader = artwork if isinstance(artwork, ImageReader) else ImageReader(artwork)
+        pixels = reader.getRGBData()
+        image = Image.frombytes(reader.mode, reader.getSize(), pixels)
+        rotation = int(slot.get('rotation_degrees', 0)) % 360
+        trim = None
+        if bleed:
+            size = image.size[::-1] if rotation % 180 else image.size
+            width, height = (slot['height_mm'], slot['width_mm']) if rotation % 180 else (slot['width_mm'], slot['height_mm'])
+            trim = (max(1, min(size[0], round(size[0]*slot.get('finished_card_width_mm', width)/width))),
+                    max(1, min(size[1], round(size[1]*slot.get('finished_card_height_mm', height)/height))))
+        result = baked_image(image, layers, trim, rotation=rotation, extend_bleed=bleed)
+        self.has_baked_artwork = True
+        # Explicit process colorants preserve named spot inks under overprint.
+        return ImageReader(result.convert('CMYK')), True
+
     def finish(self, source, allow_empty=False):
-        if not self.placements and not self.effect_placements and not allow_empty:
+        if not self.placements and not self.effect_placements and not self.has_baked_artwork and not allow_empty:
             raise ValueError('No saved finishing layers were found. Save a Foil Mask, Gloss, or Effect layer first, or turn off those layers in Print / Export.')
         channels = {(r['options']['spot_name'], r['options']['layer_type']) for _, r, *_ in self.placements}
         if len({name for name, _ in channels}) != len(channels):
@@ -245,7 +269,7 @@ class SpotFoilPdfJob:
         layers = {key: group(f'{key[0]} - Gloss', key, role='gloss') for key in sorted(gloss_channels)}
         effect_layers = {layer:group('Effect '+layer[-1], role=layer) for layer in ('effect2','effect1')
                          if any(item[1]==layer for item in self.effect_placements)}
-        artwork = group('Artwork and registration')
+        artwork = group('Artwork (baked effects) and registration', role='baked_artwork') if self.has_baked_artwork else group('Artwork and registration')
         layers.update({key: group(f'{key[0]} - ' + {'white_underbase':'White ink (hides foil)', 'foil_application':'Foil / adhesive', 'varnish':'Varnish'}[key[1]], key) for key in sorted(channels - gloss_channels)})
         per_page = {}
         for placement in self.placements:
@@ -344,7 +368,7 @@ class SpotFoilPdfJob:
             effect_content = b''
             effect_backdrops = {}
             translucent_slots = {json.dumps(item[3],sort_keys=True) for item in self.effect_placements
-                                 if item[0]==index and translucence_amount(item[2])}
+                                 if item[0]==index and needs_backdrop(item[2])}
             for number, (_, layer, record, slot, bleed, round_corners, radius, source_artwork) in enumerate(
                     sorted((item for item in self.effect_placements if item[0]==index), key=lambda item:item[1])):
                 footprint={k:v for k,v in slot.items() if k in ('width_mm','height_mm','finished_card_width_mm','finished_card_height_mm','rotation_degrees')}
@@ -369,7 +393,7 @@ class SpotFoilPdfJob:
                         backdrop=effect_backdrops.get(slot_key)
                         if backdrop is None:
                             if source_artwork is None:
-                                raise ValueError('Fracture translucence needs the card artwork. Export again from Print / Export.')
+                                raise ValueError('This finishing effect needs the card artwork. Export again from Print / Export.')
                             if isinstance(source_artwork,Image.Image):backdrop=source_artwork.convert('RGBA')
                             else:
                                 from reportlab.lib.utils import ImageReader
@@ -377,7 +401,7 @@ class SpotFoilPdfJob:
                                 pixels=reader.getRGBData()
                                 backdrop=Image.frombytes(reader.mode,reader.getSize(),pixels).convert('RGBA')
                             backdrop=backdrop.resize(size,Image.Resampling.LANCZOS)
-                        image=blend_overlay(backdrop,image,translucence_amount(record))
+                        image=composite_overlay(backdrop,image,record)
                         effect_backdrops[slot_key]=Image.alpha_composite(backdrop,image)
                     def image_object(pixels,space):
                         obj=DecodedStreamObject();obj.set_data(pixels.tobytes())
@@ -410,15 +434,24 @@ class SpotFoilPdfJob:
 def place_spot_foil(canvas, entry, slot, **kwargs):
     job = getattr(canvas, 'spot_foil_job', None)
     if job:
-        job.place(canvas.getPageNumber()-1, entry, slot, artwork=getattr(canvas,'_finishing_artwork',None), **kwargs)
+        job.place(canvas.getPageNumber()-1, entry, slot, artwork=getattr(canvas,'_finishing_artwork',None),
+                  baked=getattr(canvas,'_finishing_baked',False), **kwargs)
         canvas._finishing_artwork = None
+        canvas._finishing_baked = False
 
 
-def draw_print_artwork(canvas, *args, **kwargs):
+def draw_print_artwork(canvas, *args, finishing_entry=None, finishing_slot=None, finishing_bleed=False, **kwargs):
     """Suppress card pixels only for mask-only exports; keep registration marks."""
     if not getattr(getattr(canvas, 'spot_foil_job', None), 'mask_only', False):
         if getattr(canvas,'spot_foil_job',None):
-            canvas._finishing_artwork = args[0] if args else kwargs.get('image')
+            artwork = args[0] if args else kwargs.get('image')
+            canvas._finishing_baked = False
+            if finishing_entry is not None and finishing_slot is not None:
+                artwork, canvas._finishing_baked = canvas.spot_foil_job.bake_artwork(
+                    artwork, finishing_entry, finishing_slot, finishing_bleed)
+                if args: args = (artwork, *args[1:])
+                else: kwargs['image'] = artwork
+            canvas._finishing_artwork = artwork
         return canvas.drawImage(*args, **kwargs)
 
 
@@ -457,14 +490,14 @@ def finish_print_pdf_merge(writer):
                 display_colors[ink] = color
             key = str(obj['/Name'])
             properties[name] = groups.setdefault(key, ref)
-    if not inks and not any(ref.get_object().get('/DeckadenceLayerRole') in ('effect1','effect2') for ref in groups.values()):
+    if not inks and not any(ref.get_object().get('/DeckadenceLayerRole') in ('effect1','effect2','baked_artwork') for ref in groups.values()):
         raise ValueError('No saved finishing layers were found in these packs. Save a Foil Mask, Gloss, or Effect layer first, or turn off those layers in Print / Export.')
     if output == 'mask_pdf' and len(inks) > 1:
         raise ValueError('Black-only mask PDFs support one ink at a time. Export workflows separately, or choose named spot layers.')
     def layer_order(ref):
         obj = ref.get_object()
         role = obj.get('/DeckadenceLayerRole')
-        return ({'white_inverse':0,'gloss':1,'effect2':2,'effect1':3,'artwork':4,'spot':5}.get(role,4), str(obj['/Name']))
+        return ({'white_inverse':0,'gloss':1,'effect2':2,'effect1':3,'artwork':4,'baked_artwork':4,'spot':5}.get(role,4), str(obj['/Name']))
     refs = ArrayObject(sorted(groups.values(), key=layer_order))
     writer._root_object[NameObject('/OCProperties')] = DictionaryObject({NameObject('/OCGs'):refs,
         NameObject('/D'):DictionaryObject({NameObject('/BaseState'):NameObject('/ON'), NameObject('/ON'):refs, NameObject('/Order'):refs})})

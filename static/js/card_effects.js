@@ -111,6 +111,9 @@
   }
   function syncPrintedEffects(surface) {
     const values=printedEffects.get(surface)||[];
+    // Backdrop-dependent art must remain in the same paint group as its
+    // filters when a lazy thumbnail loads or a cached grid card reappears.
+    surface.toggleAttribute("data-card-printed-backdrop",values.some(value=>value?.url&&value.finish==="silver_black"));
     for(let index=0;index<2;index++) {
       let layer=surface.querySelector(`:scope > .card-printed-effect[data-layer="${index+1}"]`);
       let glaze=surface.querySelector(`:scope > .card-printed-glaze[data-layer="${index+1}"]`);
@@ -118,7 +121,14 @@
       if(!value?.url){layer?.remove();glaze?.remove();continue;}
       if(!layer){layer=document.createElement("span");layer.className="card-printed-effect";layer.dataset.layer=String(index+1);layer.setAttribute("aria-hidden","true");surface.appendChild(layer);}
       const background=`url("${value.url}")`,translucence=Math.max(0,Math.min(100,Number(value.translucence)||0))/100;
-      if(layer.style.backgroundImage!==background)layer.style.backgroundImage=background;
+      const silverBlack=value.finish==="silver_black";
+      const black=Math.max(0,Math.min(100,Number(value.black_depth??0)))*.006;
+      const silver=Math.max(0,Math.min(100,Number(value.silver_brightness??90)))/100;
+      layer.style.backgroundImage=silverBlack?"none":background;
+      layer.style.maskImage=silverBlack?background:"none";
+      // Remap the black point before setting the silver ceiling. Defaults keep
+      // older saved layers unchanged; the same levels are baked into exports.
+      layer.style.backdropFilter=silverBlack?`grayscale(1) brightness(1.5) contrast(${1+(Number(value.density)||100)*.0035}) brightness(${1/(1+black)}) contrast(${(1+black)/(1-black)}) brightness(${silver})`:"none";
       layer.style.opacity=String(1-translucence);
       // A sibling sees the artwork and preceding effects as its blend backdrop.
       if(translucence){
@@ -316,6 +326,14 @@
   function copyToZoom(sourceImage, zoomImage) {
     const source = sourceImage?.closest(selector);
     if (!zoomImage) return;
+    const uuid=sourceImage?.dataset.cardUuid||sourceImage?.closest('[data-card-uuid]')?.dataset.cardUuid;
+    if(uuid) {
+      zoomImage.dataset.finishingCardUuid=uuid;
+      zoomImage.dataset.cardFlipFace=sourceImage.dataset.cardFlipFace||'front';
+    } else delete zoomImage.dataset.finishingCardUuid;
+    if(sourceImage?.hasAttribute('data-finishing-baked')) {
+      zoomImage.src=sourceImage.dataset.zoomSrc||sourceImage.dataset.cardImageSrc||sourceImage.src;
+    }
     if (!source) {
       const previous = zoomImage.closest(selector);
       if (previous) { setSpotFoil(previous, null); setGloss(previous, null); setPrintedEffects(previous, []); attach(previous, {finish: "normal"}); }

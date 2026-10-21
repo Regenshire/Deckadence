@@ -41,6 +41,8 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
 .spot-card-preview-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .spot-card-history { display: flex; gap: 6px; }
 .spot-card-history button { padding-inline: 9px; font-size: .75rem; }
+.spot-card-mask-transfer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.spot-card-mask-transfer button { padding: 6px 10px; font-size: .8rem; }
 .spot-card-dialog button[aria-pressed="true"] { color: var(--theme-highlight, var(--accent)); border-color: var(--theme-highlight, var(--accent)); background: var(--panel); }
 .spot-card-viewport { position: relative; flex: 1; min-height: 200px; width: 100%; overflow: auto; padding: 24px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel-2); overscroll-behavior: contain; }
 .spot-card-stage { position: relative; width: 280px; aspect-ratio: 63 / 88; margin: 0 auto; isolation: isolate; flex-shrink: 0; box-shadow: 0 10px 24px #0003; border-radius: var(--card-art-radius); }
@@ -51,8 +53,6 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
 .spot-card-other-overlay { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 3; opacity: .6;
   mask: var(--spot-other-mask) center / 100% 100% no-repeat;
   -webkit-mask: var(--spot-other-mask) center / 100% 100% no-repeat; }
-.spot-card-stage[data-view="all"][data-edit-layer="mask"] > canvas { z-index: 3; }
-.spot-card-stage[data-view="all"][data-edit-layer="mask"] > .spot-card-other-overlay { z-index: 4; }
 .spot-card-stage[data-text-preview="true"] > canvas { opacity: .6; }
 .spot-card-stage[data-text-preview="true"] :is(.card-effect-layer, .card-spot-clip) { visibility: hidden; }
 .spot-card-stage:is([data-view="original"], [data-view="mask"], [data-view="all"]) :is(.card-effect-layer, .card-spot-clip) { visibility: hidden; }
@@ -63,12 +63,14 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
 .spot-card-layer-switch button { min-width: 75px; }
 .spot-card-stage:is([data-view="original"], [data-view="mask"], [data-view="all"], [data-text-preview="true"]) :is(.card-printed-effect, .card-printed-glaze) { visibility: hidden; }
 [data-spot-fracture-controls] { grid-column: 1 / -1; }
+[data-spot-silver-controls] { grid-column: 1 / -1; }
+[data-spot-track-controls] { grid-column: 1 / -1; display: grid; gap: 14px; }
 [data-spot-pattern-controls] { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
 [data-spot-pattern-controls] .spot-card-caption { grid-column: 1 / -1; }
 .spot-card-stage[data-tool="pan"] > canvas { cursor: grab; }
 .spot-card-stage[data-tool="pan"] > canvas:active { cursor: grabbing; }
-.spot-card-brush-cursor { position: absolute; border: 1px solid white; box-shadow: 0 0 0 1px #222; border-radius: 50%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none; }
-.spot-card-area-guide { position: absolute; left: 8%; top: 13%; width: 84%; height: 43%; border: 2px dashed var(--theme-highlight, var(--accent)); box-shadow: 0 0 0 1px #0008; z-index: 5; pointer-events: none; }
+.spot-card-brush-cursor { position: absolute; border: 1px solid white; box-shadow: 0 0 0 1px #222; border-radius: 50%; transform: translate(-50%, -50%); z-index: 9; pointer-events: none; }
+.spot-card-area-guide { position: absolute; left: 8%; top: 13%; width: 84%; height: 43%; border: 2px dashed var(--theme-highlight, var(--accent)); box-shadow: 0 0 0 1px #0008; z-index: 9; pointer-events: none; }
 .spot-card-area-guide span { position: absolute; top: 0; left: 0; padding: 3px 6px; background: var(--panel); color: var(--text); font-size: .7rem; border-radius: 0 0 5px 0; }
 .spot-card-zoom-controls { display: flex; align-items: center; gap: 8px; }
 .spot-card-zoom-controls label { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-size: .75rem; }
@@ -81,7 +83,22 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
 .spot-card-dialog fieldset { min-width: 0; margin: 0 0 20px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; }
 .spot-card-dialog legend { font-weight: 700; padding: 0 5px; font-size: .9rem; }
 .spot-card-controls label { display: flex; flex-direction: column; min-width: 0; gap: 8px; font-size: .82rem; font-weight: 600; margin-top: 14px; }
-.spot-card-controls :is(select, input:not([type=range])) { width: 100%; min-width: 0; padding: 9px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font: inherit; }
+.spot-card-controls :is(select, textarea, input:not([type=range])) { width: 100%; min-width: 0; padding: 9px 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font: inherit; }
+.spot-card-controls textarea { resize: vertical; min-height: 96px; line-height: 1.5; }
+.spot-art-dialog { width: min(1440px, calc(100vw - 32px)); max-width: none; height: calc(100dvh - 32px); max-height: none; padding: 0; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); color: var(--text); }
+.spot-art-dialog[open] { display: flex; flex-direction: column; }
+.spot-art-dialog::backdrop { background: #000c; }
+.spot-art-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.spot-art-dialog h2 { margin: 0 0 5px; font-size: 1.1rem; }
+.spot-art-dialog p { margin: 0; font-size: .8rem; color: var(--muted); }
+.spot-art-dialog button { padding: 8px 12px; border: 1px solid var(--border); border-radius: 7px; background: var(--button); color: var(--text); cursor: pointer; font: inherit; }
+.spot-art-dialog button[aria-pressed="true"] { color: var(--theme-highlight, var(--accent)); border-color: currentColor; }
+.spot-art-dialog :focus-visible { outline: 2px solid var(--theme-highlight, var(--accent)); outline-offset: 3px; }
+.spot-art-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 10px 20px; font-size: .8rem; }
+.spot-art-toolbar > div { display: flex; gap: 6px; }
+.spot-art-viewport { flex: 1; min-height: 0; overflow: auto; background: #101216; text-align: center; }
+.spot-art-viewport img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.spot-art-viewport.is-actual img { width: auto; height: auto; max-width: none; margin: 0 auto; }
 .spot-card-controls label small { font-size: .74rem; line-height: 1.5; font-weight: 400; color: var(--muted); }
 .spot-card-fields-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; }
 .spot-card-controls input[type=file] { font-size: .75rem; }
@@ -102,6 +119,7 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
 .spot-card-color-picker output { font-family: ui-monospace, monospace; font-size: .75rem; color: var(--muted); }
 .spot-card-tools kbd { margin-left: 4px; font-size: .65rem; color: var(--muted); }
 .spot-card-button-row { margin-top: 16px; }
+.spot-card-dialog .spot-mirror-actions > button { margin: 0; }
 .spot-card-selection-tools { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .spot-card-selection-tools button { font-size: .74rem; }
 .spot-card-controls details { margin-top: 16px; font-size: .82rem; }
@@ -146,8 +164,55 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
 .spot-card-dialog [data-spot-effect-color-controls] { grid-column: 1 / -1; }
 .spot-card-dialog [data-spot-effect-rotation] { grid-column: 1 / -1; }
 .spot-card-dialog [data-spot-shard-controls] { grid-column: 1 / -1; }
-.spot-shard-templates { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 10px 0 16px; }
-.spot-shard-templates button { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; font-size: .72rem; }
-.spot-shard-templates button img { height: 84px; width: 60px; max-width: 100%; background: #111b29; border-radius: 4px; }
+.spot-shard-templates { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; margin: 0; }
+.spot-shard-templates button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px 3px; font-size: .72rem; min-width: 0; }
+.spot-shard-templates button img { height: 48px; width: 34px; max-width: 100%; background: #111b29; border-radius: 4px; }
 .spot-shard-templates button[aria-pressed="true"] { border-color: var(--theme-highlight, var(--accent)); color: var(--theme-highlight, var(--accent)); }
-.spot-card-dialog [data-spot-generate-mirror] { margin: 12px 0 4px; }
+.spot-finish-controls.is-printable { container: printable-finish / inline-size; }
+.spot-finish-controls.is-printable label { margin-top: 0; }
+.spot-finish-controls.is-printable .spot-finish-effect-row,
+.spot-finish-pair, .spot-finish-triple { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px 22px; align-items: start; }
+.spot-finish-controls.is-printable .spot-finish-effect-row { grid-template-columns: minmax(0,1.4fr) minmax(0,1fr); align-items: end; }
+.spot-finish-triple { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px 18px; }
+.spot-finish-controls.is-printable .spot-card-range-label { grid-template-rows: minmax(19px,auto) 20px; gap: 7px 8px; align-content: start; }
+.spot-finish-controls.is-printable .spot-card-range-label input { margin: 0; height: 20px; align-self: end; }
+.spot-finish-controls.is-printable .spot-card-range-label output { white-space: nowrap; }
+.spot-finish-controls.is-printable [data-spot-pattern-controls] { grid-template-columns: repeat(2,minmax(0,1fr)); margin-top: 16px; }
+.spot-finish-controls [data-spot-pattern-rotation-slot], .spot-finish-controls [data-spot-pattern-color-slot] { grid-column: 1 / -1; }
+.spot-finish-group { display: grid; gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+[data-spot-shard-controls] > .spot-finish-group:first-child { margin-top: 0; }
+.spot-finish-group-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.spot-finish-group-heading h3 { margin: 0; font-size: .85rem; }
+.spot-finish-group-heading .spot-card-caption { text-align: right; }
+.spot-card-dialog [data-spot-copy-path] { padding: 5px 10px; min-height: 30px; font-size: .75rem; }
+.spot-finish-controls [data-spot-pattern-path-slot] { align-self: end; }
+.spot-card-dialog [data-spot-pattern-path-slot] button { padding: 9px 10px; font-size: .82rem; }
+.spot-finish-mirror-line { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.spot-finish-group .spot-card-caption, .spot-finish-mirror-line .spot-card-caption { margin: 0; }
+.spot-finish-group .spot-card-button-row { margin: 0; }
+.spot-finish-info { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; }
+.spot-finish-info .spot-card-help { font-size: .76rem; }
+.spot-finish-controls [data-spot-effect-color-controls] { display: flex; align-items: end; flex-wrap: wrap; gap: 8px; }
+.spot-finish-controls [data-spot-effect-color-controls] .spot-card-color-picker { display: grid; grid-template-columns: auto 1fr; gap: 5px 8px; margin: 0; }
+.spot-finish-controls [data-spot-effect-color-label] { grid-column: 1 / -1; }
+.spot-finish-controls [data-spot-effect-color-controls] .spot-card-color-picker input { width: 30px; height: 27px; }
+.spot-finish-controls [data-spot-effect-color-controls] .spot-card-swatches { margin: 0 0 3px; gap: 7px; }
+.spot-finish-controls [data-spot-effect-color-controls] .spot-card-swatch { width: 20px; height: 20px; min-height: 20px; flex-basis: 20px; }
+.spot-finish-controls .spot-finish-footnote { margin: 2px 0 0; padding-top: 12px; border-top: 1px solid var(--border); }
+@container printable-finish (max-width: 500px) {
+  .spot-finish-controls.is-printable .spot-finish-effect-row { grid-template-columns: 1fr; }
+  .spot-finish-pair { column-gap: 14px; }
+  .spot-finish-glass { grid-template-columns: 1fr; }
+  .spot-finish-controls.is-printable .spot-finish-positions .spot-card-range-label { grid-template-rows: minmax(36px,auto) 20px; }
+}
+@container printable-finish (max-width: 330px) {
+  .spot-shard-templates { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .spot-finish-triple { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .spot-finish-pair .spot-card-range-label { font-size: .76rem; }
+}
+@media (pointer: coarse) {
+  .spot-finish-controls.is-printable .spot-card-range-label { grid-template-rows: minmax(36px,auto) 32px; }
+  .spot-finish-controls.is-printable .spot-card-range-label input { height: 32px; }
+  .spot-finish-controls.is-printable .spot-card-check, .spot-card-dialog [data-spot-copy-path] { min-height: 44px; }
+  .spot-finish-controls [data-spot-effect-color-controls] .spot-card-swatch { width: 44px; height: 44px; min-height: 44px; flex-basis: 44px; }
+}

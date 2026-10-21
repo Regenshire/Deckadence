@@ -220,5 +220,12 @@
       contain-intrinsic-block-size: auto 400px;
       overflow-clip-margin: 16px;
     }
+
+    /* Silver & Black samples the artwork below it. Keep that small group
+       painted together instead of caching it across visibility changes. */
+    #customDraftCurrentCardList > .custom-draft-current-card-row:has([data-card-printed-backdrop]),
+    #customDraftCurrentCardGrid > .custom-draft-current-grid-card:has([data-card-printed-backdrop]) {
+      content-visibility: visible;
+    }
   }
 }
