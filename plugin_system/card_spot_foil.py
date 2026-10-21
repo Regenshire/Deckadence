@@ -13,6 +13,7 @@ from flask import jsonify, request, send_file, url_for
 from PIL import Image, UnidentifiedImageError
 from .foil_workflows import WORKFLOWS, OUTPUTS, LAYER_TYPES, load_preferences, normalize_display_color
 from .manager import get_plugin_status, run_plugin_json
+from .finishing_effects import EFFECT_TYPES, validate_effect, parameters, render_overlay, cached_overlay
 
 MASK_SIZE = (756, 1056)
 MAX_MASK_SIZE = (3024, 4224)
@@ -106,12 +107,17 @@ def record_json(row, key):
         return None
     owner = {name: request.args[name] for name in ("image_owner_kind", "image_owner_id") if name in request.args}
     settings = json.loads(row["settings"])
-    if settings.get("gloss"):
-        gloss = dict(settings["gloss"])
-        gloss.pop("mask_png_base64", None)
-        gloss["mask_url"] = url_for("card_spot_foil_mask", card_uuid=key[1], face=key[2], layer="gloss",
+    for layer in ("gloss", "effect1", "effect2"):
+        if not settings.get(layer):
+            continue
+        value = dict(settings[layer])
+        value.pop("mask_png_base64", None)
+        value["mask_url"] = url_for("card_spot_foil_mask", card_uuid=key[1], face=key[2], layer=layer,
                                     expected_scope=key[0], revision=row["revision"], **owner)
-        settings["gloss"] = gloss
+        if layer.startswith("effect"):
+            value["overlay_url"] = url_for("card_finishing_overlay", card_uuid=key[1], face=key[2], layer=layer,
+                                          expected_scope=key[0], revision=row["revision"], **owner)
+        settings[layer] = value
     return {**settings, "revision": row["revision"],
             "mask_url": url_for("card_spot_foil_mask", card_uuid=key[1], face=key[2],
                                 expected_scope=key[0], revision=row["revision"], **owner)}
@@ -195,7 +201,7 @@ def validate_generation(value):
 
 def validate_settings(payload):
     if not isinstance(payload, dict) or set(payload) - {
-        "workflow_id", "workflow_options", "finish", "strength", "mask_data", "revision", "artwork_signature", "generation", "foil_enabled", "gloss",
+        "workflow_id", "workflow_options", "finish", "strength", "mask_data", "revision", "artwork_signature", "generation", "foil_enabled", "gloss", "effect1", "effect2",
     }:
         raise ValueError("Provide valid card spot-foiling settings.")
     # Accept legacy clients' workflow keys, but never save print-job settings
@@ -226,6 +232,18 @@ def validate_settings(payload):
                      "generation": validate_generation(gloss["generation"]),
                      "mask_png_base64": base64.b64encode(decode_mask(gloss["mask_data"])).decode("ascii")}
         result["gloss"] = gloss
+    for layer in ("effect1", "effect2"):
+        if layer not in payload:
+            continue
+        value = payload[layer]
+        if value is not None:
+            keys = {"finish", "strength", "scale", "density", "seed", "overlay_color", "generation", "mask_data"}
+            if not isinstance(value, dict) or set(value)-{"color","translucence"} != keys:
+                raise ValueError("Provide valid printable effect settings.")
+            value = {**validate_effect(parameters(value)), "overlay_color": normalize_display_color(value["overlay_color"]),
+                     "generation": validate_generation(value["generation"]),
+                     "mask_png_base64": base64.b64encode(decode_mask(value["mask_data"])).decode("ascii")}
+        result[layer] = value
     return result
 
 
@@ -255,7 +273,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         settings = mask = payload = None
         writing = request.method != "GET"
         if writing:
-            if request.content_length and request.content_length > 48_200_000:
+            if request.content_length and request.content_length > 96_400_000:
                 return jsonify(ok=False, message="The spot mask is too large."), 413
             payload = request.get_json(silent=True)
             if not isinstance(payload, dict) or "revision" not in payload:
@@ -279,7 +297,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
                     raise RuntimeError("Spot foiling changed in another editor. Close and reopen this card to load the latest version.")
                 if request.method == "DELETE":
                     old = json.loads(row["settings"]) if row else {}
-                    if old.get("gloss") and not payload.get("all_layers"):
+                    if any(old.get(layer) for layer in ("gloss", "effect1", "effect2")) and not payload.get("all_layers"):
                         old["foil_enabled"] = False
                         conn.execute("UPDATE card_spot_foil SET settings=?, revision=? WHERE scope_token=? AND card_uuid=? AND face=?",
                                      (json.dumps(old, allow_nan=False), uuid4().hex, *key))
@@ -288,19 +306,28 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
                         conn.execute("DELETE FROM card_spot_foil WHERE scope_token=? AND card_uuid=? AND face=?", key)
                         row = None
                 else:
-                    # Older clients editing the foil mask must not erase gloss.
-                    if "gloss" not in payload and row:
-                        previous = json.loads(row["settings"])
-                        if previous.get("gloss"):
-                            settings["gloss"] = previous["gloss"]
+                    # Older clients must not erase layers they do not understand.
+                    previous = json.loads(row["settings"]) if row else {}
+                    for layer in ("gloss", "effect1", "effect2"):
+                        if layer not in payload and previous.get(layer):
+                            settings[layer] = previous[layer]
                     conn.execute("INSERT OR REPLACE INTO card_spot_foil VALUES (?,?,?,?,?,?)",
                                  (*key, uuid4().hex, json.dumps(settings, allow_nan=False),
                                   base64.b64encode(mask).decode("ascii")))
                     row = read_record(conn, key)
             result = record_json(row, key)
+        if request.method == "PUT":
+            # Disposable view caches are optional: a cache error must never turn
+            # a successful atomic save into a misleading save failure.
+            for layer in ("effect1", "effect2"):
+                if settings.get(layer):
+                    try:
+                        cached_overlay(base64.b64decode(settings[layer]["mask_png_base64"]), settings[layer])
+                    except Exception:
+                        app.logger.warning("Could not cache a finishing overlay", exc_info=True)
         subject_detector = get_plugin_status("subject-detection-ai")
         return jsonify(ok=True, record=result, preferences=load_preferences(get_config()), workflows=WORKFLOWS,
-                       output_formats=OUTPUTS, layer_types=LAYER_TYPES,
+                       output_formats=OUTPUTS, layer_types=LAYER_TYPES, effect_types=EFFECT_TYPES,
                        text_detector_ready=bool(text_detection_plugin(subject_detector)),
                        subject_detector_ready=subject_detector.get("ready", False),
                        frame_detector_ready=bool(subject_detector.get("ready") and
@@ -417,15 +444,49 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
             if row is None:
                 raise LookupError("No spot mask saved for this card.")
             layer = request.args.get("layer", "mask")
-            if layer not in ("mask", "gloss"):
+            if layer not in ("mask", "gloss", "effect1", "effect2"):
                 raise ValueError("Choose a valid finishing layer.")
             png = row["mask_png_base64"]
-            if layer == "gloss":
-                gloss = json.loads(row["settings"]).get("gloss")
+            if layer != "mask":
+                gloss = json.loads(row["settings"]).get(layer)
                 if not gloss:
-                    raise LookupError("No gloss saved for this card.")
+                    raise LookupError("No mask saved for this layer.")
                 png = gloss["mask_png_base64"]
             response = send_file(BytesIO(base64.b64decode(png)), mimetype="image/png",
                                  etag=row["revision"], download_name="spot-foil-mask.png")
             response.cache_control.no_cache = True
             return response
+
+    @app.route("/cards/spot-foil/<card_uuid>/<face>/effect-preview", methods=["POST"])
+    @api_errors
+    def card_finishing_preview(card_uuid, face):
+        card_key(dict(card_uuid=card_uuid, face=face))
+        if request.content_length and request.content_length > 6_100_000:
+            return jsonify(ok=False, message="Preview mask is too large."), 413
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict) or set(payload) != {"effect", "mask_data"}:
+            raise ValueError("Provide an effect and its mask.")
+        effect = validate_effect(payload["effect"])
+        png = render_overlay(decode_mask(payload["mask_data"]), effect, width=756)
+        response = send_file(BytesIO(png), mimetype="image/png")
+        response.cache_control.no_store = True
+        return response
+
+    @app.route("/cards/spot-foil/<card_uuid>/<face>/effect-overlay")
+    @api_errors
+    def card_finishing_overlay(card_uuid, face):
+        card = card_key(dict(card_uuid=card_uuid, face=face))
+        layer = request.args.get("layer")
+        if layer not in ("effect1", "effect2"):
+            raise ValueError("Choose an effect layer.")
+        with closing(get_connection()) as conn, conn:
+            ensure_schema(conn)
+            context = resolve_context(conn, False)
+            row = read_record(conn, (context.scope_id or "global", *card))
+            value = json.loads(row["settings"]).get(layer) if row else None
+            if not value:
+                raise LookupError("No effect saved for this layer.")
+            path = cached_overlay(base64.b64decode(value["mask_png_base64"]), value)
+        response = send_file(path, mimetype="image/png", etag=path.stem)
+        response.cache_control.no_cache = True
+        return response

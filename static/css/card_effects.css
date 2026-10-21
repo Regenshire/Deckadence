@@ -115,7 +115,11 @@ img:is(.card-image, .card-zoom-image, .card-search-preview-image,
 /* Raised clear coat sits above every foil style. Only its edges and reflections
    shade the composite; the clear interior leaves the underlying foil visible. */
 .card-gloss-layer { position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  z-index: 2; opacity: var(--card-gloss-strength, 1); }
+  z-index: 4; opacity: var(--card-gloss-strength, 1); }
+.card-printed-effect, .card-printed-glaze { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: center / 100% 100% no-repeat; z-index: 2; }
+.card-printed-effect[data-layer="2"], .card-printed-glaze[data-layer="2"] { z-index: 3; }
+.card-printed-glaze { mix-blend-mode: color; }
+.imomir-card-flip-animating :is(.card-printed-effect, .card-printed-glaze), .card-effects:has(.chaos-pack-inline-card-flipping) :is(.card-printed-effect, .card-printed-glaze) { visibility: hidden; }
 .card-gloss-layer > svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border-radius: inherit; overflow: hidden; }
 .card-gloss-layer::after { content: ""; position: absolute; inset: 0; border-radius: inherit;
   mask: var(--card-gloss-mask) center / 100% 100% no-repeat;

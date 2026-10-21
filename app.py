@@ -215,6 +215,7 @@ from plugin_system.catalog import PLUGIN_CATALOG
 from plugin_system.foil_workflows import register_foil_workflow_routes, resolve_export_workflow
 from plugin_system.card_spot_foil import register_card_spot_foil_routes
 from plugin_system.spot_foil_pdf import SpotFoilPdfJob, place_spot_foil, draw_print_artwork
+from plugin_system.finishing_effects import composite_effects
 from plugin_system.manager import (
     get_plugin_install_status,
     get_plugin_status,
@@ -1139,6 +1140,8 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
 
     g.print_export_spot_foil = parse_print_export_override_bool(get_form_values("include_spot_foil"))
     g.print_export_gloss = parse_print_export_override_bool(get_form_values("include_gloss"))
+    g.print_export_effect1 = parse_print_export_override_bool(get_form_values("include_effect1"))
+    g.print_export_effect2 = parse_print_export_override_bool(get_form_values("include_effect2"))
     g.print_export_spot_foil_output = form_data.get("spot_foil_pdf_output", "spot_pdf")
     g.print_export_spot_foil_tone = form_data.get("spot_foil_pdf_tone", "grayscale")
     g.print_export_spot_foil_white_inverse = parse_print_export_override_bool(get_form_values("include_white_inverse_layer"))
@@ -1721,6 +1724,8 @@ def _build_pdf_print_settings(config, print_labels_enabled_override=None):
         "include_foil_overlay": (config.get("include_foil_overlay") or "0") == "1",
         "include_spot_foil": has_request_context() and bool(getattr(g, "print_export_spot_foil", False)),
         "include_gloss": has_request_context() and bool(getattr(g, "print_export_gloss", False)),
+        "include_effect1": has_request_context() and bool(getattr(g, "print_export_effect1", False)),
+        "include_effect2": has_request_context() and bool(getattr(g, "print_export_effect2", False)),
         "spot_foil_pdf_output": getattr(g, "print_export_spot_foil_output", "spot_pdf") if has_request_context() else "spot_pdf",
         "spot_foil_pdf_tone": getattr(g, "print_export_spot_foil_tone", "grayscale") if has_request_context() else "grayscale",
         "spot_foil_white_inverse": has_request_context() and bool(getattr(g, "print_export_spot_foil", False))
@@ -1729,7 +1734,8 @@ def _build_pdf_print_settings(config, print_labels_enabled_override=None):
         "spot_foil_workflow": resolve_export_workflow(
             config, getattr(g, "print_export_spot_foil_workflow", None),
             getattr(g, "print_export_spot_foil_overrides", None),
-        ) if has_request_context() and (getattr(g, "print_export_spot_foil", False) or getattr(g, "print_export_gloss", False)) else None,
+        ) if has_request_context() and any(getattr(g, key, False) for key in
+            ("print_export_spot_foil", "print_export_gloss", "print_export_effect1", "print_export_effect2")) else None,
         "print_card_backs": (config.get("print_card_backs") or "0").strip() == "1",
 
         "default_card_back": normalize_card_back_key(
@@ -14528,13 +14534,15 @@ def build_chaos_pack_pdf(
 
     buffer = BytesIO()
     c = CutterCanvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
-    if pdf_settings.get("include_spot_foil") or pdf_settings.get("include_gloss"):
+    if any(pdf_settings.get(key) for key in ("include_spot_foil", "include_gloss", "include_effect1", "include_effect2")):
         c.spot_foil_job = SpotFoilPdfJob(get_db_connection,
                                        pdf_settings["spot_foil_pdf_output"], pdf_settings["spot_foil_pdf_tone"],
                                        workflow=pdf_settings.get("spot_foil_workflow"),
                                        include_white_inverse=pdf_settings.get("spot_foil_white_inverse", False),
                                        include_foil=pdf_settings.get("include_spot_foil", False),
-                                       include_gloss=pdf_settings.get("include_gloss", False))
+                                       include_gloss=pdf_settings.get("include_gloss", False),
+                                       include_effect1=pdf_settings.get("include_effect1", False),
+                                       include_effect2=pdf_settings.get("include_effect2", False))
     c.setTitle(
         str(
             pack_display_name
@@ -16128,9 +16136,17 @@ def build_export_card_image(
     add_edge_border=True,
     normal_text_fill_rgb_override=None,
     force_normal_label=False,
+    finishing_layers=(),
 ):
     with Image.open(source_image_path) as source_image:
         image = source_image.convert("RGB")
+        if finishing_layers:
+            trim_size = None
+            if skip_card_corner_radius and use_bleed_template:
+                bleed_mm = get_configured_print_bleed_size_mm()
+                trim_size = (round(image.width * CARD_PRINT_WIDTH_MM / (CARD_PRINT_WIDTH_MM + 2*bleed_mm)),
+                             round(image.height * CARD_PRINT_HEIGHT_MM / (CARD_PRINT_HEIGHT_MM + 2*bleed_mm)))
+            image = composite_effects(image, finishing_layers, trim_size)
 
         # If we are GENERATING bleed, clean up the original card corners first.
         # Do not do this for real full-bleed sources, because those already include
@@ -16623,6 +16639,14 @@ def build_chaos_card_image_export_zip(
 
     total_export_cards = len(export_rows)
 
+    enabled_effects = [layer for layer in ("effect1", "effect2")
+                       if has_request_context() and getattr(g, "print_export_"+layer, False)]
+    effects_job = SpotFoilPdfJob(get_db_connection, include_foil=False) if enabled_effects else None
+
+    def finishing_layers(entry, card):
+        record = effects_job.record_for(dict(entry, card_row=card)) if effects_job else None
+        return [record[layer] for layer in enabled_effects if record and record.get(layer)]
+
     update_print_export_progress(
         "generate",
         "Generating Zip Export",
@@ -16891,8 +16915,11 @@ def build_chaos_card_image_export_zip(
                 add_export_bleed=front_bleed_source["add_export_bleed"],
                 use_bleed_template=front_bleed_source["use_bleed_template"],
                 skip_card_corner_radius=front_bleed_source["used_fullbleed_source"],
+                finishing_layers=finishing_layers(front_page_entry, card_row),
             )
         except Exception as exc:
+            if enabled_effects:
+                raise RuntimeError(f"Card finishing export failed for {card_uuid} (front).") from exc
             if card_row.get("image_scope_id"):
                 raise RuntimeError(f"Isolated export front failed: {card_uuid}") from exc
             write_debug_log(
@@ -16949,9 +16976,12 @@ def build_chaos_card_image_export_zip(
                         add_export_bleed=back_bleed_source["add_export_bleed"],
                         use_bleed_template=back_bleed_source["use_bleed_template"],
                         skip_card_corner_radius=back_bleed_source["used_fullbleed_source"],
+                        finishing_layers=finishing_layers(back_page_entry, card_row),
                     )
                     back_relative_xml_path = f"\\Images\\{finish_folder_name}\\{back_filename}"
                 except Exception as exc:
+                    if enabled_effects:
+                        raise RuntimeError(f"Card finishing export failed for {card_uuid} (back).") from exc
                     if card_row.get("image_scope_id"):
                         raise RuntimeError(f"Isolated export back failed: {card_uuid}") from exc
                     write_debug_log(

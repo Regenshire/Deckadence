@@ -16,6 +16,22 @@
   const ctx = mask.getContext("2d", {willReadFrequently: true});
   const overlay = canvas.getContext("2d");
   const otherOverlay = dialog.querySelector("[data-spot-other-overlay]");
+  const otherOverlays=[otherOverlay,...Array.from({length:2},()=>{const el=otherOverlay.cloneNode();el.removeAttribute("data-spot-other-overlay");otherOverlay.after(el);return el;})];
+  const layerNames={effect1:"Effect 1",effect2:"Effect 2",mask:"Foil Mask",gloss:"Gloss"};
+  const layerOrder={mask:5,effect1:6,effect2:7,gloss:8};
+  const printedLayer=()=>editingLayer.startsWith("effect");
+  const effectPreviews=new Map();
+  const effectColors={stars:"#FFF4C3",halftone:"#121930",neon:"#46F5FF"};
+  let previousEffectFinish="";
+  function updateEffectColor(resetDefault=false) {
+    if(resetDefault && fields.effect_color.value.toUpperCase()===(effectColors[previousEffectFinish]||"#FFE7A0"))fields.effect_color.value=effectColors[fields.finish.value]||"#FFE7A0";
+    previousEffectFinish=fields.finish.value;
+    dialog.querySelector("[data-spot-effect-color-controls]").hidden=!printedLayer()||!effectColors[fields.finish.value];
+    dialog.querySelector("[data-spot-effect-color-label]").textContent={stars:"Star color",halftone:"Dot color",neon:"Glow color"}[fields.finish.value]||"Effect color";
+    dialog.querySelector("[data-spot-effect-color]").textContent=fields.effect_color.value.toUpperCase();
+    dialog.querySelector("[data-spot-fracture-controls]").hidden=!printedLayer()||fields.finish.value!=="fracture";
+    dialog.querySelector("[data-spot-translucence-value]").value=fields.effect_translucence.value+"%";
+  }
   const liveMask = document.createElement("canvas");
   const liveContext = liveMask.getContext("2d");
   const strokeMask = document.createElement("canvas"), strokeBase = document.createElement("canvas");
@@ -41,26 +57,35 @@
     const node=copyWalker.currentNode;
     if(/foil|opaque|mask/iu.test(node.textContent) && !node.parentElement.closest('[data-spot-layer], [data-spot-effect-label], [data-spot-overlay-label]')) layerCopy.push([node,node.textContent]);
   }
-  const layerWording = text => editingLayer !== "gloss" ? text : text
+  const layerWording = text => printedLayer() ? text
+    .replace(/spot foiling/giu,"effect").replace(/Opaque · no foil/gu,"No effect").replace(/Foiled/gu,"Effect").replace(/foiled/gu,"effect")
+    .replace(/Foil strength/gu,"Mask strength").replace(/Foil/gu,"Effect").replace(/foil/gu,"effect").replace(/Opaque/gu,"No effect").replace(/opaque/gu,"clear")
+    : editingLayer !== "gloss" ? text : text
     .replace(/Spot foiling/gu,"Gloss").replace(/spot foiling/gu,"gloss").replace(/Foiling/gu,"Gloss").replace(/foiling/gu,"gloss")
     .replace(/Opaque · no foil/gu,"No gloss").replace(/Foiled/gu,"Glossy").replace(/foiled/gu,"glossy")
     .replace(/Foil strength/gu,"Gloss amount").replace(/Foil/gu,"Gloss").replace(/foil/gu,"gloss").replace(/Opaque/gu,"No gloss").replace(/opaque/gu,"unglossed")
     .replace(/Mask cleanup/gu,"Gloss cleanup").replace(/Mask only/gu,"Gloss only").replace(/Mask overlay/gu,"Gloss overlay").replace(/Mask covers/gu,"Gloss covers");
-  function activeSaved() {return editingLayer==="gloss" ? Boolean(current?.record?.gloss) : Boolean(current?.record && current.record.foil_enabled!==false);}
+  function activeSaved() {return editingLayer!=="mask" ? Boolean(current?.record?.[editingLayer]) : Boolean(current?.record && current.record.foil_enabled!==false);}
   function setLayerLabels() {
     for(const [node,copy] of layerCopy)node.textContent=layerWording(copy);
     dialog.querySelectorAll("[data-spot-layer]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.spotLayer===editingLayer)));
-    fields.finish.replaceChildren(...(editingLayer==="gloss" ? [["gloss","Gloss"],["polished","Polished gloss"]] : [["foil","Rainbow foil"],["surge","Surge foil"],["chocobo","Chocobo foil"]]).map(([value,label])=>new Option(label,value)));
-    dialog.querySelector("[data-spot-effect-label]").textContent=editingLayer==="gloss" ? "Gloss effect" : "Foil effect";
+    fields.finish.replaceChildren(...(printedLayer() ? Object.entries(metadata?.effect_types||{}) : editingLayer==="gloss" ? [["gloss","Gloss"],["polished","Polished gloss"]] : [["foil","Rainbow foil"],["surge","Surge foil"],["chocobo","Chocobo foil"]]).map(([value,label])=>new Option(label,value)));
+    dialog.querySelector("[data-spot-effect-label]").textContent=printedLayer() ? "Effect" : editingLayer==="gloss" ? "Gloss effect" : "Foil effect";
+    dialog.querySelector("[data-spot-finish-legend]").textContent=printedLayer() ? "Printable effect" : "Preview finish";
+    dialog.querySelector("[data-spot-preview-only]").hidden=printedLayer();
+    dialog.querySelector("[data-spot-pattern-controls]").hidden=!printedLayer();
     dialog.querySelector("[data-spot-effect-strength-label]").textContent=editingLayer==="gloss" ? "Gloss strength" : "Effect strength";
-    dialog.querySelector("[data-spot-overlay-label]").textContent=editingLayer==="gloss" ? "Gloss overlay color" : "Mask overlay color";
+    dialog.querySelector("[data-spot-overlay-label]").textContent=printedLayer() ? "Effect overlay color" : editingLayer==="gloss" ? "Gloss overlay color" : "Mask overlay color";
     dialog.querySelector('[data-spot-view="effect"]').textContent="Preview";
     stage.dataset.editLayer=editingLayer;
-    dialog.querySelector('[data-spot-view="mask"]').textContent=editingLayer==="gloss" ? "Gloss overlay" : "Mask overlay";
-    dialog.querySelector("[data-spot-remove]").textContent=editingLayer==="gloss" ? "Remove gloss" : "Remove spot foiling";
-    dialog.querySelector("[data-spot-invert]").title=editingLayer==="gloss" ? "Swap gloss and clear areas." : "Swap foil and opaque areas.";
-    canvas.setAttribute("aria-label", `Paint or erase the ${editingLayer==="gloss"?"gloss":"foil"} selection. Use the selection buttons as a keyboard alternative.`);
+    dialog.querySelector('[data-spot-view="mask"]').textContent=printedLayer() ? "Effect overlay" : editingLayer==="gloss" ? "Gloss overlay" : "Mask overlay";
+    dialog.querySelector("[data-spot-remove]").textContent=printedLayer() ? "Remove "+layerNames[editingLayer] : editingLayer==="gloss" ? "Remove gloss" : "Remove spot foiling";
+    dialog.querySelector("[data-spot-invert]").title=printedLayer() ? "Swap effect and clear areas." : editingLayer==="gloss" ? "Swap gloss and clear areas." : "Swap foil and opaque areas.";
+    canvas.setAttribute("aria-label", `Paint or erase the ${printedLayer()?"effect":editingLayer==="gloss"?"gloss":"foil"} selection. Use the selection buttons as a keyboard alternative.`);
   }
+  dialog.querySelector("[data-spot-new-pattern]").addEventListener("click",()=>{
+    fields.effect_seed.value=String(crypto.getRandomValues(new Uint32Array(1))[0]%2147483648);markChanged();scheduleRender();
+  });
   function captureLayer() {
     const values={};
     for(const field of fields)if(field.name && !["mask_file","zoom"].includes(field.name))values[field.name]=field.type==="checkbox"?field.checked:field.value;
@@ -83,6 +108,55 @@
     return {values,generation:record?.generation||{},png:record?.mask_url||null,width:base.width,history:[],historyIndex:-1,
       maskReviewed:false,removal:false,enabled:Boolean(record),recentColors:record?.generation?.color_swatches||[],textRegions:record?.generation?.text_regions||[]};
   }
+  function effectDraft(record,base,layer) {
+    const draft=glossDraft(record,base);
+    Object.assign(draft.values,{finish:record?.finish||"glitter_1",strength:String(record?.strength||65),
+      overlay_color:record?.overlay_color||(layer==="effect1"?"#FF9800":"#76FF03"),
+      effect_scale:String(record?.scale||100),effect_density:String(record?.density||100),
+      effect_color:record?.color||effectColors[record?.finish]||"#FFE7A0",
+      effect_translucence:String(record?.translucence||0),
+      effect_seed:String(record?.seed??(layer==="effect1"?73:197))});
+    draft.previewUrl=record?.overlay_url;draft.savedPng=draft.png;
+    if(!record)draft.values.selection_mode="none";
+    return draft;
+  }
+  function effectParams(values) {
+    return {finish:values.finish,strength:Number(values.strength),scale:Number(values.effect_scale),density:Number(values.effect_density),seed:Number(values.effect_seed),color:values.effect_color||effectColors[values.finish]||"#FFE7A0",translucence:Number(values.effect_translucence||0)};
+  }
+  function showPrintedPreviews() {effects.setPrintedEffects(stage,["effect1","effect2"].map(layer=>{const item=effectPreviews.get(layer);return item?.url?{url:item.url,translucence:item.translucence}:null;}));}
+  function clearPrintedPreviews() {
+    for(const item of effectPreviews.values()){clearTimeout(item.timer);item.controller?.abort();if(item.url?.startsWith("blob:"))URL.revokeObjectURL(item.url);}
+    effectPreviews.clear();effects.setPrintedEffects(stage,[]);
+  }
+  function queuePrintedPreview(layer,draft) {
+    const previous=effectPreviews.get(layer);
+    if(!draft?.enabled||!draft.png) {
+      clearTimeout(previous?.timer);previous?.controller?.abort();
+      if(previous?.url?.startsWith("blob:"))URL.revokeObjectURL(previous.url);
+      effectPreviews.delete(layer);showPrintedPreviews();return;
+    }
+    const params=effectParams(draft.values),{translucence,...textureParams}=params,key=JSON.stringify(textureParams)+draft.png;
+    const blend=params.finish==="fracture"?translucence:0;
+    if(previous?.key===key){previous.translucence=blend;showPrintedPreviews();return;}
+    clearTimeout(previous?.timer);previous?.controller?.abort();
+    const item={key,url:previous?.url||null,translucence:blend,controller:new AbortController()};effectPreviews.set(layer,item);
+    if(draft.previewUrl&&draft.png===draft.savedPng) {item.url=draft.previewUrl;showPrintedPreviews();return;}
+    const token=session;
+    item.timer=setTimeout(async()=>{
+      try {
+        const source=new Image();source.src=draft.png;await source.decode();
+        if(token!==session||effectPreviews.get(layer)!==item)return;
+        const small=document.createElement("canvas");small.width=756;small.height=1056;small.getContext("2d").drawImage(source,0,0,756,1056);
+        const response=await fetch(apiUrl(endpoint(current.target)+"/effect-preview"),{method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({effect:params,mask_data:small.toDataURL("image/png")}),signal:item.controller.signal});
+        if(!response.ok)throw new Error((await response.json()).message||"Effect preview failed.");
+        const blob=await response.blob();
+        if(token!==session||effectPreviews.get(layer)!==item)return;
+        if(item.url?.startsWith("blob:"))URL.revokeObjectURL(item.url);
+        item.url=URL.createObjectURL(blob);showPrintedPreviews();
+      }catch(error){if(error.name!=="AbortError"&&token===session&&effectPreviews.get(layer)===item){effectPreviews.delete(layer);message(error.message,true);}}
+    },180);
+  }
   async function switchLayer(layer) {
     if(layer===editingLayer || !ready || busy || activeStroke)return;
     const token=session;layerDrafts[editingLayer]=captureLayer();const draft=layerDrafts[layer];
@@ -92,13 +166,14 @@
       if(token!==session || current?.artworkChanged)return;
       editingLayer=layer;setLayerLabels();
       for(const [name,value] of Object.entries(draft.values))if(fields[name]){if(fields[name].type==="checkbox")fields[name].checked=value;else fields[name].value=value;}
+      updateEffectColor();
       sizeMask(Math.max(draft.width,saved?.naturalWidth||0));ctx.clearRect(0,0,mask.width,mask.height);if(saved)ctx.drawImage(saved,0,0,mask.width,mask.height);
       textRegions=draft.textRegions;recentColors=draft.recentColors;removal=draft.removal;maskReviewed=draft.maskReviewed;
       showingText=false;showingFrame=false;history=[...draft.history];historyIndex=draft.historyIndex;
       ready=true;updatePocketSize();updateBrushControls();updateEdgeControls();updateExclusionControls();updateRegionControls();updateFrameControls();chooseColor(fields.selection_color.value);
       dialog.querySelector("[data-spot-strength-value]").value=fields.strength.value+"%";
       coverage();renderMask();if(!history.length){history=[maskUrl];historyIndex=0;}controls();
-      message(removal ? "Removal pending. Save to apply." : "Editing "+(layer==="gloss"?"Gloss":"Foil Mask")+".");
+      message(removal ? "Removal pending. Save to apply." : "Editing "+layerNames[layer]+".");
     }catch(error){if(token===session)message("Could not load this layer. "+error.message,true);}
     finally{if(token===session){ready=true;controls();}}
   }
@@ -154,6 +229,8 @@
     if (surface) {
       effects.setSpotFoil(surface, record && record.foil_enabled!==false ? {maskUrl: record.mask_url, finish: record.finish, strength: record.strength} : null);
       effects.setGloss(surface, record?.gloss ? {maskUrl:record.gloss.mask_url,finish:record.gloss.finish,strength:record.gloss.strength} : null);
+      effects.setPrintedEffects(surface,["effect1","effect2"].map(layer=>record?.[layer]?.overlay_url?{
+        url:record[layer].overlay_url,translucence:record[layer].finish==="fracture"?record[layer].translucence||0:0}:null));
     }
     const button = host.querySelector(".spot-card-button");
     if (button) {
@@ -292,20 +369,16 @@
     overlay.drawImage(mask, 0, 0);
     overlay.globalCompositeOperation = "source-in"; overlay.fillStyle = fields.overlay_color.value;
     overlay.fillRect(0, 0, canvas.width, canvas.height); overlay.globalCompositeOperation = "source-over";
-    // Composite the inactive draft separately, so editing still writes only to
-    // the active mask. Foil always sits below Gloss, regardless of the edit tab.
-    const other=layerDrafts[editingLayer==="mask"?"gloss":"mask"];
     const allOverlays=view==="all" && !showingText && !showingFrame;
-    otherOverlay.hidden=!allOverlays || !other?.enabled || !other.png;
-    if(!otherOverlay.hidden) {
-      otherOverlay.style.setProperty("--spot-other-mask",`url("${other.png}")`);
-      otherOverlay.style.backgroundColor=other.values.overlay_color;
-    } else {
-      otherOverlay.style.removeProperty("--spot-other-mask");
-    }
-    for(const layer of ["mask","gloss"]) {
-      const color=layer===editingLayer ? fields.overlay_color.value : layerDrafts[layer]?.values.overlay_color || (layer==="mask"?"#00D8FF":"#00BFFF");
-      dialog.querySelector(`[data-spot-legend-color="${layer}"]`).style.backgroundColor=color;
+    const inactive=Object.keys(layerOrder).filter(layer=>layer!==editingLayer&&layerDrafts[layer]?.enabled&&layerDrafts[layer].png);
+    canvas.style.zIndex=String(layerOrder[editingLayer]);
+    otherOverlays.forEach((element,index)=>{
+      const layer=inactive[index],draft=layerDrafts[layer];element.hidden=!allOverlays||!draft;
+      element.style.removeProperty("--spot-other-mask");
+      if(!element.hidden){element.style.setProperty("--spot-other-mask",`url("${draft.png}")`);element.style.backgroundColor=draft.values.overlay_color;element.style.zIndex=String(layerOrder[layer]);}
+    });
+    for(const layer of Object.keys(layerOrder)) {
+      dialog.querySelector(`[data-spot-legend-color="${layer}"]`).style.backgroundColor=layer===editingLayer?fields.overlay_color.value:layerDrafts[layer]?.values.overlay_color||"#00BFFF";
     }
     if (showingText || showingFrame) {
       overlay.clearRect(0, 0, canvas.width, canvas.height);
@@ -317,11 +390,11 @@
       overlay.fillRect(0, 0, canvas.width, canvas.height); overlay.globalCompositeOperation = "source-over";
     }
     if (!painting || view === "effect") {
-      const active={maskUrl:effectUrl,finish:fields.finish.value,strength:Number(fields.strength.value)};
-      const other=layerDrafts[editingLayer==="mask"?"gloss":"mask"];
-      const inactive=other?.enabled && other.png ? {maskUrl:other.png,finish:other.values.finish,strength:Number(other.values.strength)} : null;
-      effects.setSpotFoil(stage,editingLayer==="mask"?active:inactive);
-      effects.setGloss(stage,editingLayer==="gloss"?active:inactive);
+      const draftFor=layer=>layer===editingLayer?{enabled:!removal&&(hasInk||maskReviewed||activeSaved()),png:effectUrl,
+        values:{finish:fields.finish.value,strength:fields.strength.value,effect_scale:fields.effect_scale.value,effect_density:fields.effect_density.value,effect_seed:fields.effect_seed.value,effect_color:fields.effect_color.value,effect_translucence:fields.effect_translucence.value}}:layerDrafts[layer];
+      const preview=layer=>{const draft=draftFor(layer);return draft?.enabled&&draft.png?{maskUrl:draft.png,finish:draft.values.finish,strength:Number(draft.values.strength)}:null;};
+      effects.setSpotFoil(stage,preview("mask"));effects.setGloss(stage,preview("gloss"));
+      for(const layer of ["effect1","effect2"])queuePrintedPreview(layer,draftFor(layer));
     }
   }
   function updatePreviewHelp() {
@@ -498,7 +571,9 @@
       fields.frame_layout.value = ({modern:"m15",classic:"retro"})[generation.frame_layout] || generation.frame_layout || "auto";
       updateFrameControls();
       updateRegionControls();
-      layerDrafts.mask=captureLayer();layerDrafts.gloss=glossDraft(record?.gloss,layerDrafts.mask);renderMask();
+      layerDrafts.mask=captureLayer();layerDrafts.gloss=glossDraft(record?.gloss,layerDrafts.mask);
+      for(const layer of ["effect1","effect2"])layerDrafts[layer]=effectDraft(record?.[layer],layerDrafts.mask,layer);
+      renderMask();
       dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%";
       dialog.querySelector("[data-spot-scope]").textContent = payload.image_scope.is_isolated
         ? "Isolation on · saved only in this collection"
@@ -522,7 +597,7 @@
   function releaseEditor() {
     ++session; ready = false; activeStroke = null;
     subjectMasks.clear(); frameMasks.clear(); showingFrame = false;
-    layerDrafts={};effects.setGloss(stage,null);otherOverlay.hidden=true;otherOverlay.style.removeProperty("--spot-other-mask");
+    layerDrafts={};clearPrintedPreviews();effects.setGloss(stage,null);for(const element of otherOverlays){element.hidden=true;element.style.removeProperty("--spot-other-mask");}
     if (renderFrame) cancelAnimationFrame(renderFrame); renderFrame = null;
     if (artworkUrl) URL.revokeObjectURL(artworkUrl); artworkUrl = "";
     image.removeAttribute("src"); history = []; current?.trigger.focus(); current = null;
@@ -902,9 +977,13 @@
   dialog.querySelector("[data-spot-remove]").addEventListener("click", () => {
     if (selectArea("none")) {removal = true; markChanged();}
   });
-  for (const field of [fields.finish, fields.strength]) field.addEventListener("input", () => {
+  for (const field of [fields.finish, fields.strength, fields.effect_scale, fields.effect_density, fields.effect_color, fields.effect_translucence]) field.addEventListener("input", () => {
+    updateEffectColor(field===fields.finish);
     dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%"; scheduleRender(); markChanged();
   });
+  dialog.querySelectorAll("[data-spot-effect-swatch]").forEach(button=>button.addEventListener("click",()=>{
+    fields.effect_color.value=button.dataset.spotEffectSwatch;fields.effect_color.dispatchEvent(new Event("input",{bubbles:true}));
+  }));
   dialog.querySelector("[data-spot-maximize]").addEventListener("click", event => {
     const maximized = dialog.classList.toggle("is-maximized"), button = event.currentTarget;
     button.setAttribute("aria-pressed", String(maximized));
@@ -915,8 +994,8 @@
   function updateOverlayPreference() {
     if (ready) scheduleRender();
     try {
-      localStorage.setItem(`deckadence.${editingLayer==="gloss"?"gloss":"spot"}.overlayColor`, fields.overlay_color.value);
-      localStorage.setItem(`deckadence.${editingLayer==="gloss"?"gloss":"spot"}.maskOnly`, String(fields.mask_only.checked));
+      localStorage.setItem(`deckadence.${editingLayer==="mask"?"spot":editingLayer}.overlayColor`, fields.overlay_color.value);
+      localStorage.setItem(`deckadence.${editingLayer==="mask"?"spot":editingLayer}.maskOnly`, String(fields.mask_only.checked));
     } catch (_) {}
   }
   try {
@@ -1013,24 +1092,26 @@
   });
   form.addEventListener("submit", async event => {
     event.preventDefault(); if (!ready || busy || save.disabled) return;
-    busy = true; controls(); message("Saving this card’s spot foiling…");
+    busy = true; controls(); message("Saving card finishes…");
     const target = current.target;
     try {
       layerDrafts[editingLayer]=captureLayer();
-      const foil=layerDrafts.mask,gloss=layerDrafts.gloss;
-      // Load a saved gloss URL only when saving; draft masks already use data URLs.
-      let glossPng=gloss.png;
-      if(gloss.enabled && glossPng && !glossPng.startsWith("data:")) {
-        const response=await fetch(glossPng);if(!response.ok)throw new Error("Could not load the saved gloss layer.");
-        const blob=await response.blob();
-        glossPng=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob);});
+      const foil=layerDrafts.mask;
+      const layerPayloads={};
+      for(const layer of ["gloss","effect1","effect2"]) {
+        const draft=layerDrafts[layer];let png=draft.png;
+        if(draft.enabled&&png&&!png.startsWith("data:")) {
+          const response=await fetch(png);if(!response.ok)throw new Error("Could not load "+layerNames[layer]+".");
+          const blob=await response.blob();png=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(blob);});
+        }
+        layerPayloads[layer]=draft.enabled?{finish:draft.values.finish,strength:Number(draft.values.strength),overlay_color:draft.values.overlay_color,generation:draft.generation,mask_data:png,
+          ...(layer.startsWith("effect")?effectParams(draft.values):{})}:null;
       }
       if(current?.artworkChanged)throw new Error("Artwork changed. Close and reopen before saving.");
-      const removeAll=!foil.enabled&&!gloss.enabled;
+      const removeAll=!Object.values(layerDrafts).some(draft=>draft.enabled);
       const body=removeAll ? {revision:current.record?.revision||null,all_layers:true} : {
         finish:foil.values.finish,strength:Number(foil.values.strength),artwork_signature:current.signature,
-        generation:foil.generation,mask_data:foil.png,foil_enabled:foil.enabled,revision:current.record?.revision||null,
-        gloss:gloss.enabled ? {finish:gloss.values.finish,strength:Number(gloss.values.strength),overlay_color:gloss.values.overlay_color,generation:gloss.generation,mask_data:glossPng} : null,
+        generation:foil.generation,mask_data:foil.png,foil_enabled:foil.enabled,revision:current.record?.revision||null,...layerPayloads,
       };
       const result = await api(apiUrl(endpoint(target), true), {method: removeAll ? "DELETE" : "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
       publish(target, result.record); channel?.postMessage({scope: current.scope, target});

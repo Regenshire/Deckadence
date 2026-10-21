@@ -28,6 +28,8 @@
         </div>
         <p class="spot-card-caption" data-spot-preview-help>Foil appears only inside your selected areas. The rest stays opaque.</p>
         <div class="spot-card-overlay-legend" data-spot-overlay-legend hidden aria-label="Overlay colors">
+          <span><i data-spot-legend-color="effect1" aria-hidden="true"></i>Effect 1</span>
+          <span><i data-spot-legend-color="effect2" aria-hidden="true"></i>Effect 2</span>
           <span><i data-spot-legend-color="mask" aria-hidden="true"></i>Foil Mask</span>
           <span><i data-spot-legend-color="gloss" aria-hidden="true"></i>Gloss</span>
         </div>
@@ -49,6 +51,8 @@
       </section>
       <section class="spot-card-controls" aria-label="Card finishing controls">
         <div class="spot-card-layer-switch" role="group" aria-label="Editing layer">
+          <button type="button" data-spot-layer="effect1" aria-pressed="false">Effect 1</button>
+          <button type="button" data-spot-layer="effect2" aria-pressed="false">Effect 2</button>
           <button type="button" data-spot-layer="mask" aria-pressed="true">Foil Mask</button>
           <button type="button" data-spot-layer="gloss" aria-pressed="false">Gloss</button>
         </div>
@@ -199,10 +203,29 @@
         </fieldset>
         </details>
         <fieldset data-spot-edit-controls disabled>
-          <legend>Preview finish</legend>
+          <legend data-spot-finish-legend>Preview finish</legend>
           <label><span data-spot-effect-label>Foil effect</span><select name="finish"><option value="foil">Rainbow foil</option><option value="surge">Surge foil</option><option value="chocobo">Chocobo foil</option></select></label>
           <label class="spot-card-range-label"><span data-spot-effect-strength-label>Effect strength</span> <output data-spot-strength-value>100%</output><input name="strength" type="range" min="1" max="100" value="100"></label>
-          <p class="spot-card-caption">Screen preview only.</p>
+          <p class="spot-card-caption" data-spot-preview-only>Screen preview only.</p>
+          <div data-spot-pattern-controls hidden>
+            <label>Pattern size (%)<input name="effect_scale" type="number" min="25" max="200" value="100"></label>
+            <label>Density (%)<input name="effect_density" type="number" min="25" max="200" value="100"></label>
+            <input name="effect_seed" type="hidden" value="1">
+            <button type="button" data-spot-new-pattern>New pattern</button>
+            <div data-spot-fracture-controls hidden>
+              <label class="spot-card-range-label">Translucence <output data-spot-translucence-value>0%</output><input type="range" name="effect_translucence" min="0" max="100" value="0"></label>
+              <p class="spot-card-caption">Reveals artwork detail while keeping the foil colors.</p>
+            </div>
+            <div data-spot-effect-color-controls hidden>
+              <label class="spot-card-color-picker"><span data-spot-effect-color-label>Effect color</span><input type="color" name="effect_color" value="#FFE7A0"><output data-spot-effect-color>#FFE7A0</output></label>
+              <div class="spot-card-swatches" role="group" aria-label="Effect colors">
+                {% for color in ['#FFFFFF', '#FFE7A0', '#00DDFF', '#FF2FBB', '#8CFF45', '#18213B'] %}
+                <button type="button" class="spot-card-swatch" data-spot-effect-swatch="{{ color }}" style="--swatch: {{ color }}" aria-label="Use {{ color }} effect color"></button>
+                {% endfor %}
+              </div>
+            </div>
+            <p class="spot-card-caption">Effect 2 sits above Effect 1. Both print as artwork.</p>
+          </div>
           <label class="spot-card-color-picker"><span data-spot-overlay-label>Mask overlay color</span> <input type="color" name="overlay_color" value="#00D8FF"><output data-spot-overlay-color>#00D8FF</output></label>
           <div class="spot-card-swatches" role="group" aria-label="Mask overlay colors">
             {% for color in ['#00D8FF', '#FF36C3', '#76FF03', '#FFD600', '#FFFFFF'] %}

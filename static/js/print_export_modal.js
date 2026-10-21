@@ -103,6 +103,7 @@
     const foilIntensityValue = getElement("printFoilIntensityValue");
     const spotFoilCheckbox = form && form.querySelector('input[type="checkbox"][name="include_spot_foil"]');
     const glossCheckbox = form && form.querySelector('input[type="checkbox"][name="include_gloss"]');
+    const effectCheckboxes = form ? [...form.querySelectorAll('input[type="checkbox"][name="include_effect1"], input[type="checkbox"][name="include_effect2"]')] : [];
     const spotFoilOptions = getElement("printSpotFoilOptions");
     const spotWorkflow = getElement("printSpotFoilWorkflow");
     const spotLayer = getElement("printSpotFoilLayer"), spotName = getElement("printSpotFoilName");
@@ -114,8 +115,9 @@
       const enabled = Boolean((spotFoilCheckbox?.checked || glossCheckbox?.checked) && spotData);
       for (const field of [spotWorkflow, spotOutput, spotTone]) if (field) field.disabled = !enabled;
       if (spotOutput) {
-        spotOutput.querySelector('option[value="mask_pdf"]').disabled = Boolean(glossCheckbox?.checked);
-        if (glossCheckbox?.checked) spotOutput.value = "spot_pdf";
+        const needsArtwork = Boolean(glossCheckbox?.checked || effectCheckboxes.some(field=>field.checked));
+        spotOutput.querySelector('option[value="mask_pdf"]').disabled = needsArtwork;
+        if (needsArtwork) spotOutput.value = "spot_pdf";
       }
       if (spotLayer) spotLayer.disabled = !enabled || !spotFoilCheckbox?.checked;
       if (spotName) spotName.disabled = !enabled || !spotFoilCheckbox?.checked || spotOutput.value !== "spot_pdf";
@@ -176,6 +178,7 @@
     }
     if (spotFoilCheckbox) spotFoilCheckbox.addEventListener("change", syncFoilIntensity);
     if (glossCheckbox) glossCheckbox.addEventListener("change", syncFoilIntensity);
+    effectCheckboxes.forEach(field=>field.addEventListener("change",syncFoilIntensity));
     if (foilIntensity) {
       try {
         const saved = localStorage.getItem("deckadence.print.foilIntensity");

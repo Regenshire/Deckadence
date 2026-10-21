@@ -59,6 +59,12 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
 .spot-card-stage:is([data-view="original"], [data-view="mask"], [data-view="all"], [data-text-preview="true"]) .card-gloss-layer { visibility: hidden; }
 .spot-card-layer-switch { display:flex; gap:6px; margin-bottom:14px; }
 .spot-card-layer-switch button { flex:1; }
+.spot-card-layer-switch { flex-wrap: wrap; }
+.spot-card-layer-switch button { min-width: 75px; }
+.spot-card-stage:is([data-view="original"], [data-view="mask"], [data-view="all"], [data-text-preview="true"]) :is(.card-printed-effect, .card-printed-glaze) { visibility: hidden; }
+[data-spot-fracture-controls] { grid-column: 1 / -1; }
+[data-spot-pattern-controls] { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+[data-spot-pattern-controls] .spot-card-caption { grid-column: 1 / -1; }
 .spot-card-stage[data-tool="pan"] > canvas { cursor: grab; }
 .spot-card-stage[data-tool="pan"] > canvas:active { cursor: grabbing; }
 .spot-card-brush-cursor { position: absolute; border: 1px solid white; box-shadow: 0 0 0 1px #222; border-radius: 50%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none; }
@@ -137,3 +143,4 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
   .spot-card-footer-actions { width: 100%; }
   .spot-card-footer-actions button { flex: 1; }
 }
+.spot-card-dialog [data-spot-effect-color-controls] { grid-column: 1 / -1; }

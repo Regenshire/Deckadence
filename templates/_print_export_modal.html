@@ -447,6 +447,16 @@
             <input type="hidden" name="include_gloss" value="0" />
             <input type="checkbox" name="include_gloss" value="1" aria-controls="printSpotFoilOptions" />
           </label>
+          <label class="toggle-row">
+            <span>Include Effect 1</span>
+            <input type="hidden" name="include_effect1" value="0" />
+            <input type="checkbox" name="include_effect1" value="1" />
+          </label>
+          <label class="toggle-row">
+            <span>Include Effect 2</span>
+            <input type="hidden" name="include_effect2" value="0" />
+            <input type="checkbox" name="include_effect2" value="1" />
+          </label>
           <div id="printSpotFoilOptions" class="print-spot-foil-options" data-workflows-url="{{ url_for('spot_foil_workflows') }}" hidden>
             <label for="printSpotFoilWorkflow">Print workflow</label>
             <select id="printSpotFoilWorkflow" name="spot_foil_workflow_id" required disabled><option value="">Loading workflows…</option></select>
