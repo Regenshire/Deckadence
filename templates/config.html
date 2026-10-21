@@ -6,8 +6,8 @@
 {# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/application_backups.css', v='1') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/spot_foil_workflows.css', v='4') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-ink-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/spot_foil_workflows.css', v='5') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-layers-4') }}">
 <link
     rel="stylesheet"
     href="{{ url_for('static', filename='css/upscale_batch.css') }}"
@@ -1131,14 +1131,14 @@
 
                 <div class="plugin-companion-panels" data-plugin-companions>
                     {% include "_spot_foil_workflows.html" %}
-                    {% for plugin in plugin_catalog_items if plugin.get('plugin_id') == 'spot-foil-ai' %}
+                    {% for plugin in plugin_catalog_items if plugin.get('plugin_id') in ('spot-foil-ai', 'subject-detection-ai') %}
                         {{ render_plugin_card(plugin) }}
                     {% endfor %}
                 </div>
 
                 {% set plugin_counts = namespace(installed=0, available=0) %}
 
-                {% for plugin in plugin_catalog_items if plugin.get('plugin_id') != 'spot-foil-ai' %}
+                {% for plugin in plugin_catalog_items if plugin.get('plugin_id') not in ('spot-foil-ai', 'subject-detection-ai') %}
                     {% if plugin.get("status", {}).get("installed") %}
                         {% set plugin_counts.installed = plugin_counts.installed + 1 %}
                     {% else %}
@@ -1164,7 +1164,7 @@
                         class="plugin-list"
                         data-plugin-list="installed"
                     >
-                        {% for plugin in plugin_catalog_items if plugin.get('plugin_id') != 'spot-foil-ai' %}
+                        {% for plugin in plugin_catalog_items if plugin.get('plugin_id') not in ('spot-foil-ai', 'subject-detection-ai') %}
                             {% if plugin.get("status", {}).get("installed") %}
                                 {{ render_plugin_card(plugin) }}
                             {% endif %}
@@ -1190,7 +1190,7 @@
                         class="plugin-list {% if plugin_counts.available == 0 %}hidden{% endif %}"
                         data-plugin-list="available"
                     >
-                        {% for plugin in plugin_catalog_items if plugin.get('plugin_id') != 'spot-foil-ai' %}
+                        {% for plugin in plugin_catalog_items if plugin.get('plugin_id') not in ('spot-foil-ai', 'subject-detection-ai') %}
                             {% if not plugin.get("status", {}).get("installed") %}
                                 {{ render_plugin_card(plugin) }}
                             {% endif %}
@@ -1438,7 +1438,7 @@
 <script
     src="{{ url_for('static', filename='js/plugin_manager.js', v='2') }}"
 ></script>
-<script src="{{ url_for('static', filename='js/spot_foil_workflows.js', v='3') }}"></script>
+<script src="{{ url_for('static', filename='js/spot_foil_workflows.js', v='6') }}"></script>
 
 <script>
 (function () {

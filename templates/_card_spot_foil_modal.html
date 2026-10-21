@@ -6,21 +6,31 @@
         data-lookup-url="{{ url_for('card_spot_foil_lookup') }}">
   <form id="cardSpotFoilForm">
     <header class="spot-card-header">
-      <div><p class="spot-card-eyebrow">Card finishing studio</p><h2 id="cardSpotFoilTitle">Spot foiling</h2><p data-spot-card-name></p></div>
-      <button type="button" class="spot-card-close" data-spot-close aria-label="Close spot foiling">×</button>
+      <div class="spot-card-heading"><p class="spot-card-eyebrow">Card finishing studio</p><h2 id="cardSpotFoilTitle">Card finishing effects</h2><p data-spot-card-name></p></div>
+      <p class="spot-card-scope" data-spot-scope role="status">Loading image-library scope…</p>
+      <div class="spot-card-window-actions">
+        <button type="button" data-spot-maximize aria-label="Maximize card finishing effects" aria-pressed="false">⛶ <span>Maximize</span></button>
+        <button type="button" class="spot-card-close" data-spot-close aria-label="Close spot foiling">×</button>
+      </div>
     </header>
     <div class="spot-card-layout">
       <section class="spot-card-preview-panel" aria-label="Card preview and painting canvas">
+        <div class="spot-card-preview-actions">
         <div class="spot-card-preview-tabs" role="group" aria-label="Preview mode">
           <button type="button" data-spot-view="effect" aria-pressed="true">Foil preview</button>
           <button type="button" data-spot-view="mask" aria-pressed="false">Mask overlay</button>
           <button type="button" data-spot-view="original" aria-pressed="false">Original</button>
+        </div>
+        <div class="spot-card-history" role="group" aria-label="Edit history">
+          <button type="button" data-spot-undo disabled title="Undo (Ctrl+Z)">↶ Undo</button><button type="button" data-spot-redo disabled title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
+        </div>
         </div>
         <p class="spot-card-caption" data-spot-preview-help>Foil appears only inside your selected areas. The rest stays opaque.</p>
         <div class="spot-card-viewport" data-spot-viewport tabindex="0" aria-label="Scrollable card canvas. Zoom in, then use the Pan tool to move around.">
           <div class="spot-card-stage" data-spot-stage>
             <img data-spot-image alt="Card artwork" draggable="false">
             <canvas width="756" height="1056" data-spot-canvas aria-label="Paint or erase the foil selection on this card. Use the selection buttons as a keyboard alternative."></canvas>
+            <div class="spot-card-area-guide" data-spot-area-guide hidden aria-hidden="true"><span>Art box limit</span></div>
             <span class="spot-card-brush-cursor" data-spot-cursor aria-hidden="true" hidden></span>
           </div>
         </div>
@@ -30,47 +40,137 @@
           <button type="button" data-spot-zoom-in aria-label="Zoom in">+</button>
           <button type="button" data-spot-fit>Fit</button>
         </div>
-        <p class="spot-card-caption">With Pan selected, hover to tilt the card and inspect the foil. Drag to pan when zoomed in. Editing tools keep the card flat. Preview lighting is illustrative.</p>
-        <p class="spot-card-caption" data-spot-resolution></p>
       </section>
-      <section class="spot-card-controls" aria-label="Spot foiling controls">
-        <p class="spot-card-scope" data-spot-scope>Loading image-library scope…</p>
-        <fieldset class="spot-card-automatic" data-spot-edit-controls disabled>
-          <legend>1 · Apply automatic spot foiling</legend>
-          <label>What should happen to matching areas?<select name="generation_action"><option value="foil">Show foil there</option><option value="opaque">Keep them opaque · foil the rest</option></select></label>
-          <label>Find matching areas<select name="selection_mode">
-            <option value="highlights">Bright areas · Highlights</option>
-            <option value="colors">Strong colors · Color accents</option>
-            <option value="details">Edges and texture · Details</option>
-            <option value="shadows">Dark areas · Shadows</option>
-            <option value="artwork">Everything in the chosen region</option>
+      <section class="spot-card-controls" aria-label="Card finishing controls">
+        <div class="spot-card-layer-switch" role="group" aria-label="Editing layer">
+          <button type="button" data-spot-layer="mask" aria-pressed="true">Mask</button>
+          <button type="button" data-spot-layer="gloss" aria-pressed="false">Gloss</button>
+        </div>
+        <details class="spot-card-step is-active" data-spot-step="automatic" open>
+          <summary>1 · Automatic selection</summary>
+        <fieldset data-spot-edit-controls disabled aria-label="Automatic selection">
+          <div class="spot-card-fields-grid">
+          <label>Choose areas by<select name="selection_mode">
+            <option value="none">None</option>
+            <option value="highlights">Bright areas</option>
+            <option value="colors">Strong colors</option>
+            <option value="details">Edges and texture</option>
+            <option value="shadows">Dark areas</option>
+            <option value="subject">Subject · AI</option>
+            <option value="background">Background · AI</option>
+            <option value="artwork">Everything</option>
           </select></label>
-          <label>Apply within<select name="selection_region"><option value="artwork">Standard art box · protect text and frame</option><option value="full">Whole card · full-art layouts</option></select></label>
-          <label>Clean up automatic selection<select name="cleanup"><option value="balanced">Balanced · smooth edges and remove speckles</option><option value="strong">Stronger · broader, cleaner areas</option><option value="off">Off · preserve every detail</option></select></label>
-          <p class="spot-card-caption">Reduces tiny dots and holes from artwork texture. Applies when you click Apply, before text and border overrides. Your later brush edits keep their detail.</p>
-          <label class="spot-card-range-label"><span data-spot-amount-label>How much area to foil</span> <output data-spot-amount-value>35%</output><input name="selection_amount" type="range" min="5" max="95" step="5" value="35" aria-describedby="spotFoilAmountHelp"></label>
+          <label data-spot-auto-option>Make selected areas<select name="generation_action"><option value="foil">Foiled</option><option value="opaque">Opaque · foil the rest</option></select></label>
+          <label data-spot-auto-option>Apply within<select name="selection_region"><option value="full">Whole card</option><option value="artwork">Fixed art box</option></select></label>
+          <label data-spot-auto-option>Cleanup<select name="cleanup"><option value="balanced">Balanced</option><option value="strong">Strong</option><option value="off">Off · keep fine detail</option></select></label>
+          </div>
+          <p class="spot-card-caption" data-spot-auto-off hidden>Automatic selection is off. Use Touch up to edit the mask.</p>
+          <div data-spot-auto-option>
+          <p class="spot-card-caption" data-spot-subject-help hidden><span data-spot-subject-status></span> <a href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins" target="_blank" rel="noopener" data-spot-subject-install>Open Plugin Manager ↗</a></p>
+          <p class="spot-card-caption" data-spot-area-help></p>
+          <label class="spot-card-range-label"><span data-spot-amount-label>Area selected</span> <output data-spot-amount-value>35%</output><input name="selection_amount" type="range" min="5" max="100" step="1" value="35" aria-describedby="spotFoilAmountHelp"></label>
           <p class="spot-card-caption" id="spotFoilAmountHelp" data-spot-amount-help></p>
-          <label class="spot-card-range-label">Foil amount · tool strength <output data-spot-coverage-value>100%</output><input name="coverage" type="range" min="1" max="100" value="100"></label>
-          <p class="spot-card-caption">100% applies full foil; 50% applies half the amount inside the foil areas. Paint, Magic Wand, and Match Color use this percentage. Erase uses it to remove foil. This does not change how much area is selected.</p>
-          <details class="spot-card-region-settings"><summary>Text and border treatment</summary>
-            <label>Text<select name="text_mode"><option value="original">Text — Follow the automatic result</option><option value="opaque">Text — Opaque · no foil</option><option value="foil">Text — Foiled · show foil</option></select></label>
-            <label>Text layout<select name="text_source"><option value="standard">Standard frame regions</option><option value="detected">AI detected regions · full-art / unusual layouts</option></select></label>
-            <label>Text coverage<select name="text_detail"><option value="letters">Lettering · local contrast estimate</option><option value="regions">Entire text regions</option></select></label>
-            <div class="spot-card-button-row"><button type="button" data-spot-detect>Detect text with AI</button><button type="button" data-spot-show-text>Show text regions</button></div>
-            <p class="spot-card-caption" data-spot-detector-status>AI detection runs locally. Install AI Text Detection beside Spot Foiling in Plugin Manager.</p>
+          <label class="spot-card-range-label">Foil strength <output data-spot-coverage-value>100%</output><input name="coverage" type="range" min="1" max="100" value="100"></label>
+          <div class="spot-card-treatment">
+            <h3>Text, frame and border</h3>
+            <div class="spot-card-fields-grid">
+            <label>Text<select name="text_mode"><option value="original">Follow automatic selection</option><option value="opaque">Opaque · no foil</option><option value="foil">Foiled</option></select></label>
+            <label>Border<select name="border_mode"><option value="original">Follow automatic selection</option><option value="opaque">Opaque · no foil</option><option value="foil">Foiled</option></select></label>
+            <label>Frame<select name="frame_mode"><option value="original">Follow automatic selection</option><option value="opaque">Exclude foil</option><option value="foil">Apply foil</option></select></label>
+            </div>
+            <div data-spot-frame-options hidden>
+              <div class="spot-card-fields-grid">
+                <label>Include<select name="frame_scope"><option value="material">Frame only</option><option value="panels">Frame and text panels</option></select></label>
+                <label>Frame layout<select name="frame_layout"><option value="auto">Automatic · AI</option><option value="m15">M15</option><option value="retro">Retro</option><option value="extended">Extended Art</option><option value="borderless">Borderless</option></select></label>
+              </div>
+              <div class="spot-card-button-row"><button type="button" data-spot-show-frame>Preview frame</button></div>
+              <p class="spot-card-caption" data-spot-frame-status></p>
+              <a href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins" target="_blank" rel="noopener" data-spot-frame-install hidden>Open Plugin Manager ↗</a>
+            </div>
+            <label class="spot-card-range-label" data-spot-border-options>Outer border width <output data-spot-border-value>2%</output><input name="border_width" type="range" min="0" max="12" value="2" step="0.5"></label>
+            <p class="spot-card-caption" data-spot-treatment-hint></p>
+            <div class="spot-card-fields-grid">
+            <label>Layout<select name="text_source"><option value="standard">Standard card frame</option><option value="detected">AI detected · full art</option></select></label>
+            <label>Select<select name="text_detail"><option value="letters">Letters only</option><option value="regions">Whole text boxes</option></select></label>
+            </div>
+            <div class="spot-card-button-row"><button type="button" data-spot-detect>Detect text with AI</button><button type="button" data-spot-show-text>Preview text</button></div>
+            <p class="spot-card-caption" data-spot-detector-status>Install AI Text Detection in Plugin Manager.</p>
+          <details class="spot-card-region-settings"><summary>Refine text selection</summary>
+            <label data-spot-letter-options>Letter color<select name="text_ink"><option value="auto">Any contrasting color</option><option value="light">Light letters</option><option value="dark">Dark letters</option></select></label>
+            <label class="spot-card-range-label">Text outline <output data-spot-text-expand-value>0 px</output><input name="text_expand" type="range" min="-12" max="12" step="1" value="0"></label>
+            <label class="spot-card-range-label">Smooth text edges <output data-spot-text-smooth-value>Off</output><input name="text_smooth" type="range" min="0" max="6" step="1" value="0"></label>
             <a class="spot-card-help" href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins" target="_blank" rel="noopener">Open Plugin Manager ↗</a>
-            <label>Border<select name="border_mode"><option value="original">Border — Follow the automatic result</option><option value="opaque">Border — Opaque · no foil</option><option value="foil">Border — Foiled · show foil</option></select></label>
-            <label class="spot-card-range-label">Outer border width <output data-spot-border-value>2%</output><input name="border_width" type="range" min="0" max="12" value="2" step="0.5"></label>
-            <p class="spot-card-caption">0% means no border override. Other values are a percentage of card width. Text and border choices override the automatic result when you click Apply. AI can miss decorative letters; use the editing tools for touch-ups.</p>
+            <button type="button" data-spot-apply-text>Apply text only</button>
           </details>
-          <p class="spot-card-caption" data-spot-generation-hint>Automatically select the brightest areas in this artwork.</p>
+          </div>
+          <div class="spot-card-auto-actions">
           <button type="button" class="spot-card-apply" data-spot-apply>Apply spot foiling</button>
-          <p class="spot-card-caption">Apply replaces the current selection; Undo restores it. Review the preview, then touch up if needed. Nothing is saved until you choose Save.</p>
+          </div>
+          </div>
         </fieldset>
-        <fieldset data-spot-edit-controls disabled>
-          <legend>2 · Remove small pockets</legend>
-          <p class="spot-card-caption">Clean the current mask without regenerating it. Remove isolated foil dots, fill small clear holes surrounded by foil, or do both.</p>
-          <label>Clean up<select name="pocket_target"><option value="both">Both · foil dots and clear holes</option><option value="foil">Foil dots only · make them opaque</option><option value="holes">Clear holes only · fill them with foil</option></select></label>
+        </details>
+        <details class="spot-card-step" data-spot-step="touch-up" data-spot-touch-up>
+          <summary>2 · Touch up</summary>
+        <fieldset data-spot-edit-controls disabled aria-label="Touch up">
+          <div class="spot-card-tools" role="group" aria-label="Touch-up tool">
+            <button type="button" data-spot-tool="paint" aria-pressed="true">Paint <kbd>B</kbd></button>
+            <button type="button" data-spot-tool="erase" aria-pressed="false">Erase <kbd>E</kbd></button>
+            <button type="button" data-spot-tool="pan" aria-pressed="false">Pan <kbd>H</kbd></button>
+            <button type="button" data-spot-tool="wand" aria-pressed="false">Magic Wand <kbd>W</kbd></button>
+            <button type="button" data-spot-tool="match" aria-pressed="false">Match Color <kbd>C</kbd></button>
+            <button type="button" data-spot-tool="sample" aria-pressed="false">Sample <kbd>I</kbd></button>
+          </div>
+          <label class="spot-card-range-label">Tool amount <output data-spot-tool-coverage-value>100%</output><input name="tool_coverage" type="range" min="1" max="100" value="100"></label>
+          <div data-spot-color-tools hidden>
+          <label>Selection action<select name="selection_action"><option value="add">Apply foil</option><option value="erase">Remove foil</option></select></label>
+          <label class="spot-card-range-label">Color tolerance <output data-spot-tolerance-value>32</output><input name="tolerance" type="range" min="0" max="128" value="32"></label>
+          <p class="spot-card-caption">Wand selects nearby pixels. Match Color finds them across the card.</p>
+          <details><summary>Selection edges</summary>
+            <label class="spot-card-range-label">Grow / shrink selection <output data-spot-color-expand-value>0 px</output><input name="color_expand" type="range" min="-12" max="12" step="1" value="0"></label>
+            <label class="spot-card-range-label">Smooth selection <output data-spot-color-smooth-value>Off</output><input name="color_smooth" type="range" min="0" max="6" step="1" value="0"></label>
+            <p class="spot-card-caption">Applies to the next Wand, Match Color, or swatch selection.</p>
+          </details>
+          <div class="spot-card-swatch-panel">
+            <p class="spot-card-caption">Artwork colors</p><div class="spot-card-swatches" data-spot-art-swatches role="group" aria-label="Artwork color swatches"></div>
+            <div data-spot-recent-colors hidden><p class="spot-card-caption">Picked colors</p><div class="spot-card-swatches" data-spot-recent-swatches role="group" aria-label="Picked color swatches"></div></div>
+            <label class="spot-card-color-picker">Match color <input type="color" name="selection_color" value="#ffffff"><output data-spot-color-value>#FFFFFF</output></label>
+            <button type="button" data-spot-apply-color>Apply color across card</button>
+            <p class="spot-card-caption">Choose a swatch or use Sample on the card, then apply.</p>
+          </div>
+          </div>
+          <div data-spot-brush-tools>
+          <label>Brush shape<select name="brush_shape"><option value="round">Round</option><option value="square">Square</option></select></label>
+          <label class="spot-card-range-label">Brush size <output data-spot-brush-value>40 px</output><input name="brush_size" type="range" min="2" max="160" value="40" step="2"></label>
+          <label class="spot-card-range-label">Brush softness <output data-spot-brush-softness-value>Hard</output><input name="brush_softness" type="range" min="0" max="100" value="0" step="1"></label>
+          </div>
+          <div class="spot-card-selection-tools" role="group" aria-label="Mask actions">
+            <button type="button" data-spot-select-art>Standard art box</button><button type="button" data-spot-select-all>Select all</button><button type="button" data-spot-clear>Clear selection</button>
+          </div>
+          <details class="spot-card-import" data-spot-import><summary>Import mask</summary>
+            <label>Read PNG as<select name="mask_channel"><option value="auto">Automatic</option><option value="alpha">Transparency · opaque pixels foil</option><option value="brightness">Brightness · white foils, black stays opaque</option></select></label>
+            <label>PNG file<input type="file" name="mask_file" accept="image/png"><small>Automatic uses transparency when present; otherwise brightness. Gray or translucent areas give partial coverage.</small></label>
+          </details>
+        </fieldset>
+        </details>
+        <details class="spot-card-step" data-spot-step="cleanup" data-spot-cleanup>
+          <summary>3 · Clean up</summary>
+        <fieldset data-spot-edit-controls disabled aria-label="Clean up">
+          <button type="button" data-spot-invert disabled title="Swap foil and opaque areas across the whole card. 25% foil becomes 75%.">Invert foil</button>
+          <div class="spot-card-treatment">
+            <h3>Exclude colors</h3>
+            <label>Remove foil from<select name="exclude_mode">
+              <option value="off">Off</option>
+              <option value="darker">Darker than or equal to patch</option>
+              <option value="lighter">Lighter than or equal to patch</option>
+            </select></label>
+            <div data-spot-exclusion-options hidden>
+              <label class="spot-card-color-picker">Color patch <input name="exclude_color" type="color" value="#101010"><output data-spot-exclude-color>#101010</output></label>
+              <button type="button" data-spot-apply-exclusions>Apply exclusions</button>
+            </div>
+          </div>
+          <div class="spot-card-treatment">
+          <h3>Small pockets</h3>
+          <label>Clean up<select name="pocket_target"><option value="both">Foil dots and clear holes</option><option value="foil">Foil dots → opaque</option><option value="holes">Clear holes → foil</option></select></label>
           <label>Maximum pocket area<select name="pocket_size">
             {% for size in [1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128, 160, 192, 256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096] %}
             <option value="{{ size }}"{% if size == 64 %} selected{% endif %}>Up to {{ "{:,}".format(size) }} {{ 'pixel' if size == 1 else 'pixels' }}</option>
@@ -78,51 +178,32 @@
             <option value="custom">Custom · enter an exact size</option>
           </select></label>
           <label data-spot-pocket-custom hidden>Custom maximum area (pixels)<input type="number" name="pocket_size_custom" min="1" max="65536" step="1" value="64" required disabled aria-describedby="spotPocketSizeHelp"></label>
-          <p class="spot-card-caption" id="spotPocketSizeHelp">Choose a preset or enter any whole number from 1 to 65,536. This counts total connected pixels in this mask: 25 pixels could be a 5 × 5 pocket. Larger sizes remove more detail. Areas connected to the card edge stay intact. Filled holes inherit the strongest foil amount along their edge.</p>
+          <p class="spot-card-caption" id="spotPocketSizeHelp">25 pixels = a 5 × 5 pocket. Larger limits remove more detail.</p>
           <button type="button" class="spot-card-apply" data-spot-clean-pockets>Apply pocket cleanup</button>
-          <p class="spot-card-caption" data-spot-pocket-result role="status">Preview the result, then Save for this card. Undo restores the previous mask.</p>
+          <p class="spot-card-caption" data-spot-pocket-result role="status"></p>
           <div class="spot-card-button-row"><button type="button" data-spot-pocket-undo disabled>↶ Undo last edit</button></div>
-        </fieldset>
-        <details class="spot-card-touch-up" data-spot-touch-up>
-          <summary>3 · Touch up with paint or erase</summary>
-        <fieldset data-spot-edit-controls disabled>
-          <legend>Refine the selection</legend>
-          <div class="spot-card-tools" role="group" aria-label="Painting tool">
-            <button type="button" data-spot-tool="paint" aria-pressed="true">Paint <kbd>B</kbd></button>
-            <button type="button" data-spot-tool="erase" aria-pressed="false">Erase <kbd>E</kbd></button>
-            <button type="button" data-spot-tool="pan" aria-pressed="false">Pan <kbd>H</kbd></button>
-            <button type="button" data-spot-tool="wand" aria-pressed="false">Magic Wand <kbd>W</kbd></button>
-            <button type="button" data-spot-tool="match" aria-pressed="false">Match Color <kbd>C</kbd></button>
           </div>
-          <label>Selection action<select name="selection_action"><option value="add">Apply foil</option><option value="erase">Remove foil</option></select></label>
-          <label class="spot-card-range-label">Color tolerance <output data-spot-tolerance-value>32</output><input name="tolerance" type="range" min="0" max="128" value="32"></label>
-          <p class="spot-card-caption">Click a color on the card. Magic Wand selects connected pixels; Match Color selects similar pixels across the whole card. Both use Foil amount · tool strength above.</p>
-          <label class="spot-card-range-label">Brush size <output data-spot-brush-value>40 px</output><input name="brush_size" type="range" min="2" max="160" value="40" step="2"></label>
-          <p class="spot-card-caption">Brush size stays consistent on the card as you zoom. Paint with a mouse, pen, or touch.</p>
-          <div class="spot-card-button-row"><button type="button" data-spot-undo disabled>↶ Undo</button><button type="button" data-spot-redo disabled>↷ Redo</button></div>
-          <div class="spot-card-selection-tools">
-            <button type="button" data-spot-select-art>Standard art box</button><button type="button" data-spot-select-all>Select all</button><button type="button" data-spot-clear>Clear selection</button>
-          </div>
-          <p class="spot-card-caption">The art box is a starting shape for a standard frame. Paint or erase to fit this artwork.</p>
-          <label>Import a mask PNG<input type="file" name="mask_file" accept="image/png"><small>Transparent PNG: alpha selects foil. Opaque PNG: white selects foil, black excludes it. Scaled to the card.</small></label>
+          <details class="spot-card-edge-settings"><summary>Shape and edges</summary>
+            <label class="spot-card-range-label">Grow / shrink foil <output data-spot-edge-expand-value>0 px</output><input name="edge_expand" type="range" min="-12" max="12" step="1" value="0"></label>
+            <label class="spot-card-range-label">Smooth edges <output data-spot-edge-smooth-value>Off</output><input name="edge_smooth" type="range" min="0" max="6" step="1" value="0"></label>
+            <label class="spot-card-range-label">Sharpen edges <output data-spot-edge-sharpen-value>Off</output><input name="edge_sharpen" type="range" min="0" max="100" step="1" value="0"></label>
+            <p class="spot-card-caption">+ widens foil areas. − thins them. Changes the current mask.</p>
+            <button type="button" class="spot-card-apply" data-spot-refine-edges>Apply edge changes</button>
+          </details>
         </fieldset>
         </details>
         <fieldset data-spot-edit-controls disabled>
           <legend>Preview finish</legend>
-          <label>Foil effect<select name="finish"><option value="foil">Rainbow foil</option><option value="surge">Surge foil</option><option value="chocobo">Chocobo foil</option></select></label>
-          <label class="spot-card-range-label">Effect strength <output data-spot-strength-value>100%</output><input name="strength" type="range" min="1" max="100" value="100"></label>
-          <p class="spot-card-caption">Uses Deckadence’s existing effects, clipped to your selection. Strength changes the screen preview, not white-ink coverage.</p>
-        </fieldset>
-        <fieldset data-spot-edit-controls disabled>
-          <legend>Print workflow for this card</legend>
-          <label>Workflow type<select name="workflow_id"></select></label>
-          <p class="spot-card-caption" data-spot-workflow-hint></p>
-          <details><summary>Output settings</summary>
-            <label>Layer purpose<select name="layer_type"></select></label>
-            <label>Output format<select name="output_format"></select></label>
-            <label data-spot-channel>Spot channel name<input name="spot_name" maxlength="80" autocomplete="off" spellcheck="false"></label>
-            <p class="spot-card-caption">Save this card, then enable saved spot-foiling ink layers in Print / Export settings. That dialog chooses the PDF format and coverage for the whole job; the card supplies its ink purpose, name, margins, and resolution. PNG output is not available yet.</p>
-          </details>
+          <label><span data-spot-effect-label>Foil effect</span><select name="finish"><option value="foil">Rainbow foil</option><option value="surge">Surge foil</option><option value="chocobo">Chocobo foil</option></select></label>
+          <label class="spot-card-range-label"><span data-spot-effect-strength-label>Effect strength</span> <output data-spot-strength-value>100%</output><input name="strength" type="range" min="1" max="100" value="100"></label>
+          <p class="spot-card-caption">Screen preview only.</p>
+          <label class="spot-card-color-picker"><span data-spot-overlay-label>Mask overlay color</span> <input type="color" name="overlay_color" value="#00D8FF"><output data-spot-overlay-color>#00D8FF</output></label>
+          <div class="spot-card-swatches" role="group" aria-label="Mask overlay colors">
+            {% for color in ['#00D8FF', '#FF36C3', '#76FF03', '#FFD600', '#FFFFFF'] %}
+            <button type="button" class="spot-card-swatch" data-spot-overlay-swatch="{{ color }}" style="--swatch: {{ color }}" aria-label="Use {{ color }} overlay"></button>
+            {% endfor %}
+          </div>
+          <label class="spot-card-check"><input type="checkbox" name="mask_only"> Mask only · hide artwork in Mask overlay</label>
         </fieldset>
         <a class="spot-card-help" href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">Spot foiling guide ↗</a>
       </section>

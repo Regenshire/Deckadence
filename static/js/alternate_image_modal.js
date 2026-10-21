@@ -112,9 +112,6 @@ for (const button of document.querySelectorAll(
   const alternateCloseButton = document.getElementById(
     "alternateImageCloseButton",
   );
-  const alternateButtons = Array.from(
-    document.querySelectorAll(".alternate-image-button"),
-  );
   const alternateForm = document.getElementById("alternateImageForm");
   const alternateCardUuidInput = document.getElementById(
     "alternateImageCardUuid",
@@ -1246,17 +1243,20 @@ for (const button of document.querySelectorAll(
     );
   }
 
-  alternateButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      openAlternateModal(
-        button.getAttribute("data-card-uuid") || "",
-        button.getAttribute("data-card-name") || "",
-        {
-          foilUpdateUrl: button.getAttribute("data-foil-update-url") || "",
-          isFoil: button.getAttribute("data-is-foil") || "0",
-        },
-      );
-    });
+  // Add Cards inserts rows after this script runs. Grid and context-menu
+  // controls also forward clicks to those rows, so handle current buttons.
+  document.addEventListener("click", function (event) {
+    const button = event.target.closest?.(".alternate-image-button");
+    if (!button || button.matches(":disabled") || !alternateOverlay) return;
+    event.preventDefault();
+    openAlternateModal(
+      button.getAttribute("data-card-uuid") || "",
+      button.getAttribute("data-card-name") || "",
+      {
+        foilUpdateUrl: button.getAttribute("data-foil-update-url") || "",
+        isFoil: button.getAttribute("data-is-foil") || "0",
+      },
+    );
   });
 
   window.iMomirAlternateImage = window.iMomirAlternateImage || {};

@@ -207,6 +207,13 @@
 .print-spot-foil-options { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text); }
 .print-spot-foil-options[hidden] { display: none !important; }
 .print-spot-foil-options label { font-weight: 600; }
-.print-spot-foil-options select { width: 100%; min-width: 0; background: var(--panel-2, var(--panel)); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+.print-spot-foil-options select, .print-spot-foil-options input[type="text"] { width: 100%; min-width: 0; box-sizing: border-box; background: var(--panel-2, var(--panel)); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
 .print-spot-foil-options p { margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.5; }
 .print-spot-foil-options a { color: var(--accent); }
+.print-spot-foil-details { border-top: 1px solid var(--border); padding-top: 10px; }
+.print-spot-foil-details summary { color: var(--text); font-size: .85rem; font-weight: 600; cursor: pointer; }
+.print-spot-foil-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 3px; }
+.print-spot-foil-details p { margin-top: 10px; }
+.print-spot-foil-details label { display: block; margin: 12px 0 6px; }
+.print-spot-foil-details .print-spot-foil-checkbox { display: flex; align-items: center; gap: 10px; }
+.print-spot-foil-checkbox input[type="checkbox"] { flex: 0 0 18px; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }

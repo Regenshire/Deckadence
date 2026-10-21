@@ -212,7 +212,7 @@ from ui.ui import (
 )
 
 from plugin_system.catalog import PLUGIN_CATALOG
-from plugin_system.foil_workflows import register_foil_workflow_routes, load_preferences as load_spot_foil_preferences
+from plugin_system.foil_workflows import register_foil_workflow_routes, resolve_export_workflow
 from plugin_system.card_spot_foil import register_card_spot_foil_routes
 from plugin_system.spot_foil_pdf import SpotFoilPdfJob, place_spot_foil, draw_print_artwork
 from plugin_system.manager import (
@@ -1138,15 +1138,23 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
     )
 
     g.print_export_spot_foil = parse_print_export_override_bool(get_form_values("include_spot_foil"))
+    g.print_export_gloss = parse_print_export_override_bool(get_form_values("include_gloss"))
     g.print_export_spot_foil_output = form_data.get("spot_foil_pdf_output", "spot_pdf")
     g.print_export_spot_foil_tone = form_data.get("spot_foil_pdf_tone", "grayscale")
+    g.print_export_spot_foil_white_inverse = parse_print_export_override_bool(get_form_values("include_white_inverse_layer"))
+    g.print_export_spot_foil_workflow = form_data.get("spot_foil_workflow_id") or None
+    g.print_export_spot_foil_overrides = {
+        key: form_data.get(field) for key, field in [
+            ("layer_type", "spot_foil_layer_type"), ("spot_name", "spot_foil_spot_name")]
+        if form_data.get(field)
+    }
     g.pop("_pdf_print_settings_cache", None)
 
     if "include_foil_overlay" in form_data:
         g.print_export_foil_override = parse_print_export_override_bool(get_form_values("include_foil_overlay"))
         # Spot exports omit decorative effects without changing the user's
         # preference for ordinary printing on the next request.
-        if not g.print_export_spot_foil:
+        if not g.print_export_spot_foil and not g.print_export_gloss:
             set_config_value("include_foil_overlay", "1" if g.print_export_foil_override else "0")
 
     if "foil_print_intensity" in form_data:
@@ -1712,9 +1720,16 @@ def _build_pdf_print_settings(config, print_labels_enabled_override=None):
         "foil_print_intensity": normalize_print_foil_intensity(config.get("foil_print_intensity", 100)),
         "include_foil_overlay": (config.get("include_foil_overlay") or "0") == "1",
         "include_spot_foil": has_request_context() and bool(getattr(g, "print_export_spot_foil", False)),
+        "include_gloss": has_request_context() and bool(getattr(g, "print_export_gloss", False)),
         "spot_foil_pdf_output": getattr(g, "print_export_spot_foil_output", "spot_pdf") if has_request_context() else "spot_pdf",
         "spot_foil_pdf_tone": getattr(g, "print_export_spot_foil_tone", "grayscale") if has_request_context() else "grayscale",
-        "spot_foil_display_colors": {key: profile["spot_display_color"] for key, profile in load_spot_foil_preferences(config)["profiles"].items()},
+        "spot_foil_white_inverse": has_request_context() and bool(getattr(g, "print_export_spot_foil", False))
+            and getattr(g, "print_export_spot_foil_output", "spot_pdf") == "spot_pdf"
+            and bool(getattr(g, "print_export_spot_foil_white_inverse", False)),
+        "spot_foil_workflow": resolve_export_workflow(
+            config, getattr(g, "print_export_spot_foil_workflow", None),
+            getattr(g, "print_export_spot_foil_overrides", None),
+        ) if has_request_context() and (getattr(g, "print_export_spot_foil", False) or getattr(g, "print_export_gloss", False)) else None,
         "print_card_backs": (config.get("print_card_backs") or "0").strip() == "1",
 
         "default_card_back": normalize_card_back_key(
@@ -14513,10 +14528,13 @@ def build_chaos_pack_pdf(
 
     buffer = BytesIO()
     c = CutterCanvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
-    if pdf_settings.get("include_spot_foil"):
+    if pdf_settings.get("include_spot_foil") or pdf_settings.get("include_gloss"):
         c.spot_foil_job = SpotFoilPdfJob(get_db_connection,
                                        pdf_settings["spot_foil_pdf_output"], pdf_settings["spot_foil_pdf_tone"],
-                                       display_colors=pdf_settings.get("spot_foil_display_colors"))
+                                       workflow=pdf_settings.get("spot_foil_workflow"),
+                                       include_white_inverse=pdf_settings.get("spot_foil_white_inverse", False),
+                                       include_foil=pdf_settings.get("include_spot_foil", False),
+                                       include_gloss=pdf_settings.get("include_gloss", False))
     c.setTitle(
         str(
             pack_display_name
@@ -14986,7 +15004,7 @@ def build_chaos_pack_pdf(
                         raise ValueError("No cached result returned for chaos image download.")
 
                     foil_path = None
-                    if pdf_settings.get("include_foil_overlay") and not pdf_settings.get("include_spot_foil") and int(card.get("sheet_is_foil") or card.get("is_foil") or 0):
+                    if pdf_settings.get("include_foil_overlay") and not pdf_settings.get("include_spot_foil") and not pdf_settings.get("include_gloss") and int(card.get("sheet_is_foil") or card.get("is_foil") or 0):
                         foil_path = get_chaos_temp_file_path("foil_" + uuid4().hex + ".png")
                         foil_temp_paths.append(foil_path)
                         render_print_foil(cached_result["absolute_path"], foil_path, card.get("foil_type") or "foil",

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "protocol_version": 1,
+  "plugin_id": "subject-detection-ai",
+  "plugin_type": "image_segmentation",
+  "name": "AI Subject & Frame Detection",
+  "version": "1.1.0",
+  "capabilities": ["subject", "frame"],
+  "entrypoint": "plugin.py",
+  "requirements_file": "requirements.txt"
+}

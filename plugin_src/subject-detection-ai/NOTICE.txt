@@ -1,0 +1,17 @@
+AI Subject Detection uses the IS-Net general-use model from:
+https://github.com/xuebinqin/DIS
+Authors: Xuebin Qin, Hang Dai, Xiaobin Hu, Deng-Ping Fan, Ling Shao,
+and Luc Van Gool. See LICENSE-IS-Net.txt (Apache License 2.0).
+
+The fixed ONNX model download and preprocessing follow rembg:
+https://github.com/danielgatis/rembg/tree/v2.0.67
+Copyright (c) 2020 Daniel Gatis. See LICENSE-rembg.txt (MIT License).
+
+Deckadence's wrapper performs local CPU inference and returns an image mask.
+It adds bounded downloads with SHA-256 verification and JSON input/output.
+Model weights are downloaded on first use and are not bundled with Deckadence.
+
+Frame contours use Segment Anything (SAM), Copyright (c) Meta Platforms, Inc. and affiliates.
+https://github.com/facebookresearch/segment-anything
+See LICENSE-SAM.txt (Apache License 2.0). Quantized ONNX weights are supplied by rembg.
+Deckadence adds component prompting, contour validation, and local detail refinement.

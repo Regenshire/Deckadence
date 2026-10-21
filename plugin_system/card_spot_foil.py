@@ -11,12 +11,13 @@ from uuid import uuid4
 
 from flask import jsonify, request, send_file, url_for
 from PIL import Image, UnidentifiedImageError
-from .foil_workflows import WORKFLOWS, OUTPUTS, LAYER_TYPES, load_preferences, validate_options
+from .foil_workflows import WORKFLOWS, OUTPUTS, LAYER_TYPES, load_preferences, normalize_display_color
 from .manager import get_plugin_status, run_plugin_json
 
 MASK_SIZE = (756, 1056)
 MAX_MASK_SIZE = (3024, 4224)
 _text_detection_lock = threading.Lock()
+_subject_detection_lock = threading.Lock()
 _MASK_COLUMNS = """scope_token TEXT NOT NULL, card_uuid TEXT NOT NULL, face TEXT NOT NULL,
     revision TEXT NOT NULL, settings TEXT NOT NULL, mask_png_base64 TEXT NOT NULL,
     PRIMARY KEY (scope_token, card_uuid, face)"""
@@ -92,7 +93,14 @@ def record_json(row, key):
     if row is None:
         return None
     owner = {name: request.args[name] for name in ("image_owner_kind", "image_owner_id") if name in request.args}
-    return {**json.loads(row["settings"]), "revision": row["revision"],
+    settings = json.loads(row["settings"])
+    if settings.get("gloss"):
+        gloss = dict(settings["gloss"])
+        gloss.pop("mask_png_base64", None)
+        gloss["mask_url"] = url_for("card_spot_foil_mask", card_uuid=key[1], face=key[2], layer="gloss",
+                                    expected_scope=key[0], revision=row["revision"], **owner)
+        settings["gloss"] = gloss
+    return {**settings, "revision": row["revision"],
             "mask_url": url_for("card_spot_foil_mask", card_uuid=key[1], face=key[2],
                                 expected_scope=key[0], revision=row["revision"], **owner)}
 
@@ -125,21 +133,37 @@ def decode_mask(value):
 def validate_generation(value):
     defaults = dict(mode="highlights", region="artwork", amount=35, coverage=100, action="foil", cleanup="balanced",
                     pocket_size=64, pocket_target="both",
-                    text_mode="original", text_source="standard", text_detail="letters",
-                    text_regions=[], border_mode="original", border_width=2)
+                    text_mode="original", text_source="standard", text_detail="letters", text_ink="auto",
+                    text_expand=0, text_smooth=0, exclude_mode="off", exclude_color="#101010",
+                    color_tolerance=32, selected_color="#FFFFFF", color_swatches=[],
+                    edge_expand=0, edge_smooth=0, edge_sharpen=0, color_expand=0, color_smooth=0, brush_size=40, brush_softness=0, brush_shape="round",
+                    text_regions=[], border_mode="original", border_width=2,
+                    frame_mode="original", frame_scope="material", frame_layout="auto")
     if not isinstance(value, dict) or set(value) - set(defaults):
         raise ValueError("Choose valid automatic selection settings.")
     value = {**defaults, **value}
-    choices = dict(mode=("highlights", "colors", "details", "shadows", "artwork"), action=("foil", "opaque"),
+    choices = dict(mode=("none", "highlights", "colors", "details", "shadows", "artwork", "subject", "background"), action=("foil", "opaque"),
                    region=("artwork", "full"), text_mode=("original", "opaque", "foil"),
                    border_mode=("original", "opaque", "foil"), text_source=("standard", "detected"),
-                   text_detail=("letters", "regions"), cleanup=("off", "balanced", "strong"),
-                   pocket_target=("both", "foil", "holes"))
+                   text_detail=("letters", "regions"), text_ink=("auto", "light", "dark"), cleanup=("off", "balanced", "strong"),
+                   pocket_target=("both", "foil", "holes"), exclude_mode=("off", "darker", "lighter"), brush_shape=("round", "square"),
+                   frame_mode=("original", "opaque", "foil"), frame_scope=("material", "panels"), frame_layout=("auto", "m15", "retro", "extended", "borderless", "modern", "classic"))
     if any(value[key] not in options for key, options in choices.items()):
         raise ValueError("Choose valid text, border, and selection modes.")
     if type(value["pocket_size"]) is not int or not 1 <= value["pocket_size"] <= 65536:
         raise ValueError("Maximum pocket area must be a whole number from 1 to 65,536 pixels.")
-    for key, limits in dict(amount=(5, 95), coverage=(1, 100), border_width=(0, 12)).items():
+    for key, limits in dict(text_expand=(-12, 12), text_smooth=(0, 6), edge_expand=(-12, 12), edge_smooth=(0, 6), edge_sharpen=(0, 100),
+                            color_expand=(-12, 12), color_smooth=(0, 6), brush_size=(2, 160), brush_softness=(0, 100)).items():
+        if type(value[key]) is not int or not limits[0] <= value[key] <= limits[1]:
+            raise ValueError("Choose valid brush sizes, outline widths, and smoothing amounts.")
+    if type(value["color_tolerance"]) is not int or not 0 <= value["color_tolerance"] <= 128:
+        raise ValueError("Color tolerance must be from 0 to 128.")
+    value["selected_color"] = normalize_display_color(value["selected_color"])
+    value["exclude_color"] = normalize_display_color(value["exclude_color"])
+    if not isinstance(value["color_swatches"], list) or len(value["color_swatches"]) > 8:
+        raise ValueError("Save up to eight color swatches.")
+    value["color_swatches"] = list(dict.fromkeys(normalize_display_color(color) for color in value["color_swatches"]))
+    for key, limits in dict(amount=(5, 100), coverage=(1, 100), border_width=(0, 12)).items():
         number = value[key]
         if type(number) not in (int, float) or not limits[0] <= number <= limits[1]:
             raise ValueError("Choose a valid selection percentage.")
@@ -159,16 +183,11 @@ def validate_generation(value):
 
 def validate_settings(payload):
     if not isinstance(payload, dict) or set(payload) - {
-        "workflow_id", "workflow_options", "finish", "strength", "mask_data", "revision", "artwork_signature", "generation",
+        "workflow_id", "workflow_options", "finish", "strength", "mask_data", "revision", "artwork_signature", "generation", "foil_enabled", "gloss",
     }:
         raise ValueError("Provide valid card spot-foiling settings.")
-    workflow = payload.get("workflow_id")
-    if not isinstance(workflow, str) or workflow not in {item["id"] for item in WORKFLOWS}:
-        raise ValueError("Choose a supported print workflow.")
-    options = validate_options(workflow, payload.get("workflow_options"))
-    # The reviewed, painted mask is authoritative; generation protections must
-    # not silently remove intentional strokes over text or frames later.
-    options.update(selection="manual", protect_text=False, protect_frame=False)
+    # Accept legacy clients' workflow keys, but never save print-job settings
+    # on a card. The mask always describes where foil should show.
     finish, strength = payload.get("finish"), payload.get("strength")
     if finish not in ("foil", "surge", "chocobo"):
         raise ValueError("Choose a supported foil effect.")
@@ -178,8 +197,24 @@ def validate_settings(payload):
     if not isinstance(signature, str) or not re.fullmatch(r"[0-9a-f]{8}", signature):
         raise ValueError("Reload the card artwork before saving.")
     generation = validate_generation(payload.get("generation", {}))
-    return {"workflow_id": workflow, "workflow_options": options, "finish": finish,
-            "strength": strength, "artwork_signature": signature, "generation": generation}
+    result = {"finish": finish, "strength": strength, "artwork_signature": signature, "generation": generation}
+    if "foil_enabled" in payload:
+        if type(payload["foil_enabled"]) is not bool:
+            raise ValueError("Choose a valid mask layer state.")
+        result["foil_enabled"] = payload["foil_enabled"]
+    if "gloss" in payload:
+        gloss = payload["gloss"]
+        if gloss is not None:
+            if not isinstance(gloss, dict) or set(gloss) != {"finish", "strength", "overlay_color", "generation", "mask_data"}:
+                raise ValueError("Provide valid gloss settings.")
+            if gloss["finish"] not in ("gloss", "polished") or type(gloss["strength"]) not in (int, float) or not 1 <= gloss["strength"] <= 100:
+                raise ValueError("Choose a gloss effect and strength from 1 to 100.")
+            gloss = {"finish": gloss["finish"], "strength": gloss["strength"],
+                     "overlay_color": normalize_display_color(gloss["overlay_color"]),
+                     "generation": validate_generation(gloss["generation"]),
+                     "mask_png_base64": base64.b64encode(decode_mask(gloss["mask_data"])).decode("ascii")}
+        result["gloss"] = gloss
+    return result
 
 
 def register_card_spot_foil_routes(app, get_connection, get_config, resolve_context, api_errors, isolation_operation):
@@ -208,7 +243,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         settings = mask = payload = None
         writing = request.method != "GET"
         if writing:
-            if request.content_length and request.content_length > 24_100_000:
+            if request.content_length and request.content_length > 48_200_000:
                 return jsonify(ok=False, message="The spot mask is too large."), 413
             payload = request.get_json(silent=True)
             if not isinstance(payload, dict) or "revision" not in payload:
@@ -231,17 +266,33 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
                 if payload["revision"] != (row["revision"] if row else None):
                     raise RuntimeError("Spot foiling changed in another editor. Close and reopen this card to load the latest version.")
                 if request.method == "DELETE":
-                    conn.execute("DELETE FROM card_spot_foil WHERE scope_token=? AND card_uuid=? AND face=?", key)
-                    row = None
+                    old = json.loads(row["settings"]) if row else {}
+                    if old.get("gloss") and not payload.get("all_layers"):
+                        old["foil_enabled"] = False
+                        conn.execute("UPDATE card_spot_foil SET settings=?, revision=? WHERE scope_token=? AND card_uuid=? AND face=?",
+                                     (json.dumps(old, allow_nan=False), uuid4().hex, *key))
+                        row = read_record(conn, key)
+                    else:
+                        conn.execute("DELETE FROM card_spot_foil WHERE scope_token=? AND card_uuid=? AND face=?", key)
+                        row = None
                 else:
+                    # Older clients editing the foil mask must not erase gloss.
+                    if "gloss" not in payload and row:
+                        previous = json.loads(row["settings"])
+                        if previous.get("gloss"):
+                            settings["gloss"] = previous["gloss"]
                     conn.execute("INSERT OR REPLACE INTO card_spot_foil VALUES (?,?,?,?,?,?)",
                                  (*key, uuid4().hex, json.dumps(settings, allow_nan=False),
                                   base64.b64encode(mask).decode("ascii")))
                     row = read_record(conn, key)
             result = record_json(row, key)
+        subject_detector = get_plugin_status("subject-detection-ai")
         return jsonify(ok=True, record=result, preferences=load_preferences(get_config()), workflows=WORKFLOWS,
                        output_formats=OUTPUTS, layer_types=LAYER_TYPES,
                        text_detector_ready=get_plugin_status("spot-foil-ai").get("ready", False),
+                       subject_detector_ready=subject_detector.get("ready", False),
+                       frame_detector_ready=bool(subject_detector.get("ready") and
+                           "frame" in subject_detector.get("manifest", {}).get("capabilities", [])),
                        image_scope=dict(token=token, is_isolated=context.is_isolated))
 
     @app.route("/cards/spot-foil/<card_uuid>/<face>/detect-text", methods=["POST"])
@@ -267,6 +318,81 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         finally:
             _text_detection_lock.release()
 
+    @app.route("/cards/spot-foil/<card_uuid>/<face>/detect-subject", methods=["POST"])
+    @api_errors
+    def card_spot_foil_detect_subject(card_uuid, face):
+        card_key(dict(card_uuid=card_uuid, face=face))
+        if not get_plugin_status("subject-detection-ai").get("ready"):
+            raise RuntimeError("Install AI Subject Detection in Plugin Manager, then retry Apply.")
+        if request.content_length and request.content_length > 6_100_000:
+            return jsonify(ok=False, message="The card image is too large."), 413
+        payload = request.get_json(silent=True)
+        if (not isinstance(payload, dict) or set(payload) != {"image"}
+                or not isinstance(payload["image"], str) or len(payload["image"]) > 6_000_000):
+            raise ValueError("Provide an image for subject detection.")
+        if not _subject_detection_lock.acquire(blocking=False):
+            raise RuntimeError("Another subject is being detected. Try again when it finishes.")
+        try:
+            result = run_plugin_json("subject-detection-ai", "detect_subject", payload, timeout=300)
+            encoded = result.get("mask") if isinstance(result, dict) else None
+            if not isinstance(encoded, str) or len(encoded) > 6_000_000:
+                raise ValueError("Subject detection returned an invalid mask.")
+            with Image.open(BytesIO(base64.b64decode(encoded, validate=True))) as source:
+                if source.format != "PNG" or source.mode != "L" or source.width * source.height > 4_000_000:
+                    raise ValueError("Subject detection returned an invalid mask.")
+                canonical = Image.new("RGBA", source.size, "white")
+                canonical.putalpha(source)
+                output = BytesIO(); canonical.save(output, format="PNG")
+            return jsonify(ok=True, mask_data="data:image/png;base64," + base64.b64encode(output.getvalue()).decode("ascii"))
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("Subject detection took too long. Check the model download and retry.") from exc
+        except (UnidentifiedImageError, OSError, base64.binascii.Error) as exc:
+            raise ValueError("Subject detection returned an unreadable mask.") from exc
+        finally:
+            _subject_detection_lock.release()
+
+    @app.route("/cards/spot-foil/<card_uuid>/<face>/detect-frame", methods=["POST"])
+    @api_errors
+    def card_spot_foil_detect_frame(card_uuid, face):
+        card_key(dict(card_uuid=card_uuid, face=face))
+        detector = get_plugin_status("subject-detection-ai")
+        if not detector.get("ready") or "frame" not in detector.get("manifest", {}).get("capabilities", []):
+            raise RuntimeError("Install or update AI Subject & Frame Detection in Plugin Manager, then retry.")
+        if request.content_length and request.content_length > 6_100_000:
+            return jsonify(ok=False, message="The card image is too large."), 413
+        payload = request.get_json(silent=True)
+        if (not isinstance(payload, dict) or set(payload) != {"image", "layout"}
+                or not isinstance(payload["image"], str) or len(payload["image"]) > 6_000_000
+                or payload["layout"] not in ("auto", "m15", "retro", "extended", "borderless")):
+            raise ValueError("Provide a card image and frame layout.")
+        if not _subject_detection_lock.acquire(blocking=False):
+            raise RuntimeError("Another card is being analyzed. Try again when it finishes.")
+        try:
+            result = run_plugin_json("subject-detection-ai", "detect_frame", payload, timeout=480)
+            masks = {}; size = None
+            for key in ("material", "panels"):
+                encoded = result.get(key) if isinstance(result, dict) else None
+                if not isinstance(encoded, str) or len(encoded) > 6_000_000:
+                    raise ValueError("Frame detection returned an invalid mask.")
+                with Image.open(BytesIO(base64.b64decode(encoded, validate=True))) as source:
+                    if (source.format != "PNG" or source.mode != "L" or min(source.size) < 16
+                            or source.width * source.height > 4_000_000 or (size and source.size != size)):
+                        raise ValueError("Frame detection returned an invalid mask.")
+                    size = source.size
+                    canonical = Image.new("RGBA", size, "white"); canonical.putalpha(source)
+                    output = BytesIO(); canonical.save(output, format="PNG")
+                    masks[key] = "data:image/png;base64," + base64.b64encode(output.getvalue()).decode("ascii")
+            parts = result.get("parts", [])
+            if not isinstance(parts, list) or any(part not in ("title", "type", "rules", "power", "surround") for part in parts):
+                raise ValueError("Frame detection returned invalid components.")
+            return jsonify(ok=True, masks=masks, found=bool(parts), parts=parts)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("Frame detection took too long. Check the model download and retry.") from exc
+        except (UnidentifiedImageError, OSError, base64.binascii.Error) as exc:
+            raise ValueError("Frame detection returned an unreadable mask.") from exc
+        finally:
+            _subject_detection_lock.release()
+
     @app.route("/cards/spot-foil/<card_uuid>/<face>/mask")
     @api_errors
     def card_spot_foil_mask(card_uuid, face):
@@ -277,7 +403,16 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
             row = read_record(conn, (context.scope_id or "global", *card))
             if row is None:
                 raise LookupError("No spot mask saved for this card.")
-            response = send_file(BytesIO(base64.b64decode(row["mask_png_base64"])), mimetype="image/png",
+            layer = request.args.get("layer", "mask")
+            if layer not in ("mask", "gloss"):
+                raise ValueError("Choose a valid finishing layer.")
+            png = row["mask_png_base64"]
+            if layer == "gloss":
+                gloss = json.loads(row["settings"]).get("gloss")
+                if not gloss:
+                    raise LookupError("No gloss saved for this card.")
+                png = gloss["mask_png_base64"]
+            response = send_file(BytesIO(base64.b64decode(png)), mimetype="image/png",
                                  etag=row["revision"], download_name="spot-foil-mask.png")
             response.cache_control.no_cache = True
             return response

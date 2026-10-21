@@ -1,9 +1,6 @@
 .spot-foil-settings.plugin-card { margin-bottom: 20px; padding: 24px; background: var(--panel); border-color: var(--border); gap: 12px; }
-.plugin-companion-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-bottom: 24px; align-items: start; }
+.plugin-companion-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; margin-bottom: 24px; }
 .plugin-companion-panels > .plugin-card { min-width: 0; margin-bottom: 0; }
-.plugin-companion-panels .plugin-card-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.plugin-companion-panels .plugin-card-meta > :last-child { grid-column: 1 / -1; }
-@media (max-width: 1050px) { .plugin-companion-panels { grid-template-columns: minmax(0, 1fr); } }
 .spot-foil-eyebrow { color: var(--theme-highlight, var(--accent)); font-size: .7rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
 .spot-foil-settings .plugin-card-title { font-size: 1.3rem; }
 .spot-foil-settings .plugin-card-description { margin: 0; }

@@ -76,7 +76,7 @@
 .foil-guide-steps { list-style: none; counter-reset: foil-step; padding: 0; margin: 24px 0; }
 .foil-guide-steps li { counter-increment: foil-step; position: relative; padding: 4px 0 24px 48px; }
 .foil-guide-steps li::before { content: counter(foil-step, decimal-leading-zero); position: absolute; left: 0; top: 0; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 50%; background: var(--panel-2); color: var(--foil-highlight); display: grid; place-items: center; font-size: .72rem; font-weight: 700; }
-.foil-guide-steps strong { display: block; font-size: .95rem; }
+.foil-guide-steps > li > strong { display: block; font-size: .95rem; }
 .foil-guide-steps span { display: block; color: var(--muted); font-size: .9rem; margin-top: 4px; }
 .foil-guide details { margin: 16px 0; padding: 16px 20px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; font-size: .9rem; }
 .foil-guide summary { cursor: pointer; font-weight: 700; }

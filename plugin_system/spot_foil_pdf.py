@@ -13,7 +13,7 @@ from pypdf.generic import (ArrayObject, BooleanObject, DecodedStreamObject,
                            TextStringObject)
 
 from .card_spot_foil import ensure_schema, read_record
-from .foil_workflows import PRESETS, validate_options, normalize_display_color
+from .foil_workflows import PRESETS, validate_options, normalize_display_color, resolve_export_workflow
 
 MM = 72 / 25.4
 
@@ -138,13 +138,22 @@ def _clip_path(slot, radius):
 
 
 class SpotFoilPdfJob:
-    def __init__(self, get_connection, output='spot_pdf', tone='grayscale', display_colors=None):
+    def __init__(self, get_connection, output='spot_pdf', tone='grayscale', display_colors=None, *, workflow=None, include_white_inverse=False, include_foil=True, include_gloss=False):
         if output not in ('spot_pdf', 'mask_pdf') or tone not in ('grayscale', 'binary'):
             raise ValueError('Choose a valid spot-foiling PDF format and ink coverage mode.')
         self.get_connection, self.output, self.tone = get_connection, output, tone
         self.mask_only = output == 'mask_pdf'
+        self.include_foil, self.include_gloss = bool(include_foil), bool(include_gloss)
+        if self.include_gloss and self.mask_only:
+            raise ValueError('Gloss needs Artwork + named spot layers. Choose that PDF format or turn off Gloss.')
+        self.include_white_inverse = bool(include_white_inverse) and self.include_foil and not self.mask_only
         self.records, self.placements = {}, []
         self.display_colors = {key: normalize_display_color(value) for key, value in (display_colors or {}).items()}
+        workflow = workflow or resolve_export_workflow({})
+        self.workflow_id = workflow['workflow_id']
+        self.options = validate_options(self.workflow_id, {k:v for k,v in workflow.items() if k != 'workflow_id'})
+        if self.workflow_id in self.display_colors:
+            self.options['spot_display_color'] = self.display_colors[self.workflow_id]
 
     def record_for(self, entry):
         card = dict(entry.get('card_row') or {})
@@ -159,26 +168,36 @@ class SpotFoilPdfJob:
                 row = read_record(conn, key)
             record = None
             if row:
+                # Legacy per-card printer metadata is deliberately ignored.
                 settings = json.loads(row['settings'])
-                record = dict(workflow_id=settings['workflow_id'], revision=row['revision'],
-                              options=validate_options(settings['workflow_id'], settings['workflow_options']),
+                record = dict(workflow_id=self.workflow_id, revision=row['revision'],
+                              options=dict(self.options), layer='mask', enabled=settings.get('foil_enabled', True),
                               png=base64.b64decode(row['mask_png_base64']))
-                if settings['workflow_id'] in self.display_colors:
-                    record['options']['spot_display_color'] = self.display_colors[settings['workflow_id']]
+                gloss = settings.get('gloss')
+                if gloss:
+                    options = dict(self.options, layer_type='varnish', spot_name='RDG_GLOSS',
+                                   spot_display_color='#00BFFF', overprint=True)
+                    record['gloss'] = dict(workflow_id='spot_varnish', revision=row['revision']+':gloss',
+                                          options=options, layer='gloss',
+                                          png=base64.b64decode(gloss['mask_png_base64']))
             self.records[key] = record
         return self.records[key]
 
     def place(self, page, entry, slot, bleed=False, round_corners=False, radius=0):
         record = self.record_for(entry)
-        if record:
+        if record and self.include_foil and record.get('enabled', True):
             self.placements.append((page, record, dict(slot), bleed, round_corners, radius))
+        if record and self.include_gloss and record.get('gloss'):
+            self.placements.append((page, record['gloss'], dict(slot), bleed, round_corners, radius))
 
     def finish(self, source, allow_empty=False):
         if not self.placements and not allow_empty:
-            raise ValueError('No saved spot foiling was found for the selected cards in this image library. Save a card mask first, or turn off spot-ink export.')
+            raise ValueError('No saved finishing layers were found for the enabled inks. Save a Mask or Gloss layer first, or turn off that ink in Print / Export.')
         channels = {(r['options']['spot_name'], r['options']['layer_type']) for _, r, *_ in self.placements}
         if len({name for name, _ in channels}) != len(channels):
             raise ValueError('The same spot name is assigned to different materials. Give each ink a distinct name before exporting.')
+        if self.include_gloss and any(r.get('layer') != 'gloss' and r['options']['spot_name'] == 'RDG_GLOSS' for _, r, *_ in self.placements):
+            raise ValueError('RDG_GLOSS is reserved for the Gloss layer. Give the foil mask a different spot channel name.')
         if self.mask_only and len(channels) > 1:
             raise ValueError('Black-only mask PDFs support one ink at a time. Export these workflows separately, or choose named spot layers.')
         display_colors = {}
@@ -193,9 +212,10 @@ class SpotFoilPdfJob:
         writer.pdf_header = '%PDF-1.5'
         groups = []
 
-        def group(name, channel=None):
+        def group(name, channel=None, role=None):
             obj = DictionaryObject({NameObject('/Type'): NameObject('/OCG'), NameObject('/Name'): TextStringObject(name),
                 NameObject('/Usage'): DictionaryObject({NameObject('/Print'): DictionaryObject({NameObject('/PrintState'): NameObject('/ON')})})})
+            obj[NameObject('/DeckadenceLayerRole')] = TextStringObject(role or ('spot' if channel else 'artwork'))
             if channel:
                 obj[NameObject('/DeckadenceInkName')] = TextStringObject(channel[0])
                 obj[NameObject('/DeckadenceInkPurpose')] = TextStringObject(channel[1])
@@ -204,8 +224,12 @@ class SpotFoilPdfJob:
             ref = writer._add_object(obj)
             groups.append(ref); return ref
 
+        # Catalog order is top to bottom; PDF paint order below is the reverse.
+        white_inverse = group('White Inverse Layer', role='white_inverse') if self.include_white_inverse else None
+        gloss_channels = {(r['options']['spot_name'], r['options']['layer_type']) for _, r, *_ in self.placements if r.get('layer') == 'gloss'}
+        layers = {key: group(f'{key[0]} - Gloss', key, role='gloss') for key in sorted(gloss_channels)}
         artwork = group('Artwork and registration')
-        layers = {key: group(f'{key[0]} - ' + {'white_underbase':'White ink (hides foil)', 'foil_application':'Foil / adhesive', 'varnish':'Varnish'}[key[1]], key) for key in sorted(channels)}
+        layers.update({key: group(f'{key[0]} - ' + {'white_underbase':'White ink (hides foil)', 'foil_application':'Foil / adhesive', 'varnish':'Varnish'}[key[1]], key) for key in sorted(channels - gloss_channels)})
         per_page = {}
         for placement in self.placements:
             per_page.setdefault(placement[0], []).append(placement)
@@ -214,14 +238,22 @@ class SpotFoilPdfJob:
             resources = page.setdefault(NameObject('/Resources'), DictionaryObject()).get_object()
             properties = resources.setdefault(NameObject('/Properties'), DictionaryObject()).get_object()
             properties[NameObject('/DeckadenceArtwork')] = artwork
+            if white_inverse:
+                properties[NameObject('/DeckadenceWhiteInverse')] = white_inverse
             objects = resources.setdefault(NameObject('/XObject'), DictionaryObject()).get_object()
             colors = resources.setdefault(NameObject('/ColorSpace'), DictionaryObject()).get_object()
             states = resources.setdefault(NameObject('/ExtGState'), DictionaryObject()).get_object()
             for enabled in (False, True):
                 states[NameObject('/DeckadenceOP'+str(int(enabled)))] = DictionaryObject({NameObject('/Type'):NameObject('/ExtGState'),
                     NameObject('/op'):BooleanObject(enabled), NameObject('/OP'):BooleanObject(enabled), NameObject('/OPM'):NumberObject(1)})
+            # Process paint replaces CMYK (including zero values), while leaving
+            # the separate spot colorant underneath intact. White blocks artwork
+            # color without depositing or knocking out the named printer ink.
+            states[NameObject('/DeckadenceProcessOP')] = DictionaryObject({NameObject('/Type'):NameObject('/ExtGState'),
+                NameObject('/op'):BooleanObject(True), NameObject('/OP'):BooleanObject(True), NameObject('/OPM'):NumberObject(0)})
             original = page.get_contents()
-            content = b'/OC /DeckadenceArtwork BDC\n' + (original.get_data() if original is not None else b'') + b'\nEMC\n'
+            artwork_content = b'/OC /DeckadenceArtwork BDC\nq /DeckadenceProcessOP gs\n' + (original.get_data() if original is not None else b'') + b'\nQ EMC\n'
+            spot_content, gloss_content, inverse_content = b'', b'', b''
             for number, (_, record, slot, bleed, round_corners, radius) in enumerate(per_page.get(index, [])):
                 options = record['options']; channel = (options['spot_name'], options['layer_type'])
                 footprint = {k: v for k, v in slot.items() if k in ('width_mm', 'height_mm', 'finished_card_width_mm', 'finished_card_height_mm', 'rotation_degrees')}
@@ -253,9 +285,16 @@ class SpotFoilPdfJob:
                         NameObject('/Width'):NumberObject(mask.width), NameObject('/Height'):NumberObject(mask.height),
                         NameObject('/ColorSpace'):color_space, NameObject('/BitsPerComponent'):NumberObject(8), NameObject('/Interpolate'):BooleanObject(False)})
                     image_ref = writer._add_object(image.flate_encode())
-                    cached[key] = image_ref if self.mask_only else _coverage_group(writer, image_ref)
+                    inverse_ref = None
+                    if self.include_white_inverse and record.get('layer') != 'gloss':
+                        inverse = DecodedStreamObject()
+                        inverse.set_data(ImageOps.invert(mask).tobytes())
+                        inverse.update(dict(image))
+                        inverse_ref = _coverage_group(writer, writer._add_object(inverse.flate_encode()))
+                    cached[key] = (image_ref if self.mask_only else _coverage_group(writer, image_ref), inverse_ref)
                 image_name, layer_name = f'/DeckadenceInk{number}', f'/DeckadenceLayer{number}'
-                objects[NameObject(image_name)] = cached[key]; properties[NameObject(layer_name)] = layers[channel]
+                ink_ref, inverse_ref = cached[key]
+                objects[NameObject(image_name)] = ink_ref; properties[NameObject(layer_name)] = layers[channel]
                 clip = _clip_path(slot, radius) if round_corners else ''
                 paint = f'{image_name} Do'
                 if not self.mask_only:
@@ -264,20 +303,33 @@ class SpotFoilPdfJob:
                     states[NameObject(state_name)] = DictionaryObject({
                         NameObject('/Type'): NameObject('/ExtGState'),
                         NameObject('/SMask'): DictionaryObject({NameObject('/S'): NameObject('/Luminosity'),
-                            NameObject('/G'): cached[key], NameObject('/BC'): _numbers([0])})})
+                            NameObject('/G'): ink_ref, NameObject('/BC'): _numbers([0])})})
                     # Apply the mask after the card transform: its unit-square
                     # coordinate space must follow this placement, not the page.
                     paint = f'{state_name} gs {color_name} cs 1 scn 0 0 1 1 re f'
                 command = (f'/OC {layer_name} BDC q\n/DeckadenceOP{int(options["overprint"])} gs\n{clip}'
                            f'{slot["width_mm"]*MM} 0 0 {slot["height_mm"]*MM} {slot["x_mm"]*MM} {slot["y_mm"]*MM} cm\n{paint}\nQ EMC\n')
-                content += command.encode('ascii')
-            stream = DecodedStreamObject(); stream.set_data(content)
+                if record.get('layer') == 'gloss':
+                    gloss_content += command.encode('ascii')
+                else:
+                    spot_content += command.encode('ascii')
+                if inverse_ref:
+                    objects[NameObject(f'/DeckadenceWhiteInverse{number}')] = inverse_ref
+                    inverse_state = f'/DeckadenceInverseCoverage{number}'
+                    states[NameObject(inverse_state)] = DictionaryObject({NameObject('/Type'):NameObject('/ExtGState'),
+                        NameObject('/SMask'):DictionaryObject({NameObject('/S'):NameObject('/Luminosity'),
+                            NameObject('/G'):inverse_ref, NameObject('/BC'):_numbers([0])})})
+                    inverse_content += (f'/OC /DeckadenceWhiteInverse BDC q\n/DeckadenceProcessOP gs\n{clip}'
+                        f'{slot["width_mm"]*MM} 0 0 {slot["height_mm"]*MM} {slot["x_mm"]*MM} {slot["y_mm"]*MM} cm\n'
+                        f'{inverse_state} gs 0 0 0 0 k 0 0 1 1 re f\nQ EMC\n').encode('ascii')
+            stream = DecodedStreamObject(); stream.set_data(spot_content + artwork_content + gloss_content + inverse_content)
             page[NameObject('/Contents')] = writer._add_object(stream.flate_encode())
         writer._root_object[NameObject('/OCProperties')] = DictionaryObject({NameObject('/OCGs'):ArrayObject(groups),
             NameObject('/D'):DictionaryObject({NameObject('/BaseState'):NameObject('/ON'), NameObject('/ON'):ArrayObject(groups), NameObject('/Order'):ArrayObject(groups)})})
         writer.add_metadata({'/Subject':'Saved card spot masks. Spot plates use the configured display colors; their names select physical inks in the RIP. White underbase is the inverse of foil visibility.',
                              '/Keywords':', '.join(sorted(name for name, _ in channels)),
-                             '/DeckadenceSpotOutput': self.output})
+                             '/DeckadenceSpotOutput': self.output,
+                             '/DeckadenceWhiteInverse': '1' if self.include_white_inverse else '0'})
         output = BytesIO(); writer.write(output); output.seek(0); return output
 
 
@@ -329,10 +381,14 @@ def finish_print_pdf_merge(writer):
             key = str(obj['/Name'])
             properties[name] = groups.setdefault(key, ref)
     if not inks:
-        raise ValueError('No saved spot foiling was found in the selected packs. Save a card mask first, or turn off spot-ink export.')
+        raise ValueError('No saved finishing layers were found for the enabled inks in these packs. Save a Mask or Gloss layer first, or turn off that ink in Print / Export.')
     if output == 'mask_pdf' and len(inks) > 1:
         raise ValueError('Black-only mask PDFs support one ink at a time. Export workflows separately, or choose named spot layers.')
-    refs = ArrayObject(list(groups.values()))
+    def layer_order(ref):
+        obj = ref.get_object()
+        role = obj.get('/DeckadenceLayerRole')
+        return (0 if role == 'white_inverse' else 1 if role == 'gloss' else 3 if obj.get('/DeckadenceInkName') else 2, str(obj['/Name']))
+    refs = ArrayObject(sorted(groups.values(), key=layer_order))
     writer._root_object[NameObject('/OCProperties')] = DictionaryObject({NameObject('/OCGs'):refs,
         NameObject('/D'):DictionaryObject({NameObject('/BaseState'):NameObject('/ON'), NameObject('/ON'):refs, NameObject('/Order'):refs})})
     writer.pdf_header = '%PDF-1.5'

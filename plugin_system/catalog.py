@@ -1,5 +1,14 @@
 # *** PLUGIN CATALOG - List Available Plugins ***
 PLUGIN_CATALOG = {
+    "subject-detection-ai": {
+        "plugin_id": "subject-detection-ai",
+        "name": "AI Subject & Frame Detection",
+        "plugin_type": "image_segmentation",
+        "type_label": "Image selection",
+        "description": "Local subject, background, and contoured frame selection for card finishing and image tools.",
+        "requirements": "64-bit Python 3.10–3.13; CPU; first-use downloads: subject 179 MB, frame 118 MB",
+        "bundled_source": True,
+    },
     "spot-foil-ai": {
         "plugin_id": "spot-foil-ai",
         "name": "AI Text Detection",

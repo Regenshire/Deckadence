@@ -12,14 +12,40 @@
   const boolKeys = ['protect_text', 'protect_frame', 'review_mask', 'overprint'];
   const numberKeys = ['coverage_percent', 'edge_adjustment_mm', 'safe_margin_mm', 'resolution_ppi', 'selection_amount', 'foil_coverage_percent', 'border_width_percent'];
   const clone = value => JSON.parse(JSON.stringify(value));
-  let data, drafts, selected, dirty, saving = false;
+  let data, drafts, selected, dirty, saving = false, loadVersion = 0;
 
+  function validReply(result) {
+    const object = value => value && typeof value === 'object' && !Array.isArray(value);
+    const choices = value => Array.isArray(value) && value.length > 0 && value.every(key => typeof key === 'string');
+    if (!object(result?.preferences) || !object(result.preferences.profiles)
+        || !object(result.output_formats) || !object(result.layer_types)
+        || !Array.isArray(result.workflows) || !result.workflows.length) return false;
+    return result.workflows.every(item => object(item) && typeof item.id === 'string'
+      && typeof item.label === 'string' && object(item.defaults)
+      && choices(item.layer_types) && choices(item.output_formats) && choices(item.mask_tones)
+      && object(result.preferences.profiles[item.id])
+      && Object.keys(item.defaults).every(key => Object.hasOwn(result.preferences.profiles[item.id], key)))
+      && result.workflows.some(item => item.id === result.preferences.active_workflow);
+  }
   async function api(payload) {
-    const response = await fetch(panel.dataset.settingsUrl, payload ? {
-      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
-    } : {cache: 'no-store'});
-    const result = await response.json();
-    if (!response.ok || !result.ok) throw new Error(result.message || 'Could not load workflow settings.');
+    let response;
+    try {
+      response = await fetch(panel.dataset.settingsUrl, payload ? {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)
+      } : {cache: 'no-store'});
+    } catch (_) {
+      const error = new Error('Could not reach the application.');
+      error.retryable = true;
+      throw error;
+    }
+    const result = await response.json().catch(() => null);
+    if (!response.ok || !result?.ok || !validReply(result)) {
+      const error = new Error(!response.ok && typeof result?.message === 'string' && result.message.trim()
+        ? result.message : response.ok ? 'The application returned unreadable workflow settings.'
+          : `Could not ${payload ? 'save' : 'load'} workflow settings (${response.status}).`);
+      error.retryable = response.ok || response.status >= 500 || [408, 429].includes(response.status);
+      throw error;
+    }
     return result;
   }
   function setOptions(select, keys, labels) {
@@ -49,14 +75,14 @@
     dialog.querySelector('[data-foil-coverage-hint]').textContent = solid
       ? 'This workflow uses solid 100% coverage.' : 'Coverage is an ink value, not a calibrated foil intensity.';
     dialog.querySelector('[data-foil-output-hint]').textContent = {
-      spot_pdf: 'The named spot separation carries the ink coverage. The RIP sets physical ink order and passes.',
-      mask_pdf: 'Black marks deposited ink or material; white marks no deposit. Match the artwork page size and placement.',
+      spot_pdf: 'The RIP reads the named ink separation and sets print order and passes.',
+      mask_pdf: 'Black = ink or material. White = no deposit. Align with the artwork.',
       grayscale_png: 'The mask is independent of the artwork. Set its polarity to match your RIP.',
-      alpha_png: 'Opaque pixels mark deposited ink or material; transparent pixels mark no deposit. Import as a separate mask.'
+      alpha_png: 'Opaque = ink or material. Transparent = no deposit. Import separately.'
     }[output];
     dialog.querySelector('[data-foil-layer-hint]').textContent = fields.layer_type.value === 'white_underbase'
-      ? 'Selected areas reveal foil. White ink covers the remaining card area; protected text and frames receive white ink.'
-      : 'Selected areas receive foil or coating. Protected text and frame areas are excluded.';
+      ? 'Selected areas reveal foil. White ink covers the rest.'
+      : 'Selected areas receive foil or coating.';
   }
   function showProfile() {
     const item = preset();
@@ -66,20 +92,29 @@
     setOptions(fields.mask_tone, item.mask_tones, {binary: 'Solid areas', grayscale: 'Grayscale coverage'});
     fields.workflow_id.value = selected;
     Object.entries(values).forEach(([key, value]) => {
+      if (!fields[key]) return;
       if (boolKeys.includes(key)) fields[key].checked = value;
       else fields[key].value = value;
     });
+    fields.selection_region.value = values.protect_text || values.protect_frame ? 'artwork' : 'full';
     colorPicker.value = fields.spot_display_color.value;
     document.getElementById('spotFoilWorkflowDescription').textContent = item.description;
     updateVisibility();
   }
   function capture() {
-    const values = {};
+    // Keep legacy preferences that no longer have a control. The two original
+    // protection flags both selected the same art box in the card editor.
+    const values = clone(drafts[selected]);
     Object.keys(preset().defaults).forEach(key => {
+      if (!fields[key]) return;
       values[key] = boolKeys.includes(key) ? fields[key].checked
         : numberKeys.includes(key) ? (fields[key].value === '' ? null : Number(fields[key].value))
           : fields[key].value;
     });
+    const artwork = fields.selection_region.value === 'artwork';
+    if (artwork !== Boolean(values.protect_text || values.protect_frame)) {
+      values.protect_text = values.protect_frame = artwork;
+    }
     drafts[selected] = values;
   }
   function validateCurrent() {
@@ -102,7 +137,7 @@
   fields.workflow_id.addEventListener('change', () => {
     const next = fields.workflow_id.value;
     if (!validateCurrent()) { fields.workflow_id.value = selected; return; }
-    capture(); selected = next; showProfile(); message('Changes are saved only when you choose Save workflows.');
+    capture(); selected = next; showProfile(); message('Choose Save workflows to keep changes.');
   });
   form.addEventListener('input', event => {
     if (event.target.name !== 'workflow_id') dirty.add(selected);
@@ -112,7 +147,7 @@
   });
   dialog.querySelector('[data-foil-reset]').addEventListener('click', () => {
     drafts[selected] = clone(preset().defaults); dirty.add(selected); showProfile();
-    message('Preset restored. Choose Save workflows to keep it.');
+    message('Defaults restored. Save to keep them.');
   });
   dialog.querySelectorAll('[data-foil-cancel]').forEach(button => button.addEventListener('click', () => {
     if (!saving) dialog.close();
@@ -120,6 +155,7 @@
   dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
   dialog.addEventListener('close', () => configure.focus());
   configure.addEventListener('click', async () => {
+    loadVersion++;
     configure.disabled = true;
     try {
       data = await api();
@@ -142,13 +178,22 @@
     try {
       data = await api({active_workflow: selected, profiles});
       showSummary(); dialog.close();
-    } catch (error) { message(error.message, true); }
+    } catch (error) {
+      message(error.message + (error.retryable ? ' Your changes are still here; try Save again.' : ''), true);
+      status.scrollIntoView({block: 'nearest'});
+    }
     finally {
       saving = false;
       Array.from(fields).forEach(field => { field.disabled = false; });
       updateVisibility();
     }
   });
-  api().then(result => { data = result; showSummary(); })
-    .catch(error => { summary.textContent = `${error.message} Choose Configure workflows to retry.`; });
+  // A slow page-load summary must not replace a newer editor load or save.
+  const initialVersion = loadVersion;
+  api().then(result => {
+    if (initialVersion !== loadVersion) return;
+    data = result; showSummary();
+  }).catch(error => {
+    if (initialVersion === loadVersion) summary.textContent = `${error.message} Choose Configure workflows to retry.`;
+  });
 })();

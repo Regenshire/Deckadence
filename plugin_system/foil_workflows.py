@@ -29,7 +29,7 @@ BASE_OPTIONS = {
     "edge_adjustment_mm": 0, "safe_margin_mm": 0, "resolution_ppi": 600,
     "selection": "highlights", "protect_text": True, "protect_frame": True,
     "selection_amount": 35, "foil_coverage_percent": 100, "generation_action": "foil", "selection_cleanup": "balanced",
-    "text_treatment": "opaque", "border_treatment": "opaque", "border_width_percent": 2,
+    "text_treatment": "original", "border_treatment": "original", "border_width_percent": 2,
     "review_mask": True, "overprint": True, "raster_polarity": "white_coverage",
 }
 
@@ -48,8 +48,7 @@ def _preset(identifier, label, description, *, layer="white_underbase",
 
 WORKFLOWS = [
     _preset("roland_uv", "Roland UV / VersaWorks",
-            "White ink over holographic or metallic stock. Uses RDG_WHITE; "
-            "the RIP controls ink order and white-ink passes.", spot="RDG_WHITE"),
+            "White ink over holographic or metallic stock. Uses RDG_WHITE.", spot="RDG_WHITE"),
     _preset("mimaki_uv", "Mimaki UV / RasterLink",
             "Separate white-ink mask for mapping black to white in RasterLink. "
             "A named spot PDF is also available if your RIP is configured for it.",
@@ -82,7 +81,7 @@ BOOL_FIELDS = {"protect_text", "protect_frame", "review_mask", "overprint"}
 NUMBER_LIMITS = {
     "coverage_percent": (0, 100), "edge_adjustment_mm": (-2, 2),
     "safe_margin_mm": (0, 10),
-    "selection_amount": (5, 95), "foil_coverage_percent": (1, 100), "border_width_percent": (0, 12),
+    "selection_amount": (5, 100), "foil_coverage_percent": (1, 100), "border_width_percent": (0, 12),
 }
 
 
@@ -133,6 +132,7 @@ def validate_options(workflow_id, options):
 
 def load_preferences(config):
     defaults = {"active_workflow": DEFAULT_WORKFLOW,
+                "text_border_defaults_version": 1,
                 "profiles": {key: deepcopy(value["defaults"]) for key, value in PRESETS.items()}}
     try:
         saved = json.loads(config.get(CONFIG_KEY) or "{}")
@@ -148,6 +148,11 @@ def load_preferences(config):
             if key in PRESETS:
                 try:
                     defaults["profiles"][key] = validate_options(key, options)
+                    # Older profiles stored the former opaque defaults. Adopt
+                    # Follow automatic selection without changing card masks.
+                    # A later explicit preference save keeps its chosen values.
+                    if saved.get("text_border_defaults_version") != 1:
+                        defaults["profiles"][key].update(text_treatment="original", border_treatment="original")
                 except (ValueError, TypeError):
                     pass
     return defaults
@@ -158,6 +163,18 @@ def resolve_workflow(config):
     preferences = load_preferences(config)
     key = preferences["active_workflow"]
     return {"workflow_id": key, **preferences["profiles"][key]}
+
+
+def resolve_export_workflow(config, workflow_id=None, overrides=None):
+    """Choose one print workflow for the entire job, independently of cards."""
+    preferences = load_preferences(config)
+    key = workflow_id or preferences["active_workflow"]
+    if not isinstance(key, str) or key not in PRESETS:
+        raise ValueError("Choose a supported print workflow.")
+    options = validate_options(key, {**preferences["profiles"][key], **(overrides or {})})
+    # The reviewed card mask is final; printing must not run design selections.
+    options.update(selection="manual", protect_text=False, protect_frame=False)
+    return {"workflow_id": key, **options}
 
 
 def register_foil_workflow_routes(app, get_config, update_config):

@@ -102,9 +102,68 @@
     const foilIntensityRow = getElement("printFoilIntensityRow");
     const foilIntensityValue = getElement("printFoilIntensityValue");
     const spotFoilCheckbox = form && form.querySelector('input[type="checkbox"][name="include_spot_foil"]');
+    const glossCheckbox = form && form.querySelector('input[type="checkbox"][name="include_gloss"]');
     const spotFoilOptions = getElement("printSpotFoilOptions");
+    const spotWorkflow = getElement("printSpotFoilWorkflow");
+    const spotLayer = getElement("printSpotFoilLayer"), spotName = getElement("printSpotFoilName");
+    const spotOutput = getElement("printSpotFoilOutput"), spotTone = getElement("printSpotFoilTone");
+    const spotHint = getElement("printSpotFoilWorkflowHint"), spotRetry = getElement("printSpotFoilRetry");
+    const whiteInverse = getElement("printWhiteInverseLayer");
+    let spotData = null, spotLoading = false, spotLoadVersion = 0;
+    function syncSpotFields() {
+      const enabled = Boolean((spotFoilCheckbox?.checked || glossCheckbox?.checked) && spotData);
+      for (const field of [spotWorkflow, spotOutput, spotTone]) if (field) field.disabled = !enabled;
+      if (spotOutput) {
+        spotOutput.querySelector('option[value="mask_pdf"]').disabled = Boolean(glossCheckbox?.checked);
+        if (glossCheckbox?.checked) spotOutput.value = "spot_pdf";
+      }
+      if (spotLayer) spotLayer.disabled = !enabled || !spotFoilCheckbox?.checked;
+      if (spotName) spotName.disabled = !enabled || !spotFoilCheckbox?.checked || spotOutput.value !== "spot_pdf";
+      if (whiteInverse) whiteInverse.disabled = !enabled || !spotFoilCheckbox?.checked || spotOutput.value !== "spot_pdf";
+    }
+    function chooseSpotWorkflow() {
+      if (!spotData) return;
+      const preset = spotData.workflows.find(item => item.id === spotWorkflow.value);
+      const profile = spotData.preferences.profiles[preset.id];
+      spotLayer.replaceChildren(...preset.layer_types.map(value => new Option(spotData.layer_types[value], value)));
+      spotLayer.value = profile.layer_type; spotName.value = profile.spot_name;
+      spotOutput.value = ["spot_pdf", "mask_pdf"].includes(profile.output_format) ? profile.output_format : "spot_pdf";
+      const solid = preset.mask_tones.length === 1;
+      spotTone.querySelector('option[value="grayscale"]').disabled = solid;
+      spotTone.value = solid ? "binary" : "grayscale";
+      spotHint.textContent = preset.description;
+      syncSpotFields();
+    }
+    async function loadSpotWorkflows() {
+      if (!spotWorkflow || spotData || spotLoading) return;
+      const version = ++spotLoadVersion; spotLoading = true;
+      spotHint.textContent = "Loading print workflows…"; spotRetry.hidden = true; syncSpotFields();
+      try {
+        const response = await fetch(spotFoilOptions.dataset.workflowsUrl);
+        const data = await response.json();
+        if (!response.ok || !data?.ok || !data.workflows?.length || !data.preferences?.profiles) throw new Error();
+        if (version !== spotLoadVersion) return;
+        spotData = data;
+        spotWorkflow.replaceChildren(...data.workflows.map(item => new Option(item.label, item.id)));
+        spotWorkflow.value = data.preferences.active_workflow;
+        chooseSpotWorkflow();
+      } catch (_) {
+        if (version !== spotLoadVersion) return;
+        spotData = null; syncSpotFields();
+        spotHint.textContent = "Could not load print workflows. Retry before exporting spot ink.";
+        spotRetry.hidden = false;
+      } finally {if (version === spotLoadVersion) spotLoading = false;}
+    }
+    spotWorkflow?.addEventListener("change", chooseSpotWorkflow);
+    spotOutput?.addEventListener("change", syncSpotFields);
+    whiteInverse?.addEventListener("change", syncSpotFields);
+    spotRetry?.addEventListener("click", loadSpotWorkflows);
+    form?.addEventListener("reset", () => {
+      ++spotLoadVersion; spotData = null; spotLoading = false;
+      queueMicrotask(syncFoilIntensity);
+    });
     function syncFoilIntensity() {
-      const spotEnabled = Boolean(spotFoilCheckbox?.checked);
+      const spotEnabled = Boolean(spotFoilCheckbox?.checked || glossCheckbox?.checked);
       if (spotFoilOptions) spotFoilOptions.hidden = !spotEnabled;
       if (foilCheckbox) foilCheckbox.disabled = spotEnabled;
       if (foilIntensityRow) foilIntensityRow.hidden = spotEnabled || !foilCheckbox?.checked;
@@ -112,8 +171,11 @@
         foilIntensityValue.textContent = foilIntensity.value + "%";
         foilIntensity.setAttribute("aria-valuetext", foilIntensity.value + "%");
       }
+      syncSpotFields();
+      if (spotEnabled) loadSpotWorkflows();
     }
     if (spotFoilCheckbox) spotFoilCheckbox.addEventListener("change", syncFoilIntensity);
+    if (glossCheckbox) glossCheckbox.addEventListener("change", syncFoilIntensity);
     if (foilIntensity) {
       try {
         const saved = localStorage.getItem("deckadence.print.foilIntensity");
@@ -634,6 +696,18 @@
       }
 
       const isExport = actionType === "export";
+      if ((spotFoilCheckbox?.checked || glossCheckbox?.checked) && !isExport) {
+        if (!spotData) {
+          setSettingsVisible(true);
+          showMessage("Load a print workflow before exporting spot ink.", true);
+          return;
+        }
+        if (!spotName.disabled && !spotName.value.trim()) {
+          setSettingsVisible(true);
+          showMessage("Enter a spot channel name for this export.", true);
+          return;
+        }
+      }
       if (!isExport && window.deckadenceCutters) {
         const cutterError = window.deckadenceCutters.validate();
         if (cutterError) {

@@ -5,14 +5,14 @@
         <div class="plugin-card-title" id="spotFoilSettingsTitle">Spot foiling workflows</div>
         <span class="plugin-status-badge">Card editor available</span>
     </div>
-    <p class="plugin-card-description">Choose defaults here, then use the spot foiling icon on a card to apply an automatic selection and touch it up. Save the card and enable spot-ink layers in Print / Export to create a named spot PDF or an aligned black-only mask.</p>
+    <p class="plugin-card-description">Set print defaults here. Use a card’s spot foiling icon to select and refine its foil areas, then include spot-ink layers in Print / Export.</p>
     <p class="spot-foil-summary" data-foil-summary role="status">Loading workflow settings…</p>
     <div class="plugin-card-actions">
         <button type="button" class="action-button secondary-button" data-foil-configure>Configure workflows</button>
     </div>
     <a class="spot-foil-help-link" href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C8 2 4 3 2 4v15c3-2 7-2 10 0 3-2 7-2 10 0V4c-3-1-7-2-10 1Zm0 0v14"/></svg>
-        <span><strong>Spot foiling guide ↗</strong><small>Automatic selections, text and borders, editing tools, and white-ink diagrams. Opens in a new tab.</small></span>
+        <span><strong>Spot foiling guide ↗</strong><small>Selections, editing tools, and illustrated print workflows.</small></span>
     </a>
     <noscript>Enable JavaScript to configure spot foiling workflows.</noscript>
 </section>
@@ -26,7 +26,7 @@
         <div class="spot-foil-body">
             <label class="spot-foil-workflow">Workflow type<select name="workflow_id" aria-describedby="spotFoilWorkflowDescription"></select></label>
             <p id="spotFoilWorkflowDescription" class="spot-foil-hint"></p>
-            <p class="spot-foil-notice">Defaults for new card selections. Use each card’s spot foiling icon, choose a mode, and Apply. Saving defaults does not change saved card masks or current PDFs.</p>
+            <p class="spot-foil-notice">Defaults for new selections. Saved masks stay unchanged.</p>
             <fieldset><legend>Print output</legend><div class="spot-foil-grid">
                 <label>Layer purpose<select name="layer_type"></select></label>
                 <label>Output format<select name="output_format"></select></label>
@@ -37,7 +37,7 @@
                     <input type="color" data-foil-color-picker aria-label="Choose spot display color" value="#ff00ff">
                     <input id="spotFoilDisplayColor" name="spot_display_color" value="#FF00FF" maxlength="7" pattern="#?[0-9a-fA-F]{6}" required autocomplete="off" spellcheck="false" aria-describedby="spotFoilDisplayColorHelp" placeholder="#838588">
                   </div>
-                  <p class="spot-foil-hint" id="spotFoilDisplayColorHelp">Accepts 838588 or #838588. Changes the PDF spot swatch’s display color, not its ink name or coverage. Applies to new exports of saved cards in this workflow; their masks do not need to be reapplied.</p>
+                  <p class="spot-foil-hint" id="spotFoilDisplayColorHelp">Accepts 838588 or #838588. Sets the swatch color for new PDF exports, including saved cards. Ink name and coverage stay the same.</p>
                 </div>
                 <label data-foil-field="raster_polarity">Grayscale mask meaning<select name="raster_polarity"><option value="white_coverage">White = deposited ink / material</option><option value="black_coverage">Black = deposited ink / material</option></select></label>
                 <label>Mask resolution<select name="resolution_ppi"><option value="300">300 PPI</option><option value="600">600 PPI</option><option value="1200">1200 PPI</option></select></label>
@@ -51,18 +51,14 @@
             </div></fieldset>
             <fieldset><legend>Mask generation defaults</legend><div class="spot-foil-grid">
                 <label>Matching areas should<select name="generation_action"><option value="foil">Show foil</option><option value="opaque">Stay opaque · foil the rest</option></select></label>
-                <label>Initial selection<select name="selection"><option value="highlights">Highlights</option><option value="colors">Color accents</option><option value="details">Details / edges</option><option value="shadows">Shadows</option><option value="artwork">Solid area</option><option value="manual">Imported or manual mask</option><option value="subject" disabled>Main subject (legacy preference)</option><option value="background" disabled>Background (legacy preference)</option></select></label>
-                <label>Automatic selection cleanup<select name="selection_cleanup"><option value="balanced">Balanced · smooth edges and remove speckles</option><option value="strong">Stronger · broader, cleaner areas</option><option value="off">Off · preserve every detail</option></select><small>Applied before text and border overrides. Review the card before saving.</small></label>
-                <label>How much area to match (%)<input type="number" name="selection_amount" min="5" max="95" step="1" required><small>For Highlights, 35% targets roughly the brightest third of the chosen region. More includes dimmer areas.</small></label>
-                <label>Foil amount / tool strength (%)<input type="number" name="foil_coverage_percent" min="1" max="100" step="1" required><small>100% applies full foil within the foil areas; 50% applies half the amount.</small></label>
-                <label>Text<select name="text_treatment"><option value="original">Text — Follow the automatic result</option><option value="opaque">Text — Opaque · no foil</option><option value="foil">Text — Foiled · show foil</option></select></label>
-                <label>Border<select name="border_treatment"><option value="original">Border — Follow the automatic result</option><option value="opaque">Border — Opaque · no foil</option><option value="foil">Border — Foiled · show foil</option></select></label>
+                <label>Initial selection<select name="selection"><option value="highlights">Bright areas</option><option value="colors">Strong colors</option><option value="details">Edges and texture</option><option value="shadows">Dark areas</option><option value="artwork">Everything</option><option value="manual" disabled>Manual (legacy preference)</option><option value="subject">Subject · AI</option><option value="background">Background · AI</option></select></label>
+                <label>Apply within<select name="selection_region"><option value="artwork">Fixed art box · standard frame</option><option value="full">Whole card</option></select><small>Use Whole card for full-art layouts.</small></label>
+                <label>Cleanup<select name="selection_cleanup"><option value="balanced">Balanced</option><option value="strong">Strong</option><option value="off">Off · keep fine detail</option></select><small>Smooths texture before text and border treatment.</small></label>
+                <label>Area selected (%)<input type="number" name="selection_amount" min="5" max="100" step="1" required><small>35% with Bright areas chooses roughly the brightest third. 100% selects the whole chosen area, before text and border treatment.</small></label>
+                <label>Foil strength (%)<input type="number" name="foil_coverage_percent" min="1" max="100" step="1" required><small>50% gives half coverage in the same shapes. Also sets the initial tool strength.</small></label>
+                <label>Text<select name="text_treatment"><option value="original">Follow automatic selection</option><option value="opaque">Opaque · no foil</option><option value="foil">Foiled</option></select></label>
+                <label>Border<select name="border_treatment"><option value="original">Follow automatic selection</option><option value="opaque">Opaque · no foil</option><option value="foil">Foiled</option></select></label>
                 <label>Outer border width (% of card width)<input type="number" name="border_width_percent" min="0" max="12" step="0.5" required><small>0% means no border override.</small></label>
-                <div class="spot-foil-checks">
-                    <label class="spot-foil-check"><input type="checkbox" name="protect_text">Start within the standard artwork area (protect text)</label>
-                    <label class="spot-foil-check"><input type="checkbox" name="protect_frame">Start within the standard artwork area (protect frame)</label>
-                    <label class="spot-foil-check"><input type="checkbox" name="review_mask">Review generated masks before export</label>
-                </div>
             </div><p class="spot-foil-hint" data-foil-layer-hint></p></fieldset>
             <p class="spot-foil-status" role="status" aria-live="polite" data-foil-status></p>
         </div>

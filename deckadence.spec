@@ -45,6 +45,7 @@ a = Analysis(
         ('db', 'db'),
         ('modes', 'modes'),
         ('plugin_src/spot-foil-ai', 'plugin_src/spot-foil-ai'),
+        ('plugin_src/subject-detection-ai', 'plugin_src/subject-detection-ai'),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],

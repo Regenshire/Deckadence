@@ -32,6 +32,7 @@
   }
   const states = new WeakMap();
   const spotMasks = new WeakMap();
+  const glossMasks = new WeakMap();
   const moving = new Set();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   const motionScale = .65;
@@ -60,10 +61,10 @@
     }
     surface.dataset.cardEffectFinish = finishFor(surface);
     if (surface.dataset.cardEffectFinish === "chocobo") applyCustomPlacement(surface);
-    if (states.has(surface)) { syncSpotMask(surface); return states.get(surface); }
+    if (states.has(surface)) { syncSpotMask(surface); syncGloss(surface); return states.get(surface); }
     surface.classList.add("card-effects");
     // Grid/stack views clone card DOM; copied layers have no animation state.
-    surface.querySelectorAll(":scope > .card-effect-layer, :scope > .card-spot-clip").forEach(layer => layer.remove());
+    surface.querySelectorAll(":scope > .card-effect-layer, :scope > .card-spot-clip, :scope > .card-gloss-layer").forEach(layer => layer.remove());
     for (const kind of ["rainbow", "surge", "custom", "glare"]) {
       const layer = document.createElement("span");
       layer.className = `card-effect-layer card-effect-${kind}`;
@@ -73,6 +74,7 @@
     const state = {surface, x:0, y:0, tx:0, ty:0, vx:0, vy:0, light:0, targetLight:0, bounds:null};
     states.set(surface, state);
     syncSpotMask(surface);
+    syncGloss(surface);
     reset(state);
     return state;
   }
@@ -101,6 +103,20 @@
     if (!surface) return;
     if (spot) spotMasks.set(surface, spot);
     else spotMasks.delete(surface);
+    attach(surface);
+  }
+  function syncGloss(surface) {
+    const gloss=glossMasks.get(surface);
+    let layer=surface.querySelector(":scope > .card-gloss-layer");
+    if(!gloss) {layer?.remove();surface.style.removeProperty("--card-gloss-mask");return;}
+    if(!layer) {layer=document.createElement("span");layer.className="card-gloss-layer";layer.setAttribute("aria-hidden","true");surface.appendChild(layer);}
+    surface.style.setProperty("--card-gloss-mask",`url("${gloss.maskUrl}")`);
+    surface.style.setProperty("--card-gloss-strength",Math.max(0,Math.min(100,Number(gloss.strength)||100))/100);
+    layer.dataset.finish=gloss.finish==="polished" ? "polished" : "gloss";
+  }
+  function setGloss(surface, gloss) {
+    if(!surface)return;
+    if(gloss)glossMasks.set(surface,gloss);else glossMasks.delete(surface);
     attach(surface);
   }
 
@@ -225,7 +241,7 @@
     if (!zoomImage) return;
     if (!source) {
       const previous = zoomImage.closest(selector);
-      if (previous) { setSpotFoil(previous, null); attach(previous, {finish: "normal"}); }
+      if (previous) { setSpotFoil(previous, null); setGloss(previous, null); attach(previous, {finish: "normal"}); }
       return;
     }
     let surface = zoomImage.closest(selector);
@@ -236,6 +252,7 @@
       surface.appendChild(zoomImage);
     }
     setSpotFoil(surface, spotMasks.get(source) || null);
+    setGloss(surface, glossMasks.get(source) || null);
     const state = attach(surface, {finish: finishFor(source)});
     reset(state);
   }
@@ -286,7 +303,7 @@
       }
     }
   }
-  window.DeckadenceCardEffects = {attach, enhance, applyMetadata, copyToZoom, flip, reset:resetAll, setSpotFoil, setInteractive};
+  window.DeckadenceCardEffects = {attach, enhance, applyMetadata, copyToZoom, flip, reset:resetAll, setSpotFoil, setGloss, setInteractive};
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, {once:true});
   else start();
 })();
