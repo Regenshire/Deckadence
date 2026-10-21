@@ -144,3 +144,10 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
   .spot-card-footer-actions button { flex: 1; }
 }
 .spot-card-dialog [data-spot-effect-color-controls] { grid-column: 1 / -1; }
+.spot-card-dialog [data-spot-effect-rotation] { grid-column: 1 / -1; }
+.spot-card-dialog [data-spot-shard-controls] { grid-column: 1 / -1; }
+.spot-shard-templates { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 8px; margin: 10px 0 16px; }
+.spot-shard-templates button { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 4px; font-size: .72rem; }
+.spot-shard-templates button img { height: 84px; width: 60px; max-width: 100%; background: #111b29; border-radius: 4px; }
+.spot-shard-templates button[aria-pressed="true"] { border-color: var(--theme-highlight, var(--accent)); color: var(--theme-highlight, var(--accent)); }
+.spot-card-dialog [data-spot-generate-mirror] { margin: 12px 0 4px; }

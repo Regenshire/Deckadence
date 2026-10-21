@@ -1,0 +1,23 @@
+<section class="studio-generation" id="studio-local-ai" data-local-mirror data-url="{{ url_for('local_mirror_settings') }}">
+    <div class="studio-generation-heading">
+        <h3>Generative Art AI</h3>
+        <span class="plugin-status-badge" data-local-ai-badge>Optional download</span>
+    </div>
+    <p>Generate and transform artwork on your PC, including the AI scenes used by Dark Mirror Shards.</p>
+    <div class="studio-generation-choices">
+        <label>Model<select data-local-ai-model aria-describedby="local-ai-model-info" disabled></select></label>
+        <label>Processor<select data-local-ai-hardware aria-describedby="local-ai-hardware-info" disabled></select></label>
+    </div>
+    <p id="local-ai-model-info" data-local-ai-model-info></p>
+    <p id="local-ai-hardware-info" data-local-ai-hardware-info></p>
+    <p class="studio-generation-download" data-local-ai-size></p>
+    <p data-local-ai-active></p>
+    <p role="status" aria-live="polite" data-local-ai-status>Checking local AI downloads…</p>
+    <div class="plugin-card-actions">
+        <button type="button" class="action-button plugin-action-button" data-local-ai-install disabled>Download &amp; enable</button>
+        <button type="button" class="action-button secondary-button" data-local-ai-cancel hidden>Cancel download</button>
+        <button type="button" class="action-button secondary-button" data-local-ai-disable hidden>Disable local AI</button>
+        <a data-local-ai-license target="_blank" rel="noopener noreferrer">Model details and license ↗</a>
+    </div>
+    <p class="studio-generation-note">Only the selected model and processor runtime are downloaded. Saved artwork does not need AI to preview or print.</p>
+</section>

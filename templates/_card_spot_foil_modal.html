@@ -208,10 +208,36 @@
           <label class="spot-card-range-label"><span data-spot-effect-strength-label>Effect strength</span> <output data-spot-strength-value>100%</output><input name="strength" type="range" min="1" max="100" value="100"></label>
           <p class="spot-card-caption" data-spot-preview-only>Screen preview only.</p>
           <div data-spot-pattern-controls hidden>
-            <label>Pattern size (%)<input name="effect_scale" type="number" min="25" max="200" value="100"></label>
-            <label>Density (%)<input name="effect_density" type="number" min="25" max="200" value="100"></label>
+            <label class="spot-card-range-label" data-spot-effect-rotation>Effect rotation <output data-spot-rotation-value>0°</output><input name="effect_rotation" type="range" min="-180" max="180" value="0" step="1"></label>
+            <label data-spot-pattern-size>Pattern size (%)<input name="effect_scale" type="number" min="25" max="200" value="100"></label>
+            <label data-spot-pattern-density>Density (%)<input name="effect_density" type="number" min="25" max="200" value="100"></label>
             <input name="effect_seed" type="hidden" value="1">
             <button type="button" data-spot-new-pattern>New pattern</button>
+            <div data-spot-shard-controls hidden>
+              <span>Shard template</span>
+              <input type="hidden" name="effect_shard_template" value="falling">
+              <div class="spot-shard-templates" role="group" aria-label="Shard template">
+                {% for key, label in [('falling','Falling shards'),('impact','Mirror impact'),('diagonal','Diagonal split'),('frame','Fractured frame'),('radiant','Radiant burst'),('spell','Spell splinters'),('cascade','Crystal cascade'),('revelation','Mirror revelation')] %}
+                <button type="button" data-spot-shard-template="{{ key }}" aria-pressed="{{ 'true' if key == 'falling' else 'false' }}"><img src="{{ url_for('static',filename='img/card-effects/mirror-shards/' ~ key ~ '.svg') }}" alt=""><span>{{ label }}</span></button>
+                {% endfor %}
+              </div>
+              <label class="spot-card-range-label">Glass tint <output data-spot-tint-value>18%</output><input type="range" name="effect_tint" min="0" max="100" value="18"></label>
+              <label class="spot-card-check"><input type="checkbox" name="effect_mirror"> Mirror · AI scene</label>
+              <div data-spot-mirror-controls hidden>
+                <label class="spot-card-range-label">Alternate image rotation <output data-spot-scene-rotation-value>0°</output><input name="effect_scene_rotation" type="range" min="-180" max="180" value="0" step="1"></label>
+                <label class="spot-card-range-label">Alternate image zoom <output data-spot-scene-zoom-value>100%</output><input name="effect_scene_zoom" type="range" min="50" max="300" value="100" step="1"></label>
+                <label class="spot-card-range-label">Alternate image skew <output data-spot-scene-skew-value>0°</output><input name="effect_scene_skew" type="range" min="-60" max="60" value="0" step="1"></label>
+                <p class="spot-card-caption">Rotate, zoom, or skew the image horizontally inside the glass. No new render needed.</p>
+                <label>Theme<select name="effect_shard_theme">{% for key, label in [('dark','Dark'),('spooky','Spooky'),('normal','Normal'),('modern','Modern'),('echo','Echo'),('angelic','Angelic'),('demonic','Demonic')] %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+                <input type="hidden" name="effect_scene" value="">
+                <input type="hidden" name="effect_scene_theme" value="dark">
+                <input type="hidden" name="effect_scene_source" value="">
+                <input type="hidden" name="effect_scene_selection" value="">
+                <button type="button" data-spot-generate-mirror>Generate mirror scene</button>
+                <p class="spot-card-caption" data-spot-mirror-status role="status"></p>
+                <a class="spot-card-help" href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins#studio-local-ai" target="_blank" rel="noopener">Generative Art AI settings ↗</a>
+              </div>
+            </div>
             <div data-spot-fracture-controls hidden>
               <label class="spot-card-range-label">Translucence <output data-spot-translucence-value>0%</output><input type="range" name="effect_translucence" min="0" max="100" value="0"></label>
               <p class="spot-card-caption">Reveals artwork detail while keeping the foil colors.</p>
@@ -239,7 +265,7 @@
     </div>
     <footer class="spot-card-footer">
       <div><p data-spot-status role="status" aria-live="polite">Loading card…</p><button type="button" class="spot-card-remove" data-spot-remove disabled>Remove spot foiling</button></div>
-      <div class="spot-card-footer-actions"><button type="button" data-spot-close>Cancel</button><button type="submit" class="spot-card-save" disabled>Save for this card</button></div>
+      <div class="spot-card-footer-actions"><button type="button" data-spot-cancel-generation hidden>Cancel render</button><button type="button" data-spot-close>Cancel</button><button type="submit" class="spot-card-save" disabled>Save for this card</button></div>
     </footer>
   </form>
 </dialog>

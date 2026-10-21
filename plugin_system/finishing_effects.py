@@ -13,10 +13,11 @@ import tempfile
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageMath
 from paths import IMAGE_CACHE_DIR
 from .finishing_materials import MATERIAL_EFFECTS, render_material
+from .mirror_shards import validate_shards, decode_scene, render_shards, transform_image
 
 CACHE_ROOT = Path(IMAGE_CACHE_DIR) / "finishing_effects"
-RENDER_VERSION = 8
-COLOR_DEFAULTS = {'stars':'#FFF4C3','halftone':'#121930','neon':'#46F5FF'}
+RENDER_VERSION = 13
+COLOR_DEFAULTS = {'stars':'#FFF4C3','halftone':'#121930','neon':'#46F5FF','mirror_shards':'#B8EFFF'}
 MATERIAL_PATH = Path(__file__).resolve().parents[1] / 'static/img/card-effects/fracture-foil-material-v1.png'
 EFFECT_TYPES = {
     "glitter_1": "Glitter - Type 1", "glitter_2": "Glitter - Type 2", "glitter_3": "Glitter - Type 3",
@@ -25,11 +26,12 @@ EFFECT_TYPES = {
     "pearl": "Pearlescent Wash", "etched": "Etched Metal", "watercolor": "Watercolor Texture",
     "halftone": "Halftone Dots", "neon": "Neon Edge Glow",
     **MATERIAL_EFFECTS,
+    'mirror_shards':'Dark Mirror Shards · AI Effect',
 }
 
 
 def validate_effect(value):
-    if not isinstance(value, dict) or set(value)-{'color','translucence'} != {"finish", "strength", "scale", "density", "seed"}:
+    if not isinstance(value, dict) or set(value)-{'color','translucence','shards','rotation'} != {"finish", "strength", "scale", "density", "seed"}:
         raise ValueError("Choose valid finishing effect settings.")
     if not isinstance(value["finish"],str) or value["finish"] not in EFFECT_TYPES:
         raise ValueError("Choose a supported finishing effect.")
@@ -40,15 +42,24 @@ def validate_effect(value):
     if not isinstance(color,str) or not re.fullmatch(r'#[0-9a-fA-F]{6}',color):
         raise ValueError('Choose a valid effect color.')
     translucence=value.get('translucence',0)
+    rotation=value.get('rotation',0)
+    if type(rotation) is not int or not -180<=rotation<=180:
+        raise ValueError('Choose an effect rotation from -180 to 180 degrees.')
     if type(translucence) is not int or not 0 <= translucence <= 100:
         raise ValueError('Choose translucence from 0 to 100%.')
-    return dict(value,color=color.upper(),translucence=translucence)
+    if value['finish']=='mirror_shards':
+        value=dict(value,shards=validate_shards(value.get('shards',{})))
+    elif 'shards' in value:
+        raise ValueError('Shard settings only apply to Dark Mirror Shards.')
+    return dict(value,color=color.upper(),translucence=translucence,rotation=rotation)
 
 
 def parameters(value):
     return {**{key: value[key] for key in ("finish", "strength", "scale", "density", "seed")},
             'color':value.get('color',COLOR_DEFAULTS.get(value['finish'],'#FFE7A0')),
-            'translucence':value.get('translucence',0)}
+            'translucence':value.get('translucence',0),
+            'rotation':value.get('rotation',0),
+            **({'shards':value.get('shards',{})} if value['finish']=='mirror_shards' else {})}
 
 
 def translucence_amount(effect):
@@ -199,7 +210,13 @@ def render_overlay(mask_png, effect, width=None):
         size=(width,round(width*source.height/source.width))
         alpha=source.getchannel("A").resize(size,Image.Resampling.LANCZOS)
     unit=width/756
-    if effect["finish"]=="neon":
+    if effect['finish']=='mirror_shards':
+        options=effect['shards']
+        scene=decode_scene(options['scene']) if options['mirror'] else None
+        image=render_shards(options['template'],effect['color'],options['tint'],*size,scene=scene,
+                            rotation=effect['rotation'],scene_rotation=options['scene_rotation'],
+                            scene_zoom=options['scene_zoom'],scene_skew=options['scene_skew'])
+    elif effect["finish"]=="neon":
         # A clear interior with a luminous inner edge; never paints outside the mask.
         radius=max(3,round(5*effect["scale"]/100*unit))|1
         # Repeated 3x3 erosion has the same square footprint as the original
@@ -210,11 +227,17 @@ def render_overlay(mask_png, effect, width=None):
         glow=ImageChops.lighter(edge,edge.filter(ImageFilter.GaussianBlur(5*unit*effect["scale"]/100)))
         glow=glow.point(lambda v:min(255,round(v*2.2*effect["density"]/100)))
         rgb=tuple(int(effect["color"][i:i+2],16) for i in (1,3,5))
-        image=Image.new("RGBA",size,rgb);image.putalpha(ImageChops.multiply(glow,alpha))
+        image=Image.new("RGBA",size,rgb);image.putalpha(glow)
     else:
         image=_texture(effect["finish"],effect["scale"],effect["density"],effect["seed"],*size,effect["color"]).copy()
-        image.putalpha(ImageChops.multiply(image.getchannel("A"),alpha))
+    if effect['finish']!='mirror_shards':
+        image=transform_image(image,effect['rotation'])
+    image.putalpha(ImageChops.multiply(image.getchannel('A'),alpha))
     image.putalpha(image.getchannel("A").point(lambda v:round(v*effect["strength"]/100)))
+    if effect['finish']=='mirror_shards':
+        # Generated scenes are detailed even behind transparent gaps. Drop only
+        # fully hidden RGB so cached/print PNGs need not retain those pixels.
+        image.paste((0,0,0,0),mask=image.getchannel('A').point(lambda v:255 if v==0 else 0))
     output=BytesIO();image.save(output,format="PNG");return output.getvalue()
 
 

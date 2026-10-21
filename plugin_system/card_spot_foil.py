@@ -14,6 +14,8 @@ from PIL import Image, UnidentifiedImageError
 from .foil_workflows import WORKFLOWS, OUTPUTS, LAYER_TYPES, load_preferences, normalize_display_color
 from .manager import get_plugin_status, run_plugin_json
 from .finishing_effects import EFFECT_TYPES, validate_effect, parameters, render_overlay, cached_overlay
+from .mirror_shards import TEMPLATES as SHARD_TEMPLATES, THEMES as MIRROR_THEMES
+from .mirror_generation import register_mirror_generation_routes, generator_ready
 
 MASK_SIZE = (756, 1056)
 MAX_MASK_SIZE = (3024, 4224)
@@ -112,6 +114,10 @@ def record_json(row, key):
             continue
         value = dict(settings[layer])
         value.pop("mask_png_base64", None)
+        # Card lists only need the baked overlay URL. The editor detail request
+        # receives the durable generated scene, which remains in portable data.
+        if value.get('shards') and request.endpoint=='card_spot_foil_lookup':
+            value['shards']={**value['shards'],'scene':'','scene_selection':''}
         value["mask_url"] = url_for("card_spot_foil_mask", card_uuid=key[1], face=key[2], layer=layer,
                                     expected_scope=key[0], revision=row["revision"], **owner)
         if layer.startswith("effect"):
@@ -238,7 +244,7 @@ def validate_settings(payload):
         value = payload[layer]
         if value is not None:
             keys = {"finish", "strength", "scale", "density", "seed", "overlay_color", "generation", "mask_data"}
-            if not isinstance(value, dict) or set(value)-{"color","translucence"} != keys:
+            if not isinstance(value, dict) or set(value)-{"color","translucence","shards","rotation"} != keys:
                 raise ValueError("Provide valid printable effect settings.")
             value = {**validate_effect(parameters(value)), "overlay_color": normalize_display_color(value["overlay_color"]),
                      "generation": validate_generation(value["generation"]),
@@ -248,6 +254,7 @@ def validate_settings(payload):
 
 
 def register_card_spot_foil_routes(app, get_connection, get_config, resolve_context, api_errors, isolation_operation):
+    register_mirror_generation_routes(app,get_connection,resolve_context,api_errors,decode_mask,card_key)
     @app.route("/cards/spot-foil/lookup", methods=["POST"])
     @api_errors
     def card_spot_foil_lookup():
@@ -273,8 +280,8 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         settings = mask = payload = None
         writing = request.method != "GET"
         if writing:
-            if request.content_length and request.content_length > 96_400_000:
-                return jsonify(ok=False, message="The spot mask is too large."), 413
+            if request.content_length and request.content_length > 136_500_000:
+                return jsonify(ok=False, message="The card finish images are too large."), 413
             payload = request.get_json(silent=True)
             if not isinstance(payload, dict) or "revision" not in payload:
                 raise ValueError("Reload the saved card before editing.")
@@ -328,6 +335,8 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         subject_detector = get_plugin_status("subject-detection-ai")
         return jsonify(ok=True, record=result, preferences=load_preferences(get_config()), workflows=WORKFLOWS,
                        output_formats=OUTPUTS, layer_types=LAYER_TYPES, effect_types=EFFECT_TYPES,
+                       shard_templates=SHARD_TEMPLATES, mirror_themes=MIRROR_THEMES,
+                       mirror_generator_ready=generator_ready(app),
                        text_detector_ready=bool(text_detection_plugin(subject_detector)),
                        subject_detector_ready=subject_detector.get("ready", False),
                        frame_detector_ready=bool(subject_detector.get("ready") and
@@ -461,7 +470,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
     @api_errors
     def card_finishing_preview(card_uuid, face):
         card_key(dict(card_uuid=card_uuid, face=face))
-        if request.content_length and request.content_length > 6_100_000:
+        if request.content_length and request.content_length > 26_300_000:
             return jsonify(ok=False, message="Preview mask is too large."), 413
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict) or set(payload) != {"effect", "mask_data"}:

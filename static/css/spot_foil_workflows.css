@@ -68,3 +68,13 @@ body:has(.spot-foil-dialog[open]) { overflow: hidden; }
 .spot-foil-color-controls { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .spot-foil-color-controls input[type=color] { flex: 0 0 44px; width: 44px; height: 42px; padding: 4px; cursor: pointer; }
 .spot-foil-color-controls input:not([type=color]) { min-width: 0; flex: 1; font-family: monospace; text-transform: uppercase; }
+.studio-generation { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.studio-generation-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.studio-generation-heading h3 { margin: 0; }
+.studio-generation p { margin: 10px 0; color: var(--muted); line-height: 1.5; }
+.studio-generation-choices { display: flex; gap: 16px; flex-wrap: wrap; margin: 16px 0; }
+.studio-generation-choices label { display: flex; flex-direction: column; gap: 8px; flex: 1 1 240px; min-width: 0; font-weight: 600; }
+.studio-generation-choices select { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); color: var(--text); font: inherit; }
+.studio-generation .plugin-card-actions { align-items: center; }
+.studio-generation .studio-generation-note { font-size: .85rem; }
+.studio-generation [hidden] { display: none !important; }

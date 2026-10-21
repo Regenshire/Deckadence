@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1400">
+<defs><linearGradient id="glass" x2="1" y2="1"><stop stop-color="#c4f4ff" stop-opacity=".12"/><stop offset=".45" stop-color="#ffffff" stop-opacity=".32"/><stop offset=".6" stop-color="#8acfe9" stop-opacity=".06"/><stop offset="1" stop-color="#b7e9ff" stop-opacity=".2"/></linearGradient></defs>
+<polygon points="320,-30 650,0 600,270 680,483 335,235" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="665,20 730,107 648,289 626,177" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="68,180 113,302 84,392 29,285" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="920,178 1030,143 985,311 780,408" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="128,450 343,370 230,674 -20,832" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="449,458 490,603 331,836 373,623" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="604,544 665,688 800,994 543,793" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="40,1050 247,779 308,681 187,1132 9,1207" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="858,819 932,743 969,881 891,992" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="444,1015 491,1166 455,1264 414,1139" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="640,1106 708,1212 667,1322 629,1240" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+<polygon points="232,1333 293,1289 330,1414 267,1450" fill="url(#glass)" stroke="#bdefff" stroke-width="3" stroke-linejoin="bevel"/>
+</svg>

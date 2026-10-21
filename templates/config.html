@@ -6,7 +6,7 @@
 {# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/application_backups.css', v='1') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/spot_foil_workflows.css', v='6') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/spot_foil_workflows.css', v='7') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-layers-4') }}">
 <link
     rel="stylesheet"
@@ -1138,6 +1138,9 @@
                                 </button>
                             </form>
                         </div>
+                        {% if plugin.get('plugin_id') == 'subject-detection-ai' %}
+                            {% include "_local_mirror_settings.html" %}
+                        {% endif %}
                     </div>
                 {% endmacro %}
 
@@ -2602,5 +2605,6 @@
 {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
 <script src="{{ url_for('static', filename='js/application_backups.js', v='campaign-1') }}"></script>
+<script src="{{ url_for('static', filename='js/local_mirror_settings.js', v='3') }}"></script>
 {% endblock %}
 

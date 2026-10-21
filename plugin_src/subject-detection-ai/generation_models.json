@@ -1,0 +1,52 @@
+{
+  "sd_turbo": {
+    "name": "SD-Turbo",
+    "description": "Fast, compact image restyling. Good for quick experiments; less precise detail and instruction following.",
+    "repository": "stabilityai/sd-turbo",
+    "revision": "b261bac6fd2cf515557d5d0707481eafa0485ec2",
+    "download_gb": 2.6,
+    "memory": "Plan for about 4–6 GB GPU memory, or 12 GB system RAM on CPU. Memory use varies with image size.",
+    "license_url": "https://huggingface.co/stabilityai/sd-turbo",
+    "patterns": ["model_index.json", "scheduler/*.json", "tokenizer/*", "text_encoder/*.json", "text_encoder/*fp16.safetensors", "unet/*.json", "unet/*fp16.safetensors", "vae/*.json", "vae/*fp16.safetensors"]
+  },
+  "sd15": {
+    "name": "Stable Diffusion 1.5",
+    "description": "Compact general-purpose image restyling. Lower detail than SDXL; works well for lighter artistic changes.",
+    "repository": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+    "revision": "451f4fe16113bff5a5d2269ed5ad43b0592e9a14",
+    "download_gb": 2.8,
+    "memory": "Plan for about 4–6 GB GPU memory, or 12 GB system RAM on CPU. Memory use varies with image size.",
+    "license_url": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5",
+    "patterns": ["model_index.json", "scheduler/*.json", "tokenizer/*", "feature_extractor/*.json", "safety_checker/*.json", "safety_checker/*fp16.safetensors", "text_encoder/*.json", "text_encoder/*fp16.safetensors", "unet/*.json", "unet/*fp16.safetensors", "vae/*.json", "vae/*fp16.safetensors"]
+  },
+  "instruct_pix2pix": {
+    "name": "InstructPix2Pix",
+    "description": "Compact instruction-based image editing. A smaller starting point for themed scene changes; less precise than FLUX.",
+    "repository": "timbrooks/instruct-pix2pix",
+    "revision": "31519b5cb02a7fd89b906d88731cd4d6a7bbf88d",
+    "download_gb": 2.8,
+    "memory": "Plan for about 6 GB GPU memory, or 12 GB system RAM on CPU. Memory use varies with image size.",
+    "license_url": "https://huggingface.co/timbrooks/instruct-pix2pix",
+    "patterns": ["model_index.json", "scheduler/*.json", "tokenizer/*", "feature_extractor/*.json", "safety_checker/*.json", "safety_checker/*fp16.safetensors", "text_encoder/*.json", "text_encoder/*fp16.safetensors", "unet/*.json", "unet/*fp16.safetensors", "vae/*.json", "vae/*fp16.safetensors"]
+  },
+  "flux_klein": {
+    "name": "FLUX.2 klein 4B",
+    "description": "Detailed instruction-based image editing with stronger scene consistency. Largest download.",
+    "repository": "black-forest-labs/FLUX.2-klein-4B",
+    "revision": "e7b7dc27f91deacad38e78976d1f2b499d76a294",
+    "download_gb": 16,
+    "memory": "About 16 GB GPU memory, or 40 GB system RAM on CPU.",
+    "license_url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-4B",
+    "patterns": ["model_index.json", "scheduler/*.json", "tokenizer/*", "text_encoder/*.json", "text_encoder/*.safetensors", "transformer/*.json", "transformer/*.safetensors", "vae/*.json", "vae/*.safetensors"]
+  },
+  "sdxl": {
+    "name": "SDXL 1.0",
+    "description": "Detailed image restyling with a larger model. Less precise instruction following than FLUX.",
+    "repository": "stabilityai/stable-diffusion-xl-base-1.0",
+    "revision": "462165984030d82259a11f4367a4eed129e94a7b",
+    "download_gb": 7,
+    "memory": "About 10 GB GPU memory, or 24 GB system RAM on CPU. CPU rendering is slow.",
+    "license_url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0",
+    "patterns": ["model_index.json", "scheduler/*.json", "tokenizer/*", "tokenizer_2/*", "text_encoder/*.json", "text_encoder/*fp16.safetensors", "text_encoder_2/*.json", "text_encoder_2/*fp16.safetensors", "unet/*.json", "unet/*fp16.safetensors", "vae/*.json", "vae/*fp16.safetensors"]
+  }
+}

@@ -21,17 +21,125 @@
   const layerOrder={mask:5,effect1:6,effect2:7,gloss:8};
   const printedLayer=()=>editingLayer.startsWith("effect");
   const effectPreviews=new Map();
-  const effectColors={stars:"#FFF4C3",halftone:"#121930",neon:"#46F5FF"};
+  let mirrorGeneration=null;
+  let mirrorSelectionCache=null;
+  window.addEventListener("focus",async()=>{
+    if(!dialog.open||!metadata||busy)return;
+    const token=session;
+    try {
+      const response=await fetch("/cards/spot-foil/mirror-generation-status",{cache:"no-store"});
+      if(!response.ok)return;
+      const result=await response.json();
+      if(token===session&&dialog.open&&metadata){metadata.mirror_generator_ready=result.ready;updateShardControls();}
+    } catch (_) { /* Keep current readiness when the app is temporarily unavailable. */ }
+  });
+  function sceneSelectionBits(surface) {
+    // Keep the generation footprint at the same resolution sent to the model.
+    // One bit per selected pixel lets later mask reductions reuse the scene.
+    const small=document.createElement("canvas");small.width=756;small.height=1056;
+    const context=small.getContext("2d");context.drawImage(surface,0,0,756,1056);
+    const pixels=context.getImageData(0,0,756,1056).data,bits=new Uint8Array(756*1056/8);
+    for(let pixel=0;pixel<756*1056;pixel++)if(pixels[pixel*4+3]>0)bits[pixel>>3]|=1<<(pixel&7);
+    return bits;
+  }
+  function encodeSceneSelection(surface) {
+    const bits=sceneSelectionBits(surface);let binary="";
+    for(let offset=0;offset<bits.length;offset+=8192)binary+=String.fromCharCode(...bits.subarray(offset,offset+8192));
+    return btoa(binary);
+  }
+  function mirrorSelectionExpanded() {
+    if(!fields.effect_scene_selection.value)return false;
+    if(mirrorSelectionCache?.png!==maskUrl || mirrorSelectionCache?.layer!==editingLayer)
+      mirrorSelectionCache={png:maskUrl,layer:editingLayer,bits:sceneSelectionBits(mask)};
+    const original=atob(fields.effect_scene_selection.value),bits=mirrorSelectionCache.bits;
+    return bits.some((value,index)=>value&~original.charCodeAt(index));
+  }
+  function updateMirrorStatus() {
+    if(!printedLayer()||fields.finish.value!=="mirror_shards")return;
+    let text=metadata?.mirror_generator_ready ? "Generate the scene, then review it before saving." : "Download and enable a local AI model in Card Finishing Studio settings.";
+    if(fields.effect_scene.value) {
+      text="Rendered scene loaded.";
+      if(fields.effect_scene_theme.value!==fields.effect_shard_theme.value)text="Theme changed. Generate a new scene to apply this theme.";
+      else if(fields.effect_scene_source.value && fields.effect_scene_source.value!==current?.signature)text="Artwork changed since this scene was generated. Regenerate to match it; the saved scene is unchanged.";
+      else if(ready && mirrorSelectionExpanded())text="The selection includes areas that were not generated. Regenerate to include them; the saved scene is unchanged.";
+    }
+    if(fields.effect_scene.value && text!=="Rendered scene loaded." && !metadata?.mirror_generator_ready)text+=" Enable local AI in Studio settings to regenerate.";
+    dialog.querySelector("[data-spot-mirror-status]").textContent=text;
+    dialog.querySelector("[data-spot-generate-mirror]").textContent=fields.effect_scene.value?"Regenerate mirror scene":"Generate mirror scene";
+  }
+  const effectColors={stars:"#FFF4C3",halftone:"#121930",neon:"#46F5FF",mirror_shards:"#B8EFFF"};
   let previousEffectFinish="";
   function updateEffectColor(resetDefault=false) {
     if(resetDefault && fields.effect_color.value.toUpperCase()===(effectColors[previousEffectFinish]||"#FFE7A0"))fields.effect_color.value=effectColors[fields.finish.value]||"#FFE7A0";
     previousEffectFinish=fields.finish.value;
     dialog.querySelector("[data-spot-effect-color-controls]").hidden=!printedLayer()||!effectColors[fields.finish.value];
-    dialog.querySelector("[data-spot-effect-color-label]").textContent={stars:"Star color",halftone:"Dot color",neon:"Glow color"}[fields.finish.value]||"Effect color";
+    dialog.querySelector("[data-spot-effect-color-label]").textContent={stars:"Star color",halftone:"Dot color",neon:"Glow color",mirror_shards:"Tint color"}[fields.finish.value]||"Effect color";
     dialog.querySelector("[data-spot-effect-color]").textContent=fields.effect_color.value.toUpperCase();
     dialog.querySelector("[data-spot-fracture-controls]").hidden=!printedLayer()||fields.finish.value!=="fracture";
     dialog.querySelector("[data-spot-translucence-value]").value=fields.effect_translucence.value+"%";
+    dialog.querySelector("[data-spot-rotation-value]").value=fields.effect_rotation.value+"°";
+    dialog.querySelector("[data-spot-scene-rotation-value]").value=fields.effect_scene_rotation.value+"°";
+    dialog.querySelector("[data-spot-scene-zoom-value]").value=fields.effect_scene_zoom.value+"%";
+    dialog.querySelector("[data-spot-scene-skew-value]").value=fields.effect_scene_skew.value+"°";
+    updateShardControls();
   }
+  function updateShardControls() {
+    const shards=printedLayer()&&fields.finish.value==="mirror_shards";
+    dialog.querySelector("[data-spot-shard-controls]").hidden=!shards;
+    for(const selector of ["[data-spot-pattern-size]","[data-spot-pattern-density]","[data-spot-new-pattern]"])dialog.querySelector(selector).hidden=shards;
+    dialog.querySelector("[data-spot-mirror-controls]").hidden=!fields.effect_mirror.checked;
+    dialog.querySelector("[data-spot-tint-value]").value=fields.effect_tint.value+"%";
+    dialog.querySelectorAll("[data-spot-shard-template]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.spotShardTemplate===fields.effect_shard_template.value)));
+    dialog.querySelector("[data-spot-generate-mirror]").disabled=!metadata?.mirror_generator_ready;
+    updateMirrorStatus();
+  }
+  async function generateMirrorScene() {
+    if(!ready||busy||!metadata?.mirror_generator_ready||!printedLayer())return;
+    if(!hasInk){message("Select an area for the mirror scene first.",true);return;}
+    const token=session,layer=editingLayer,theme=fields.effect_shard_theme.value;
+    const operation={controller:new AbortController(),url:null};mirrorGeneration=operation;
+    busy=true;controls();dialog.querySelector("[data-spot-cancel-generation]").hidden=false;dialog.querySelector("[data-spot-cancel-generation]").disabled=true;
+    message("Generating the mirror scene…");
+    try {
+      const source=document.createElement("canvas");source.width=1512;source.height=2112;
+      source.getContext("2d").drawImage(image,0,0,source.width,source.height);
+      const selection=document.createElement("canvas");selection.width=756;selection.height=1056;
+      selection.getContext("2d").drawImage(mask,0,0,756,1056);
+      const selectionBits=encodeSceneSelection(selection),sourceSignature=current.signature;
+      const base=endpoint(current.target)+"/mirror-generation";
+      const created=await api(apiUrl(base),{method:"POST",headers:{"Content-Type":"application/json"},signal:operation.controller.signal,
+        body:JSON.stringify({image:source.toDataURL("image/png").split(",")[1],mask_data:selection.toDataURL("image/png"),theme,seed:Number(fields.effect_seed.value)})});
+      operation.url=apiUrl(base+"/"+created.job);
+      dialog.querySelector("[data-spot-cancel-generation]").disabled=false;
+      for(;;) {
+        if(mirrorGeneration!==operation||token!==session||current?.artworkChanged)return;
+        const result=await api(operation.url,{signal:operation.controller.signal});
+        if(result.state==="complete") {
+          if(token!==session||current?.artworkChanged||editingLayer!==layer||mirrorGeneration!==operation)return;
+          fields.effect_scene.value=result.scene;fields.effect_scene_theme.value=theme;
+          fields.effect_scene_source.value=sourceSignature;fields.effect_scene_selection.value=selectionBits;
+          scheduleRender();markChanged();message("Mirror scene rendered. Review it, then save for this card.");break;
+        }
+        if(result.state==="failed")throw new Error(result.message||"Mirror generation failed. Your previous layer is unchanged.");
+        if(result.state==="cancelled")break;
+        await new Promise(resolve=>setTimeout(resolve,1500));
+      }
+    } catch(error) {
+      if(error.name!=="AbortError"&&token===session&&mirrorGeneration===operation)message(error.message,true);
+    } finally {
+      if(operation.url)fetch(operation.url,{method:"DELETE"}).catch(()=>{});
+      if(mirrorGeneration===operation){mirrorGeneration=null;busy=false;dialog.querySelector("[data-spot-cancel-generation]").hidden=true;updateShardControls();controls();}
+    }
+  }
+  function cancelMirrorGeneration() {
+    const operation=mirrorGeneration;if(!operation)return;
+    mirrorGeneration=null;operation.controller.abort();
+    if(operation.url)fetch(operation.url,{method:"DELETE"}).catch(()=>{});
+    busy=false;dialog.querySelector("[data-spot-cancel-generation]").hidden=true;
+    message("Render cancelled. Your previous layer is unchanged.");controls();
+  }
+  dialog.querySelector("[data-spot-generate-mirror]").addEventListener("click",generateMirrorScene);
+  dialog.querySelector("[data-spot-cancel-generation]").addEventListener("click",cancelMirrorGeneration);
   const liveMask = document.createElement("canvas");
   const liveContext = liveMask.getContext("2d");
   const strokeMask = document.createElement("canvas"), strokeBase = document.createElement("canvas");
@@ -113,15 +221,26 @@
     Object.assign(draft.values,{finish:record?.finish||"glitter_1",strength:String(record?.strength||65),
       overlay_color:record?.overlay_color||(layer==="effect1"?"#FF9800":"#76FF03"),
       effect_scale:String(record?.scale||100),effect_density:String(record?.density||100),
+      effect_rotation:String(record?.rotation??0),effect_scene_rotation:String(record?.shards?.scene_rotation??0),
+      effect_scene_zoom:String(record?.shards?.scene_zoom??100),effect_scene_skew:String(record?.shards?.scene_skew??0),
       effect_color:record?.color||effectColors[record?.finish]||"#FFE7A0",
       effect_translucence:String(record?.translucence||0),
+      effect_shard_template:record?.shards?.template||"falling",effect_shard_theme:record?.shards?.theme||"dark",
+      effect_mirror:Boolean(record?.shards?.mirror),effect_tint:String(record?.shards?.tint??18),effect_scene:record?.shards?.scene||"",
+      effect_scene_theme:record?.shards?.scene_theme||record?.shards?.theme||"dark",
+      effect_scene_source:record?.shards?.scene_source||"",effect_scene_selection:record?.shards?.scene_selection||"",
       effect_seed:String(record?.seed??(layer==="effect1"?73:197))});
     draft.previewUrl=record?.overlay_url;draft.savedPng=draft.png;
     if(!record)draft.values.selection_mode="none";
     return draft;
   }
   function effectParams(values) {
-    return {finish:values.finish,strength:Number(values.strength),scale:Number(values.effect_scale),density:Number(values.effect_density),seed:Number(values.effect_seed),color:values.effect_color||effectColors[values.finish]||"#FFE7A0",translucence:Number(values.effect_translucence||0)};
+    return {finish:values.finish,strength:Number(values.strength),scale:Number(values.effect_scale),density:Number(values.effect_density),seed:Number(values.effect_seed),color:values.effect_color||effectColors[values.finish]||"#FFE7A0",translucence:Number(values.effect_translucence||0),rotation:Number(values.effect_rotation||0),
+      ...(values.finish==="mirror_shards"?{shards:{template:values.effect_shard_template||"falling",theme:values.effect_shard_theme||"dark",mirror:Boolean(values.effect_mirror),tint:Number(values.effect_tint??18),scene:values.effect_scene||"",scene_theme:values.effect_scene_theme||"dark",scene_source:values.effect_scene_source||"",scene_selection:values.effect_scene_selection||"",scene_rotation:Number(values.effect_scene_rotation||0),scene_zoom:Number(values.effect_scene_zoom||100),scene_skew:Number(values.effect_scene_skew||0)}}:{})};
+  }
+  function effectControlValues() {
+    const names=["finish","strength","effect_scale","effect_density","effect_seed","effect_color","effect_translucence","effect_rotation","effect_scene_rotation","effect_scene_zoom","effect_scene_skew","effect_shard_template","effect_shard_theme","effect_mirror","effect_tint","effect_scene","effect_scene_theme","effect_scene_source","effect_scene_selection"];
+    return Object.fromEntries(names.map(name=>[name,fields[name].type==="checkbox"?fields[name].checked:fields[name].value]));
   }
   function showPrintedPreviews() {effects.setPrintedEffects(stage,["effect1","effect2"].map(layer=>{const item=effectPreviews.get(layer);return item?.url?{url:item.url,translucence:item.translucence}:null;}));}
   function clearPrintedPreviews() {
@@ -136,6 +255,7 @@
       effectPreviews.delete(layer);showPrintedPreviews();return;
     }
     const params=effectParams(draft.values),{translucence,...textureParams}=params,key=JSON.stringify(textureParams)+draft.png;
+    if(params.shards?.mirror&&(!params.shards.scene||params.shards.scene_theme!==params.shards.theme))return;
     const blend=params.finish==="fracture"?translucence:0;
     if(previous?.key===key){previous.translucence=blend;showPrintedPreviews();return;}
     clearTimeout(previous?.timer);previous?.controller?.abort();
@@ -172,7 +292,7 @@
       showingText=false;showingFrame=false;history=[...draft.history];historyIndex=draft.historyIndex;
       ready=true;updatePocketSize();updateBrushControls();updateEdgeControls();updateExclusionControls();updateRegionControls();updateFrameControls();chooseColor(fields.selection_color.value);
       dialog.querySelector("[data-spot-strength-value]").value=fields.strength.value+"%";
-      coverage();renderMask();if(!history.length){history=[maskUrl];historyIndex=0;}controls();
+      coverage();renderMask();if(!history.length){history=[maskUrl];historyIndex=0;}updateMirrorStatus();controls();
       message(removal ? "Removal pending. Save to apply." : "Editing "+layerNames[layer]+".");
     }catch(error){if(token===session)message("Could not load this layer. "+error.message,true);}
     finally{if(token===session){ready=true;controls();}}
@@ -335,6 +455,7 @@
   }
   function markChanged() {
     message(removal ? "Removal pending · save to restore the regular card finish." : `Unsaved changes · ${coverage()}% of the card selected`);
+    updateMirrorStatus();
     controls();
   }
   function renderMask() {
@@ -391,7 +512,7 @@
     }
     if (!painting || view === "effect") {
       const draftFor=layer=>layer===editingLayer?{enabled:!removal&&(hasInk||maskReviewed||activeSaved()),png:effectUrl,
-        values:{finish:fields.finish.value,strength:fields.strength.value,effect_scale:fields.effect_scale.value,effect_density:fields.effect_density.value,effect_seed:fields.effect_seed.value,effect_color:fields.effect_color.value,effect_translucence:fields.effect_translucence.value}}:layerDrafts[layer];
+        values:effectControlValues()}:layerDrafts[layer];
       const preview=layer=>{const draft=draftFor(layer);return draft?.enabled&&draft.png?{maskUrl:draft.png,finish:draft.values.finish,strength:Number(draft.values.strength)}:null;};
       effects.setSpotFoil(stage,preview("mask"));effects.setGloss(stage,preview("gloss"));
       for(const layer of ["effect1","effect2"])queuePrintedPreview(layer,draftFor(layer));
@@ -573,14 +694,15 @@
       updateRegionControls();
       layerDrafts.mask=captureLayer();layerDrafts.gloss=glossDraft(record?.gloss,layerDrafts.mask);
       for(const layer of ["effect1","effect2"])layerDrafts[layer]=effectDraft(record?.[layer],layerDrafts.mask,layer);
-      renderMask();
+      await switchLayer("effect1");
+      if(token!==session||current?.artworkChanged)return;
       dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%";
       dialog.querySelector("[data-spot-scope]").textContent = payload.image_scope.is_isolated
         ? "Isolation on · saved only in this collection"
         : "Shared · saved for this printing across decks and sets";
       message(record?.artwork_signature && record.artwork_signature !== current.signature
         ? "Artwork has changed. Check alignment and adjust the saved mask before saving."
-        : record ? "Saved mask loaded." : "Choose a mode, then Apply spot foiling.");
+        : record?.effect1 ? "Saved Effect 1 loaded." : "Editing Effect 1. Select or paint an area to apply an effect.");
       fields.selection_mode.focus({preventScroll:true});
     } catch (error) {
       if (token === session) {
@@ -595,6 +717,8 @@
     dialog.close();
   }
   function releaseEditor() {
+    cancelMirrorGeneration();
+    mirrorSelectionCache=null;
     ++session; ready = false; activeStroke = null;
     subjectMasks.clear(); frameMasks.clear(); showingFrame = false;
     layerDrafts={};clearPrintedPreviews();effects.setGloss(stage,null);for(const element of otherOverlays){element.hidden=true;element.style.removeProperty("--spot-other-mask");}
@@ -977,10 +1101,13 @@
   dialog.querySelector("[data-spot-remove]").addEventListener("click", () => {
     if (selectArea("none")) {removal = true; markChanged();}
   });
-  for (const field of [fields.finish, fields.strength, fields.effect_scale, fields.effect_density, fields.effect_color, fields.effect_translucence]) field.addEventListener("input", () => {
+  for (const field of [fields.finish, fields.strength, fields.effect_scale, fields.effect_density, fields.effect_color, fields.effect_translucence,fields.effect_rotation,fields.effect_scene_rotation,fields.effect_scene_zoom,fields.effect_scene_skew, fields.effect_shard_template,fields.effect_shard_theme,fields.effect_mirror,fields.effect_tint]) field.addEventListener("input", () => {
     updateEffectColor(field===fields.finish);
     dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%"; scheduleRender(); markChanged();
   });
+  dialog.querySelectorAll("[data-spot-shard-template]").forEach(button=>button.addEventListener("click",()=>{
+    fields.effect_shard_template.value=button.dataset.spotShardTemplate;fields.effect_shard_template.dispatchEvent(new Event("input",{bubbles:true}));
+  }));
   dialog.querySelectorAll("[data-spot-effect-swatch]").forEach(button=>button.addEventListener("click",()=>{
     fields.effect_color.value=button.dataset.spotEffectSwatch;fields.effect_color.dispatchEvent(new Event("input",{bubbles:true}));
   }));

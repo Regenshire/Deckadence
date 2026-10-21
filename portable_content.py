@@ -13,6 +13,11 @@ from uuid import uuid4
 from export_selection import ExportSelection
 from backup_system import _disk_path, _is_link, _quote, _safe_name, _write_json, CHUNK_SIZE
 
+USER_RECORD_LIMIT = 16 * 1024 * 1024
+# A finish record may hold four masks plus two bounded generated PNG scenes.
+# This covers the card editor's 136.5 MB request limit and JSON framing.
+FINISH_RECORD_LIMIT = 144 * 1024 * 1024
+
 # Catalogue rows are dependencies, not an export of the base catalogue.
 DEPENDENCIES = {"sets", "chaos_cards", "cards"}
 SETTINGS = {"app_config", "selected_sets", "chaos_session_state"}
@@ -456,11 +461,17 @@ class UserContentImporter:
         self.incoming.execute("CREATE TABLE incoming(table_name TEXT, payload TEXT)")
         counts = {}
         with (self.temporary / "records.jsonl").open("r", encoding="utf-8") as handle:
-            while line := handle.readline(16 * 1024 * 1024):
+            while line := handle.readline(USER_RECORD_LIMIT):
+                # Our exporter writes the table first. Only finish records can
+                # extend past the normal limit; other records stay bounded.
+                if not line.endswith("\n") and re.match(r'^\{"table":\s*"card_spot_foil",\s*"row":', line):
+                    line += handle.readline(FINISH_RECORD_LIMIT - len(line))
                 if not line.endswith("\n"):
                     raise ValueError("A user-content record is too large or incomplete.")
                 record = json.loads(line)
                 table, row = record.get("table"), record.get("row")
+                if len(line) > USER_RECORD_LIMIT and table != "card_spot_foil":
+                    raise ValueError("A user-content record is too large or incomplete.")
                 if table not in TABLES and table != "@settings" or not isinstance(row, dict):
                     raise ValueError("The archive contains an unsupported record.")
                 if table != "@settings" and set(row) - set(self.metadata.get("schemas", {}).get(table, [])):
