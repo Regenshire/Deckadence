@@ -33,6 +33,8 @@
   const states = new WeakMap();
   const spotMasks = new WeakMap();
   const glossMasks = new WeakMap();
+  const glossReliefs = new WeakMap();
+  let glossFilterId = 0;
   const moving = new Set();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   const motionScale = .65;
@@ -108,11 +110,60 @@
   function syncGloss(surface) {
     const gloss=glossMasks.get(surface);
     let layer=surface.querySelector(":scope > .card-gloss-layer");
-    if(!gloss) {layer?.remove();surface.style.removeProperty("--card-gloss-mask");return;}
-    if(!layer) {layer=document.createElement("span");layer.className="card-gloss-layer";layer.setAttribute("aria-hidden","true");surface.appendChild(layer);}
-    surface.style.setProperty("--card-gloss-mask",`url("${gloss.maskUrl}")`);
-    surface.style.setProperty("--card-gloss-strength",Math.max(0,Math.min(100,Number(gloss.strength)||100))/100);
+    if(!gloss) {layer?.remove();glossReliefs.delete(surface);surface.style.removeProperty("--card-gloss-mask");surface.style.removeProperty("--card-gloss-strength");return;}
+    if(!layer) {
+      layer=document.createElement("span");layer.className="card-gloss-layer";layer.setAttribute("aria-hidden","true");surface.appendChild(layer);
+      glossReliefs.set(surface, createGlossRelief(layer));
+    }
+    const relief=glossReliefs.get(surface);
+    if(relief.url!==gloss.maskUrl) {
+      relief.url=gloss.maskUrl;
+      relief.image.setAttribute("href",gloss.maskUrl);
+      surface.style.setProperty("--card-gloss-mask",`url("${gloss.maskUrl}")`);
+    }
+    const strength=Number(gloss.strength);
+    surface.style.setProperty("--card-gloss-strength",Math.max(0,Math.min(100,Number.isFinite(strength)?strength:100))/100);
     layer.dataset.finish=gloss.finish==="polished" ? "polished" : "gloss";
+    lightGloss(surface, states.get(surface));
+  }
+  function createGlossRelief(layer) {
+    const svgNS="http://www.w3.org/2000/svg";
+    const node=(name,attrs={},parent)=>{
+      const element=document.createElementNS(svgNS,name);
+      for(const [key,value] of Object.entries(attrs))element.setAttribute(key,String(value));
+      parent?.appendChild(element);return element;
+    };
+    const id=`deckadence-gloss-relief-${++glossFilterId}`;
+    const svg=node("svg",{viewBox:"0 0 756 1056",preserveAspectRatio:"none",focusable:"false","aria-hidden":"true"},layer);
+    const defs=node("defs",{},svg);
+    const filter=node("filter",{id,x:0,y:0,width:756,height:1056,filterUnits:"userSpaceOnUse","color-interpolation-filters":"sRGB"},defs);
+    // Treat mask coverage as raised clear-coat height. Subtract shifted height
+    // maps so flat interiors stay fully transparent, even at partial coverage.
+    node("feGaussianBlur",{in:"SourceAlpha",stdDeviation:.9,result:"height"},filter);
+    const specular=node("feSpecularLighting",{in:"height",surfaceScale:3.5,specularConstant:.45,specularExponent:64,"lighting-color":"white",result:"specular"},filter);
+    const light=node("feDistantLight",{azimuth:225,elevation:50},specular);
+    const highlight=node("feOffset",{in:"height",dx:3,dy:3,result:"highlightOffset"},filter);
+    node("feComposite",{in:"height",in2:"highlightOffset",operator:"arithmetic",k2:1,k3:-1,result:"highlightEdge"},filter);
+    node("feFlood",{"flood-color":"white","flood-opacity":.65,result:"highlightColor"},filter);
+    node("feComposite",{in:"highlightColor",in2:"highlightEdge",operator:"in",result:"highlight"},filter);
+    const shadow=node("feOffset",{in:"height",dx:-3,dy:-3,result:"shadowOffset"},filter);
+    node("feComposite",{in:"height",in2:"shadowOffset",operator:"arithmetic",k2:1,k3:-1,result:"shadowEdge"},filter);
+    node("feFlood",{"flood-color":"black","flood-opacity":.48,result:"shadowColor"},filter);
+    node("feComposite",{in:"shadowColor",in2:"shadowEdge",operator:"in",result:"shadow"},filter);
+    const merge=node("feMerge",{result:"bevel"},filter);
+    node("feMergeNode",{in:"shadow"},merge);node("feMergeNode",{in:"highlight"},merge);node("feMergeNode",{in:"specular"},merge);
+    node("feComposite",{in:"bevel",in2:"SourceAlpha",operator:"in"},filter);
+    const image=node("image",{width:756,height:1056,preserveAspectRatio:"none",filter:`url(#${id})`},svg);
+    return {image,highlight,shadow,light,url:null};
+  }
+  function lightGloss(surface, state) {
+    const relief=glossReliefs.get(surface);if(!relief)return;
+    // A fixed upper-left light at rest; tilt moves the light over the bevel.
+    const dx=2.4-(state?.x||0)*4.8, dy=2.4-(state?.y||0)*4.8;
+    relief.highlight.setAttribute("dx",dx.toFixed(2));relief.highlight.setAttribute("dy",dy.toFixed(2));
+    relief.shadow.setAttribute("dx",(-dx).toFixed(2));relief.shadow.setAttribute("dy",(-dy).toFixed(2));
+    relief.light.setAttribute("azimuth",(Math.atan2(-dy,-dx)*180/Math.PI+360).toFixed(2));
+    relief.light.setAttribute("elevation",(50-Math.min(1,Math.hypot(state?.x||0,state?.y||0))*14).toFixed(2));
   }
   function setGloss(surface, gloss) {
     if(!surface)return;
@@ -137,6 +188,7 @@
     surface.style.setProperty("--card-light", light.toFixed(3));
     // The embossed ripple does not slide across the printing. Only its light changes.
     surface.style.setProperty("--card-hue", `${x * 65 + y * 40}deg`);
+    lightGloss(surface, state);
   }
 
   function reset(state) {

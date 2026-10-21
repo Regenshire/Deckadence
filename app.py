@@ -21780,6 +21780,8 @@ def config():
         plugin_id,
         catalog_entry,
     ) in PLUGIN_CATALOG.items():
+        if catalog_entry.get("hidden"):
+            continue
         plugin_catalog_items.append({
             **catalog_entry,
             "status": get_plugin_status(

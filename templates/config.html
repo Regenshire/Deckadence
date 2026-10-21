@@ -6,7 +6,7 @@
 {# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/application_backups.css', v='1') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/spot_foil_workflows.css', v='5') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/spot_foil_workflows.css', v='6') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-layers-4') }}">
 <link
     rel="stylesheet"
@@ -975,6 +975,9 @@
                     {% elif install_status.get("error") %}
                         {% set plugin_state_class = "error" %}
                         {% set plugin_state_label = "Installation Failed" %}
+                    {% elif plugin_status.get("update_available") %}
+                        {% set plugin_state_class = "incomplete" %}
+                        {% set plugin_state_label = "Update available" %}
                     {% elif plugin_status.get("development") %}
                         {% set plugin_state_class = "development" %}
                         {% set plugin_state_label = "Development" %}
@@ -1016,6 +1019,11 @@
                                 </div>
                             </div>
                         </div>
+
+                        {% if plugin.get('plugin_id') == 'subject-detection-ai' %}
+                            {% include "_spot_foil_workflows.html" %}
+                            <h3 class="studio-ai-heading">AI detection</h3>
+                        {% endif %}
 
                         <div class="plugin-card-meta">
                             <div class="plugin-card-meta-item">
@@ -1059,6 +1067,8 @@
                                 <strong data-plugin-role="status-title">
                                     {% if install_status.get("is_running") or install_status.get("error") %}
                                         {{ install_status.get("stage", plugin_state_label) }}
+                                    {% elif plugin_status.get("update_available") %}
+                                        {{ plugin_state_label }}
                                     {% elif plugin_status.get("development") %}
                                         Development source is active.
                                     {% else %}
@@ -1069,6 +1079,8 @@
                                 <span data-plugin-role="status-message">
                                     {% if install_status.get("is_running") or install_status.get("error") %}
                                         {{ install_status.get("message", "") }}
+                                    {% elif plugin_status.get("update_available") %}
+                                        {{ plugin_status.get("message", "") }}
                                     {% elif plugin_status.get("development") %}
                                         Deckadence is currently using this plugin directly from plugin_src.
                                     {% else %}
@@ -1130,8 +1142,7 @@
                 {% endmacro %}
 
                 <div class="plugin-companion-panels" data-plugin-companions>
-                    {% include "_spot_foil_workflows.html" %}
-                    {% for plugin in plugin_catalog_items if plugin.get('plugin_id') in ('spot-foil-ai', 'subject-detection-ai') %}
+                    {% for plugin in plugin_catalog_items if plugin.get('plugin_id') == 'subject-detection-ai' %}
                         {{ render_plugin_card(plugin) }}
                     {% endfor %}
                 </div>
@@ -1436,7 +1447,7 @@
 
 
 <script
-    src="{{ url_for('static', filename='js/plugin_manager.js', v='2') }}"
+    src="{{ url_for('static', filename='js/plugin_manager.js', v='3') }}"
 ></script>
 <script src="{{ url_for('static', filename='js/spot_foil_workflows.js', v='6') }}"></script>
 

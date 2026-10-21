@@ -18,6 +18,18 @@ MASK_SIZE = (756, 1056)
 MAX_MASK_SIZE = (3024, 4224)
 _text_detection_lock = threading.Lock()
 _subject_detection_lock = threading.Lock()
+
+
+def text_detection_plugin(studio_status=None):
+    studio = studio_status if studio_status is not None else get_plugin_status("subject-detection-ai")
+    if studio.get("ready") and "text" in studio.get("manifest", {}).get("capabilities", []):
+        return "subject-detection-ai"
+    # Older installations remain usable until the single Studio bundle is installed.
+    if get_plugin_status("spot-foil-ai").get("ready"):
+        return "spot-foil-ai"
+    return None
+
+
 _MASK_COLUMNS = """scope_token TEXT NOT NULL, card_uuid TEXT NOT NULL, face TEXT NOT NULL,
     revision TEXT NOT NULL, settings TEXT NOT NULL, mask_png_base64 TEXT NOT NULL,
     PRIMARY KEY (scope_token, card_uuid, face)"""
@@ -289,7 +301,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         subject_detector = get_plugin_status("subject-detection-ai")
         return jsonify(ok=True, record=result, preferences=load_preferences(get_config()), workflows=WORKFLOWS,
                        output_formats=OUTPUTS, layer_types=LAYER_TYPES,
-                       text_detector_ready=get_plugin_status("spot-foil-ai").get("ready", False),
+                       text_detector_ready=bool(text_detection_plugin(subject_detector)),
                        subject_detector_ready=subject_detector.get("ready", False),
                        frame_detector_ready=bool(subject_detector.get("ready") and
                            "frame" in subject_detector.get("manifest", {}).get("capabilities", [])),
@@ -299,8 +311,9 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
     @api_errors
     def card_spot_foil_detect_text(card_uuid, face):
         card_key(dict(card_uuid=card_uuid, face=face))
-        if not get_plugin_status("spot-foil-ai").get("ready"):
-            raise RuntimeError("Install AI Text Detection beside Spot Foiling in Plugin Manager, then retry Detect text.")
+        detector_id = text_detection_plugin()
+        if not detector_id:
+            raise RuntimeError("Install or update Card Finishing Studio in Plugin Manager, then retry Detect text.")
         if request.content_length and request.content_length > 6_100_000:
             return jsonify(ok=False, message="The card image is too large."), 413
         payload = request.get_json(silent=True)
@@ -310,7 +323,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if not _text_detection_lock.acquire(blocking=False):
             raise RuntimeError("Another card is being analyzed. Try again when text detection finishes.")
         try:
-            result = run_plugin_json("spot-foil-ai", "detect_text", payload, timeout=90)
+            result = run_plugin_json(detector_id, "detect_text", payload, timeout=90)
             regions = validate_generation({"text_regions": result.get("regions", [])})["text_regions"]
             return jsonify(ok=True, regions=regions)
         except subprocess.TimeoutExpired as exc:
@@ -323,7 +336,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
     def card_spot_foil_detect_subject(card_uuid, face):
         card_key(dict(card_uuid=card_uuid, face=face))
         if not get_plugin_status("subject-detection-ai").get("ready"):
-            raise RuntimeError("Install AI Subject Detection in Plugin Manager, then retry Apply.")
+            raise RuntimeError("Install or update Card Finishing Studio in Plugin Manager, then retry Apply.")
         if request.content_length and request.content_length > 6_100_000:
             return jsonify(ok=False, message="The card image is too large."), 413
         payload = request.get_json(silent=True)
@@ -357,7 +370,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         card_key(dict(card_uuid=card_uuid, face=face))
         detector = get_plugin_status("subject-detection-ai")
         if not detector.get("ready") or "frame" not in detector.get("manifest", {}).get("capabilities", []):
-            raise RuntimeError("Install or update AI Subject & Frame Detection in Plugin Manager, then retry.")
+            raise RuntimeError("Install or update Card Finishing Studio in Plugin Manager, then retry.")
         if request.content_length and request.content_length > 6_100_000:
             return jsonify(ok=False, message="The card image is too large."), 413
         payload = request.get_json(silent=True)

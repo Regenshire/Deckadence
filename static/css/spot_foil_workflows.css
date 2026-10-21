@@ -1,4 +1,5 @@
-.spot-foil-settings.plugin-card { margin-bottom: 20px; padding: 24px; background: var(--panel); border-color: var(--border); gap: 12px; }
+.spot-foil-settings { display: flex; flex-direction: column; gap: 12px; }
+.studio-ai-heading { margin: 2px 0 0; padding-top: 18px; border-top: 1px solid var(--border); font-size: 1rem; }
 .plugin-companion-panels { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; margin-bottom: 24px; }
 .plugin-companion-panels > .plugin-card { min-width: 0; margin-bottom: 0; }
 .spot-foil-eyebrow { color: var(--theme-highlight, var(--accent)); font-size: .7rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }

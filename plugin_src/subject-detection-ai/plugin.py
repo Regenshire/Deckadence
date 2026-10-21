@@ -1,4 +1,4 @@
-"""Reusable local foreground masks for card finishing and other image tools.
+"""Card Finishing Studio: local text, subject, and frame detection.
 
 IS-Net general-use model: https://github.com/xuebinqin/DIS (Apache-2.0).
 ONNX conversion and preprocessing reference: https://github.com/danielgatis/rembg
@@ -102,17 +102,20 @@ if __name__ == "__main__":
     try:
         command = sys.argv[1] if len(sys.argv) > 1 else "info"
         with redirect_stdout(sys.stderr):
-            if command == "detect_subject":
+            if command == "detect_text":
+                from text_detection import detect_text
+                result = detect_text(json.load(sys.stdin))
+            elif command == "detect_subject":
                 result = detect_subject(json.load(sys.stdin))
             elif command == "detect_frame":
                 from frame_detection import detect_frame
                 result = detect_frame(json.load(sys.stdin))
             elif command in ("info", "health"):
                 import numpy, onnxruntime, PIL
-                import cv2
-                result = {"ok": True, "plugin_id": "subject-detection-ai", "commands": ["detect_subject", "detect_frame"]}
+                import cv2, rapidocr_onnxruntime
+                result = {"ok": True, "plugin_id": "subject-detection-ai", "commands": ["detect_text", "detect_subject", "detect_frame"]}
             else:
-                raise ValueError("Unsupported subject-detection command.")
+                raise ValueError("Unsupported Card Finishing Studio command.")
         print(json.dumps(result, allow_nan=False))
     except Exception as exc:
         print(str(exc), file=sys.stderr)

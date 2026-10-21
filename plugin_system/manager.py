@@ -398,6 +398,9 @@ def get_plugin_status(
         manifest = runtime_context[
             "manifest"
         ]
+        update_available = not set(catalog_entry.get("required_capabilities", [])).issubset(
+            manifest.get("capabilities", [])
+        )
 
         return {
             **catalog_entry,
@@ -406,6 +409,7 @@ def get_plugin_status(
             "installed": True,
             "ready": True,
             "status": "ready",
+            "update_available": update_available,
 
             "development": (
                 runtime_context[
@@ -430,6 +434,8 @@ def get_plugin_status(
             "manifest": manifest,
 
             "message": (
+                "Update to include text, subject, and frame detection in one plugin."
+                if update_available else
                 "Development plugin is ready."
                 if runtime_context[
                     "development"
@@ -1239,12 +1245,25 @@ def install_plugin(
         shutil.copytree(
             package_root,
             plugin_dir,
+            ignore=shutil.ignore_patterns("__pycache__", ".venv", "models") if bundled_source else None,
         )
+
+        # Studio keeps its existing plugin ID so installed models can be reused.
+        # Copy before setup, retaining the backup intact for rollback on failure.
+        cached_models = os.path.join(backup_dir, "models")
+        if catalog_entry.get("preserve_models") and os.path.isdir(cached_models):
+            shutil.copytree(cached_models, os.path.join(plugin_dir, "models"), dirs_exist_ok=True)
 
         _install_plugin_requirements(
             plugin_id,
             manifest,
         )
+
+        if catalog_entry.get("required_capabilities"):
+            health = run_plugin_json(plugin_id, "health", {}, timeout=60)
+            expected = {"detect_" + name for name in catalog_entry["required_capabilities"]}
+            if not health.get("ok") or not expected.issubset(health.get("commands", [])):
+                raise RuntimeError("Card Finishing Studio setup is incomplete. Retry the update.")
 
         if os.path.exists(
             backup_dir

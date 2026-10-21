@@ -1,4 +1,4 @@
-AI Subject Detection uses the IS-Net general-use model from:
+Card Finishing Studio uses the IS-Net general-use model from:
 https://github.com/xuebinqin/DIS
 Authors: Xuebin Qin, Hang Dai, Xiaobin Hu, Deng-Ping Fan, Ling Shao,
 and Luc Van Gool. See LICENSE-IS-Net.txt (Apache License 2.0).
@@ -15,3 +15,8 @@ Frame contours use Segment Anything (SAM), Copyright (c) Meta Platforms, Inc. an
 https://github.com/facebookresearch/segment-anything
 See LICENSE-SAM.txt (Apache License 2.0). Quantized ONNX weights are supplied by rembg.
 Deckadence adds component prompting, contour validation, and local detail refinement.
+
+Text detection uses RapidOCR 1.4.4 and its bundled PaddleOCR model assets:
+https://github.com/RapidAI/RapidOCR/tree/v1.4.4
+RapidOCR is licensed under Apache License 2.0. Its Python package supplies
+the detector, recognition models, and license notices during installation.

@@ -1,26 +1,20 @@
-<section class="plugin-card spot-foil-settings" id="spotFoilSettings"
-         data-settings-url="{{ url_for('spot_foil_workflows') }}" aria-labelledby="spotFoilSettingsTitle">
-    <div class="spot-foil-eyebrow">Print finishing</div>
-    <div class="plugin-card-title-row">
-        <div class="plugin-card-title" id="spotFoilSettingsTitle">Spot foiling workflows</div>
-        <span class="plugin-status-badge">Card editor available</span>
-    </div>
-    <p class="plugin-card-description">Set print defaults here. Use a card’s spot foiling icon to select and refine its foil areas, then include spot-ink layers in Print / Export.</p>
+<div class="spot-foil-settings" id="spotFoilSettings"
+         data-settings-url="{{ url_for('spot_foil_workflows') }}">
     <p class="spot-foil-summary" data-foil-summary role="status">Loading workflow settings…</p>
     <div class="plugin-card-actions">
         <button type="button" class="action-button secondary-button" data-foil-configure>Configure workflows</button>
     </div>
     <a class="spot-foil-help-link" href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C8 2 4 3 2 4v15c3-2 7-2 10 0 3-2 7-2 10 0V4c-3-1-7-2-10 1Zm0 0v14"/></svg>
-        <span><strong>Spot foiling guide ↗</strong><small>Selections, editing tools, and illustrated print workflows.</small></span>
+        <span><strong>Card Finishing Studio guide ↗</strong><small>Foil, gloss, selections, and print workflows.</small></span>
     </a>
-    <noscript>Enable JavaScript to configure spot foiling workflows.</noscript>
-</section>
+    <noscript>Enable JavaScript to configure Card Finishing Studio.</noscript>
+</div>
 
 <dialog id="spotFoilWorkflowDialog" class="spot-foil-dialog" aria-labelledby="spotFoilWorkflowTitle">
     <form id="spotFoilWorkflowForm">
         <header>
-            <div><div class="spot-foil-eyebrow">Print finishing</div><h2 id="spotFoilWorkflowTitle">Spot foiling workflows</h2><p>Each workflow keeps its own settings. <a href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">Read the guide ↗</a></p></div>
+            <div><div class="spot-foil-eyebrow">Card Finishing Studio</div><h2 id="spotFoilWorkflowTitle">Print workflows</h2><p>Each workflow keeps its own settings. <a href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">Read the guide ↗</a></p></div>
             <button type="button" class="spot-foil-close" data-foil-cancel aria-label="Close workflow settings">×</button>
         </header>
         <div class="spot-foil-body">

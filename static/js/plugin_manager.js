@@ -38,6 +38,10 @@
             };
         }
 
+        if (plugin.update_available) {
+            return { className: "incomplete", label: "Update available" };
+        }
+
         if (plugin.development) {
             return {
                 className: "development",
@@ -93,8 +97,7 @@
             '[data-plugin-empty="available"]'
         );
 
-        // Companion plugins keep their own card and install controls beside
-        // the feature that uses them, including while status polling updates.
+        // Keep the Studio's settings and AI install controls in its pinned row.
         const targetList = card.closest("[data-plugin-companions]") || (
             plugin.installed
             ? installedList
@@ -230,7 +233,7 @@
                     install.stage
                     || state.label
                 );
-            } else if (plugin.development) {
+            } else if (plugin.development && !plugin.update_available) {
                 statusTitle.textContent =
                     "Development source is active.";
             } else {
@@ -248,7 +251,7 @@
                     install.message
                     || ""
                 );
-            } else if (plugin.development) {
+            } else if (plugin.development && !plugin.update_available) {
                 statusMessage.textContent =
                     "Deckadence is currently using this plugin directly from plugin_src.";
             } else {

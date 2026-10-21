@@ -15,6 +15,7 @@
   mask.width = canvas.width; mask.height = canvas.height;
   const ctx = mask.getContext("2d", {willReadFrequently: true});
   const overlay = canvas.getContext("2d");
+  const otherOverlay = dialog.querySelector("[data-spot-other-overlay]");
   const liveMask = document.createElement("canvas");
   const liveContext = liveMask.getContext("2d");
   const strokeMask = document.createElement("canvas"), strokeBase = document.createElement("canvas");
@@ -53,7 +54,8 @@
     dialog.querySelector("[data-spot-effect-label]").textContent=editingLayer==="gloss" ? "Gloss effect" : "Foil effect";
     dialog.querySelector("[data-spot-effect-strength-label]").textContent=editingLayer==="gloss" ? "Gloss strength" : "Effect strength";
     dialog.querySelector("[data-spot-overlay-label]").textContent=editingLayer==="gloss" ? "Gloss overlay color" : "Mask overlay color";
-    dialog.querySelector('[data-spot-view="effect"]').textContent="Finish preview";
+    dialog.querySelector('[data-spot-view="effect"]').textContent="Preview";
+    stage.dataset.editLayer=editingLayer;
     dialog.querySelector('[data-spot-view="mask"]').textContent=editingLayer==="gloss" ? "Gloss overlay" : "Mask overlay";
     dialog.querySelector("[data-spot-remove]").textContent=editingLayer==="gloss" ? "Remove gloss" : "Remove spot foiling";
     dialog.querySelector("[data-spot-invert]").title=editingLayer==="gloss" ? "Swap gloss and clear areas." : "Swap foil and opaque areas.";
@@ -96,7 +98,7 @@
       ready=true;updatePocketSize();updateBrushControls();updateEdgeControls();updateExclusionControls();updateRegionControls();updateFrameControls();chooseColor(fields.selection_color.value);
       dialog.querySelector("[data-spot-strength-value]").value=fields.strength.value+"%";
       coverage();renderMask();if(!history.length){history=[maskUrl];historyIndex=0;}controls();
-      message(removal ? "Removal pending. Save to apply." : "Editing "+(layer==="gloss"?"Gloss":"Mask")+".");
+      message(removal ? "Removal pending. Save to apply." : "Editing "+(layer==="gloss"?"Gloss":"Foil Mask")+".");
     }catch(error){if(token===session)message("Could not load this layer. "+error.message,true);}
     finally{if(token===session){ready=true;controls();}}
   }
@@ -156,7 +158,7 @@
     const button = host.querySelector(".spot-card-button");
     if (button) {
       button.classList.toggle("is-saved", Boolean(record));
-      button.title = record ? "Card finishing effects (saved)" : "Card finishing effects";
+      button.title = record ? "Card Finishing Studio (saved)" : "Card Finishing Studio";
       button.setAttribute("aria-label", `${record ? "Edit" : "Add"} card finishing effects for ${info.name}`);
     }
   }
@@ -223,7 +225,7 @@
   }
   function message(text, error = false) {
     if (current?.artworkChanged) {
-      text = "The artwork changed. Close and reopen Spot Foiling to realign the mask."; error = true;
+      text = "The artwork changed. Close and reopen Card Finishing Studio to realign the mask."; error = true;
     }
     status.textContent = layerWording(text); status.dataset.error = String(error);
   }
@@ -290,6 +292,21 @@
     overlay.drawImage(mask, 0, 0);
     overlay.globalCompositeOperation = "source-in"; overlay.fillStyle = fields.overlay_color.value;
     overlay.fillRect(0, 0, canvas.width, canvas.height); overlay.globalCompositeOperation = "source-over";
+    // Composite the inactive draft separately, so editing still writes only to
+    // the active mask. Foil always sits below Gloss, regardless of the edit tab.
+    const other=layerDrafts[editingLayer==="mask"?"gloss":"mask"];
+    const allOverlays=view==="all" && !showingText && !showingFrame;
+    otherOverlay.hidden=!allOverlays || !other?.enabled || !other.png;
+    if(!otherOverlay.hidden) {
+      otherOverlay.style.setProperty("--spot-other-mask",`url("${other.png}")`);
+      otherOverlay.style.backgroundColor=other.values.overlay_color;
+    } else {
+      otherOverlay.style.removeProperty("--spot-other-mask");
+    }
+    for(const layer of ["mask","gloss"]) {
+      const color=layer===editingLayer ? fields.overlay_color.value : layerDrafts[layer]?.values.overlay_color || (layer==="mask"?"#00D8FF":"#00BFFF");
+      dialog.querySelector(`[data-spot-legend-color="${layer}"]`).style.backgroundColor=color;
+    }
     if (showingText || showingFrame) {
       overlay.clearRect(0, 0, canvas.width, canvas.height);
       const selection = showingFrame
@@ -308,6 +325,9 @@
     }
   }
   function updatePreviewHelp() {
+    const allOverlays=view==="all" && !showingText && !showingFrame;
+    dialog.querySelector("[data-spot-overlay-legend]").hidden=!allOverlays;
+    dialog.querySelector("[data-spot-preview-help]").hidden=allOverlays;
     dialog.querySelector("[data-spot-preview-help]").textContent = showingFrame ? "Cyan shows the frame selection." : showingText
       ? "Cyan shows the text selection."
       : view === "mask" ? `${fields.mask_only.checked ? "Color = foil. Black = no foil." : "Overlay color = foil. Clear = no foil."} Mask covers ${maskArea}% of the whole card.`
@@ -502,7 +522,7 @@
   function releaseEditor() {
     ++session; ready = false; activeStroke = null;
     subjectMasks.clear(); frameMasks.clear(); showingFrame = false;
-    layerDrafts={};effects.setGloss(stage,null);
+    layerDrafts={};effects.setGloss(stage,null);otherOverlay.hidden=true;otherOverlay.style.removeProperty("--spot-other-mask");
     if (renderFrame) cancelAnimationFrame(renderFrame); renderFrame = null;
     if (artworkUrl) URL.revokeObjectURL(artworkUrl); artworkUrl = "";
     image.removeAttribute("src"); history = []; current?.trigger.focus(); current = null;
@@ -563,7 +583,7 @@
     dialog.querySelector("[data-spot-detector-status]").textContent = textRegions.length
       ? `${textRegions.length} detected text regions.`
       : metadata?.text_detector_ready ? "AI text detection ready."
-      : "For unusual layouts, install AI Text Detection in Plugin Manager.";
+      : "Install or update Card Finishing Studio in Plugin Manager.";
     updateGenerationHint();
     if (showingText) scheduleRender();
   }
@@ -577,7 +597,7 @@
     if(!detected)showingFrame=false;
     dialog.querySelector("[data-spot-frame-status]").textContent=detected
       ? detected.found ? "AI frame contours ready." : "No distinct frame found."
-      : metadata?.frame_detector_ready ? "AI traces the frame, including legendary details." : "Install or update AI Subject & Frame Detection.";
+      : metadata?.frame_detector_ready ? "AI traces the frame, including legendary details." : "Install or update Card Finishing Studio.";
     dialog.querySelector("[data-spot-frame-install]").hidden=Boolean(metadata?.frame_detector_ready);
     dialog.querySelector("[data-spot-show-frame]").textContent=showingFrame?"Hide frame preview":"Preview frame";
     if(ready) scheduleRender();
@@ -688,7 +708,7 @@
     const subjectReady=metadata?.subject_detector_ready && (box || metadata?.frame_detector_ready);
     dialog.querySelector("[data-spot-subject-status]").textContent = subjectReady
       ? (mode==="background" ? "Selects everything behind the AI subject." : "Selects the main subject with local AI.")
-      : "Install or update AI Subject & Frame Detection.";
+      : "Install or update Card Finishing Studio.";
     dialog.querySelector("[data-spot-subject-install]").hidden = Boolean(subjectReady);
     dialog.querySelector("[data-spot-area-guide]").hidden = !ready || showingText || showingFrame || none || !box;
     dialog.querySelector("[data-spot-area-help]").textContent = box

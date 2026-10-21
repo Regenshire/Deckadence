@@ -6,7 +6,7 @@
         data-lookup-url="{{ url_for('card_spot_foil_lookup') }}">
   <form id="cardSpotFoilForm">
     <header class="spot-card-header">
-      <div class="spot-card-heading"><p class="spot-card-eyebrow">Card finishing studio</p><h2 id="cardSpotFoilTitle">Card finishing effects</h2><p data-spot-card-name></p></div>
+      <div class="spot-card-heading"><p class="spot-card-eyebrow">Card finishing</p><h2 id="cardSpotFoilTitle">Card Finishing Studio</h2><p data-spot-card-name></p></div>
       <p class="spot-card-scope" data-spot-scope role="status">Loading image-library scope…</p>
       <div class="spot-card-window-actions">
         <button type="button" data-spot-maximize aria-label="Maximize card finishing effects" aria-pressed="false">⛶ <span>Maximize</span></button>
@@ -17,7 +17,8 @@
       <section class="spot-card-preview-panel" aria-label="Card preview and painting canvas">
         <div class="spot-card-preview-actions">
         <div class="spot-card-preview-tabs" role="group" aria-label="Preview mode">
-          <button type="button" data-spot-view="effect" aria-pressed="true">Foil preview</button>
+          <button type="button" data-spot-view="effect" aria-pressed="true">Preview</button>
+          <button type="button" data-spot-view="all" aria-pressed="false">All Overlays</button>
           <button type="button" data-spot-view="mask" aria-pressed="false">Mask overlay</button>
           <button type="button" data-spot-view="original" aria-pressed="false">Original</button>
         </div>
@@ -26,10 +27,15 @@
         </div>
         </div>
         <p class="spot-card-caption" data-spot-preview-help>Foil appears only inside your selected areas. The rest stays opaque.</p>
+        <div class="spot-card-overlay-legend" data-spot-overlay-legend hidden aria-label="Overlay colors">
+          <span><i data-spot-legend-color="mask" aria-hidden="true"></i>Foil Mask</span>
+          <span><i data-spot-legend-color="gloss" aria-hidden="true"></i>Gloss</span>
+        </div>
         <div class="spot-card-viewport" data-spot-viewport tabindex="0" aria-label="Scrollable card canvas. Zoom in, then use the Pan tool to move around.">
           <div class="spot-card-stage" data-spot-stage>
             <img data-spot-image alt="Card artwork" draggable="false">
             <canvas width="756" height="1056" data-spot-canvas aria-label="Paint or erase the foil selection on this card. Use the selection buttons as a keyboard alternative."></canvas>
+            <span class="spot-card-other-overlay" data-spot-other-overlay hidden aria-hidden="true"></span>
             <div class="spot-card-area-guide" data-spot-area-guide hidden aria-hidden="true"><span>Art box limit</span></div>
             <span class="spot-card-brush-cursor" data-spot-cursor aria-hidden="true" hidden></span>
           </div>
@@ -43,7 +49,7 @@
       </section>
       <section class="spot-card-controls" aria-label="Card finishing controls">
         <div class="spot-card-layer-switch" role="group" aria-label="Editing layer">
-          <button type="button" data-spot-layer="mask" aria-pressed="true">Mask</button>
+          <button type="button" data-spot-layer="mask" aria-pressed="true">Foil Mask</button>
           <button type="button" data-spot-layer="gloss" aria-pressed="false">Gloss</button>
         </div>
         <details class="spot-card-step is-active" data-spot-step="automatic" open>
@@ -94,7 +100,7 @@
             <label>Select<select name="text_detail"><option value="letters">Letters only</option><option value="regions">Whole text boxes</option></select></label>
             </div>
             <div class="spot-card-button-row"><button type="button" data-spot-detect>Detect text with AI</button><button type="button" data-spot-show-text>Preview text</button></div>
-            <p class="spot-card-caption" data-spot-detector-status>Install AI Text Detection in Plugin Manager.</p>
+            <p class="spot-card-caption" data-spot-detector-status>Install or update Card Finishing Studio in Plugin Manager.</p>
           <details class="spot-card-region-settings"><summary>Refine text selection</summary>
             <label data-spot-letter-options>Letter color<select name="text_ink"><option value="auto">Any contrasting color</option><option value="light">Light letters</option><option value="dark">Dark letters</option></select></label>
             <label class="spot-card-range-label">Text outline <output data-spot-text-expand-value>0 px</output><input name="text_expand" type="range" min="-12" max="12" step="1" value="0"></label>
@@ -205,7 +211,7 @@
           </div>
           <label class="spot-card-check"><input type="checkbox" name="mask_only"> Mask only · hide artwork in Mask overlay</label>
         </fieldset>
-        <a class="spot-card-help" href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">Spot foiling guide ↗</a>
+        <a class="spot-card-help" href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">Card Finishing Studio guide ↗</a>
       </section>
     </div>
     <footer class="spot-card-footer">
