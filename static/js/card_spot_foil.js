@@ -41,7 +41,7 @@
     artDialog.querySelector("[data-spot-art-info]").textContent="Loading generated art…";
     setArtView(false);artImage.src="data:image/png;base64,"+fields.effect_scene.value;artDialog.showModal();
   });
-  let maskClipboard=null;
+  let maskClipboard=null, maskClipboardRegion=null, marquee=null;
   window.addEventListener("focus",async()=>{
     if(!dialog.open||!metadata||busy)return;
     const token=session;
@@ -91,6 +91,7 @@
   }
   const effectColors={stars:"#FFF4C3",halftone:"#121930",neon:"#46F5FF",mirror_shards:"#B8EFFF",chocobo_tracks:"#FFFFFF",phyrexian:"#FFFFFF",mana_foil:"#FFFFFF",dragonscale:"#FFFFFF",gilded:"#F4CA70",halo:"#FFFFFF",ripple:"#FFFFFF",invisible_ink:"#B7A1FF",neon_ink:"#FF298A"};
   const pathEffects=new Set(["chocobo_tracks","phyrexian","mana_foil","dragonscale","gilded","invisible_ink"]);
+  const copyPathEffects=new Set([...pathEffects,"galaxy","confetti","glitter_1","glitter_2","glitter_3","halftone","stars","water_beads"]);
   const effectBlend=value=>value.finish==="oil_slick"?100:value.finish==="neon_ink"?85:value.finish==="fracture"?Number(value.translucence)||0:0;
   const effectHelp={silver_black:"Converts selected artwork to deep black shadows and silver highlights. For Oil Slick, use this in Effect 1 and Oil Slick Rainbow in Effect 2 with the same mask.",oil_slick:"A subtle rainbow that follows the light and dark detail underneath. Use above Silver & Black Art for the oil slick look; strength controls the color intensity.",phyrexian:"Repeating Phyrexian symbols inspired by Step-and-Compleat foil. Copy Path reuses the symbols as a foil or gloss mask.",mana_foil:"Staggered rows of the five mana symbols. Copy Path keeps the symbol shapes at full coverage.",dragonscale:"Overlapping pointed scales with fine reflective edges and clear centers.",gilded:"Gold Art Deco corner fans, stepped rails and ornaments. Copy Path can add foil or raised gloss to the filigree.",halo:"Flowing, irregular iridescent rings inspired by Halo foil.",ripple:"Fine, curved interference bands inspired by Ripple foil.",invisible_ink:"This effect has been removed. Choose another effect or remove this layer.",neon_ink:"Colored ink across the selected area, preserving artwork detail. Choose a color below."};
   let previousEffectFinish="";
@@ -121,7 +122,7 @@
     const copyPath=dialog.querySelector("[data-spot-copy-path]");
     const pathSlot=dialog.querySelector(`[data-spot-${shards?"shard":"pattern"}-path-slot]`);
     if(copyPath.parentElement!==pathSlot)pathSlot.appendChild(copyPath);
-    dialog.querySelector("[data-spot-pattern-path-slot]").hidden=!pattern;
+    dialog.querySelector("[data-spot-pattern-path-slot]").hidden=!printedLayer()||!copyPathEffects.has(fields.finish.value);
     dialog.querySelector("[data-spot-track-controls]").hidden=!pattern;
     fields.effect_track_x.setAttribute("aria-label",`${tracks?"Track":"Pattern"} horizontal position`);
     fields.effect_track_y.setAttribute("aria-label",`${tracks?"Track":"Pattern"} vertical position`);
@@ -566,6 +567,7 @@
     status.textContent = layerWording(text); status.dataset.error = String(error);
   }
   function controls() {
+    updateMarquee();
     // An in-flight detection/import/history operation must not restore editing
     // after the source artwork has changed underneath this session.
     if (current?.artworkChanged) ready = false;
@@ -690,22 +692,76 @@
       surface.width = width; surface.height = height;
     }
   }
+  function marqueePixels(region=marquee) {
+    if(!region)return {x:0,y:0,width:mask.width,height:mask.height};
+    const x=Math.round(region.x*mask.width),y=Math.round(region.y*mask.height);
+    return {x,y,width:Math.max(1,Math.round((region.x+region.width)*mask.width)-x),height:Math.max(1,Math.round((region.y+region.height)*mask.height)-y)};
+  }
+  function updateMarquee() {
+    const box=dialog.querySelector('[data-spot-marquee]');box.hidden=!marquee||!ready;
+    if(marquee)Object.assign(box.style,{left:marquee.x*100+'%',top:marquee.y*100+'%',width:marquee.width*100+'%',height:marquee.height*100+'%',borderRadius:marquee.shape==='ellipse'?'50%':'0'});
+    const rect=marqueePixels();
+    dialog.querySelector('[data-spot-marquee-status]').textContent=marquee?`${rect.width} × ${rect.height} px boundary`:'No marquee boundary';
+    dialog.querySelector('[data-spot-deselect]').disabled=!marquee||!ready||busy||Boolean(activeStroke);
+    dialog.querySelector('[data-spot-clear]').textContent=marquee?'Clear inside':'Clear mask';
+    dialog.querySelector('[data-spot-copy-mask]').title=marquee?'Copy the mask inside the marquee.':'Copy the entire mask.';
+  }
+  function clipToMarquee(target=ctx,region=marquee,r=marqueePixels(region)) {
+    if(!region)return;
+    target.beginPath();
+    if(region.shape==='ellipse')target.ellipse(r.x+r.width/2,r.y+r.height/2,r.width/2,r.height/2,0,0,Math.PI*2);
+    else target.rect(r.x,r.y,r.width,r.height);
+    target.clip();
+  }
+  function writeMaskRegion(pixels,region=marquee) {
+    const rect=marqueePixels(region);
+    if(region?.shape==='ellipse') {
+      const coverage=document.createElement('canvas');coverage.width=rect.width;coverage.height=rect.height;
+      const target=coverage.getContext('2d');clipToMarquee(target,region,{...rect,x:0,y:0});
+      target.fillStyle='white';target.fillRect(0,0,rect.width,rect.height);
+      const edge=target.getImageData(0,0,rect.width,rect.height).data;
+      const original=ctx.getImageData(rect.x,rect.y,rect.width,rect.height).data;
+      // Blend the replacement once at the curved boundary. Clearing then
+      // drawing through the same soft clip would leave a faint seam.
+      for(let i=0;i<pixels.data.length;i+=4) {
+        const amount=edge[i+3]/255;
+        if(!amount) {for(let channel=0;channel<4;channel++)pixels.data[i+channel]=original[i+channel];}
+        else {
+          pixels.data[i]=pixels.data[i+1]=pixels.data[i+2]=255;
+          pixels.data[i+3]=Math.round(original[i+3]*(1-amount)+pixels.data[i+3]*amount);
+        }
+      }
+    }
+    ctx.putImageData(pixels,rect.x,rect.y);
+  }
+  function deselectMarquee() {
+    if(!ready||busy||activeStroke)return;
+    marquee=null;updateMarquee();message('Marquee deselected. The mask is unchanged.');
+  }
+  dialog.querySelector('[data-spot-deselect]').addEventListener('click',deselectMarquee);
+  dialog.querySelector('[data-spot-marquee-shape]').addEventListener('change',event=>{
+    if(!ready||busy||activeStroke)return;
+    if(marquee){marquee={...marquee,shape:event.target.value};updateMarquee();}
+    setTool('marquee');
+  });
   dialog.querySelector("[data-spot-copy-mask]").addEventListener("click", () => {
     if (!ready || busy || activeStroke) return;
-    const copy=document.createElement("canvas");copy.width=mask.width;copy.height=mask.height;
-    copy.getContext("2d").drawImage(mask,0,0);
-    maskClipboard=copy;
+    const rect=marqueePixels(),copy=document.createElement("canvas");copy.width=rect.width;copy.height=rect.height;
+    const target=copy.getContext("2d");clipToMarquee(target,marquee,{...rect,x:0,y:0});
+    target.drawImage(mask,rect.x,rect.y,rect.width,rect.height,0,0,rect.width,rect.height);
+    maskClipboard=copy;maskClipboardRegion=marquee?{...marquee}:null;
     controls();message(`Mask copied from ${layerNames[editingLayer]}. Choose a tab and paste it.`);
   });
   dialog.querySelector("[data-spot-copy-path]").addEventListener("click", async () => {
-    if(!ready||busy||activeStroke||!printedLayer()||!(fields.finish.value==="mirror_shards"||pathEffects.has(fields.finish.value)))return;
+    if(!ready||busy||activeStroke||!printedLayer()||!(fields.finish.value==="mirror_shards"||copyPathEffects.has(fields.finish.value)))return;
     const token=session;
-    const tracks=pathEffects.has(fields.finish.value);
+    const tracks=copyPathEffects.has(fields.finish.value);
     const settings=tracks ? {finish:fields.finish.value,scale:Number(fields.effect_scale.value),
-      rotation:Number(fields.effect_rotation.value),x:Number(fields.effect_track_x.value),y:Number(fields.effect_track_y.value),width:mask.width} : {finish:fields.finish.value,template:fields.effect_shard_template.value,
+      rotation:Number(fields.effect_rotation.value),width:mask.width} : {finish:fields.finish.value,template:fields.effect_shard_template.value,
       scale:Number(fields.effect_shard_size.value),rotation:Number(fields.effect_rotation.value),
       x:Number(fields.effect_shard_x.value),y:Number(fields.effect_shard_y.value),width:mask.width};
     if(tracks&&fields.finish.value!=="chocobo_tracks")Object.assign(settings,{density:Number(fields.effect_density.value),seed:Number(fields.effect_seed.value)});
+    if(pathEffects.has(fields.finish.value))Object.assign(settings,{x:Number(fields.effect_track_x.value),y:Number(fields.effect_track_y.value)});
     busy=true;controls();
     try {
       const response=await fetch(apiUrl(endpoint(current.target)+"/effect-path"),{method:"POST",
@@ -715,7 +771,7 @@
       try {
         if(token!==session||!dialog.open||current?.artworkChanged)return;
         const copy=document.createElement("canvas");copy.width=bitmap.width;copy.height=bitmap.height;
-        copy.getContext("2d").drawImage(bitmap,0,0);maskClipboard=copy;
+        copy.getContext("2d").drawImage(bitmap,0,0);maskClipboard=copy;maskClipboardRegion=null;
         message(`${tracks?metadata.effect_types[fields.finish.value]:"Shard"} path copied. Choose any tab and use Paste Mask or Append Paste.`);
       } finally {bitmap.close();}
     } catch(error) {if(token===session&&dialog.open)message(error.message,true);}
@@ -723,26 +779,28 @@
   });
   function pasteMask(append=false) {
     if (!ready || busy || activeStroke || !maskClipboard) return;
-    if (maskClipboard.width>mask.width) {
+    if (!marquee&&!maskClipboardRegion&&maskClipboard.width>mask.width) {
       const existing=append?document.createElement("canvas"):null;
       if(existing){existing.width=mask.width;existing.height=mask.height;existing.getContext("2d").drawImage(mask,0,0);}
       sizeMask(maskClipboard.width);
       if(existing)ctx.drawImage(existing,0,0,mask.width,mask.height);
     }
+    const region=marquee||maskClipboardRegion,rect=marqueePixels(region);
+    const pasted=document.createElement("canvas");pasted.width=rect.width;pasted.height=rect.height;
+    const pastedContext=pasted.getContext("2d");
+    if(append)clipToMarquee(pastedContext,region,{...rect,x:0,y:0});
+    pastedContext.drawImage(maskClipboard,0,0,rect.width,rect.height);
+    const incoming=pastedContext.getImageData(0,0,rect.width,rect.height);
     if(append) {
-      const pasted=document.createElement("canvas");pasted.width=mask.width;pasted.height=mask.height;
-      const pastedContext=pasted.getContext("2d");pastedContext.drawImage(maskClipboard,0,0,mask.width,mask.height);
-      const incoming=pastedContext.getImageData(0,0,mask.width,mask.height).data;
-      const combined=ctx.getImageData(0,0,mask.width,mask.height),pixels=combined.data;
+      const combined=ctx.getImageData(rect.x,rect.y,rect.width,rect.height),pixels=combined.data;
       // Selection union preserves soft coverage and does not build opacity
       // when the same mask is appended more than once.
-      for(let i=3;i<pixels.length;i+=4)if(incoming[i]>pixels[i]) {
-        pixels[i]=incoming[i];pixels[i-3]=pixels[i-2]=pixels[i-1]=255;
+      for(let i=3;i<pixels.length;i+=4)if(incoming.data[i]>pixels[i]) {
+        pixels[i]=incoming.data[i];pixels[i-3]=pixels[i-2]=pixels[i-1]=255;
       }
-      ctx.putImageData(combined,0,0);
+      ctx.putImageData(combined,rect.x,rect.y);
     } else {
-      ctx.clearRect(0,0,mask.width,mask.height);
-      ctx.drawImage(maskClipboard,0,0,mask.width,mask.height);
+      writeMaskRegion(incoming,region);
     }
     showingText=false;commitMask();
     message(append?`Mask merged into ${layerNames[editingLayer]}.`:`Mask pasted into ${layerNames[editingLayer]}.`);
@@ -923,7 +981,7 @@
     if(artDialog.open)artDialog.close();artImage.removeAttribute("src");
     cancelMirrorGeneration();
     mirrorSelectionCache=null;
-    maskClipboard=null;
+    maskClipboard=null;maskClipboardRegion=null;marquee=null;updateMarquee();
     ++session; ready = false; activeStroke = null;
     subjectMasks.clear(); frameMasks.clear(); showingFrame = false;
     layerDrafts={};clearPrintedPreviews();effects.setGloss(stage,null);for(const element of otherOverlays){element.hidden=true;element.style.removeProperty("--spot-other-mask");}
@@ -932,7 +990,10 @@
     image.removeAttribute("src"); history = []; current?.trigger.focus(); current = null;
   }
   dialog.addEventListener("close", () => {if (!dialog.open && current) releaseEditor();});
-  dialog.addEventListener("cancel", event => {if (busy) event.preventDefault();});
+  dialog.addEventListener("cancel", event => {
+    if(busy||activeStroke)event.preventDefault();
+    else if(marquee){event.preventDefault();deselectMarquee();}
+  });
   dialog.querySelectorAll("[data-spot-close]").forEach(button => button.addEventListener("click", closeEditor));
   dialog.querySelectorAll("[data-spot-tool]").forEach(button => button.addEventListener("click", () => setTool(button.dataset.spotTool)));
   dialog.querySelectorAll("[data-spot-view]").forEach(button => button.addEventListener("click", () => {showingText=false;showingFrame=false;setView(button.dataset.spotView);if(ready)renderMask();}));
@@ -1281,12 +1342,14 @@
     finally {if (token === session) {busy = false; controls();}}
   });
   dialog.querySelector("[data-spot-redo]").addEventListener("click", () => travelHistory(1));
-  function selectArea(mode) {
+  function selectArea(mode, entireMask=false) {
     if (!ready || busy || activeStroke) return false;
-    ctx.clearRect(0, 0, mask.width, mask.height); ctx.fillStyle = "white"; ctx.save(); ctx.globalAlpha=Number(fields.coverage.value)/100;
-    if (mode === "all") ctx.fillRect(0, 0, mask.width, mask.height);
-    if (mode === "art") ctx.fillRect(mask.width * .08, mask.height * .13, mask.width * .84, mask.height * .43);
-    ctx.restore(); showingText=false;
+    const region=entireMask?null:marquee,rect=marqueePixels(region);
+    const selected=document.createElement('canvas');selected.width=rect.width;selected.height=rect.height;
+    const target=selected.getContext('2d');target.fillStyle='white';target.globalAlpha=Number(fields.coverage.value)/100;
+    if(mode==='all')target.fillRect(0,0,rect.width,rect.height);
+    if(mode==='art')target.fillRect(mask.width*.08-rect.x,mask.height*.13-rect.y,mask.width*.84,mask.height*.43);
+    writeMaskRegion(target.getImageData(0,0,rect.width,rect.height),region);showingText=false;
     commitMask();
     return true;
   }
@@ -1295,16 +1358,16 @@
   dialog.querySelector("[data-spot-clear]").addEventListener("click", () => selectArea("none"));
   dialog.querySelector("[data-spot-invert]").addEventListener("click", () => {
     if (!ready || busy || activeStroke) return;
-    const pixels = ctx.getImageData(0, 0, mask.width, mask.height);
+    const rect=marqueePixels(),pixels = ctx.getImageData(rect.x, rect.y, rect.width, rect.height);
     for (let i = 0; i < pixels.data.length; i += 4) {
       pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = 255;
       pixels.data[i + 3] = 255 - pixels.data[i + 3];
     }
-    ctx.putImageData(pixels, 0, 0); showingText = false; commitMask();
+    writeMaskRegion(pixels); showingText = false; commitMask();
     message("Foiling inverted. Undo is available.");
   });
   dialog.querySelector("[data-spot-remove]").addEventListener("click", () => {
-    if (selectArea("none")) {removal = true; markChanged();}
+    if (selectArea("none",true)) {removal = true; markChanged();}
   });
   for (const field of [fields.finish, fields.strength, fields.effect_scale, fields.effect_density,fields.effect_black_depth,fields.effect_silver_brightness, fields.effect_color, fields.effect_translucence,fields.effect_track_x,fields.effect_track_y,fields.effect_track_transparency,fields.effect_rotation,fields.effect_scene_rotation,fields.effect_scene_zoom,fields.effect_scene_skew,fields.effect_scene_x,fields.effect_scene_y, fields.effect_shard_template,fields.effect_shard_size,fields.effect_shard_x,fields.effect_shard_y,fields.effect_shard_theme,fields.effect_mirror,fields.effect_tint,fields.effect_custom_prompt,fields.effect_maintain_style,fields.effect_outpaint_margin]) field.addEventListener("input", () => {
     updateEffectColor(field===fields.finish);
@@ -1351,12 +1414,33 @@
     applyToolMask(strokeMask,activeStroke.erase,activeStroke.amount,activeStroke.blur);scheduleRender();
   }
   function applyToolMask(selection, erase, amount = Number(fields.coverage.value) / 100, blur = 0) {
-    ctx.save();ctx.globalCompositeOperation=erase?"destination-out":"source-over";
+    ctx.save();clipToMarquee();ctx.globalCompositeOperation=erase?"destination-out":"source-over";
     ctx.globalAlpha=amount;ctx.filter=blur ? `blur(${blur}px)` : "none";
     ctx.drawImage(selection,0,0);ctx.restore();
   }
+  function dragMarquee(to,circle=false) {
+    const start=activeStroke.start;
+    let x=Math.max(0,Math.min(mask.width,to.x)),y=Math.max(0,Math.min(mask.height,to.y));
+    if(circle&&activeStroke.shape==='ellipse') {
+      const extent=Math.min(Math.abs(x-start.x),Math.abs(y-start.y));
+      x=start.x+Math.sign(x-start.x)*extent;y=start.y+Math.sign(y-start.y)*extent;
+    }
+    marquee={x:Math.min(start.x,x)/mask.width,y:Math.min(start.y,y)/mask.height,
+      width:Math.abs(x-start.x)/mask.width,height:Math.abs(y-start.y)/mask.height,shape:activeStroke.shape};
+    updateMarquee();
+  }
+  function lockedPoint(event) {
+    const p=point(event),stroke=activeStroke;
+    if(!stroke||stroke.pan||stroke.marquee)return p;
+    const axis=event.shiftKey?'horizontal':event.ctrlKey?'vertical':null;
+    if(axis!==stroke.axis){stroke.axis=axis;stroke.anchor={...stroke.last};}
+    if(axis==='horizontal')p.y=stroke.anchor.y;
+    if(axis==='vertical')p.x=stroke.anchor.x;
+    return p;
+  }
   canvas.addEventListener("pointerdown", event => {
     if (!ready || busy || activeStroke || event.button !== 0) return;
+    viewport.focus({preventScroll:true});
     showingText=false;showingFrame=false;
     if (tool === "sample") {
       event.preventDefault(); const p = point(event);
@@ -1370,6 +1454,12 @@
       applyToolMask(refineColorSelection(selection),fields.selection_action.value==="erase");commitMask();return;
     }
     event.preventDefault(); canvas.setPointerCapture(event.pointerId);
+    if(tool==='marquee') {
+      const p=point(event);
+      activeStroke={id:event.pointerId,marquee:true,previous:marquee,shape:dialog.querySelector('[data-spot-marquee-shape]').value,
+        start:{x:Math.max(0,Math.min(mask.width,p.x)),y:Math.max(0,Math.min(mask.height,p.y))}};
+      dragMarquee(p);controls();return;
+    }
     strokeContext.clearRect(0,0,mask.width,mask.height);baseContext.clearRect(0,0,mask.width,mask.height);baseContext.drawImage(mask,0,0);
     const diameter = Number(fields.brush_size.value) * mask.width / 756, softness = Number(fields.brush_softness.value) / 100;
     activeStroke = {id: event.pointerId, last: point(event), x: event.clientX, y: event.clientY, left: viewport.scrollLeft, top: viewport.scrollTop, pan: tool === "pan",
@@ -1378,20 +1468,28 @@
     if (!activeStroke.pan) draw(activeStroke.last, activeStroke.last);
   });
   canvas.addEventListener("pointermove", event => {
-    const p = point(event), box = canvas.getBoundingClientRect();
+    const p = lockedPoint(event), box = canvas.getBoundingClientRect();
     cursor.hidden = !["paint","erase"].includes(tool) || !ready;
     cursor.style.width = cursor.style.height = Number(fields.brush_size.value) * box.width / 756 + "px";
     cursor.style.left = p.x / mask.width * 100 + "%"; cursor.style.top = p.y / mask.height * 100 + "%";
     if (!activeStroke || activeStroke.id !== event.pointerId) return;
     if (activeStroke.pan) {viewport.scrollLeft = activeStroke.left - event.clientX + activeStroke.x; viewport.scrollTop = activeStroke.top - event.clientY + activeStroke.y;}
+    else if(activeStroke.marquee)dragMarquee(p,event.shiftKey);
     else {draw(activeStroke.last, p); activeStroke.last = p;}
   });
   function endStroke(event) {
     if (!activeStroke || activeStroke.id !== event.pointerId) return;
-    const painted = !activeStroke.pan; activeStroke = null;
+    const stroke=activeStroke,painted = !stroke.pan&&!stroke.marquee;
+    if(stroke.marquee) {
+      if(event.type==='pointercancel')marquee=stroke.previous;
+      else if(!marquee||marquee.width*mask.width<2||marquee.height*mask.height<2)marquee=null;
+    }
+    activeStroke = null;
     syncPreviewInteraction();
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     if (painted) commitMask();
+    else controls();
+    if(stroke.marquee)message(marquee?'Marquee ready. Edits stay inside this boundary.':'Marquee deselected. The mask is unchanged.');
   }
   for (const name of ["pointerup", "pointercancel", "lostpointercapture"]) canvas.addEventListener(name, endStroke);
   canvas.addEventListener("pointerleave", () => {cursor.hidden = true;});
@@ -1399,8 +1497,10 @@
     if (!ready || busy || activeStroke || /INPUT|SELECT|TEXTAREA/.test(event.target.tagName)) return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {event.preventDefault(); travelHistory(event.shiftKey ? 1 : -1);}
     else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") {event.preventDefault(); travelHistory(1);}
+    else if(event.key==='Escape'&&marquee){event.preventDefault();deselectMarquee();}
+    else if((event.key==='Delete'||event.key==='Backspace')&&marquee){event.preventDefault();selectArea('none');}
     else if (!event.ctrlKey && !event.metaKey && !event.altKey) {
-      const tools = {b: "paint", e: "erase", h: "pan", w:"wand", c:"match", i:"sample"}; if (tools[event.key.toLowerCase()]) setTool(tools[event.key.toLowerCase()]);
+      const tools = {b: "paint", e: "erase", h: "pan", w:"wand", c:"match", i:"sample",m:"marquee"}; if (tools[event.key.toLowerCase()]) {event.preventDefault();setTool(tools[event.key.toLowerCase()]);}
     }
   });
   fields.mask_file.addEventListener("change", async () => {

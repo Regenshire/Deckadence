@@ -166,12 +166,19 @@ def transform_image(image,degrees=0,zoom=100,skew=0,output_size=None,offset_x=0,
                            (a,b,source_width/2-a*cx-b*cy,d,e,source_height/2-d*cx-e*cy),Image.Resampling.BICUBIC)
 
 
+def _edge_sampling(width):
+    # Resolve fractional coverage even for high-resolution print masks, while
+    # keeping the working surfaces bounded at larger output sizes.
+    return 4 if width<=756 else 3 if width<=1512 else 2
+
+
 def shard_selection(template,width,height,rotation=0,scale=100,offset_x=0,offset_y=0):
-    mask=Image.new('L',(width,height))
+    sampling=_edge_sampling(width)
+    mask=Image.new('L',(width*sampling,height*sampling))
     draw=ImageDraw.Draw(mask)
     for polygon in rotated_polygons(template,width,height,rotation,scale,offset_x,offset_y):
-        draw.polygon(polygon,fill=255)
-    return mask
+        draw.polygon([(x*sampling,y*sampling) for x,y in polygon],fill=255)
+    return mask.resize((width,height),Image.Resampling.LANCZOS)
 
 
 def render_shards(template,color,tint,width,height,scene=None,rotation=0,scene_rotation=0,scene_zoom=100,scene_skew=0,template_scale=100,scene_x=0,scene_y=0,scene_padding=(0,0),template_x=0,template_y=0):
@@ -182,6 +189,7 @@ def render_shards(template,color,tint,width,height,scene=None,rotation=0,scene_r
     """
     rgb=tuple(int(color[i:i+2],16) for i in (1,3,5))
     unit=width/756*template_scale/100
+    sampling=_edge_sampling(width)
     result=Image.new('RGBA',(width,height))
     if scene is not None:
         result=transform_image(scene.convert('RGBA'),scene_rotation,scene_zoom,scene_skew,output_size=(width,height),offset_x=scene_x,offset_y=scene_y,content_padding=scene_padding)
@@ -190,13 +198,14 @@ def render_shards(template,color,tint,width,height,scene=None,rotation=0,scene_r
         result.putalpha(ImageChops.multiply(result.getchannel('A'),shard_selection(template,width,height,rotation,template_scale,template_x,template_y)))
     glass=Image.new('RGBA',result.size)
     for index,points in enumerate(rotated_polygons(template,width,height,rotation,template_scale,template_x,template_y)):
-        left=max(0,math.floor(min(x for x,y in points))-2)
-        top=max(0,math.floor(min(y for x,y in points))-2)
-        right=min(width,math.ceil(max(x for x,y in points))+3)
-        bottom=min(height,math.ceil(max(y for x,y in points))+3)
+        padding=max(2,math.ceil(2*unit)+2)
+        left=max(0,math.floor(min(x for x,y in points))-padding)
+        top=max(0,math.floor(min(y for x,y in points))-padding)
+        right=min(width,math.ceil(max(x for x,y in points))+padding+1)
+        bottom=min(height,math.ceil(max(y for x,y in points))+padding+1)
         if right<=left or bottom<=top:continue
-        local=[(x-left,y-top) for x,y in points]
-        shape=Image.new('L',(right-left,bottom-top));ImageDraw.Draw(shape).polygon(local,fill=255)
+        local=[((x-left)*sampling,(y-top)*sampling) for x,y in points]
+        shape=Image.new('L',((right-left)*sampling,(bottom-top)*sampling));ImageDraw.Draw(shape).polygon(local,fill=255)
         # Thin transparent panes, with a broad reflection across the face.
         surface=Image.new('RGBA',(32,32))
         pixels=[]
@@ -211,15 +220,17 @@ def render_shards(template,color,tint,width,height,scene=None,rotation=0,scene_r
         edge=ImageDraw.Draw(surface)
         cx=sum(x for x,y in local)/len(local);cy=sum(y for x,y in local)/len(local)
         inset=[(cx+(x-cx)*.94,cy+(y-cy)*.94) for x,y in local]
-        edge.line(local+[local[0]],fill=(8,20,35,125),width=max(1,round(4*unit)))
+        edge.line(local+[local[0]],fill=(8,20,35,125),width=max(1,round(4*unit*sampling)))
         for i,(start,end) in enumerate(zip(local,local[1:]+local[:1])):
             light=(end[0]-start[0])-(end[1]-start[1])>0
             bevel=tuple(min(255,round(c*.65+88)) for c in rgb) if light else tuple(round(c*.36) for c in rgb)
             edge.polygon([start,end,inset[(i+1)%len(inset)],inset[i]],fill=(*bevel,165 if light else 115))
-            edge.line([start,end],fill=(*([min(255,c+55) for c in rgb] if light else [round(c*.55) for c in rgb]),225 if light else 170),width=max(1,round(2.1*unit)))
-            edge.line([inset[i],inset[(i+1)%len(inset)]],fill=(245,255,255,200 if light else 65),width=max(1,round(.85*unit)))
+            edge.line([start,end],fill=(*([min(255,c+55) for c in rgb] if light else [round(c*.55) for c in rgb]),225 if light else 170),width=max(1,round(2.1*unit*sampling)))
+            edge.line([inset[i],inset[(i+1)%len(inset)]],fill=(245,255,255,200 if light else 65),width=max(1,round(.85*unit*sampling)))
         if template in ('radiant','spell','cascade','revelation'):
             # Traced glass has concave notches; keep its bevel inside the pane.
             surface.putalpha(ImageChops.multiply(surface.getchannel('A'),shape))
-        glass.alpha_composite(surface,(left,top))
+        # Downsample the glass as RGBA so edge colors stay clean on both light
+        # and dark artwork; the scene itself stays at its native resolution.
+        glass.alpha_composite(surface.resize((right-left,bottom-top),Image.Resampling.LANCZOS),(left,top))
     return Image.alpha_composite(result,glass)

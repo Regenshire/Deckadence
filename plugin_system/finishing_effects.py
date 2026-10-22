@@ -18,7 +18,8 @@ from .finishing_patterns import EFFECTS as PATTERN_EFFECTS, COLORS as PATTERN_CO
 from .mirror_shards import validate_shards, decode_scene, render_shards, transform_image
 
 CACHE_ROOT = Path(IMAGE_CACHE_DIR) / "finishing_effects"
-RENDER_VERSION = 22
+RENDER_VERSION = 23
+PARTICLE_PATH_EFFECTS = frozenset(('galaxy','confetti','glitter_1','glitter_2','glitter_3','halftone','stars','water_beads'))
 COLOR_DEFAULTS = {'stars':'#FFF4C3','halftone':'#121930','neon':'#46F5FF','mirror_shards':'#B8EFFF','chocobo_tracks':'#FFFFFF'}
 COLOR_DEFAULTS.update(PATTERN_COLORS)
 MATERIAL_PATH = Path(__file__).resolve().parents[1] / 'static/img/card-effects/fracture-foil-material-v1.png'
@@ -281,6 +282,19 @@ def _texture(finish, scale, density, seed, width, height, color='#FFE7A0'):
             elif finish=="stars":
                 star(x,y,r*13,(*chosen,245));dot(x,y,r*1.6,(255,255,255,255))
     return image
+
+
+def particle_selection(finish, width, height, scale=100, density=100, seed=0, rotation=0):
+    """Reuse rendered geometry at full coverage, before any painted selection."""
+    if finish not in PARTICLE_PATH_EFFECTS:
+        raise ValueError('This effect has no copyable particle shapes.')
+    if finish in ('galaxy','confetti','water_beads'):
+        alpha=render_material(finish,scale,density,seed,width,height,selection=True).getchannel('A')
+    else:
+        # These textures draw discrete shapes directly. Their varying opacity
+        # is lighting, not geometry; Copy Path keeps every shape at full strength.
+        alpha=_texture(finish,scale,density,seed,width,height).getchannel('A').point(lambda a:255 if a else 0)
+    return transform_image(alpha,rotation)
 
 
 def render_overlay(mask_png, effect, width=None):

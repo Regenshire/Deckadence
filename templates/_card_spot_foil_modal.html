@@ -45,6 +45,7 @@
             <span class="spot-card-other-overlay" data-spot-other-overlay hidden aria-hidden="true"></span>
             <div class="spot-card-area-guide" data-spot-area-guide hidden aria-hidden="true"><span>Art box limit</span></div>
             <span class="spot-card-brush-cursor" data-spot-cursor aria-hidden="true" hidden></span>
+            <span class="spot-card-marquee" data-spot-marquee aria-hidden="true" hidden></span>
           </div>
         </div>
         <div class="spot-card-zoom-controls">
@@ -131,10 +132,17 @@
             <button type="button" data-spot-tool="paint" aria-pressed="true">Paint <kbd>B</kbd></button>
             <button type="button" data-spot-tool="erase" aria-pressed="false">Erase <kbd>E</kbd></button>
             <button type="button" data-spot-tool="pan" aria-pressed="false">Pan <kbd>H</kbd></button>
+            <button type="button" data-spot-tool="marquee" aria-pressed="false">Marquee <kbd>M</kbd></button>
             <button type="button" data-spot-tool="wand" aria-pressed="false">Magic Wand <kbd>W</kbd></button>
             <button type="button" data-spot-tool="match" aria-pressed="false">Match Color <kbd>C</kbd></button>
             <button type="button" data-spot-tool="sample" aria-pressed="false">Sample <kbd>I</kbd></button>
           </div>
+          <div class="spot-card-marquee-actions">
+            <label class="spot-card-marquee-shape">Marquee shape <select data-spot-marquee-shape><option value="rectangle">Rectangle</option><option value="ellipse">Round / oval</option></select></label>
+            <button type="button" data-spot-deselect disabled>Deselect marquee</button>
+            <span class="spot-card-caption" data-spot-marquee-status>No marquee boundary</span>
+          </div>
+          <p class="spot-card-caption">Drag a marquee to limit brush, color selection, fill, clear, copy and paste. Hold Shift while drawing an oval for a circle. Paste fits inside the boundary. Esc deselects it; Delete clears inside. The boundary carries across tabs and is not saved or printed.</p>
           <label class="spot-card-range-label">Tool amount <output data-spot-tool-coverage-value>100%</output><input name="tool_coverage" type="range" min="1" max="100" value="100"></label>
           <div data-spot-color-tools hidden>
           <label>Selection action<select name="selection_action"><option value="add">Apply foil</option><option value="erase">Remove foil</option></select></label>
@@ -154,6 +162,7 @@
           </div>
           </div>
           <div data-spot-brush-tools>
+            <p class="spot-card-caption">Hold Shift for a horizontal stroke, or Ctrl for a vertical stroke. Release to paint freely.</p>
           <label>Brush shape<select name="brush_shape"><option value="round">Round</option><option value="square">Square</option></select></label>
           <label class="spot-card-range-label">Brush size <output data-spot-brush-value>40 px</output><input name="brush_size" type="range" min="2" max="160" value="40" step="2"></label>
           <label class="spot-card-range-label">Brush softness <output data-spot-brush-softness-value>Hard</output><input name="brush_softness" type="range" min="0" max="100" value="0" step="1"></label>

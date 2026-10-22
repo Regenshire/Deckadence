@@ -85,8 +85,24 @@ def material_placements(finish, scale, density, seed):
         yield variant,x,y,extent,angle,mirror
 
 
-def render_material(finish, scale, density, seed, width, height):
-    image=_galaxy_background(scale,density,seed,width,height) if finish=='galaxy' else Image.new('RGBA',(width,height))
+def _motif_selection(sprite):
+    """Opaque footprint, including transparent interiors of glass droplets."""
+    alpha=sprite.getchannel('A').point(lambda a:255 if a>16 else 0)
+    # Flood only the outside; enclosed clear centers belong to the droplet.
+    padded=Image.new('L',(alpha.width+2,alpha.height+2))
+    padded.paste(alpha,(1,1))
+    ImageDraw.floodfill(padded,(0,0),128)
+    alpha=padded.point(lambda a:0 if a==128 else 255).crop((1,1,alpha.width+1,alpha.height+1))
+    result=Image.new('RGBA',sprite.size,'white');result.putalpha(alpha)
+    return result
+
+
+def render_material(finish, scale, density, seed, width, height, *, selection=False):
+    if selection and finish=='confetti':
+        image=Image.new('RGBA',(width,height),'white')
+        image.putalpha(_confetti_grains(scale,density,seed,width,height,solid=True))
+        return image
+    image=_galaxy_background(scale,density,seed,width,height,selection=selection) if finish=='galaxy' else Image.new('RGBA',(width,height))
     variants=material_variants(finish)
     unit=width/756
     # Downsample once per asset, rather than resampling a large source thousands
@@ -95,7 +111,7 @@ def render_material(finish, scale, density, seed, width, height):
                           'water_beads':66,'frost':540,'galaxy':76}[finish]*scale/100*unit))
     prepared=[]
     for source in variants:
-        sprite=source.copy()
+        sprite=_motif_selection(source) if selection else source.copy()
         if finish=='confetti':
             # Keep bright grains, without painting a milky film over the art.
             sprite.putalpha(sprite.getchannel('A').point(lambda a:round(max(0,a-65)*1.15)))
@@ -120,7 +136,7 @@ def render_material(finish, scale, density, seed, width, height):
     return image
 
 
-def _confetti_grains(scale, density, seed, width, height):
+def _confetti_grains(scale, density, seed, width, height, *, solid=False):
     rng=random.Random(seed ^ 0x464C454B)
     # Supersample only the small grain mask; large print masks are native size.
     sampling=2 if width<=756 else 1
@@ -139,11 +155,12 @@ def _confetti_grains(scale, density, seed, width, height):
             a=angle+index*math.tau/5
             radius=extent*rng.uniform(.65,1)
             points.append(((x+math.cos(a)*radius)*unit,(y+math.sin(a)*radius*aspect)*height/1056*sampling))
-        draw.polygon(points,fill=rng.randint(220,255))
+        coverage=rng.randint(220,255)
+        draw.polygon(points,fill=255 if solid else coverage)
     return mask.resize((width,height),Image.Resampling.LANCZOS) if sampling>1 else mask
 
 
-def _galaxy_background(scale, density, seed, width, height):
+def _galaxy_background(scale, density, seed, width, height, *, selection=False):
     """A faint spectral sky behind the larger foil discs, never opaque ink."""
     rng=random.Random(seed ^ 0x47584C59)
     phase=rng.uniform(0,math.tau)
@@ -155,7 +172,7 @@ def _galaxy_background(scale, density, seed, width, height):
             glow=(math.sin(x*.14-y*.06+phase)+1)/2
             colors.append((round(35+50*shift),round(36+46*glow),round(110+70*glow),round(12+14*shift)))
     sky.putdata(colors)
-    image=sky.resize((width,height),Image.Resampling.BICUBIC)
+    image=Image.new('RGBA',(width,height)) if selection else sky.resize((width,height),Image.Resampling.BICUBIC)
     draw=ImageDraw.Draw(image)
     unit=width/756
     palette=((215,255,250),(100,242,255),(75,189,255),(220,226,255),(255,241,184))
@@ -166,5 +183,5 @@ def _galaxy_background(scale, density, seed, width, height):
         if index%19==0:radius*=2
         rgb=palette[rng.randrange(len(palette))]
         alpha=rng.randint(135,250)
-        draw.ellipse((x-radius,y-radius,x+radius,y+radius),fill=(*rgb,alpha))
+        draw.ellipse((x-radius,y-radius,x+radius,y+radius),fill=(255,255,255,255) if selection else (*rgb,alpha))
     return image

@@ -70,6 +70,11 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
 .spot-card-stage[data-tool="pan"] > canvas { cursor: grab; }
 .spot-card-stage[data-tool="pan"] > canvas:active { cursor: grabbing; }
 .spot-card-brush-cursor { position: absolute; border: 1px solid white; box-shadow: 0 0 0 1px #222; border-radius: 50%; transform: translate(-50%, -50%); z-index: 9; pointer-events: none; }
+.spot-card-marquee { position: absolute; box-sizing: border-box; border: 1px dashed white; outline: 1px solid #151515; z-index: 10; pointer-events: none; }
+.spot-card-stage[data-tool="marquee"] > canvas { cursor: crosshair; }
+.spot-card-marquee-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.spot-card-marquee-actions .spot-card-marquee-shape { display: flex; align-items: center; gap: 8px; margin: 0; }
+.spot-card-marquee-shape select { width: auto; }
 .spot-card-area-guide { position: absolute; left: 8%; top: 13%; width: 84%; height: 43%; border: 2px dashed var(--theme-highlight, var(--accent)); box-shadow: 0 0 0 1px #0008; z-index: 9; pointer-events: none; }
 .spot-card-area-guide span { position: absolute; top: 0; left: 0; padding: 3px 6px; background: var(--panel); color: var(--text); font-size: .7rem; border-radius: 0 0 5px 0; }
 .spot-card-zoom-controls { display: flex; align-items: center; gap: 8px; }

@@ -13,7 +13,7 @@ from flask import jsonify, request, send_file, url_for
 from PIL import Image, UnidentifiedImageError
 from .foil_workflows import WORKFLOWS, OUTPUTS, LAYER_TYPES, load_preferences, normalize_display_color
 from .manager import get_plugin_status, run_plugin_json
-from .finishing_effects import EFFECT_TYPES, validate_effect, parameters, render_overlay, cached_overlay, chocobo_selection
+from .finishing_effects import EFFECT_TYPES, validate_effect, parameters, render_overlay, cached_overlay, chocobo_selection, PARTICLE_PATH_EFFECTS, particle_selection
 from .finishing_patterns import PATH_EFFECTS, pattern_selection
 from .mirror_shards import TEMPLATES as SHARD_TEMPLATES, THEMES as MIRROR_THEMES, shard_selection
 from .mirror_generation import register_mirror_generation_routes, generator_ready
@@ -522,10 +522,12 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if not isinstance(payload, dict):
             raise ValueError('Provide the template and its size, rotation and position.')
         finish = payload.get('finish')
+        if not isinstance(finish,str):
+            raise ValueError('Choose an effect with a copyable path.')
         keys = {'finish','scale','rotation','width'}
         if finish == 'mirror_shards':
             keys |= {'template','x','y'}
-        elif finish in PATH_EFFECTS:
+        elif finish in PATH_EFFECTS or finish in PARTICLE_PATH_EFFECTS:
             keys |= {'density','seed'}
         elif finish != 'chocobo_tracks':
             raise ValueError('This effect does not have a copyable template path.')
@@ -537,7 +539,10 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if type(width) is not int or not MASK_SIZE[0] <= width <= MAX_MASK_SIZE[0]:
             raise ValueError('Choose a mask width from 756 to 3024 pixels.')
         height = round(width * MASK_SIZE[1] / MASK_SIZE[0])
-        if finish in PATH_EFFECTS:
+        if finish in PARTICLE_PATH_EFFECTS:
+            effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=payload['density'],seed=payload['seed'],rotation=payload['rotation']))
+            alpha=particle_selection(finish,width,height,effect['scale'],effect['density'],effect['seed'],effect['rotation'])
+        elif finish in PATH_EFFECTS:
             effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=payload['density'],seed=payload['seed'],
                                         rotation=payload['rotation'],position_x=payload.get('x',0),position_y=payload.get('y',0)))
             alpha=pattern_selection(finish,width,height,effect['scale'],effect['density'],effect['seed'],effect['rotation'],effect['position_x'],effect['position_y'])
