@@ -14540,15 +14540,16 @@ def build_chaos_pack_pdf(
 
     buffer = BytesIO()
     c = CutterCanvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
-    if any(pdf_settings.get(key) for key in ("include_spot_foil", "include_gloss", "include_effect1", "include_effect2")):
-        c.spot_foil_job = SpotFoilPdfJob(get_db_connection,
-                                       pdf_settings["spot_foil_pdf_output"], pdf_settings["spot_foil_pdf_tone"],
-                                       workflow=pdf_settings.get("spot_foil_workflow"),
-                                       include_white_inverse=pdf_settings.get("spot_foil_white_inverse", False),
-                                       include_foil=pdf_settings.get("include_spot_foil", False),
-                                       include_gloss=pdf_settings.get("include_gloss", False),
-                                       include_effect1=pdf_settings.get("include_effect1", False),
-                                       include_effect2=pdf_settings.get("include_effect2", False))
+    # Edit is part of the printable artwork, even with the finish plates off.
+    finishing_requested = any(pdf_settings.get(key) for key in ("include_spot_foil", "include_gloss", "include_effect1", "include_effect2"))
+    c.spot_foil_job = SpotFoilPdfJob(get_db_connection,
+                                   pdf_settings["spot_foil_pdf_output"] if finishing_requested else "spot_pdf", pdf_settings["spot_foil_pdf_tone"],
+                                   workflow=pdf_settings.get("spot_foil_workflow"),
+                                   include_white_inverse=pdf_settings.get("spot_foil_white_inverse", False),
+                                   include_foil=pdf_settings.get("include_spot_foil", False),
+                                   include_gloss=pdf_settings.get("include_gloss", False),
+                                   include_effect1=pdf_settings.get("include_effect1", False),
+                                   include_effect2=pdf_settings.get("include_effect2", False))
     c.setTitle(
         str(
             pack_display_name
@@ -16647,11 +16648,11 @@ def build_chaos_card_image_export_zip(
 
     enabled_effects = [layer for layer in ("effect1", "effect2")
                        if has_request_context() and getattr(g, "print_export_"+layer, False)]
-    effects_job = SpotFoilPdfJob(get_db_connection, include_foil=False) if enabled_effects else None
+    effects_job = SpotFoilPdfJob(get_db_connection, include_foil=False)
 
     def finishing_layers(entry, card):
         record = effects_job.record_for(dict(entry, card_row=card)) if effects_job else None
-        return [record[layer] for layer in enabled_effects if record and record.get(layer)]
+        return [record[layer] for layer in ['edit',*enabled_effects] if record and record.get(layer)]
 
     update_print_export_progress(
         "generate",

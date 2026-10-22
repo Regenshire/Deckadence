@@ -41,6 +41,7 @@ img:is(.card-image, .card-zoom-image, .card-search-preview-image,
 /* Preview stack: artwork, printable Effect 1/2, foil, then raised gloss.
    Mask wrappers must occupy the same level as unmasked foil layers. */
 .card-effects > img { position: relative; z-index: 0; }
+.card-art-edit-layer { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; background: center / 100% 100% no-repeat; z-index: 0; }
 /* The grid fades lazy artwork in. A separately composited opacity animation
    can leave backdrop filters showing a stale image after that fade ends. */
 .card-effects[data-card-printed-backdrop] > img { transition: none; }

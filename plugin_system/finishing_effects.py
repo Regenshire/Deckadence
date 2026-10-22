@@ -372,7 +372,7 @@ def composite_effects(image, layers, trim_size=None, *, extend_bleed=False):
     size=trim_size or image.size
     offset=((image.width-size[0])//2,(image.height-size[1])//2)
     for layer in layers:
-        overlay=Image.open(BytesIO(render_overlay(layer['png'],parameters(layer),min(3024,size[0]))))
+        overlay=Image.open(BytesIO(layer['png'] if layer.get('finish')=='art_edit' else render_overlay(layer['png'],parameters(layer),min(3024,size[0]))))
         overlay=overlay.resize(size,Image.Resampling.LANCZOS)
         if extend_bleed and size != image.size:
             # Continue the edge pixels into print bleed, matching the artwork.

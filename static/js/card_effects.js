@@ -34,6 +34,7 @@
   const spotMasks = new WeakMap();
   const glossMasks = new WeakMap();
   const printedEffects = new WeakMap();
+  const artEdits = new WeakMap();
   const glossReliefs = new WeakMap();
   let glossFilterId = 0;
   const moving = new Set();
@@ -64,7 +65,7 @@
     }
     surface.dataset.cardEffectFinish = finishFor(surface);
     if (surface.dataset.cardEffectFinish === "chocobo") applyCustomPlacement(surface);
-    if (states.has(surface)) { syncSpotMask(surface); syncGloss(surface); syncPrintedEffects(surface); return states.get(surface); }
+    if (states.has(surface)) { syncSpotMask(surface); syncGloss(surface); syncArtEdit(surface); syncPrintedEffects(surface); return states.get(surface); }
     surface.classList.add("card-effects");
     // Grid/stack views clone card DOM; copied layers have no animation state.
     surface.querySelectorAll(":scope > .card-effect-layer, :scope > .card-spot-clip, :scope > .card-gloss-layer, :scope > .card-printed-effect, :scope > .card-printed-glaze").forEach(layer => layer.remove());
@@ -76,6 +77,7 @@
     }
     const state = {surface, x:0, y:0, tx:0, ty:0, vx:0, vy:0, light:0, targetLight:0, bounds:null};
     states.set(surface, state);
+    syncArtEdit(surface);
     syncSpotMask(surface);
     syncGloss(surface);
     syncPrintedEffects(surface);
@@ -109,6 +111,13 @@
     else spotMasks.delete(surface);
     attach(surface);
   }
+  function syncArtEdit(surface) {
+    let layer=surface.querySelector(':scope > .card-art-edit-layer');const url=artEdits.get(surface);
+    if(!url){layer?.remove();return;}
+    if(!layer){layer=document.createElement('span');layer.className='card-art-edit-layer';layer.setAttribute('aria-hidden','true');surface.querySelector('img').after(layer);}
+    layer.style.backgroundImage=`url("${url}")`;
+  }
+  function setArtEdit(surface,url){if(!surface)return;if(url)artEdits.set(surface,url);else artEdits.delete(surface);attach(surface);}
   function syncPrintedEffects(surface) {
     const values=printedEffects.get(surface)||[];
     // Backdrop-dependent art must remain in the same paint group as its
@@ -336,7 +345,7 @@
     }
     if (!source) {
       const previous = zoomImage.closest(selector);
-      if (previous) { setSpotFoil(previous, null); setGloss(previous, null); setPrintedEffects(previous, []); attach(previous, {finish: "normal"}); }
+      if (previous) { setArtEdit(previous,null); setSpotFoil(previous, null); setGloss(previous, null); setPrintedEffects(previous, []); attach(previous, {finish: "normal"}); }
       return;
     }
     let surface = zoomImage.closest(selector);
@@ -348,6 +357,7 @@
     }
     setSpotFoil(surface, spotMasks.get(source) || null);
     setGloss(surface, glossMasks.get(source) || null);
+    setArtEdit(surface, artEdits.get(source) || null);
     setPrintedEffects(surface, printedEffects.get(source) || []);
     const state = attach(surface, {finish: finishFor(source)});
     reset(state);
@@ -399,7 +409,7 @@
       }
     }
   }
-  window.DeckadenceCardEffects = {attach, enhance, applyMetadata, copyToZoom, flip, reset:resetAll, setSpotFoil, setGloss, setPrintedEffects, setInteractive};
+  window.DeckadenceCardEffects = {attach, enhance, applyMetadata, copyToZoom, flip, reset:resetAll, setSpotFoil, setGloss, setPrintedEffects, setArtEdit, setInteractive};
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, {once:true});
   else start();
 })();

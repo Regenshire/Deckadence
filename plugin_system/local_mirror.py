@@ -245,7 +245,7 @@ class LocalMirror:
             if selected:
                 write_json(self.root / 'active.json', dict(selected, enabled=False))
 
-    def generate(self, *, image, mask, theme, prompt, seed, cancel, compact_prompt=None, negative_prompt=None, canvas_size=None, image_box=None, outpaint_prompt=None, outpaint_description=None, outpaint_margin=0, background_prompt=None, background_description=None, background_negative=None):
+    def generate(self, *, image, mask, theme, prompt, seed, cancel, compact_prompt=None, negative_prompt=None, canvas_size=None, image_box=None, outpaint_prompt=None, outpaint_description=None, outpaint_margin=0, background_prompt=None, background_description=None, background_negative=None, edit_mode=None):
         selected = self.active()
         if not selected:
             raise LocalMirrorError('Download and enable a local AI model in Card Finishing Studio settings.')
@@ -264,6 +264,7 @@ class LocalMirror:
                 payload = dict(selected, model_path=str(self.model_path(selected['model'])), prompt=model_prompt, seed=seed,
                                image=str(folder / 'source.png'), mask=str(folder / 'mask.png'), output=str(folder / 'scene.png'))
                 if negative_prompt: payload['negative_prompt'] = negative_prompt
+                if edit_mode:payload['edit_mode']=edit_mode
                 if canvas_size is not None:
                     from .mirror_shards import expanded_scene_geometry
                     expanded_size,padding=expanded_scene_geometry(canvas_size,outpaint_margin)

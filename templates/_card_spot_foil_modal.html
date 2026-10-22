@@ -57,11 +57,13 @@
       </section>
       <section class="spot-card-controls" aria-label="Card finishing controls">
         <div class="spot-card-layer-switch" role="group" aria-label="Editing layer">
+          <button type="button" data-spot-edit-tab aria-pressed="false">Edit</button>
           <button type="button" data-spot-layer="effect1" aria-pressed="false">Effect 1</button>
           <button type="button" data-spot-layer="effect2" aria-pressed="false">Effect 2</button>
           <button type="button" data-spot-layer="mask" aria-pressed="true">Foil Mask</button>
           <button type="button" data-spot-layer="gloss" aria-pressed="false">Gloss</button>
         </div>
+        {% include '_card_art_edit_panel.html' %}
         <details class="spot-card-step is-active" data-spot-step="automatic" open>
           <summary>1 · Automatic selection</summary>
         <fieldset data-spot-edit-controls disabled aria-label="Automatic selection">

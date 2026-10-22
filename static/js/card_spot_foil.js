@@ -379,7 +379,9 @@
     },180);
   }
   async function switchLayer(layer) {
-    if(layer===editingLayer || !ready || busy || activeStroke)return;
+    if(!ready || busy || activeStroke)return;
+    if(artEditor.active){artEditor.setActive(false);setLayerLabels();setView(view);}
+    if(layer===editingLayer)return;
     const token=session;layerDrafts[editingLayer]=captureLayer();const draft=layerDrafts[layer];
     ready=false;controls();
     try {
@@ -400,6 +402,13 @@
   }
   dialog.querySelectorAll("[data-spot-layer]").forEach(button=>button.addEventListener("click",()=>switchLayer(button.dataset.spotLayer)));
   let artworkColors = [], recentColors = [], maskArea = "0";
+  const artEditor=window.DeckadenceArtEditor.create({dialog,stage,image,viewport,
+    onChange:()=>{if(ready&&current){renderMask();controls();message('Unsaved artwork edits.');}},
+    onBusy:value=>{busy=value;controls();},onMessage:text=>message(text)});
+  dialog.querySelector('[data-spot-edit-tab]').addEventListener('click',()=>{
+    if(!ready||busy||activeStroke)return;
+    artEditor.setActive(true);dialog.querySelectorAll('[data-spot-layer]').forEach(b=>b.setAttribute('aria-pressed','false'));controls();message('Editing artwork. Paint, select an area, or add text.');
+  });
   const keyFor = target => `${target.card_uuid}/${target.face}`;
   const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("deckadence-spot-foil") : null;
 
@@ -478,6 +487,7 @@
     const baked=applyBakedArt(info,record);
     const surface = info.img.closest("[data-card-effects], .deckbuilder-card-image-wrap, .custom-draft-current-card-image-wrap, .chaos-pack-view-image-wrap");
     if (surface) {
+      effects.setArtEdit(surface,baked?null:record?.edit?.image_url);
       effects.setSpotFoil(surface, record && record.foil_enabled!==false ? {maskUrl: record.mask_url, finish: record.finish, strength: record.strength} : null);
       effects.setGloss(surface, record?.gloss ? {maskUrl:record.gloss.mask_url,finish:record.gloss.finish,strength:record.gloss.strength} : null);
       effects.setPrintedEffects(surface,baked?[]:["effect1","effect2"].map(layer=>record?.[layer]?.overlay_url?{
@@ -575,8 +585,10 @@
     const painting = Boolean(activeStroke && !activeStroke.pan);
     dialog.querySelectorAll("[data-spot-edit-controls]").forEach(el => {el.disabled = !ready || busy || painting;});
     dialog.querySelector("[data-spot-apply]").disabled = fields.selection_mode.value === "none";
-    save.disabled = !ready || busy || painting || (!hasInk && !maskReviewed && !current?.record && !removal && !Object.values(layerDrafts).some(draft=>draft.enabled||draft.removal));
-    dialog.querySelectorAll("[data-spot-layer]").forEach(button=>button.disabled=!ready||busy||Boolean(activeStroke));
+    artEditor.setDisabled(!ready||busy||painting);
+    dialog.querySelector('[data-spot-edit-tab]').disabled=!ready||busy||painting;
+    save.disabled = !ready || busy || painting || artEditor.pending || (!artEditor.dirty && !hasInk && !maskReviewed && !current?.record && !removal && !Object.values(layerDrafts).some(draft=>draft.enabled||draft.removal));
+    dialog.querySelectorAll("[data-spot-layer]").forEach(button=>button.disabled=!ready||busy||Boolean(activeStroke)||artEditor.pending);
     dialog.querySelector("[data-spot-invert]").disabled = !ready || busy || painting;
     dialog.querySelector("[data-spot-undo]").disabled = !ready || busy || painting || historyIndex <= 0;
     dialog.querySelector("[data-spot-pocket-undo]").disabled = !ready || busy || painting || historyIndex <= 0;
@@ -848,7 +860,7 @@
     syncPreviewInteraction();
   }
   function syncPreviewInteraction() {
-    const enabled = ready && !busy && !showingText && !showingFrame && tool === "pan" && view === "effect" && !activeStroke;
+    const enabled = ready && !busy && !artEditor.active && !showingText && !showingFrame && tool === "pan" && view === "effect" && !activeStroke;
     stage.dataset.tilt = String(enabled);
     effects.setInteractive(stage, enabled);
   }
@@ -866,6 +878,7 @@
   }
   function setView(value) {
     view = value; stage.dataset.view = view;
+    artEditor.showOriginal(view==='original');
     syncPreviewInteraction();
     dialog.querySelectorAll("[data-spot-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.spotView === view)));
   }
@@ -957,6 +970,10 @@
       for(const layer of ["effect1","effect2"])layerDrafts[layer]=effectDraft(record?.[layer],layerDrafts.mask,layer);
       await switchLayer("effect1");
       if(token!==session||current?.artworkChanged)return;
+      ready=false;controls();
+      await artEditor.load(record?.edit,image,mask.width,apiUrl(endpoint(current.target)+'/art-generation'));
+      if(token!==session||current?.artworkChanged)return;
+      ready=true;renderMask();controls();
       dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%";
       dialog.querySelector("[data-spot-scope]").textContent = payload.image_scope.is_isolated
         ? "Isolation on · saved only in this collection"
@@ -978,6 +995,7 @@
     dialog.close();
   }
   function releaseEditor() {
+    artEditor.release();
     if(artDialog.open)artDialog.close();artImage.removeAttribute("src");
     cancelMirrorGeneration();
     mirrorSelectionCache=null;
@@ -992,7 +1010,7 @@
   dialog.addEventListener("close", () => {if (!dialog.open && current) releaseEditor();});
   dialog.addEventListener("cancel", event => {
     if(busy||activeStroke)event.preventDefault();
-    else if(marquee){event.preventDefault();deselectMarquee();}
+    else if(!artEditor.active&&marquee){event.preventDefault();deselectMarquee();}
   });
   dialog.querySelectorAll("[data-spot-close]").forEach(button => button.addEventListener("click", closeEditor));
   dialog.querySelectorAll("[data-spot-tool]").forEach(button => button.addEventListener("click", () => setTool(button.dataset.spotTool)));
@@ -1494,7 +1512,7 @@
   for (const name of ["pointerup", "pointercancel", "lostpointercapture"]) canvas.addEventListener(name, endStroke);
   canvas.addEventListener("pointerleave", () => {cursor.hidden = true;});
   dialog.addEventListener("keydown", event => {
-    if (!ready || busy || activeStroke || /INPUT|SELECT|TEXTAREA/.test(event.target.tagName)) return;
+    if (artEditor.active || !ready || busy || activeStroke || /INPUT|SELECT|TEXTAREA/.test(event.target.tagName)) return;
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {event.preventDefault(); travelHistory(event.shiftKey ? 1 : -1);}
     else if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "y") {event.preventDefault(); travelHistory(1);}
     else if(event.key==='Escape'&&marquee){event.preventDefault();deselectMarquee();}
@@ -1529,7 +1547,7 @@
     try {
       layerDrafts[editingLayer]=captureLayer();
       const foil=layerDrafts.mask;
-      const layerPayloads={};
+      const layerPayloads={edit:artEditor.payload()};
       for(const layer of ["gloss","effect1","effect2"]) {
         const draft=layerDrafts[layer];let png=draft.png;
         if(draft.enabled&&png&&!png.startsWith("data:")) {
@@ -1540,7 +1558,7 @@
           ...(layer.startsWith("effect")?effectParams(draft.values):{})}:null;
       }
       if(current?.artworkChanged)throw new Error("Artwork changed. Close and reopen before saving.");
-      const removeAll=!Object.values(layerDrafts).some(draft=>draft.enabled);
+      const removeAll=!layerPayloads.edit&&!Object.values(layerDrafts).some(draft=>draft.enabled);
       const body=removeAll ? {revision:current.record?.revision||null,all_layers:true} : {
         finish:foil.values.finish,strength:Number(foil.values.strength),artwork_signature:current.signature,
         generation:foil.generation,mask_data:foil.png,foil_enabled:foil.enabled,revision:current.record?.revision||null,...layerPayloads,

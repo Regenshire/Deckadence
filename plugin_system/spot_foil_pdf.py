@@ -180,6 +180,8 @@ class SpotFoilPdfJob:
                 record = dict(workflow_id=self.workflow_id, revision=row['revision'],
                               options=dict(self.options), layer='mask', enabled=settings.get('foil_enabled', True),
                               png=base64.b64decode(row['mask_png_base64']))
+                if settings.get('edit'):
+                    record['edit']=dict(finish='art_edit',png=base64.b64decode(settings['edit']['png_base64']))
                 for layer in self.include_effects:
                     if settings.get(layer):
                         record[layer] = dict(settings[layer], revision=row['revision']+':'+layer,
@@ -211,6 +213,7 @@ class SpotFoilPdfJob:
         record = self.record_for(entry)
         layers = [record[layer] for layer, enabled in self.include_effects.items()
                   if enabled and record and record.get(layer)]
+        if record and record.get('edit') and not self.mask_only:layers.insert(0,record['edit'])
         if not layers:
             return artwork, False
         from reportlab.lib.utils import ImageReader
@@ -230,6 +233,8 @@ class SpotFoilPdfJob:
         return ImageReader(result.convert('CMYK')), True
 
     def finish(self, source, allow_empty=False):
+        if not (self.include_foil or self.include_gloss or any(self.include_effects.values())) and not self.has_baked_artwork:
+            return source
         if not self.placements and not self.effect_placements and not self.has_baked_artwork and not allow_empty:
             raise ValueError('No saved finishing layers were found. Save a Foil Mask, Gloss, or Effect layer first, or turn off those layers in Print / Export.')
         channels = {(r['options']['spot_name'], r['options']['layer_type']) for _, r, *_ in self.placements}

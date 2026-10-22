@@ -151,6 +151,25 @@ def generate(request):
             negative_prompt='collage, new text, watermark, changed pose, extra limbs, distorted face')
     if request.get('negative_prompt') and model in ('instruct_pix2pix','sd15','sdxl'):
         arguments['negative_prompt']=request['negative_prompt']
+    if request.get('edit_mode'):
+        with Image.open(request['mask']) as supplied_mask:
+            edit_mask=supplied_mask.getchannel('A').resize(size,Image.Resampling.LANCZOS)
+        if model in ('sd15','sdxl','sd_turbo'):
+            from diffusers import StableDiffusionInpaintPipeline,StableDiffusionXLInpaintPipeline
+            pipe.remove_all_hooks()
+            cls=StableDiffusionXLInpaintPipeline if model=='sdxl' else StableDiffusionInpaintPipeline
+            pipe=cls.from_pipe(pipe,torch_dtype=dtype);pipe.set_progress_bar_config(disable=True)
+            if device=='cuda':pipe.enable_model_cpu_offload()
+            else:pipe.to('cpu')
+            arguments.update(mask_image=edit_mask,height=size[1],width=size[0],strength=1.0)
+        elif request['edit_mode']=='remove_text':
+            # Instruction models receive a clean hole instead of the letters
+            # they would otherwise tend to reproduce. AI fills it using context.
+            from PIL import ImageStat,ImageChops
+            outside=ImageChops.invert(edit_mask)
+            rgb=tuple(round(v) for v in ImageStat.Stat(reference,outside).mean) if outside.getbbox() else (128,128,128)
+            arguments['image']=Image.composite(Image.new('RGB',size,rgb),reference,edit_mask)
+            arguments['prompt']='Fill the blank region with the surrounding background. '+request['prompt']
     with torch.inference_mode():result=rendered_image(pipe(**arguments))
     if canvas_size:
         if model!='flux_klein':

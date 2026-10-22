@@ -75,6 +75,15 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
 .spot-card-marquee-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .spot-card-marquee-actions .spot-card-marquee-shape { display: flex; align-items: center; gap: 8px; margin: 0; }
 .spot-card-marquee-shape select { width: auto; }
+.spot-card-dialog.is-art-editing .spot-card-controls > :not(.spot-card-layer-switch):not([data-art-edit-panel]) { display: none; }
+.is-art-editing :is(.spot-card-mask-transfer, .spot-card-history, .spot-card-preview-tabs, [data-spot-preview-help], [data-spot-overlay-legend], [data-spot-remove]) { display: none !important; }
+.spot-card-stage[data-art-editing="true"] > :not(img):not([data-art-surface]) { visibility: hidden !important; }
+.spot-card-stage > canvas[data-art-surface] { z-index: 12; opacity: 1; visibility: visible; cursor: crosshair; }
+.art-edit-palette { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.art-edit-palette input[type="color"] { width: 32px; height: 32px; padding: 2px; }
+[data-art-edit-panel] fieldset { margin: 14px 0; }
+[data-art-edit-panel] textarea { width: 100%; box-sizing: border-box; resize: vertical; }
+[data-art-edit-panel] .spot-card-fields-grid > button { align-self: end; min-height: 36px; }
 .spot-card-area-guide { position: absolute; left: 8%; top: 13%; width: 84%; height: 43%; border: 2px dashed var(--theme-highlight, var(--accent)); box-shadow: 0 0 0 1px #0008; z-index: 9; pointer-events: none; }
 .spot-card-area-guide span { position: absolute; top: 0; left: 0; padding: 3px 6px; background: var(--panel); color: var(--text); font-size: .7rem; border-radius: 0 0 5px 0; }
 .spot-card-zoom-controls { display: flex; align-items: center; gap: 8px; }
@@ -221,3 +230,16 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
   .spot-finish-controls.is-printable .spot-card-check, .spot-card-dialog [data-spot-copy-path] { min-height: 44px; }
   .spot-finish-controls [data-spot-effect-color-controls] .spot-card-swatch { width: 44px; height: 44px; min-height: 44px; flex-basis: 44px; }
 }
+@font-face { font-family: 'Beleren Proxy'; src: url('../fonts/BelerenProxy-Bold.ttf') format('truetype'); font-weight: 400 900; font-display: block; }
+@font-face { font-family: 'Plantin MT Pro'; src: url('../fonts/PlantinMTProRg.TTF') format('truetype'); font-display: block; }
+@font-face { font-family: 'Plantin MT Pro'; src: url('../fonts/PlantinMTProRgIt.TTF') format('truetype'); font-style: italic; font-display: block; }
+@font-face { font-family: 'Plantin MT Pro'; src: url('../fonts/PlantinMTProBold.TTF') format('truetype'); font-weight: 700; font-display: block; }
+@font-face { font-family: 'Plantin MT Pro'; src: url('../fonts/PlantinMTProSemiBdIt.TTF') format('truetype'); font-weight: 700; font-style: italic; font-display: block; }
+@font-face { font-family: 'Beleren Small Caps'; src: url('../fonts/Beleren Small Caps.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'ProxyGlyph'; src: url('../fonts/Proxyglyph.ttf') format('truetype'); font-display: block; }
+.art-symbol-anchor { position: relative; margin: 8px 0; }
+.art-symbol-picker { position: absolute; inset: 100% auto auto 0; width: min(360px,100%); max-height: 340px; overflow: auto; padding: 12px; border: 1px solid var(--border); background: var(--panel, #202329); box-shadow: 0 10px 30px #0008; border-radius: 10px; z-index: 20; }
+.art-symbol-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(40px,1fr)); gap: 5px; margin-top: 10px; }
+.art-symbol-grid button { min-width: 0; padding: 4px; }
+.art-symbol-grid canvas { width: 30px; height: 30px; display: block; margin: auto; }
+.spot-card-stage[data-art-editing="true"] > [data-art-surface] { opacity: 1; visibility: visible; touch-action: none; }

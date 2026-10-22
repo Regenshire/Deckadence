@@ -18,6 +18,7 @@ from .finishing_patterns import PATH_EFFECTS, pattern_selection
 from .mirror_shards import TEMPLATES as SHARD_TEMPLATES, THEMES as MIRROR_THEMES, shard_selection
 from .mirror_generation import register_mirror_generation_routes, generator_ready
 from .finishing_bakes import artwork_layers, cached_artwork
+from .art_edit import validate_edit, register_art_edit_routes
 
 MASK_SIZE = (756, 1056)
 MAX_MASK_SIZE = (3024, 4224)
@@ -111,6 +112,13 @@ def record_json(row, key):
         return None
     owner = {name: request.args[name] for name in ("image_owner_kind", "image_owner_id") if name in request.args}
     settings = json.loads(row["settings"])
+    if settings.get('edit'):
+        edit=dict(settings['edit']);edit.pop('png_base64',None);edit.pop('paint_png_base64',None)
+        edit['image_url']=url_for('card_art_edit_image',card_uuid=key[1],face=key[2],kind='image',expected_scope=key[0],revision=row['revision'],**owner)
+        edit['paint_url']=url_for('card_art_edit_image',card_uuid=key[1],face=key[2],kind='paint',expected_scope=key[0],revision=row['revision'],**owner)
+        if request.endpoint=='card_spot_foil_lookup':
+            edit={key:edit[key] for key in ('version','image_url')}
+        settings['edit']=edit
     for layer in ("gloss", "effect1", "effect2"):
         if not settings.get(layer):
             continue
@@ -128,7 +136,7 @@ def record_json(row, key):
         settings[layer] = value
     baked_url = (url_for("card_finishing_baked_art", card_uuid=key[1], face=key[2],
                         expected_scope=key[0], revision=row["revision"], **owner)
-                 if any(settings.get(layer) for layer in ("effect1", "effect2")) else None)
+                 if any(settings.get(layer) for layer in ("edit", "effect1", "effect2")) else None)
     return {**settings, "revision": row["revision"], "baked_url": baked_url,
             "mask_url": url_for("card_spot_foil_mask", card_uuid=key[1], face=key[2],
                                 expected_scope=key[0], revision=row["revision"], **owner)}
@@ -212,7 +220,7 @@ def validate_generation(value):
 
 def validate_settings(payload):
     if not isinstance(payload, dict) or set(payload) - {
-        "workflow_id", "workflow_options", "finish", "strength", "mask_data", "revision", "artwork_signature", "generation", "foil_enabled", "gloss", "effect1", "effect2",
+        "workflow_id", "workflow_options", "finish", "strength", "mask_data", "revision", "artwork_signature", "generation", "foil_enabled", "gloss", "effect1", "effect2", "edit",
     }:
         raise ValueError("Provide valid card spot-foiling settings.")
     # Accept legacy clients' workflow keys, but never save print-job settings
@@ -227,6 +235,7 @@ def validate_settings(payload):
         raise ValueError("Reload the card artwork before saving.")
     generation = validate_generation(payload.get("generation", {}))
     result = {"finish": finish, "strength": strength, "artwork_signature": signature, "generation": generation}
+    if 'edit' in payload:result['edit']=validate_edit(payload['edit'])
     if "foil_enabled" in payload:
         if type(payload["foil_enabled"]) is not bool:
             raise ValueError("Choose a valid mask layer state.")
@@ -260,6 +269,20 @@ def validate_settings(payload):
 
 def register_card_spot_foil_routes(app, get_connection, get_config, resolve_context, api_errors, isolation_operation, load_artwork=None):
     register_mirror_generation_routes(app,get_connection,resolve_context,api_errors,decode_mask,card_key)
+    register_art_edit_routes(app,get_connection,resolve_context,api_errors,decode_mask,card_key)
+    @app.get('/cards/spot-foil/<card_uuid>/<face>/edit-image/<kind>')
+    @api_errors
+    def card_art_edit_image(card_uuid,face,kind):
+        card=card_key(dict(card_uuid=card_uuid,face=face))
+        if kind not in ('image','paint'):raise ValueError('Choose an Edit image.')
+        with closing(get_connection()) as conn,conn:
+            ensure_schema(conn);context=resolve_context(conn,False)
+            row=read_record(conn,(context.scope_id or 'global',*card))
+            edit=json.loads(row['settings']).get('edit') if row else None
+        if not edit:raise LookupError('No Edit layer is saved.')
+        response=send_file(BytesIO(base64.b64decode(edit['png_base64' if kind=='image' else 'paint_png_base64'])),mimetype='image/png')
+        response.cache_control.no_cache=True
+        return response
     # The app supplies its normal, scope-aware original-art resolver. Never load
     # a browser-provided URL or another baked image as the source.
     def bake(card, context, settings):
@@ -310,7 +333,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         settings = mask = payload = None
         writing = request.method != "GET"
         if writing:
-            if request.content_length and request.content_length > 136_500_000:
+            if request.content_length and request.content_length > 200_500_000:
                 return jsonify(ok=False, message="The card finish images are too large."), 413
             payload = request.get_json(silent=True)
             if not isinstance(payload, dict) or "revision" not in payload:
@@ -334,7 +357,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
                     raise RuntimeError("Spot foiling changed in another editor. Close and reopen this card to load the latest version.")
                 if request.method == "DELETE":
                     old = json.loads(row["settings"]) if row else {}
-                    if any(old.get(layer) for layer in ("gloss", "effect1", "effect2")) and not payload.get("all_layers"):
+                    if any(old.get(layer) for layer in ("edit", "gloss", "effect1", "effect2")) and not payload.get("all_layers"):
                         old["foil_enabled"] = False
                         conn.execute("UPDATE card_spot_foil SET settings=?, revision=? WHERE scope_token=? AND card_uuid=? AND face=?",
                                      (json.dumps(old, allow_nan=False), uuid4().hex, *key))
@@ -345,7 +368,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
                 else:
                     # Older clients must not erase layers they do not understand.
                     previous = json.loads(row["settings"]) if row else {}
-                    for layer in ("gloss", "effect1", "effect2"):
+                    for layer in ("edit", "gloss", "effect1", "effect2"):
                         if layer not in payload and previous.get(layer):
                             settings[layer] = previous[layer]
                     conn.execute("INSERT OR REPLACE INTO card_spot_foil VALUES (?,?,?,?,?,?)",
@@ -356,7 +379,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if request.method == "PUT":
             # Disposable view caches are optional: a cache error must never turn
             # a successful atomic save into a misleading save failure.
-            if any(settings.get(layer) for layer in ("effect1", "effect2")):
+            if any(settings.get(layer) for layer in ("edit", "effect1", "effect2")):
                 try:
                     if load_artwork or app.config.get("FINISHING_ARTWORK_LOADER"):
                         bake(card, context, settings)

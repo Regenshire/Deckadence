@@ -1,0 +1,66 @@
+<div data-art-edit-panel hidden>
+  <p class="spot-card-caption">Edit v1 · Paint and text sit above the original art and below the effect layers. Included in views, prints and exports.</p>
+  <div class="spot-card-button-row"><button type="button" data-art-undo>↶ Undo</button><button type="button" data-art-redo>↷ Redo</button><button type="button" data-art-clear>Clear Edit layer</button></div>
+  <fieldset data-art-controls><legend>Tools and selection</legend>
+    <div class="spot-card-tools">
+      {% for key,label in [('paint','Paint'),('erase','Erase edits'),('bucket','Paint bucket'),('wand','Magic Wand'),('match','Color Match'),('rectangle','Rectangle'),('ellipse','Round / oval'),('text','Text'),('pan','Pan')] %}
+      <button type="button" data-art-tool="{{ key }}" aria-pressed="false">{{ label }}</button>
+      {% endfor %}
+    </div>
+    <div class="spot-card-fields-grid">
+      <label>Selection mode<select data-art-selection-mode><option value="replace">Replace</option><option value="add">Add</option><option value="subtract">Subtract</option></select></label>
+      <label>Color tolerance<input type="number" min="0" max="128" value="32" data-art-tolerance></label>
+      <label>Brush size<input type="range" min="2" max="160" value="30" data-art-size></label>
+      <label>Paint opacity<input type="range" min="1" max="100" value="100" data-art-opacity></label>
+    </div>
+    <div class="spot-card-button-row"><button type="button" data-art-select-all>Select all</button><button type="button" data-art-deselect>Deselect</button><button type="button" data-art-clear-selected>Clear selected edits</button></div>
+    <label class="spot-card-check"><input type="checkbox" checked data-art-show-selection> Show selection</label>
+    <p class="spot-card-caption" data-art-selection-status>No selection · painting is unrestricted.</p>
+    <p class="spot-card-caption">Shift locks painting horizontally; Ctrl locks vertically. Shift makes a round marquee circular. Erase restores the original art beneath your edits.</p>
+  </fieldset>
+  <fieldset data-art-controls><legend>Colors</legend>
+    <label class="spot-card-color-picker">Paint / text color <input type="color" value="#FFFFFF" data-art-color></label>
+    <div class="art-edit-palette" data-art-palette></div>
+    <div class="spot-card-button-row"><button type="button" data-art-add-color>Add color</button><button type="button" data-art-remove-color>Remove color</button><button type="button" data-art-pick>Pick from art</button></div>
+    <div class="spot-card-button-row"><button type="button" data-art-fill>Fill selection</button><button type="button" data-art-recolor>Recolor selection</button></div>
+    <p class="spot-card-caption">Edit a palette swatch to change its color. Recolor keeps the artwork's light and dark detail.</p>
+  </fieldset>
+  <fieldset data-art-controls><legend>Text</legend>
+    <div class="spot-card-fields-grid">
+      <label>Text block<select data-art-text-preset>{% for key,label in [('title','Card title'),('mana','Mana cost'),('type','Type line'),('rules','Rules text'),('flavor','Flavor text'),('artist','Artist credit'),('legal','Bottom / legal text'),('power','Power / toughness'),('custom','Custom text')] %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+      <button type="button" data-art-reset-text>Reset block defaults</button>
+    </div>
+    <label>Text item<select data-art-text-list><option value="-1">New text</option></select></label>
+    <label>Text<textarea rows="3" maxlength="2000" data-art-text placeholder="Enter text. Use Symbols or right-click to insert mana and other symbols."></textarea></label>
+    <div class="art-symbol-anchor">
+      <button type="button" data-art-symbols aria-expanded="false">Symbols ▾</button>
+      <section class="art-symbol-picker" data-art-symbol-picker hidden aria-label="Magic symbols">
+        <div class="spot-card-button-row"><strong>Insert symbol</strong><button type="button" data-art-symbol-close aria-label="Close symbol picker">×</button></div>
+        <label>Find symbol<input type="search" data-art-symbol-search placeholder="Tap, white, artist, 2/W…"></label>
+        <div class="art-symbol-grid" data-art-symbol-grid></div>
+      </section>
+    </div>
+    <div class="spot-card-fields-grid">
+      <label>Font<select data-art-font>{% for font in ['Beleren Proxy','Plantin MT Pro','Beleren Small Caps','ProxyGlyph','Georgia','Arial','Times New Roman','Courier New'] %}<option>{{ font }}</option>{% endfor %}</select></label>
+      <label>Size<input type="number" value="32" min="6" max="200" data-art-text-size></label>
+      <label>Horizontal position (%)<input type="number" value="50" min="0" max="100" step=".1" data-art-text-x></label>
+      <label>Vertical position (%)<input type="number" value="50" min="0" max="100" step=".1" data-art-text-y></label>
+      <label>Box width (%)<input type="number" value="80" min="1" max="100" step=".1" data-art-text-width></label>
+      <label>Box height (%)<input type="number" value="15" min="1" max="100" step=".1" data-art-text-height></label>
+      <label>Line spacing<input type="number" value="1.15" min=".8" max="3" step=".05" data-art-text-leading></label>
+      <label class="spot-card-check"><input type="checkbox" checked data-art-text-autofit> Fit text within box</label>
+      <label>Align<select data-art-align><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
+      <div><label class="spot-card-check"><input type="checkbox" data-art-bold> Bold</label><label class="spot-card-check"><input type="checkbox" data-art-italic> Italic</label></div>
+    </div>
+    <div class="spot-card-button-row"><button type="button" data-art-add-text>Add text block</button><button type="button" data-art-update-text>Update text</button><button type="button" data-art-delete-text>Delete text</button></div>
+    <p class="spot-card-caption">Presets fit a standard modern card. Adjust position and box size for other layouts. Click the card with Text selected to move the block. Type o2, og, ot or a sequence like o2ogog for colored ProxyGlyph symbols. Codes such as {W/U}, {T} and {ARTIST} also work.</p>
+  </fieldset>
+  <fieldset data-art-controls><legend>Generative Art AI</legend>
+    <label>Instruction<textarea rows="3" maxlength="2000" data-art-prompt placeholder="Describe the change to the selected area."></textarea></label>
+    <div class="spot-card-button-row"><button type="button" data-art-generate>Generate selected area</button><button type="button" data-art-remove-text>Remove text / repair background</button></div>
+    <p class="spot-card-caption">Select with Magic Wand, Color Match or a marquee first. AI uses nearby artwork as context and changes only the selection. Review before applying.</p>
+    <a href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins" target="_blank" rel="noopener">Generative Art AI settings ↗</a>
+  </fieldset>
+  <div class="spot-card-button-row"><button type="button" data-art-cancel hidden>Cancel AI edit</button><button type="button" data-art-accept hidden>Apply AI result</button><button type="button" data-art-discard hidden>Discard result</button></div>
+  <p class="spot-card-caption" data-art-status role="status" aria-live="polite"></p>
+</div>
