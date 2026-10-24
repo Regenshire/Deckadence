@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "default_package": "flux_high",
+  "providers": {
+    "local": {"name": "On this PC", "kind": "local", "status": "available"},
+    "openai_images": {"name": "ChatGPT / OpenAI image generation", "kind": "hosted", "status": "planned", "description": "Future hosted package. Requires its own connection, generation adapter and model-specific planner recipes; no local model download."}
+  },
+  "packages": {
+    "flux_high": {
+      "name": "High End - FLUX.2", "provider": "local", "models": ["flux_klein"], "default_model": "flux_klein",
+      "description": "FLUX.2 klein 4B with the FLUX outpainting adapter for detailed instruction-based editing.",
+      "dependencies": ["runtime", "analyzer", "detection", "flux_outpaint", "planner"],
+      "operations": ["replace", "remove_object", "outpaint", "mirror"]
+    },
+    "sdxl_mid": {
+      "name": "Mid Tier - SDXL", "provider": "local", "models": ["sdxl"], "default_model": "sdxl",
+      "description": "SDXL 1.0 for Mirror scenes and a dedicated SDXL inpainting model for Edit. Its recipes remain experimental.",
+      "dependencies": ["runtime", "analyzer", "detection", "edit_checkpoint", "planner"],
+      "operations": ["replace", "remove_object", "outpaint", "mirror"]
+    },
+    "turbo_light": {
+      "name": "Lightweight - SD-Turbo", "provider": "local", "models": ["sd_turbo"], "default_model": "sd_turbo",
+      "description": "A smaller, faster image model for experiments. Includes the same shared artwork analyzer as the larger packages.",
+      "dependencies": ["runtime", "analyzer", "detection", "planner"],
+      "operations": ["replace", "remove_object", "outpaint", "mirror"]
+    },
+    "classic_edit": {
+      "name": "Classic Editing - SD 1.5 / InstructPix2Pix", "provider": "local", "models": ["sd15", "instruct_pix2pix"], "default_model": "sd15",
+      "description": "Two alternative editing models. InstructPix2Pix supports replacement and removal, but does not support Extend artwork or Mirror outpainting.",
+      "dependencies": ["runtime", "analyzer", "detection", "planner"],
+      "operations": ["replace", "remove_object", "outpaint", "mirror"]
+    }
+  }
+}

@@ -3,21 +3,46 @@
         <h3>Generative Art AI</h3>
         <span class="plugin-status-badge" data-local-ai-badge>Optional download</span>
     </div>
-    <p>Generate and transform artwork on your PC, including the AI scenes used by Dark Mirror Shards.</p>
+    <p>Install a complete generation package for Edit and Dark Mirror Shards. Each package includes its models, artwork analyzer, frame/text detection, processor libraries and generation planner.</p>
     <div class="studio-generation-choices">
-        <label>Model<select data-local-ai-model aria-describedby="local-ai-model-info" disabled></select></label>
+        <label>Package<select data-local-ai-package aria-describedby="local-ai-model-info" disabled></select></label>
         <label>Processor<select data-local-ai-hardware aria-describedby="local-ai-hardware-info" disabled></select></label>
     </div>
     <p id="local-ai-model-info" data-local-ai-model-info></p>
     <p id="local-ai-hardware-info" data-local-ai-hardware-info></p>
     <p class="studio-generation-download" data-local-ai-size></p>
     <p data-local-ai-active></p>
+    <p data-local-ai-downloaded></p>
+    <ul data-local-ai-components aria-label="Package components"></ul>
     <p role="status" aria-live="polite" data-local-ai-status>Checking local AI downloads…</p>
+    <div data-local-ai-progress-panel hidden>
+        <p data-local-ai-package-progress></p>
+        <progress data-local-ai-progress max="100" aria-label="Current package component download progress" style="width:100%;height:16px;accent-color:var(--accent-color,#3edb7c)"></progress>
+        <p role="status" aria-live="polite" data-local-ai-progress-label></p>
+        <small>Progress is for the current download stage. Totals may update as files are discovered. Installation and verification can continue after download. If setup is interrupted, reopen this page and resume; downloaded files are reused.</small>
+    </div>
     <div class="plugin-card-actions">
         <button type="button" class="action-button plugin-action-button" data-local-ai-install disabled>Download &amp; enable</button>
+        <button type="button" class="action-button secondary-button" data-local-ai-download disabled>Install without switching</button>
+        <button type="button" class="action-button secondary-button" data-local-ai-verify disabled>Verify files</button>
         <button type="button" class="action-button secondary-button" data-local-ai-cancel hidden>Cancel download</button>
-        <button type="button" class="action-button secondary-button" data-local-ai-disable hidden>Disable local AI</button>
-        <a data-local-ai-license target="_blank" rel="noopener noreferrer">Model details and license ↗</a>
+        <button type="button" class="action-button secondary-button" data-local-ai-disable hidden>Disable generation</button>
     </div>
-    <p class="studio-generation-note">Only the selected model and processor runtime are downloaded. Saved artwork does not need AI to preview or print.</p>
+    <p data-local-ai-licenses></p>
+    <p data-local-ai-outpaint-details hidden><a href="https://huggingface.co/Ming3D/flux-2-klein-4B-outpaint-lora" target="_blank" rel="noopener noreferrer">FLUX outpainting adapter details and license ↗</a></p>
+    <p class="studio-generation-note">Packages share installed dependencies and reuse downloaded files. You can install several packages and choose their ready models in Generative Edit. The shared artwork analyzer is approximately 8.9 GB, including in the Lightweight package. Generative actions require an enabled, complete package. Saved artwork, manual editing, preview and printing remain available.</p>
+    <p>Verify files checks model files, available download checksums, shared frame/subject weights and the local text detector without downloading or changing your default package. If damage is found, Resume setup repairs the affected files and reuses the healthy downloads.</p>
+    <p><a href="https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct" target="_blank" rel="noopener noreferrer">Shared artwork analyzer details and license ↗</a></p>
+    <details class="art-details"><summary>Future hosted packages</summary><p data-local-ai-hosted></p></details>
+    <details class="art-details" data-local-ai-prompts>
+        <summary>AI Prompt Dictionary</summary>
+        <p>Edit the prompt pieces for each model and feature. Saved changes apply to new generation jobs without restarting. Running jobs keep their existing prompts.</p>
+        <p>User overrides: <code data-local-ai-prompts-path></code></p><p>Distribution defaults: <code data-local-ai-prompts-distribution></code></p>
+        <p>FLUX and InstructPix2Pix use instructions; SDXL, SD 1.5 and SD-Turbo use descriptive prompts. Edit and Dark Mirror Shards use planner.recipes and planner.analysis_prompt. Mirror themes use the model entries. Frame detection, OCR and text repair do not use these prompts.</p>
+        <label for="aiPromptDictionary">Prompt dictionary (JSON)</label>
+        <textarea id="aiPromptDictionary" data-local-ai-prompts-json rows="22" spellcheck="false" style="width:100%;font-family:monospace" disabled></textarea>
+        <button type="button" class="action-button" data-local-ai-prompts-save disabled>Save prompt dictionary</button>
+        <label>Reset to shipped defaults<select data-local-ai-prompts-reset-target><option value="all">Entire dictionary</option><option value="analysis">Artwork analysis instructions</option></select></label><button type="button" class="action-button secondary-button" data-local-ai-prompts-reset>Reset in editor</button><button type="button" class="action-button secondary-button" data-local-ai-prompts-export>Export for distribution</button><p>Only changed fields are saved as overrides. Reset changes the editor; use Save to apply. Export writes the complete dictionary for the source distribution.</p>
+        <p role="status" aria-live="polite" data-local-ai-prompts-status></p>
+    </details>
 </section>

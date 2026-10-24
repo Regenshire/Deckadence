@@ -436,32 +436,41 @@
 
         <div class="print-export-settings-section">
           <div class="print-export-settings-section-title">Export</div>
+          <label class="toggle-row"><span>PDF Version</span><select name="pdf_version" id="printPdfVersion">
+            {% for version in ["1.5", "1.6", "1.7"] %}<option value="{{ version }}" {% if print_export_defaults.pdf_version|default("1.5") == version %}selected{% endif %}>{{ version }}</option>{% endfor %}
+          </select></label>
 
-          <label class="toggle-row">
-            <span>Include saved spot-foiling ink layers · PDF</span>
-            <input type="hidden" name="include_spot_foil" value="0" />
-            <input type="checkbox" name="include_spot_foil" value="1" aria-controls="printSpotFoilOptions" />
-          </label>
-          <label class="toggle-row">
-            <span>Enable Gloss layer · RDG_GLOSS</span>
-            <input type="hidden" name="include_gloss" value="0" />
-            <input type="checkbox" name="include_gloss" value="1" aria-controls="printSpotFoilOptions" />
-          </label>
           <label class="toggle-row">
             <span>Include Effect 1</span>
             <input type="hidden" name="include_effect1" value="0" />
-            <input type="checkbox" name="include_effect1" value="1" />
+            <input type="checkbox" name="include_effect1" value="1" {% if print_export_defaults.include_effect1|default(true) %}checked{% endif %} />
           </label>
           <label class="toggle-row">
             <span>Include Effect 2</span>
             <input type="hidden" name="include_effect2" value="0" />
-            <input type="checkbox" name="include_effect2" value="1" />
+            <input type="checkbox" name="include_effect2" value="1" {% if print_export_defaults.include_effect2|default(true) %}checked{% endif %} />
+          </label>
+          <label id="printSeparateEffectsRow" class="print-effect-suboption" hidden>
+            <input id="printSeparateEffects" type="checkbox" name="separate_effect_layers" value="1" disabled />
+            <span>Separate PDF Layers for Effects</span>
+          </label>
+          <label class="toggle-row">
+            <span>Advanced - Spot-Foiling Ink Layer</span>
+            <input type="hidden" name="include_spot_foil" value="0" />
+            <input type="checkbox" name="include_spot_foil" value="1" aria-controls="printSpotFoilOptions" />
+          </label>
+          <label class="toggle-row">
+            <span>Advanced - Gloss Layer</span>
+            <input type="hidden" name="include_gloss" value="0" />
+            <input type="checkbox" name="include_gloss" value="1" aria-controls="printSpotFoilOptions" />
           </label>
           <div id="printSpotFoilOptions" class="print-spot-foil-options" data-workflows-url="{{ url_for('spot_foil_workflows') }}" hidden>
             <label for="printSpotFoilWorkflow">Print workflow</label>
             <select id="printSpotFoilWorkflow" name="spot_foil_workflow_id" required disabled><option value="">Loading workflows…</option></select>
             <p id="printSpotFoilWorkflowHint" role="status"></p>
             <button id="printSpotFoilRetry" type="button" hidden>Retry loading workflows</button>
+            <label for="printCmykProfile">CMYK ICC profile</label>
+            <select id="printCmykProfile" name="cmyk_profile" disabled><option value="">None</option></select>
             <label for="printSpotFoilOutput">PDF contents</label>
             <select id="printSpotFoilOutput" name="spot_foil_pdf_output">
               <option value="spot_pdf">Artwork + named spot layers</option>
@@ -472,15 +481,14 @@
               <option value="grayscale">Preserve tool percentages</option>
               <option value="binary">Solid areas only · 50% cutoff</option>
             </select>
-            <details class="print-spot-foil-details">
-              <summary>Ink and layer details</summary>
+            <div class="print-spot-foil-details">
               <label for="printSpotFoilLayer">Layer purpose</label>
               <select id="printSpotFoilLayer" name="spot_foil_layer_type" disabled></select>
               <label for="printSpotFoilName">Spot channel name</label>
               <input id="printSpotFoilName" name="spot_foil_spot_name" type="text" maxlength="80" spellcheck="false" disabled>
               <label class="print-spot-foil-checkbox"><input id="printWhiteInverseLayer" type="checkbox" name="include_white_inverse_layer" value="1" disabled><span>Include White inverse Layer</span></label>
               <p>Adds a white artwork overlay opposite the exported spot mask. Available with Artwork + named spot layers.</p>
-            </details>
+            </div>
             <a href="{{ url_for('spot_foil_help') }}#formats" target="_blank" rel="noopener">Export and layer guide ↗</a>
           </div>
 

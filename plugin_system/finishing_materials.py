@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 import random
 
-from PIL import Image, ImageOps, ImageDraw, ImageChops, ImageEnhance
+from PIL import Image, ImageOps, ImageDraw, ImageChops, ImageEnhance, ImageFilter
 
 MATERIAL_EFFECTS = {
     'confetti': 'Confetti Foil',
@@ -97,7 +97,9 @@ def _motif_selection(sprite):
     return result
 
 
-def render_material(finish, scale, density, seed, width, height, *, selection=False):
+def render_material(finish, scale, density, seed, width, height, *, selection=False, stacked=False):
+    if finish in ('flame_1','flame_2'):
+        return _flowing_flames(finish,scale,density,seed,width,height,stacked=stacked,selection=selection)
     if selection and finish=='confetti':
         image=Image.new('RGBA',(width,height),'white')
         image.putalpha(_confetti_grains(scale,density,seed,width,height,solid=True))
@@ -185,3 +187,61 @@ def _galaxy_background(scale, density, seed, width, height, *, selection=False):
         alpha=rng.randint(135,250)
         draw.ellipse((x-radius,y-radius,x+radius,y+radius),fill=(255,255,255,255) if selection else (*rgb,alpha))
     return image
+
+
+def _flowing_flames(finish, scale, density, seed, width, height, *, stacked=False, selection=False):
+    """Soft Bezier fire and embers, like the Pack Simulator; no sprite motifs.
+
+    Render at a fixed working resolution so print and preview share contours.
+    Stacked rows overlap and fade at both ends, avoiding horizontal seams.
+    """
+    w,h=756,1056
+    rng=random.Random(seed)
+    blue=finish=='flame_2'
+    red,hot=((40,82,203),(133,229,255)) if blue else ((218,55,49),(245,112,55))
+    size=scale/100
+    flame_height=(260 if blue else 210)*size
+    count=max(5,round((22 if blue else 20)*density/100/size))
+    result=Image.new('RGBA',(w,h))
+    spacing=flame_height*.6
+    bases=[h] if not stacked else [h-i*spacing for i in range(math.ceil(h/spacing)+1)]
+    def bezier(points):
+        return [tuple(sum(points[k][axis]*weight for k,weight in enumerate(((1-t)**3,3*(1-t)**2*t,3*(1-t)*t*t,t**3))) for axis in (0,1)) for t in (j/24 for j in range(25))]
+    for baseline in reversed(bases):
+        # A broad diffuse glow merges adjacent tongues into one body of fire.
+        glow=Image.new('RGBA',(1,h))
+        glow.putdata([(*red,round(45*max(0,1-abs(y-baseline)/(flame_height*1.1))**2)) for y in range(h)])
+        if not stacked:result.alpha_composite(glow.resize((w,h)))
+        for layer,factor in enumerate((1.15,.8,.42)):
+            for i in range(-1,count+1):
+                n=rng.random();x=(i+rng.uniform(.2,.8))*w/count
+                length=flame_height*(.48+n*.65)*factor
+                base=w/count*(.9 if blue else 1.15)*(.45+n*.3)
+                sway=rng.uniform(-.85,.85)*base
+                local_base=baseline+rng.uniform(-spacing*.65,spacing*.65) if stacked else baseline
+                bottom=local_base+(length*.6 if stacked else 8)
+                left=math.floor(x-base*2-10);top=math.floor(local_base-length-10)
+                sw=math.ceil(base*4+20);sh=math.ceil(bottom-top+10)
+                coverage=Image.new('L',(sw,sh));draw=ImageDraw.Draw(coverage)
+                points=bezier(((x-base,bottom),(x-base*1.5,local_base-length*.4),(x+sway+base,local_base-length*.6),(x+sway,local_base-length)))
+                points+=bezier(((x+sway,local_base-length),(x+sway+4,local_base-length*.5),(x+base,local_base-length*.35),(x+base,bottom)))
+                draw.polygon([(px-left,py-top) for px,py in points],fill=255)
+                coverage=coverage.filter(ImageFilter.GaussianBlur(3))
+                gradient=Image.new('RGBA',(1,sh));pixels=[]
+                for y in range(sh):
+                    above=max(0,(local_base-y-top)/length)
+                    below=max(0,(y+top-local_base)/(length*.6)) if stacked else 0
+                    mix=min(1,above*2) if layer<2 else 1
+                    rgb=tuple(round(a+(b-a)*mix) for a,b in zip(red,hot))
+                    opacity=.52*max(0,1-above)**1.3*max(0,1-below)**2
+                    pixels.append((*rgb,round(255*opacity)))
+                gradient.putdata(pixels);wash=gradient.resize((sw,sh))
+                wash.putalpha(ImageChops.multiply(wash.getchannel('A'),coverage));result.alpha_composite(wash,(left,top))
+    sparks=ImageDraw.Draw(result)
+    for _ in range(round((100 if stacked else 24)*density/100)):
+        x=rng.uniform(0,w);y=rng.uniform(0,h) if stacked else h-rng.uniform(15,flame_height*1.8)
+        r=rng.uniform(.6,1.6)*size
+        sparks.ellipse((x-r*.6,y-r,x+r*.6,y+r),fill=(*hot,rng.randint(55,170)))
+    if selection:
+        white=Image.new('RGBA',(w,h),'white');white.putalpha(result.getchannel('A'));result=white
+    return result.resize((width,height),Image.Resampling.LANCZOS)

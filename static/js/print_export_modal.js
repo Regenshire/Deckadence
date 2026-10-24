@@ -104,7 +104,19 @@
     const spotFoilCheckbox = form && form.querySelector('input[type="checkbox"][name="include_spot_foil"]');
     const glossCheckbox = form && form.querySelector('input[type="checkbox"][name="include_gloss"]');
     const effectCheckboxes = form ? [...form.querySelectorAll('input[type="checkbox"][name="include_effect1"], input[type="checkbox"][name="include_effect2"]')] : [];
+    const pdfVersion = getElement("printPdfVersion");
+    let pdfVersionChanged = false;
+    pdfVersion?.addEventListener("change", () => { pdfVersionChanged = true; });
+    const effectChoicesChanged=new Set();
+    effectCheckboxes.forEach(field=>{
+      if(spotFoilCheckbox)spotFoilCheckbox.closest('label').before(field.closest('label'));
+      field.addEventListener('change',()=>effectChoicesChanged.add(field.name));
+    });
+    const separateEffects = getElement("printSeparateEffects");
+    const separateEffectsRow = getElement("printSeparateEffectsRow");
+    if (separateEffectsRow && effectCheckboxes.length) effectCheckboxes.at(-1).closest('label').after(separateEffectsRow);
     const spotFoilOptions = getElement("printSpotFoilOptions");
+    const cmykProfile = getElement("printCmykProfile");
     const spotWorkflow = getElement("printSpotFoilWorkflow");
     const spotLayer = getElement("printSpotFoilLayer"), spotName = getElement("printSpotFoilName");
     const spotOutput = getElement("printSpotFoilOutput"), spotTone = getElement("printSpotFoilTone");
@@ -113,7 +125,7 @@
     let spotData = null, spotLoading = false, spotLoadVersion = 0;
     function syncSpotFields() {
       const enabled = Boolean((spotFoilCheckbox?.checked || glossCheckbox?.checked) && spotData);
-      for (const field of [spotWorkflow, spotOutput, spotTone]) if (field) field.disabled = !enabled;
+      for (const field of [spotWorkflow, spotOutput, spotTone, cmykProfile]) if (field) field.disabled = !enabled;
       if (spotOutput) {
         const needsArtwork = Boolean(glossCheckbox?.checked || effectCheckboxes.some(field=>field.checked));
         spotOutput.querySelector('option[value="mask_pdf"]').disabled = needsArtwork;
@@ -146,9 +158,22 @@
         if (!response.ok || !data?.ok || !data.workflows?.length || !data.preferences?.profiles) throw new Error();
         if (version !== spotLoadVersion) return;
         spotData = data;
+        if (pdfVersion && !pdfVersionChanged) pdfVersion.value = data.preferences.pdf_version || "1.5";
+        if (cmykProfile) {
+          const selected = data.preferences.cmyk_profile || "";
+          cmykProfile.replaceChildren(new Option("None", ""), ...(data.icc_profiles || []).map(profile => new Option(profile.label + " — " + profile.id, profile.id)));
+          if (selected && ![...cmykProfile.options].some(option => option.value === selected)) cmykProfile.add(new Option(selected + " (missing)", selected));
+          cmykProfile.value = selected;
+        }
+        effectCheckboxes.forEach(field=>{
+          const checked=data.preferences[field.name+'_default']!==false;
+          const current=field.checked;field.defaultChecked=checked;
+          field.checked=effectChoicesChanged.has(field.name)?current:checked;
+        });
         spotWorkflow.replaceChildren(...data.workflows.map(item => new Option(item.label, item.id)));
         spotWorkflow.value = data.preferences.active_workflow;
         chooseSpotWorkflow();
+        syncFoilIntensity();
       } catch (_) {
         if (version !== spotLoadVersion) return;
         spotData = null; syncSpotFields();
@@ -160,11 +185,16 @@
     spotOutput?.addEventListener("change", syncSpotFields);
     whiteInverse?.addEventListener("change", syncSpotFields);
     spotRetry?.addEventListener("click", loadSpotWorkflows);
+    loadSpotWorkflows();
     form?.addEventListener("reset", () => {
+      pdfVersionChanged = false;
       ++spotLoadVersion; spotData = null; spotLoading = false;
       queueMicrotask(syncFoilIntensity);
     });
     function syncFoilIntensity() {
+      const effectsEnabled = effectCheckboxes.some(field => field.checked);
+      if (separateEffectsRow) separateEffectsRow.hidden = !effectsEnabled;
+      if (separateEffects) separateEffects.disabled = !effectsEnabled;
       const spotEnabled = Boolean(spotFoilCheckbox?.checked || glossCheckbox?.checked);
       if (spotFoilOptions) spotFoilOptions.hidden = !spotEnabled;
       if (foilCheckbox) foilCheckbox.disabled = spotEnabled;

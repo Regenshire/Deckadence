@@ -113,7 +113,7 @@ if __name__ == "__main__":
             elif command in ("info", "health"):
                 import numpy, onnxruntime, PIL
                 import cv2, rapidocr_onnxruntime
-                result = {"ok": True, "plugin_id": "subject-detection-ai", "commands": ["detect_text", "detect_subject", "detect_frame"]}
+                result = {"ok": True, "plugin_id": "card-finishing-studio", "commands": ["detect_text", "detect_subject", "detect_frame"]}
             else:
                 raise ValueError("Unsupported Card Finishing Studio command.")
         print(json.dumps(result, allow_nan=False))

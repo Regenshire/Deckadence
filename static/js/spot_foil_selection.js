@@ -145,8 +145,20 @@
     context.clearRect(0, 0, result.width, result.height); context.drawImage(mask, 0, 0);
     return removeExcluded(result, excluded);
   }
+  // Sizes and center positions are percentages of the card; keep the box inside it.
+  function artworkBounds(options = {}) {
+    const number = (key, fallback, min, max) => {
+      const value = Number(options[key] ?? fallback);
+      return Math.max(min, Math.min(max, Number.isFinite(value) ? value : fallback)) / 100;
+    };
+    const width = number('art_box_width', 88, 1, 100), height = number('art_box_height', 44, 1, 100);
+    const left = Math.max(0, Math.min(1 - width, number('art_box_x', 50, 0, 100) - width / 2));
+    const top = Math.max(0, Math.min(1 - height, number('art_box_y', 34, 0, 100) - height / 2));
+    return [left, top, left + width, top + height].map(value => Math.round(value * 1e6) / 1e6);
+  }
   function generate(source, options, width, height, foreground = null) {
     if (options.mode === "none") throw new Error("Automatic selection is off.");
+    if (options.mode === "text") return semanticSelection(source, {...options, cleanup:"off"}, width, height, textRegions(source, options, width, height));
     if (["subject", "background"].includes(options.mode)) return semanticSelection(source, options, width, height, foreground);
     const {mode, region, amount} = options;
     const work = document.createElement("canvas");
@@ -159,7 +171,7 @@
       const i = p * 4;
       luminance[p] = .2126 * pixels.data[i] + .7152 * pixels.data[i + 1] + .0722 * pixels.data[i + 2];
     }
-    const bounds = region === "artwork" ? [.08, .13, .92, .56] : [0, 0, 1, 1];
+    const bounds = region === "artwork" ? artworkBounds(options) : [0, 0, 1, 1];
     const eligible = new Uint8Array(w * h);
     let scores = new Float32Array(w * h), count = 0;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -223,7 +235,7 @@
     const pixels = context.getImageData(0, 0, width, height), alpha = new Uint8Array(width*height), eligible = new Uint8Array(alpha.length);
     context.clearRect(0,0,width,height); context.drawImage(source,0,0,width,height);
     const artwork = context.getImageData(0,0,width,height).data;
-    const bounds = options.region === "artwork" ? [.08,.13,.92,.56] : [0,0,1,1];
+    const bounds = options.region === "artwork" ? artworkBounds(options) : [0,0,1,1];
     for (let p=0;p<alpha.length;p++) {
       const x=p%width, y=Math.floor(p/width);
       eligible[p] = artwork[p*4+3] > 0 && x>=width*bounds[0] && x<width*bounds[2] && y>=height*bounds[1] && y<height*bounds[3];
@@ -468,5 +480,5 @@
     output.drawImage(native, 0, 0, width, height);
     return {canvas: result, channel};
   }
-  window.DeckadenceSpotSelection = {generate, excludeColors, textRegions, colorSelection, cleanPockets, refineMask, sampleColor, artworkPalette, readMask, brushStroke, frameSelection};
+  window.DeckadenceSpotSelection = {artworkBounds, generate, excludeColors, textRegions, colorSelection, cleanPockets, refineMask, sampleColor, artworkPalette, readMask, brushStroke, frameSelection};
 })();

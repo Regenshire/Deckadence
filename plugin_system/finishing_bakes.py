@@ -24,7 +24,7 @@ _locks = [threading.Lock() for _ in range(32)]
 def artwork_layers(settings, enabled=("effect1", "effect2")):
     edits=[dict(finish='art_edit',png=base64.b64decode(settings['edit']['png_base64']))] if settings.get('edit') else []
     return edits+[dict(settings[name], png=base64.b64decode(settings[name]["mask_png_base64"]))
-            for name in ("effect1", "effect2") if name in enabled and settings.get(name)]
+            for name in ("effect1", "effect2") if name in enabled and settings.get(name) and not settings[name].get("disabled",False)]
 
 
 def cached_artwork(image, layers, trim_size=None, *, rotation=0, extend_bleed=False):

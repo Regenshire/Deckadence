@@ -1,66 +1,89 @@
 <div data-art-edit-panel hidden>
-  <p class="spot-card-caption">Edit v1 · Paint and text sit above the original art and below the effect layers. Included in views, prints and exports.</p>
-  <div class="spot-card-button-row"><button type="button" data-art-undo>↶ Undo</button><button type="button" data-art-redo>↷ Redo</button><button type="button" data-art-clear>Clear Edit layer</button></div>
-  <fieldset data-art-controls><legend>Tools and selection</legend>
-    <div class="spot-card-tools">
-      {% for key,label in [('paint','Paint'),('erase','Erase edits'),('bucket','Paint bucket'),('wand','Magic Wand'),('match','Color Match'),('rectangle','Rectangle'),('ellipse','Round / oval'),('text','Text'),('pan','Pan')] %}
-      <button type="button" data-art-tool="{{ key }}" aria-pressed="false">{{ label }}</button>
-      {% endfor %}
-    </div>
-    <div class="spot-card-fields-grid">
-      <label>Selection mode<select data-art-selection-mode><option value="replace">Replace</option><option value="add">Add</option><option value="subtract">Subtract</option></select></label>
-      <label>Color tolerance<input type="number" min="0" max="128" value="32" data-art-tolerance></label>
-      <label>Brush size<input type="range" min="2" max="160" value="30" data-art-size></label>
-      <label>Paint opacity<input type="range" min="1" max="100" value="100" data-art-opacity></label>
-    </div>
-    <div class="spot-card-button-row"><button type="button" data-art-select-all>Select all</button><button type="button" data-art-deselect>Deselect</button><button type="button" data-art-clear-selected>Clear selected edits</button></div>
-    <label class="spot-card-check"><input type="checkbox" checked data-art-show-selection> Show selection</label>
-    <p class="spot-card-caption" data-art-selection-status>No selection · painting is unrestricted.</p>
-    <p class="spot-card-caption">Shift locks painting horizontally; Ctrl locks vertically. Shift makes a round marquee circular. Erase restores the original art beneath your edits.</p>
-  </fieldset>
-  <fieldset data-art-controls><legend>Colors</legend>
-    <label class="spot-card-color-picker">Paint / text color <input type="color" value="#FFFFFF" data-art-color></label>
-    <div class="art-edit-palette" data-art-palette></div>
-    <div class="spot-card-button-row"><button type="button" data-art-add-color>Add color</button><button type="button" data-art-remove-color>Remove color</button><button type="button" data-art-pick>Pick from art</button></div>
-    <div class="spot-card-button-row"><button type="button" data-art-fill>Fill selection</button><button type="button" data-art-recolor>Recolor selection</button></div>
-    <p class="spot-card-caption">Edit a palette swatch to change its color. Recolor keeps the artwork's light and dark detail.</p>
-  </fieldset>
-  <fieldset data-art-controls><legend>Text</legend>
-    <div class="spot-card-fields-grid">
-      <label>Text block<select data-art-text-preset>{% for key,label in [('title','Card title'),('mana','Mana cost'),('type','Type line'),('rules','Rules text'),('flavor','Flavor text'),('artist','Artist credit'),('legal','Bottom / legal text'),('power','Power / toughness'),('custom','Custom text')] %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
-      <button type="button" data-art-reset-text>Reset block defaults</button>
-    </div>
-    <label>Text item<select data-art-text-list><option value="-1">New text</option></select></label>
-    <label>Text<textarea rows="3" maxlength="2000" data-art-text placeholder="Enter text. Use Symbols or right-click to insert mana and other symbols."></textarea></label>
-    <div class="art-symbol-anchor">
-      <button type="button" data-art-symbols aria-expanded="false">Symbols ▾</button>
-      <section class="art-symbol-picker" data-art-symbol-picker hidden aria-label="Magic symbols">
-        <div class="spot-card-button-row"><strong>Insert symbol</strong><button type="button" data-art-symbol-close aria-label="Close symbol picker">×</button></div>
-        <label>Find symbol<input type="search" data-art-symbol-search placeholder="Tap, white, artist, 2/W…"></label>
-        <div class="art-symbol-grid" data-art-symbol-grid></div>
-      </section>
-    </div>
-    <div class="spot-card-fields-grid">
+  <div class="art-original-notice" data-art-original-notice hidden>
+    <div><strong>Viewing original artwork</strong><span>Your edits are hidden. Return to editing to make changes.</span></div>
+    <div class="spot-card-button-row"><button type="button" data-art-resume-edit>Back to editing</button><button type="button" class="art-quiet" data-art-original-pick aria-pressed="false">Pick color from original</button></div>
+  </div>
+  <div class="art-selection-status"><span data-art-selection-status>No selection · paint anywhere.</span><button type="button" class="art-quiet" data-art-deselect>Deselect</button></div>
+  <section data-art-task-panel="select" id="artTaskSelect" role="tabpanel" aria-labelledby="artTabSelect" hidden>
+    <h3>Select an area</h3>
+    <fieldset data-art-controls class="art-flat"><legend class="art-sr-only">Selection tools</legend>
+      <div class="art-selection-tools" role="group" aria-label="Selection tools">
+        {% for key,label in [('rectangle','Rectangle'),('ellipse','Ellipse'),('lasso','Lasso'),('selection-brush','Selection Brush'),('wand','Magic Wand'),('match','Color Match')] %}<button type="button" data-art-tool="{{ key }}" aria-pressed="false">{{ label }}</button>{% endfor %}
+      </div>
+      <p class="spot-card-caption art-tool-hint" data-art-tool-hint></p>
+      <label>Selection operation<select data-art-selection-mode class="art-sr-only" aria-label="Selection operation"><option value="replace">New</option><option value="add">Add</option><option value="subtract">Subtract</option></select></label>
+      <div class="art-segment" role="group" aria-label="Selection operation"><button type="button" data-art-operation="replace" aria-pressed="true">New</button><button type="button" data-art-operation="add" aria-pressed="false">＋ Add</button><button type="button" data-art-operation="subtract" aria-pressed="false">− Subtract</button></div>
+      <p class="spot-card-caption"><kbd>Shift</kbd> adds · <kbd>Alt</kbd> subtracts. Works with every selection tool.</p>
+      <label class="spot-card-range-label" data-art-selection-size-row hidden>Selection brush size <output data-art-selection-size-value>30 px</output><input type="range" min="2" max="160" value="30" data-art-selection-size></label>
+      <label class="spot-card-range-label" data-art-tolerance-row hidden>Color tolerance <output data-art-tolerance-value>32</output><input type="range" min="0" max="128" value="32" data-art-tolerance><small>Higher values include more similar colors.</small></label>
+      <div class="spot-card-button-row art-spaced"><button type="button" data-art-select-all>Select all</button><button type="button" data-art-invert>Invert</button></div>
+      <label class="spot-card-check"><input type="checkbox" checked data-art-show-selection> Show selection boundary</label>
+      <details class="art-details"><summary>Soften selection edges</summary><label class="spot-card-range-label">Feather radius <output data-art-feather-value>4 px</output><input type="range" min="0" max="24" value="4" data-art-feather></label><button type="button" data-art-soften>Soften current selection</button><p class="spot-card-caption">Blends paint and AI repairs gradually into the surrounding art. Apply once, then Undo to compare.</p></details>
+      <p class="art-next">Next, choose <strong>Paint</strong>, <strong>Text</strong>, or <strong>Gen AI</strong>. Your selection stays in place.</p>
+    </fieldset>
+  </section>
+  <section data-art-task-panel="paint" id="artTaskPaint" role="tabpanel" aria-labelledby="artTabPaint">
+    <h3>Paint & color</h3>
+    <fieldset data-art-controls class="art-flat"><legend class="art-sr-only">Painting controls</legend>
+      <div class="art-segment" role="group" aria-label="Painting tools">{% for key,label in [('paint','Brush'),('bucket','Bucket'),('erase','Erase edits')] %}<button type="button" data-art-tool="{{ key }}" aria-pressed="false">{{ label }}</button>{% endfor %}</div>
+      <div data-art-paint-color-controls>
+        <label class="art-field-label" for="artPaintColor">Paint color</label>
+        <div class="art-active-color"><input type="color" id="artPaintColor" value="#FFFFFF" data-art-color><div><strong data-art-color-value>#FFFFFF</strong><small>Click the swatch to change</small></div><button type="button" data-art-pick>Pick from art</button></div>
+        <div class="art-palette-heading"><span>Saved colors</span><button type="button" class="art-quiet" data-art-manage-colors aria-expanded="false">Edit colors</button></div>
+        <div class="art-edit-palette" data-art-palette></div>
+        <div class="spot-card-button-row" data-art-palette-actions hidden><button type="button" data-art-add-color>Save current color</button><button type="button" data-art-remove-color>Remove current color</button></div>
+      </div>
+      <div class="spot-card-fields-grid">
+        <label class="spot-card-range-label" data-art-size-row>Brush size <output data-art-size-value>30 px</output><input type="range" min="2" max="160" value="30" data-art-size></label>
+        <label class="spot-card-range-label" data-art-bucket-tolerance-row hidden>Color tolerance <output data-art-bucket-tolerance-value>32</output><input type="range" min="0" max="128" value="32" data-art-bucket-tolerance><small>Higher values fill a wider range of connected colors.</small></label>
+        <label class="spot-card-range-label">Opacity <output data-art-opacity-value>100%</output><input type="range" min="1" max="100" value="100" data-art-opacity></label>
+      </div>
+      <div class="art-spaced" data-art-selection-color-actions><span class="art-field-label">Apply color to selection</span><div class="art-segment"><button type="button" data-art-fill>Fill</button><button type="button" data-art-recolor>Recolor</button></div></div>
+      <p class="spot-card-caption" data-art-paint-hint hidden></p>
+      <details class="art-details"><summary>Clear edits</summary><div class="spot-card-button-row art-spaced"><button type="button" data-art-clear-selected>Clear paint in selection</button><button type="button" data-art-clear>Clear entire Edit layer</button></div></details>
+    </fieldset>
+  </section>
+  <section data-art-task-panel="text" id="artTaskText" role="tabpanel" aria-labelledby="artTabText" hidden>
+    <h3 data-art-text-heading>Add card text</h3>
+    <fieldset data-art-controls class="art-flat"><legend class="art-sr-only">Text controls</legend>
+      <div class="art-text-list-row"><label>Text on this card<select data-art-text-list><option value="-1">New text block</option></select></label><button type="button" data-art-new-text>＋ New</button></div>
+      <label data-art-preset-row>Text block preset<select data-art-text-preset>{% for key,label in [('title','Card title'),('mana','Mana cost'),('type','Type line'),('rules','Rules text'),('flavor','Flavor text'),('artist','Artist credit'),('legal','Bottom / legal text'),('power','Power / toughness'),('custom','Custom text')] %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+      <div class="art-symbol-anchor">
+        <div class="art-text-heading"><label for="artTextContent">Text</label><button type="button" data-art-symbols aria-expanded="false">Symbols ▾</button></div>
+        <textarea id="artTextContent" rows="3" maxlength="2000" data-art-text placeholder="Enter text. Use Symbols or right-click to insert mana and other symbols."></textarea>
+        <section class="art-symbol-picker" data-art-symbol-picker hidden aria-label="Magic symbols"><div class="spot-card-button-row"><strong>Insert symbol</strong><button type="button" data-art-symbol-close aria-label="Close symbol picker">×</button></div><label>Find symbol<input type="search" data-art-symbol-search placeholder="Tap, white, artist, 2/W…"></label><div class="art-symbol-grid" data-art-symbol-grid></div></section>
+      </div>
       <label>Font<select data-art-font>{% for font in ['Beleren Proxy','Plantin MT Pro','Beleren Small Caps','ProxyGlyph','Georgia','Arial','Times New Roman','Courier New'] %}<option>{{ font }}</option>{% endfor %}</select></label>
-      <label>Size<input type="number" value="32" min="6" max="200" data-art-text-size></label>
-      <label>Horizontal position (%)<input type="number" value="50" min="0" max="100" step=".1" data-art-text-x></label>
-      <label>Vertical position (%)<input type="number" value="50" min="0" max="100" step=".1" data-art-text-y></label>
-      <label>Box width (%)<input type="number" value="80" min="1" max="100" step=".1" data-art-text-width></label>
-      <label>Box height (%)<input type="number" value="15" min="1" max="100" step=".1" data-art-text-height></label>
-      <label>Line spacing<input type="number" value="1.15" min=".8" max="3" step=".05" data-art-text-leading></label>
-      <label class="spot-card-check"><input type="checkbox" checked data-art-text-autofit> Fit text within box</label>
-      <label>Align<select data-art-align><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label>
-      <div><label class="spot-card-check"><input type="checkbox" data-art-bold> Bold</label><label class="spot-card-check"><input type="checkbox" data-art-italic> Italic</label></div>
-    </div>
-    <div class="spot-card-button-row"><button type="button" data-art-add-text>Add text block</button><button type="button" data-art-update-text>Update text</button><button type="button" data-art-delete-text>Delete text</button></div>
-    <p class="spot-card-caption">Presets fit a standard modern card. Adjust position and box size for other layouts. Click the card with Text selected to move the block. Type o2, og, ot or a sequence like o2ogog for colored ProxyGlyph symbols. Codes such as {W/U}, {T} and {ARTIST} also work.</p>
-  </fieldset>
-  <fieldset data-art-controls><legend>Generative Art AI</legend>
-    <label>Instruction<textarea rows="3" maxlength="2000" data-art-prompt placeholder="Describe the change to the selected area."></textarea></label>
-    <div class="spot-card-button-row"><button type="button" data-art-generate>Generate selected area</button><button type="button" data-art-remove-text>Remove text / repair background</button></div>
-    <p class="spot-card-caption">Select with Magic Wand, Color Match or a marquee first. AI uses nearby artwork as context and changes only the selection. Review before applying.</p>
-    <a href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins" target="_blank" rel="noopener">Generative Art AI settings ↗</a>
-  </fieldset>
-  <div class="spot-card-button-row"><button type="button" data-art-cancel hidden>Cancel AI edit</button><button type="button" data-art-accept hidden>Apply AI result</button><button type="button" data-art-discard hidden>Discard result</button></div>
-  <p class="spot-card-caption" data-art-status role="status" aria-live="polite"></p>
+      <div class="art-text-size-row"><label>Size<input type="number" value="32" min="6" max="200" data-art-text-size></label><label>Alignment<select data-art-align><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label class="spot-card-check"><input type="checkbox" data-art-text-autofit> Auto Size</label></div>
+      <div class="art-text-emphasis" role="group" aria-label="Text emphasis"><label class="spot-card-check"><input type="checkbox" data-art-bold> Bold</label><label class="spot-card-check"><input type="checkbox" data-art-italic> Italic</label></div>
+      <div class="art-text-color-row"><label>Text color<input class="art-text-color" type="color" value="#171717" data-art-text-color></label><div class="spot-card-button-row art-text-colors" role="group" aria-label="Common text colors"><button type="button" data-art-text-ink="#171717">Black text</button><button type="button" data-art-text-ink="#FFFFFF">White text</button><button type="button" data-art-text-ink="#F8F0D8">Ivory text</button></div></div>
+      <p class="art-text-fit" data-art-text-fit role="status"></p>
+      <details class="art-details"><summary>Position & spacing</summary><div class="spot-card-fields-grid">
+        <label>Horizontal (%)<input type="number" value="8.5" min="0" max="100" step=".1" data-art-text-x></label><label>Vertical (%)<input type="number" value="5.2" min="0" max="100" step=".1" data-art-text-y></label>
+        <label>Box width (%)<input type="number" value="65" min="1" max="100" step=".1" data-art-text-width></label><label>Box height (%)<input type="number" value="5" min="1" max="100" step=".1" data-art-text-height></label>
+        <label>Line spacing<input type="number" value="1.15" min=".8" max="3" step=".05" data-art-text-leading></label>
+        <label>Paragraph gap (em)<input type="number" value="0" min="0" max="3" step=".05" data-art-text-paragraph></label>
+      </div><button type="button" class="art-spaced" data-art-reset-text>Reset block defaults</button></details>
+      <div class="spot-card-button-row art-spaced"><button type="button" class="spot-card-apply" data-art-add-text>Add text block</button><button type="button" data-art-update-text hidden>Update text</button><button type="button" class="art-quiet" data-art-delete-text hidden>Delete text block</button></div><p class="spot-card-caption" data-art-text-saved hidden>Text changes update as you type. Save the card to keep them.</p>
+    </fieldset>
+  </section>
+  <section data-art-task-panel="ai" id="artTaskAI" role="tabpanel" aria-labelledby="artTabAI" hidden>
+    <h3>Edit the selected area</h3>
+    <fieldset data-art-controls class="art-flat" data-art-ai-setup><legend class="art-sr-only">Generative Art AI</legend>
+      <div class="art-ai-actions" role="group" aria-label="AI editing action"><button type="button" data-art-ai-mode="remove_text" aria-pressed="true"><span>Remove text<small>Replace lettering with the surrounding background.</small></span></button><button type="button" data-art-ai-mode="replace" aria-pressed="false"><span>Change this area<small>Describe what you want to add or change.</small></span></button></div>
+      <label>AI model<select data-art-model data-models-url="{{ url_for('local_mirror_settings') }}"><option value="">Loading models…</option></select></label>
+      <p class="spot-card-caption" data-art-model-status>Downloaded models appear here. Download more in Generative Art AI settings.</p>
+      <label data-art-prompt-row hidden>What should change?<textarea rows="3" maxlength="2000" data-art-prompt placeholder="For example: replace the staff with a silver sword"></textarea></label>
+      <label>Artwork style<select data-art-style-mode><option value="match">Match artwork · local analysis</option><option value="custom">Custom description</option><option value="none">No style guidance</option></select></label>
+      <label data-art-custom-style-row hidden>Describe the artwork style<textarea rows="3" maxlength="2000" data-art-custom-style placeholder="Medium, palette, brushwork, texture, edges and lighting"></textarea></label>
+      <p class="spot-card-caption" data-art-analyzer-status></p>
+      <details class="art-details"><summary>Preparation & variation</summary><label>Operation to prepare<select data-art-prepare-mode><option value="replace">Change this area</option><option value="remove_object">Remove object</option><option value="outpaint">Extend artwork</option></select></label><label>Seed (blank for a new variation)<input type="number" min="0" max="2147483647" step="1" data-art-seed placeholder="Random"></label><button type="button" data-art-prepare>Prepare reference & prompt</button></details>
+      <button type="button" class="spot-card-apply art-wide art-spaced" data-art-generate>Generate preview</button><button type="button" class="art-wide art-spaced" data-art-remove-object>Remove object</button><button type="button" class="art-wide art-spaced" data-art-extend-artwork>Extend artwork</button><p class="spot-card-caption">Extend artwork detects and excludes frame and text from its reference, then continues the artwork into selected outer areas. Adjust the art box on a mask tab if needed. The prompt is optional.</p><p class="spot-card-caption" data-art-ai-selection-hint hidden>Select an area first.</p>
+    </fieldset>
+    <details class="art-details" data-art-plan hidden><summary>Generation details & reference</summary><div data-art-plan-images style="display:flex;gap:8px;flex-wrap:wrap"></div><p data-art-plan-notes></p><label>Artwork description<textarea rows="4" readonly data-art-plan-style></textarea></label><button type="button" data-art-use-style>Use this description as custom style</button><label>Final prompt<textarea rows="5" readonly data-art-plan-prompt></textarea></label><div class="spot-card-button-row"><button type="button" data-art-repeat-seed>Use this seed again</button><button type="button" data-art-export-plan>Export generation plan</button></div><pre data-art-plan-info style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></details>
+    <section class="art-ai-job" data-art-job hidden aria-label="AI job progress"><div class="art-job-title"><strong data-art-job-title>Starting local AI</strong><span data-art-elapsed>0:00 elapsed</span></div><ol class="art-job-stages" data-art-job-stages aria-label="Generation stages"><li>Prepare</li><li>Generate</li><li>Preview</li><li>Review</li></ol><p class="spot-card-caption" data-art-job-message role="status" aria-live="polite"></p><p class="spot-card-caption" data-art-job-model></p><div class="art-preview-actions"><button type="button" class="spot-card-apply" data-art-accept hidden>Apply result</button>{% if studio_development_diagnostics %}<button type="button" data-art-export-diagnostics hidden title="Download the preview's images, prompts and color measurements; also save a local DEV copy.">Export diagnostics</button>{% endif %}</div><div class="spot-card-button-row art-spaced"><button type="button" data-art-cancel hidden>Cancel generation</button><button type="button" data-art-discard hidden>Discard</button><button type="button" data-art-retry hidden>Review settings & retry</button></div></section>
+    <a class="art-settings-link" href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins" target="_blank" rel="noopener">Generative Art AI settings ↗</a>
+  </section>
+  <p class="spot-card-caption art-status" data-art-status role="status" aria-live="polite"></p>
+  <details class="art-details art-shortcuts"><summary>Keyboard shortcuts</summary><p class="spot-card-caption">B Brush · E Erase · G Bucket · I Pick color · M Rectangle · O Ellipse · L Lasso · W Magic Wand · T Text · H Pan</p><p class="spot-card-caption">Hold Space over the canvas to pan temporarily. [ and ] resize a brush. Ctrl+A selects all; Ctrl+D deselects; Ctrl+Shift+I inverts. Ctrl+Z undoes; Ctrl+Shift+Z or Ctrl+Y redoes. Shortcuts leave text fields alone.</p></details>
 </div>

@@ -6,8 +6,8 @@
 {# Page Styles #}
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/application_backups.css', v='1') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/spot_foil_workflows.css', v='7') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-layers-4') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/spot_foil_workflows.css', v='8') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-layers-5') }}">
 <link
     rel="stylesheet"
     href="{{ url_for('static', filename='css/upscale_batch.css') }}"
@@ -1020,7 +1020,7 @@
                             </div>
                         </div>
 
-                        {% if plugin.get('plugin_id') == 'subject-detection-ai' %}
+                        {% if plugin.get('plugin_id') == 'card-finishing-studio' %}
                             {% include "_spot_foil_workflows.html" %}
                             <h3 class="studio-ai-heading">AI detection</h3>
                         {% endif %}
@@ -1138,21 +1138,21 @@
                                 </button>
                             </form>
                         </div>
-                        {% if plugin.get('plugin_id') == 'subject-detection-ai' %}
+                        {% if plugin.get('plugin_id') == 'card-finishing-studio' %}
                             {% include "_local_mirror_settings.html" %}
                         {% endif %}
                     </div>
                 {% endmacro %}
 
                 <div class="plugin-companion-panels" data-plugin-companions>
-                    {% for plugin in plugin_catalog_items if plugin.get('plugin_id') == 'subject-detection-ai' %}
+                    {% for plugin in plugin_catalog_items if plugin.get('plugin_id') == 'card-finishing-studio' %}
                         {{ render_plugin_card(plugin) }}
                     {% endfor %}
                 </div>
 
                 {% set plugin_counts = namespace(installed=0, available=0) %}
 
-                {% for plugin in plugin_catalog_items if plugin.get('plugin_id') not in ('spot-foil-ai', 'subject-detection-ai') %}
+                {% for plugin in plugin_catalog_items if plugin.get('plugin_id') != 'card-finishing-studio' %}
                     {% if plugin.get("status", {}).get("installed") %}
                         {% set plugin_counts.installed = plugin_counts.installed + 1 %}
                     {% else %}
@@ -1178,7 +1178,7 @@
                         class="plugin-list"
                         data-plugin-list="installed"
                     >
-                        {% for plugin in plugin_catalog_items if plugin.get('plugin_id') not in ('spot-foil-ai', 'subject-detection-ai') %}
+                        {% for plugin in plugin_catalog_items if plugin.get('plugin_id') != 'card-finishing-studio' %}
                             {% if plugin.get("status", {}).get("installed") %}
                                 {{ render_plugin_card(plugin) }}
                             {% endif %}
@@ -1204,7 +1204,7 @@
                         class="plugin-list {% if plugin_counts.available == 0 %}hidden{% endif %}"
                         data-plugin-list="available"
                     >
-                        {% for plugin in plugin_catalog_items if plugin.get('plugin_id') not in ('spot-foil-ai', 'subject-detection-ai') %}
+                        {% for plugin in plugin_catalog_items if plugin.get('plugin_id') != 'card-finishing-studio' %}
                             {% if not plugin.get("status", {}).get("installed") %}
                                 {{ render_plugin_card(plugin) }}
                             {% endif %}
@@ -1452,7 +1452,7 @@
 <script
     src="{{ url_for('static', filename='js/plugin_manager.js', v='3') }}"
 ></script>
-<script src="{{ url_for('static', filename='js/spot_foil_workflows.js', v='6') }}"></script>
+<script src="{{ url_for('static', filename='js/spot_foil_workflows.js', v='12') }}"></script>
 
 <script>
 (function () {
@@ -2605,6 +2605,6 @@
 {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
 <script src="{{ url_for('static', filename='js/application_backups.js', v='campaign-1') }}"></script>
-<script src="{{ url_for('static', filename='js/local_mirror_settings.js', v='3') }}"></script>
+<script src="{{ url_for('static', filename='js/local_mirror_settings.js', v='packages-5') }}"></script>
 {% endblock %}
 

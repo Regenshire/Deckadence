@@ -16,6 +16,7 @@ from .card_spot_foil import ensure_schema, read_record
 from .foil_workflows import PRESETS, validate_options, normalize_display_color, resolve_export_workflow
 from .finishing_effects import render_overlay, parameters, needs_backdrop, composite_overlay
 from .finishing_bakes import baked_image
+from .print_color import profile_bytes, convert_pdf_artwork
 
 MM = 72 / 25.4
 
@@ -139,13 +140,19 @@ def _clip_path(slot, radius):
             f'{x} {y+r} l {x} {y+r-k} {x+r-k} {y} {x+r} {y} c h W n\n')
 
 
+from .foil_workflows import validate_pdf_version
+
+
 class SpotFoilPdfJob:
-    def __init__(self, get_connection, output='spot_pdf', tone='grayscale', display_colors=None, *, workflow=None, include_white_inverse=False, include_foil=True, include_gloss=False, include_effect1=False, include_effect2=False):
+    def __init__(self, get_connection, output='spot_pdf', tone='grayscale', display_colors=None, *, workflow=None, include_white_inverse=False, include_foil=True, include_gloss=False, include_effect1=False, include_effect2=False, cmyk_profile=None, separate_effect_layers=False, pdf_version="1.5"):
         if output not in ('spot_pdf', 'mask_pdf') or tone not in ('grayscale', 'binary'):
             raise ValueError('Choose a valid spot-foiling PDF format and ink coverage mode.')
         self.get_connection, self.output, self.tone = get_connection, output, tone
         self.mask_only = output == 'mask_pdf'
         self.include_foil, self.include_gloss = bool(include_foil), bool(include_gloss)
+        self.pdf_version = validate_pdf_version(pdf_version)
+        self.cmyk_profile = cmyk_profile
+        self.separate_effect_layers = bool(separate_effect_layers)
         self.include_effects = {"effect1":bool(include_effect1), "effect2":bool(include_effect2)}
         self.effect_placements = []
         self.has_baked_artwork = False
@@ -183,7 +190,7 @@ class SpotFoilPdfJob:
                 if settings.get('edit'):
                     record['edit']=dict(finish='art_edit',png=base64.b64decode(settings['edit']['png_base64']))
                 for layer in self.include_effects:
-                    if settings.get(layer):
+                    if settings.get(layer) and not settings[layer].get("disabled", False):
                         record[layer] = dict(settings[layer], revision=row['revision']+':'+layer,
                                              png=base64.b64decode(settings[layer]['mask_png_base64']))
                 gloss = settings.get('gloss')
@@ -212,7 +219,7 @@ class SpotFoilPdfJob:
     def bake_artwork(self, artwork, entry, slot, bleed=False):
         record = self.record_for(entry)
         layers = [record[layer] for layer, enabled in self.include_effects.items()
-                  if enabled and record and record.get(layer)]
+                  if enabled and record and record.get(layer) and not self.separate_effect_layers]
         if record and record.get('edit') and not self.mask_only:layers.insert(0,record['edit'])
         if not layers:
             return artwork, False
@@ -229,12 +236,16 @@ class SpotFoilPdfJob:
                     max(1, min(size[1], round(size[1]*slot.get('finished_card_height_mm', height)/height))))
         result = baked_image(image, layers, trim, rotation=rotation, extend_bleed=bleed)
         self.has_baked_artwork = True
-        # Explicit process colorants preserve named spot inks under overprint.
-        return ImageReader(result.convert('CMYK')), True
+        # Keep compositing in RGB; the final document pass manages CMYK when inks are enabled.
+        return ImageReader(result.convert('RGB')), not self.separate_effect_layers
 
     def finish(self, source, allow_empty=False):
         if not (self.include_foil or self.include_gloss or any(self.include_effects.values())) and not self.has_baked_artwork:
-            return source
+            source.seek(0)
+            writer = PdfWriter(); writer.clone_document_from_reader(PdfReader(source))
+            writer.pdf_header = "%PDF-" + self.pdf_version
+            output = BytesIO(); writer.write(output); output.seek(0)
+            return output
         if not self.placements and not self.effect_placements and not self.has_baked_artwork and not allow_empty:
             raise ValueError('No saved finishing layers were found. Save a Foil Mask, Gloss, or Effect layer first, or turn off those layers in Print / Export.')
         channels = {(r['options']['spot_name'], r['options']['layer_type']) for _, r, *_ in self.placements}
@@ -253,7 +264,7 @@ class SpotFoilPdfJob:
             display_colors[name] = color
         source.seek(0)
         writer = PdfWriter(); writer.clone_document_from_reader(PdfReader(source))
-        writer.pdf_header = '%PDF-1.5'
+        writer.pdf_header = '%PDF-' + self.pdf_version
         groups = []
 
         def group(name, channel=None, role=None):
@@ -274,7 +285,7 @@ class SpotFoilPdfJob:
         layers = {key: group(f'{key[0]} - Gloss', key, role='gloss') for key in sorted(gloss_channels)}
         effect_layers = {layer:group('Effect '+layer[-1], role=layer) for layer in ('effect2','effect1')
                          if any(item[1]==layer for item in self.effect_placements)}
-        artwork = group('Artwork (baked effects) and registration', role='baked_artwork') if self.has_baked_artwork else group('Artwork and registration')
+        artwork = group('Artwork (baked effects) and registration', role='baked_artwork') if self.has_baked_artwork and not self.separate_effect_layers else group('Artwork and registration')
         layers.update({key: group(f'{key[0]} - ' + {'white_underbase':'White ink (hides foil)', 'foil_application':'Foil / adhesive', 'varnish':'Varnish'}[key[1]], key) for key in sorted(channels - gloss_channels)})
         per_page = {}
         for placement in self.placements:
@@ -415,10 +426,8 @@ class SpotFoilPdfJob:
                             NameObject('/ColorSpace'):NameObject(space),NameObject('/BitsPerComponent'):NumberObject(8)})
                         return obj
                     alpha=writer._add_object(image_object(image.getchannel('A'),'/DeviceGray').flate_encode())
-                    # Explicit process colorants preserve underlying spot inks
-                    # under overprint; transparent DeviceRGB images can knock
-                    # them out when a RIP converts the transparency group.
-                    process=image_object(image.convert('RGB').convert('CMYK'),'/DeviceCMYK');process[NameObject('/SMask')]=alpha
+                    # Composite in RGB; the document color pass handles all process artwork together.
+                    process=image_object(image.convert('RGB'),'/DeviceRGB');process[NameObject('/SMask')]=alpha
                     cached[key]=writer._add_object(process.flate_encode())
                 name=f'/DeckadenceEffectImage{number}'
                 objects[NameObject(name)]=cached[key]
@@ -429,6 +438,8 @@ class SpotFoilPdfJob:
             page[NameObject('/Contents')] = writer._add_object(stream.flate_encode())
         writer._root_object[NameObject('/OCProperties')] = DictionaryObject({NameObject('/OCGs'):ArrayObject(groups),
             NameObject('/D'):DictionaryObject({NameObject('/BaseState'):NameObject('/ON'), NameObject('/ON'):ArrayObject(groups), NameObject('/Order'):ArrayObject(groups)})})
+        if (self.include_foil or self.include_gloss) and not self.mask_only:
+            convert_pdf_artwork(writer, profile_bytes(self.cmyk_profile) if self.cmyk_profile else None)
         writer.add_metadata({'/Subject':'Saved card spot masks. Spot plates use the configured display colors; their names select physical inks in the RIP. White underbase is the inverse of foil visibility.',
                              '/Keywords':', '.join(sorted(name for name, _ in channels)),
                              '/DeckadenceSpotOutput': self.output,
@@ -467,11 +478,15 @@ def append_print_pdf(writer, source):
     output = (reader.metadata or {}).get('/DeckadenceSpotOutput')
     if output:
         writer.deckadence_spot_output = output
+    writer.deckadence_pdf_header = max(getattr(writer, "deckadence_pdf_header", "%PDF-1.5"), reader.pdf_header)
     writer.append(reader)
+    if reader.trailer["/Root"].get("/OutputIntents"):
+        writer._root_object[NameObject("/OutputIntents")]=reader.trailer["/Root"]["/OutputIntents"].clone(writer)
 
 
 def finish_print_pdf_merge(writer):
     """Restore the layer catalog after pypdf merges separate pack documents."""
+    writer.pdf_header = getattr(writer, "deckadence_pdf_header", "%PDF-1.5")
     output = getattr(writer, 'deckadence_spot_output', None)
     if not output:
         return
@@ -506,6 +521,6 @@ def finish_print_pdf_merge(writer):
     refs = ArrayObject(sorted(groups.values(), key=layer_order))
     writer._root_object[NameObject('/OCProperties')] = DictionaryObject({NameObject('/OCGs'):refs,
         NameObject('/D'):DictionaryObject({NameObject('/BaseState'):NameObject('/ON'), NameObject('/ON'):refs, NameObject('/Order'):refs})})
-    writer.pdf_header = '%PDF-1.5'
+    writer.pdf_header = getattr(writer, 'deckadence_pdf_header', '%PDF-1.5')
     writer.add_metadata({'/DeckadenceSpotOutput': output, '/Keywords':', '.join(sorted(inks)),
                          '/Subject':'Saved card spot masks. Spot plates use the configured display colors; white ink covers the inverse of foil visibility.'})

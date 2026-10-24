@@ -676,6 +676,7 @@
     const img = node("img", undefined, "chaos-pack-inline-image");
     img.src = shown ? card.image_src : root.dataset.cardBack;
     img.alt = shown ? card.card_name : "Unrevealed card";
+    if(shown) {img.dataset.finishingCardUuid=card.card_uuid;img.dataset.cardFlipFace="front";}
     img.loading = "lazy";
     img.decoding = "async";
     img.onerror = () => {
@@ -689,7 +690,7 @@
     b.append(img);
     b.onclick = () => {
       if (busy || img.dataset.cardFlipping) return;
-      if (shown) zoom(card, img.src);
+      if (shown) zoom(card, img.src, img.dataset.cardFlipFace);
       else revealCard(card, tile, img);
     };
     wrap.append(b);
@@ -707,6 +708,7 @@
           window.DeckadenceCardEffects.flip(img, () => {
             back = !back;
             img.src = back ? card.back_image_src : card.image_src;
+            img.dataset.cardFlipFace=back?"back":"front";
           });
         };
         wrap.append(flip);
@@ -1580,20 +1582,23 @@
   }
   $("detailSource").value = source === "none" ? "manapool" : source;
   $("detailSource").onchange = renderSidebar;
-  function zoom(card, src) {
+  function zoom(card, src, face) {
     $("zoomImage").src = src || card.image_src;
     $("zoomImage").alt = card.card_name;
+    $("zoomImage").dataset.finishingCardUuid=card.card_uuid;
+    $("zoomImage").dataset.cardFlipFace=face==="back"||src===card.back_image_src?"back":"front";
     $("zoomLabel").textContent = card.card_name;
     delete $("zoomSurface").dataset.cardFinish;
     window.DeckadenceCardEffects?.attach($("zoomSurface"), {
       isFoil: card.sheet_is_foil,
       promo_types: card.promo_types,
     });
-    let back = src === card.back_image_src;
+    let back = face === "back" || src === card.back_image_src;
     $("flipZoom").hidden = !card.back_image_src;
     $("flipZoom").onclick = () => {
       back = !back;
       $("zoomImage").src = back ? card.back_image_src : card.image_src;
+      $("zoomImage").dataset.cardFlipFace=back?"back":"front";
     };
     $("zoomDialog").showModal();
   }

@@ -212,7 +212,7 @@ from ui.ui import (
 )
 
 from plugin_system.catalog import PLUGIN_CATALOG
-from plugin_system.foil_workflows import register_foil_workflow_routes, resolve_export_workflow
+from plugin_system.foil_workflows import register_foil_workflow_routes, resolve_export_workflow, load_preferences as load_studio_preferences, validate_pdf_version
 from plugin_system.card_spot_foil import register_card_spot_foil_routes
 from plugin_system.spot_foil_pdf import SpotFoilPdfJob, place_spot_foil, draw_print_artwork
 from plugin_system.finishing_bakes import baked_image
@@ -1138,13 +1138,16 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
         "chaos",
     )
 
+    g.print_export_pdf_version = validate_pdf_version(form_data.get("pdf_version", load_studio_preferences(get_request_config())["pdf_version"]))
     g.print_export_spot_foil = parse_print_export_override_bool(get_form_values("include_spot_foil"))
     g.print_export_gloss = parse_print_export_override_bool(get_form_values("include_gloss"))
     g.print_export_effect1 = parse_print_export_override_bool(get_form_values("include_effect1"))
+    g.print_export_separate_effect_layers = parse_print_export_override_bool(get_form_values("separate_effect_layers"))
     g.print_export_effect2 = parse_print_export_override_bool(get_form_values("include_effect2"))
     g.print_export_spot_foil_output = form_data.get("spot_foil_pdf_output", "spot_pdf")
     g.print_export_spot_foil_tone = form_data.get("spot_foil_pdf_tone", "grayscale")
     g.print_export_spot_foil_white_inverse = parse_print_export_override_bool(get_form_values("include_white_inverse_layer"))
+    g.print_export_cmyk_profile = form_data.get("cmyk_profile")
     g.print_export_spot_foil_workflow = form_data.get("spot_foil_workflow_id") or None
     g.print_export_spot_foil_overrides = {
         key: form_data.get(field) for key, field in [
@@ -1716,6 +1719,7 @@ def _build_pdf_print_settings(config, print_labels_enabled_override=None):
         pdf_height_mm = 85.25
 
     return {
+        "pdf_version": getattr(g, "print_export_pdf_version", load_studio_preferences(config)["pdf_version"]) if has_request_context() else load_studio_preferences(config)["pdf_version"],
         "use_pdf_print": use_pdf_print,
         "pdf_width_mm": pdf_width_mm,
         "pdf_height_mm": pdf_height_mm,
@@ -1724,7 +1728,9 @@ def _build_pdf_print_settings(config, print_labels_enabled_override=None):
         "include_foil_overlay": (config.get("include_foil_overlay") or "0") == "1",
         "include_spot_foil": has_request_context() and bool(getattr(g, "print_export_spot_foil", False)),
         "include_gloss": has_request_context() and bool(getattr(g, "print_export_gloss", False)),
+        "cmyk_profile": (getattr(g, "print_export_cmyk_profile", None) if has_request_context() and getattr(g, "print_export_cmyk_profile", None) is not None else load_studio_preferences(config)["cmyk_profile"]),
         "include_effect1": has_request_context() and bool(getattr(g, "print_export_effect1", False)),
+        "separate_effect_layers": has_request_context() and bool(getattr(g, "print_export_separate_effect_layers", False)),
         "include_effect2": has_request_context() and bool(getattr(g, "print_export_effect2", False)),
         "spot_foil_pdf_output": getattr(g, "print_export_spot_foil_output", "spot_pdf") if has_request_context() else "spot_pdf",
         "spot_foil_pdf_tone": getattr(g, "print_export_spot_foil_tone", "grayscale") if has_request_context() else "grayscale",
@@ -14539,17 +14545,17 @@ def build_chaos_pack_pdf(
     is_silhouette_layout = pdf_template_layout.get("is_silhouette_layout", False)
 
     buffer = BytesIO()
-    c = CutterCanvas(buffer, pagesize=(width_mm * mm, height_mm * mm))
+    c = CutterCanvas(buffer, pagesize=(width_mm * mm, height_mm * mm), pdfVersion=tuple(map(int, pdf_settings["pdf_version"].split("."))))
     # Edit is part of the printable artwork, even with the finish plates off.
     finishing_requested = any(pdf_settings.get(key) for key in ("include_spot_foil", "include_gloss", "include_effect1", "include_effect2"))
     c.spot_foil_job = SpotFoilPdfJob(get_db_connection,
                                    pdf_settings["spot_foil_pdf_output"] if finishing_requested else "spot_pdf", pdf_settings["spot_foil_pdf_tone"],
-                                   workflow=pdf_settings.get("spot_foil_workflow"),
+                                   workflow=pdf_settings.get("spot_foil_workflow"), pdf_version=pdf_settings["pdf_version"],
                                    include_white_inverse=pdf_settings.get("spot_foil_white_inverse", False),
                                    include_foil=pdf_settings.get("include_spot_foil", False),
                                    include_gloss=pdf_settings.get("include_gloss", False),
                                    include_effect1=pdf_settings.get("include_effect1", False),
-                                   include_effect2=pdf_settings.get("include_effect2", False))
+                                   include_effect2=pdf_settings.get("include_effect2", False), cmyk_profile=pdf_settings.get("cmyk_profile"), separate_effect_layers=pdf_settings.get("separate_effect_layers", False))
     c.setTitle(
         str(
             pack_display_name
@@ -26305,6 +26311,9 @@ def get_print_export_defaults_from_config(config):
 
     return {
         "foil_print_intensity": normalize_print_foil_intensity(config.get("foil_print_intensity", 100)),
+        "pdf_version": load_studio_preferences(config)["pdf_version"],
+        "include_effect1": load_studio_preferences(config)["include_effect1_default"],
+        "include_effect2": load_studio_preferences(config)["include_effect2_default"],
         "include_foil_overlay": get_config_bool(config, "include_foil_overlay", "0"),
         "print_card_backs": get_config_bool(chaos_print_config, "print_card_backs", "0"),
         "default_card_back": get_chaos_default_card_back_key(config),

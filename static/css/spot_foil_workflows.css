@@ -78,3 +78,13 @@ body:has(.spot-foil-dialog[open]) { overflow: hidden; }
 .studio-generation .plugin-card-actions { align-items: center; }
 .studio-generation .studio-generation-note { font-size: .85rem; }
 .studio-generation [hidden] { display: none !important; }
+
+.studio-settings-group { margin-top:20px; border:1px solid var(--border); border-radius:10px; overflow:hidden; background:var(--panel); }
+.studio-settings-group > summary { display:flex; align-items:center; gap:12px; padding:18px 16px; background:var(--panel-2); font-weight:700; cursor:pointer; list-style:none; }
+.studio-settings-group > summary::-webkit-details-marker { display:none; }
+.studio-settings-number { display:grid; place-items:center; width:28px; height:28px; border-radius:50%; background:color-mix(in srgb,var(--accent) 14%,transparent); color:var(--accent); font-size:.7rem; }
+.studio-settings-chevron { margin-left:auto; width:7px; height:7px; border-right:2px solid var(--muted); border-bottom:2px solid var(--muted); transform:rotate(45deg); }
+.studio-settings-group[open] .studio-settings-chevron { transform:rotate(225deg); }
+.studio-settings-content { padding:18px 16px; }
+.studio-settings-content [data-foil-reset] { margin-top:20px; }
+.spot-foil-dialog footer { justify-content:flex-end; }

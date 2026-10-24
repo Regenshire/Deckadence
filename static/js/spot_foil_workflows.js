@@ -5,10 +5,54 @@
   if (!panel || !dialog) return;
   const form = dialog.querySelector('form');
   const fields = form.elements;
+  if(!fields.disable_gloss_on_view) {
+    const views=document.createElement('fieldset');
+    views.innerHTML='<legend>View settings</legend><label class="spot-foil-check"><input type="checkbox" name="disable_gloss_on_view">Disable Gloss Layer on View</label>';
+    dialog.querySelector('.spot-foil-body').prepend(views);
+  }
   const summary = panel.querySelector('[data-foil-summary]');
   const status = dialog.querySelector('[data-foil-status]');
   const configure = panel.querySelector('[data-foil-configure]');
   const colorPicker = dialog.querySelector('[data-foil-color-picker]');
+  configure.textContent='Studio Settings';
+  dialog.querySelector('h2').textContent='Studio Settings';
+  dialog.querySelector('header p').replaceChildren(dialog.querySelector('header p a'));
+  dialog.querySelector('[type="submit"]').textContent='Save settings';
+  const workflows=document.createElement('details');workflows.className='studio-settings-group';
+  workflows.innerHTML='<summary><span class="studio-settings-number">01</span><span>Print workflows</span><span class="studio-settings-chevron" aria-hidden="true"></span></summary><div class="studio-settings-content"></div>';
+  const exportDefaults=document.createElement('fieldset');
+  exportDefaults.innerHTML='<legend>Print / Export defaults</legend><label>PDF Version<select name="pdf_version"><option>1.5</option><option>1.6</option><option>1.7</option></select></label><div class="spot-foil-checks"><label class="spot-foil-check"><input type="checkbox" name="include_effect1_default">Include Effect 1</label><label class="spot-foil-check"><input type="checkbox" name="include_effect2_default">Include Effect 2</label></div>';
+  fields.workflow_id.closest('label').before(exportDefaults);
+  const colorSettings=document.createElement('fieldset');
+  colorSettings.innerHTML='<legend>PDF color</legend><p class="spot-foil-hint">RGB by default. Spot Foiling or Gloss uses CMYK.</p><label>CMYK ICC profile<select name="cmyk_profile"></select></label><div class="plugin-card-actions"><label class="spot-foil-profile-upload">Upload ICC profile<input type="file" accept=".icc,.icm" data-icc-upload></label><button type="button" class="action-button secondary-button" data-icc-refresh>Refresh profiles</button></div><p class="spot-foil-hint" data-icc-folder></p><p class="spot-foil-hint" role="status" data-icc-status></p>';
+  fields.workflow_id.closest('label').before(colorSettings);
+  const iccStatus=colorSettings.querySelector('[data-icc-status]');
+  function showProfiles(result,selected=fields.cmyk_profile.value) {
+    fields.cmyk_profile.replaceChildren(new Option('None',''),...(result.icc_profiles||[]).map(p=>new Option(p.label+' — '+p.id,p.id)));
+    if(selected && ![...fields.cmyk_profile.options].some(o=>o.value===selected))fields.cmyk_profile.add(new Option(selected+' (missing)',selected));
+    fields.cmyk_profile.value=selected;
+    if(result.icc_profile_folder)colorSettings.querySelector('[data-icc-folder]').textContent='Profile folder: '+result.icc_profile_folder;
+  }
+  colorSettings.querySelector('[data-icc-refresh]').addEventListener('click',async()=>{
+    try {showProfiles(await api());iccStatus.textContent='Profiles refreshed.';}catch(error){iccStatus.textContent=error.message;}
+  });
+  colorSettings.querySelector('[data-icc-upload]').addEventListener('change',async event=>{
+    const file=event.target.files[0];if(!file)return;
+    event.target.disabled=true;iccStatus.textContent='Uploading profile…';
+    try {
+      const body=new FormData();body.append('profile',file);
+      const response=await fetch('/config/plugins/spot-foil/icc-profiles',{method:'POST',body});
+      const result=await response.json();if(!response.ok||!result.ok)throw Error(result.message||'Profile upload failed.');
+      showProfiles(result,result.selected);iccStatus.textContent='Profile uploaded. Save settings to use it.';
+    }catch(error){iccStatus.textContent=error.message;}finally{event.target.disabled=false;event.target.value='';}
+  });
+  const workflowStart=fields.workflow_id.closest('label');
+  const content=workflows.querySelector('.studio-settings-content');
+  workflowStart.before(workflows);
+  while(workflows.nextElementSibling&&!workflows.nextElementSibling.matches('[data-foil-status]'))content.append(workflows.nextElementSibling);
+  content.append(dialog.querySelector('[data-foil-reset]'));
+  form.addEventListener('invalid',event=>{if(workflows.contains(event.target))workflows.open=true;},true);
+
   const boolKeys = ['protect_text', 'protect_frame', 'review_mask', 'overprint'];
   const numberKeys = ['coverage_percent', 'edge_adjustment_mm', 'safe_margin_mm', 'resolution_ppi', 'selection_amount', 'foil_coverage_percent', 'border_width_percent'];
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -137,7 +181,7 @@
   fields.workflow_id.addEventListener('change', () => {
     const next = fields.workflow_id.value;
     if (!validateCurrent()) { fields.workflow_id.value = selected; return; }
-    capture(); selected = next; showProfile(); message('Choose Save workflows to keep changes.');
+    capture(); selected = next; showProfile(); message('Choose Save settings to keep changes.');
   });
   form.addEventListener('input', event => {
     if (event.target.name !== 'workflow_id') dirty.add(selected);
@@ -161,10 +205,14 @@
       data = await api();
       drafts = clone(data.preferences.profiles); dirty = new Set();
       selected = data.preferences.active_workflow;
+      fields.pdf_version.value=data.preferences.pdf_version||"1.5";
+      showProfiles(data,data.preferences.cmyk_profile||"");
+      fields.disable_gloss_on_view.checked = Boolean(data.preferences.disable_gloss_on_view);
+      for(const key of ["include_effect1_default","include_effect2_default"])fields[key].checked=data.preferences[key]!==false;
       setOptions(fields.workflow_id, data.workflows.map(item => item.id),
         Object.fromEntries(data.workflows.map(item => [item.id, item.label])));
       showProfile(); message(''); showSummary(); dialog.showModal(); fields.workflow_id.focus();
-    } catch (error) { summary.textContent = `${error.message} Choose Configure workflows to retry.`; }
+    } catch (error) { summary.textContent = `${error.message} Choose Studio Settings to retry.`; }
     finally { configure.disabled = false; }
   });
   form.addEventListener('submit', async event => {
@@ -176,7 +224,8 @@
     Array.from(fields).forEach(field => { field.disabled = true; });
     message('Saving workflow settings…');
     try {
-      data = await api({active_workflow: selected, profiles});
+      data = await api({pdf_version:fields.pdf_version.value, active_workflow: selected, profiles, disable_gloss_on_view: fields.disable_gloss_on_view.checked, include_effect1_default:fields.include_effect1_default.checked, include_effect2_default:fields.include_effect2_default.checked, cmyk_profile:fields.cmyk_profile.value});
+      window.dispatchEvent(new CustomEvent('finishing-view-settings', {detail:data.preferences}));
       showSummary(); dialog.close();
     } catch (error) {
       message(error.message + (error.retryable ? ' Your changes are still here; try Save again.' : ''), true);
@@ -194,6 +243,6 @@
     if (initialVersion !== loadVersion) return;
     data = result; showSummary();
   }).catch(error => {
-    if (initialVersion === loadVersion) summary.textContent = `${error.message} Choose Configure workflows to retry.`;
+    if (initialVersion === loadVersion) summary.textContent = `${error.message} Choose Studio Settings to retry.`;
   });
 })();

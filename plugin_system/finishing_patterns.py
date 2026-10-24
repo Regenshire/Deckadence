@@ -114,7 +114,7 @@ def pattern_selection(finish, width, height, scale=100, density=100, seed=0, rot
     return Image.open(BytesIO(cairosvg.svg2png(bytestring=svg.encode()))).getchannel('A')
 
 
-def _spectrum(width, height, seed, scale=100, style='oil_slick'):
+def _spectrum(width, height, seed, scale=100, style='oil_slick', origin_x=20, origin_y=72, rotation=0):
     """Smooth thin-film bands; no straight scan lines or repeated image tiles."""
     import colorsys
     rng=random.Random(seed)
@@ -135,7 +135,12 @@ def _spectrum(width, height, seed, scale=100, style='oil_slick'):
                 angle=math.atan2(y-.38,(x-.35)*1.25)
                 flow=r*7/size+.38*math.sin(angle*3+r*8+phase)+.16*math.cos(x*13-y*9)
             elif style=='ripple':
-                flow=math.hypot(x-.2,y-.72)*14/size+.18*math.sin(x*15+y*7+phase)
+                ox,oy=origin_x/100,origin_y/100
+                angle=math.radians(rotation)
+                dx,dy=(x-ox)*width,(y-oy)*height
+                rx=ox+(dx*math.cos(angle)+dy*math.sin(angle))/width
+                ry=oy+(-dx*math.sin(angle)+dy*math.cos(angle))/height
+                flow=math.hypot(rx-ox,ry-oy)*14/size+.18*math.sin(rx*15+ry*7+phase)
             hue=(.11+(flow/size if style=='oil_slick' else x*.7+y*.33)+phase*.025)%1
             if waves:
                 # A bright face and an adjacent dark reflection keep the
@@ -163,7 +168,7 @@ def render_pattern(effect, width, height):
         return Image.new('RGBA',(width,height),'white')
     if finish=='neon_ink':
         return Image.new('RGBA',(width,height),effect['color'])
-    sheet=_spectrum(width,height,effect['seed'],effect['scale'],finish)
+    sheet=_spectrum(width,height,effect['seed'],effect['scale'],finish,effect.get('origin_x',20),effect.get('origin_y',72),effect.get('rotation',0))
     if finish not in PATH_EFFECTS:
         if finish in COLORS:
             colored=ImageChops.multiply(sheet.convert('RGB'),Image.new('RGB',sheet.size,effect['color'])).convert('RGBA')

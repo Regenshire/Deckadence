@@ -1,26 +1,15 @@
 # *** PLUGIN CATALOG - List Available Plugins ***
 PLUGIN_CATALOG = {
-    "subject-detection-ai": {
-        "plugin_id": "subject-detection-ai",
+    "card-finishing-studio": {
+        "plugin_id": "card-finishing-studio",
         "name": "Card Finishing Studio",
         "plugin_type": "card_finishing",
         "type_label": "Card finishing",
-        "description": "Foil masks, gloss, printable effects, and local AI selection. Generative Art AI is an optional download below.",
+        "description": "Foil masks, gloss, printable effects, and local AI selection. Complete Generative Art AI packages are available below.",
         "requirements": "Detection: 64-bit Python 3.10–3.13; CPU; internet for setup and first-use model downloads",
         "bundled_source": True,
         "required_capabilities": ["text", "subject", "frame"],
         "preserve_models": True,
-    },
-    "spot-foil-ai": {
-        "plugin_id": "spot-foil-ai",
-        "name": "AI Text Detection",
-        "plugin_type": "text_detection",
-        "type_label": "Text detection",
-        "description": "Reusable local AI text detection for card artwork and image tools. Spot foiling can use the detected lettering; its other tools work without this plugin.",
-        "requirements": "64-bit Python 3.10–3.13; CPU; internet for initial library installation",
-        "bundled_source": True,
-        # Retain the legacy runtime for existing installs until Studio is updated.
-        "hidden": True,
     },
     "upscaler-nvidia-rtx50": {
         "plugin_id": (

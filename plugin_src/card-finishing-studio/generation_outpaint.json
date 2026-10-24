@@ -1,0 +1,11 @@
+{
+  "repository": "Ming3D/flux-2-klein-4B-outpaint-lora",
+  "revision": "c0c6e97df0cba3f3bf06f873da552c21644f3187",
+  "filename": "flux-outpaint-lora.safetensors",
+  "sha256": "9623927f2471613e0c9d7810da3c39f0b277a448193b223ea3cee67d5750974a",
+  "size_bytes": 76039072,
+  "scale": 0.8,
+  "peft": "0.21.2",
+  "license_url": "https://huggingface.co/Ming3D/flux-2-klein-4B-outpaint-lora",
+  "trigger": "Fill the green spaces according to the image"
+}

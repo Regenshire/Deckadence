@@ -13,7 +13,8 @@ from flask import jsonify, request, send_file, url_for
 from PIL import Image, UnidentifiedImageError
 from .foil_workflows import WORKFLOWS, OUTPUTS, LAYER_TYPES, load_preferences, normalize_display_color
 from .manager import get_plugin_status, run_plugin_json
-from .finishing_effects import EFFECT_TYPES, validate_effect, parameters, render_overlay, cached_overlay, chocobo_selection, PARTICLE_PATH_EFFECTS, particle_selection
+from .finishing_effects import CONFETTI_GLITTER_TYPES, render_confetti_glitter, EFFECT_TYPES, validate_effect, parameters, render_overlay, cached_overlay, chocobo_selection, PARTICLE_PATH_EFFECTS, particle_selection
+from .finishing_ukiyo import TYPES as UKIYO_TYPES, ukiyo_selection
 from .finishing_patterns import PATH_EFFECTS, pattern_selection
 from .mirror_shards import TEMPLATES as SHARD_TEMPLATES, THEMES as MIRROR_THEMES, shard_selection
 from .mirror_generation import register_mirror_generation_routes, generator_ready
@@ -27,12 +28,9 @@ _subject_detection_lock = threading.Lock()
 
 
 def text_detection_plugin(studio_status=None):
-    studio = studio_status if studio_status is not None else get_plugin_status("subject-detection-ai")
+    studio = studio_status if studio_status is not None else get_plugin_status("card-finishing-studio")
     if studio.get("ready") and "text" in studio.get("manifest", {}).get("capabilities", []):
-        return "subject-detection-ai"
-    # Older installations remain usable until the single Studio bundle is installed.
-    if get_plugin_status("spot-foil-ai").get("ready"):
-        return "spot-foil-ai"
+        return "card-finishing-studio"
     return None
 
 
@@ -169,6 +167,7 @@ def decode_mask(value):
 
 def validate_generation(value):
     defaults = dict(mode="highlights", region="artwork", amount=35, coverage=100, action="foil", cleanup="balanced",
+                    art_box_width=88, art_box_height=44, art_box_x=50, art_box_y=34,
                     pocket_size=64, pocket_target="both",
                     text_mode="original", text_source="standard", text_detail="letters", text_ink="auto",
                     text_expand=0, text_smooth=0, exclude_mode="off", exclude_color="#101010",
@@ -179,7 +178,7 @@ def validate_generation(value):
     if not isinstance(value, dict) or set(value) - set(defaults):
         raise ValueError("Choose valid automatic selection settings.")
     value = {**defaults, **value}
-    choices = dict(mode=("none", "highlights", "colors", "details", "shadows", "artwork", "subject", "background"), action=("foil", "opaque"),
+    choices = dict(mode=("none", "highlights", "colors", "details", "shadows", "artwork", "subject", "background", "text"), action=("foil", "opaque"),
                    region=("artwork", "full"), text_mode=("original", "opaque", "foil"),
                    border_mode=("original", "opaque", "foil"), text_source=("standard", "detected"),
                    text_detail=("letters", "regions"), text_ink=("auto", "light", "dark"), cleanup=("off", "balanced", "strong"),
@@ -200,7 +199,7 @@ def validate_generation(value):
     if not isinstance(value["color_swatches"], list) or len(value["color_swatches"]) > 8:
         raise ValueError("Save up to eight color swatches.")
     value["color_swatches"] = list(dict.fromkeys(normalize_display_color(color) for color in value["color_swatches"]))
-    for key, limits in dict(amount=(5, 100), coverage=(1, 100), border_width=(0, 12)).items():
+    for key, limits in dict(amount=(5, 100), coverage=(1, 100), border_width=(0, 12), art_box_width=(1, 100), art_box_height=(1, 100), art_box_x=(0, 100), art_box_y=(0, 100)).items():
         number = value[key]
         if type(number) not in (int, float) or not limits[0] <= number <= limits[1]:
             raise ValueError("Choose a valid selection percentage.")
@@ -258,7 +257,7 @@ def validate_settings(payload):
         value = payload[layer]
         if value is not None:
             keys = {"finish", "strength", "scale", "density", "seed", "overlay_color", "generation", "mask_data"}
-            if not isinstance(value, dict) or set(value)-{"color","translucence","shards","rotation","position_x","position_y","transparency","black_depth","silver_brightness"} != keys:
+            if not isinstance(value, dict) or set(value)-{"color","translucence","shards","rotation","position_x","position_y","transparency","black_depth","silver_brightness","stacked","disabled","origin_x","origin_y","ukiyo_type","sparse","flip_horizontal","particle_type"} != keys:
                 raise ValueError("Provide valid printable effect settings.")
             value = {**validate_effect(parameters(value)), "overlay_color": normalize_display_color(value["overlay_color"]),
                      "generation": validate_generation(value["generation"]),
@@ -323,7 +322,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
             records = [{"target": dict(card_uuid=card[0], face=card[1]),
                         "record": record_json(read_record(conn, (token, *card)), (token, *card))}
                        for card in cards]
-        return jsonify(ok=True, records=records, image_scope=dict(token=token, is_isolated=context.is_isolated))
+        return jsonify(ok=True, records=records, preferences={"disable_gloss_on_view":load_preferences(get_config())["disable_gloss_on_view"]}, image_scope=dict(token=token, is_isolated=context.is_isolated))
 
     @app.route("/cards/spot-foil/<card_uuid>/<face>", methods=["GET", "PUT", "DELETE"])
     @api_errors
@@ -385,9 +384,9 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
                         bake(card, context, settings)
                 except Exception:
                     app.logger.warning("Could not bake finishing artwork; the next view will retry", exc_info=True)
-        subject_detector = get_plugin_status("subject-detection-ai")
+        subject_detector = get_plugin_status("card-finishing-studio")
         return jsonify(ok=True, record=result, preferences=load_preferences(get_config()), workflows=WORKFLOWS,
-                       output_formats=OUTPUTS, layer_types=LAYER_TYPES, effect_types=EFFECT_TYPES,
+                       output_formats=OUTPUTS, layer_types=LAYER_TYPES, effect_types=EFFECT_TYPES, ukiyo_types=UKIYO_TYPES, confetti_glitter_types=CONFETTI_GLITTER_TYPES,
                        shard_templates=SHARD_TEMPLATES, mirror_themes=MIRROR_THEMES,
                        mirror_generator_ready=generator_ready(app),
                        text_detector_ready=bool(text_detection_plugin(subject_detector)),
@@ -424,7 +423,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
     @api_errors
     def card_spot_foil_detect_subject(card_uuid, face):
         card_key(dict(card_uuid=card_uuid, face=face))
-        if not get_plugin_status("subject-detection-ai").get("ready"):
+        if not get_plugin_status("card-finishing-studio").get("ready"):
             raise RuntimeError("Install or update Card Finishing Studio in Plugin Manager, then retry Apply.")
         if request.content_length and request.content_length > 6_100_000:
             return jsonify(ok=False, message="The card image is too large."), 413
@@ -435,7 +434,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if not _subject_detection_lock.acquire(blocking=False):
             raise RuntimeError("Another subject is being detected. Try again when it finishes.")
         try:
-            result = run_plugin_json("subject-detection-ai", "detect_subject", payload, timeout=300)
+            result = run_plugin_json("card-finishing-studio", "detect_subject", payload, timeout=300)
             encoded = result.get("mask") if isinstance(result, dict) else None
             if not isinstance(encoded, str) or len(encoded) > 6_000_000:
                 raise ValueError("Subject detection returned an invalid mask.")
@@ -457,7 +456,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
     @api_errors
     def card_spot_foil_detect_frame(card_uuid, face):
         card_key(dict(card_uuid=card_uuid, face=face))
-        detector = get_plugin_status("subject-detection-ai")
+        detector = get_plugin_status("card-finishing-studio")
         if not detector.get("ready") or "frame" not in detector.get("manifest", {}).get("capabilities", []):
             raise RuntimeError("Install or update Card Finishing Studio in Plugin Manager, then retry.")
         if request.content_length and request.content_length > 6_100_000:
@@ -470,7 +469,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if not _subject_detection_lock.acquire(blocking=False):
             raise RuntimeError("Another card is being analyzed. Try again when it finishes.")
         try:
-            result = run_plugin_json("subject-detection-ai", "detect_frame", payload, timeout=480)
+            result = run_plugin_json("card-finishing-studio", "detect_frame", payload, timeout=480)
             masks = {}; size = None
             for key in ("material", "panels"):
                 encoded = result.get(key) if isinstance(result, dict) else None
@@ -550,6 +549,10 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         keys = {'finish','scale','rotation','width'}
         if finish == 'mirror_shards':
             keys |= {'template','x','y'}
+        elif finish == 'confetti_glitter':
+            keys |= {'density','seed','particle_type','flip_horizontal','x','y'}
+        elif finish == 'ukiyo_e':
+            keys |= {'density','seed','ukiyo_type','sparse','flip_horizontal','x','y'}
         elif finish in PATH_EFFECTS or finish in PARTICLE_PATH_EFFECTS:
             keys |= {'density','seed'}
         elif finish != 'chocobo_tracks':
@@ -562,7 +565,13 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if type(width) is not int or not MASK_SIZE[0] <= width <= MAX_MASK_SIZE[0]:
             raise ValueError('Choose a mask width from 756 to 3024 pixels.')
         height = round(width * MASK_SIZE[1] / MASK_SIZE[0])
-        if finish in PARTICLE_PATH_EFFECTS:
+        if finish == 'confetti_glitter':
+            effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=payload['density'],seed=payload['seed'],rotation=payload['rotation'],position_x=payload['x'],position_y=payload['y'],particle_type=payload['particle_type'],flip_horizontal=payload['flip_horizontal']))
+            alpha=render_confetti_glitter(effect,width,height,selection=True)
+        elif finish == 'ukiyo_e':
+            effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=payload['density'],seed=payload['seed'],rotation=payload['rotation'],position_x=payload['x'],position_y=payload['y'],ukiyo_type=payload['ukiyo_type'],sparse=payload['sparse'],flip_horizontal=payload['flip_horizontal']))
+            alpha=ukiyo_selection(effect,width,height)
+        elif finish in PARTICLE_PATH_EFFECTS:
             effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=payload['density'],seed=payload['seed'],rotation=payload['rotation']))
             alpha=particle_selection(finish,width,height,effect['scale'],effect['density'],effect['seed'],effect['rotation'])
         elif finish in PATH_EFFECTS:

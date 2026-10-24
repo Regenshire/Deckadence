@@ -2,7 +2,7 @@
          data-settings-url="{{ url_for('spot_foil_workflows') }}">
     <p class="spot-foil-summary" data-foil-summary role="status">Loading workflow settings…</p>
     <div class="plugin-card-actions">
-        <button type="button" class="action-button secondary-button" data-foil-configure>Configure workflows</button>
+        <button type="button" class="action-button secondary-button" data-foil-configure>Studio Settings</button>
     </div>
     <a class="spot-foil-help-link" href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C8 2 4 3 2 4v15c3-2 7-2 10 0 3-2 7-2 10 0V4c-3-1-7-2-10 1Zm0 0v14"/></svg>
@@ -14,10 +14,11 @@
 <dialog id="spotFoilWorkflowDialog" class="spot-foil-dialog" aria-labelledby="spotFoilWorkflowTitle">
     <form id="spotFoilWorkflowForm">
         <header>
-            <div><div class="spot-foil-eyebrow">Card Finishing Studio</div><h2 id="spotFoilWorkflowTitle">Print workflows</h2><p>Each workflow keeps its own settings. <a href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">Read the guide ↗</a></p></div>
-            <button type="button" class="spot-foil-close" data-foil-cancel aria-label="Close workflow settings">×</button>
+            <div><div class="spot-foil-eyebrow">Card Finishing Studio</div><h2 id="spotFoilWorkflowTitle">Studio Settings</h2><p><a href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">Read the guide ↗</a></p></div>
+            <button type="button" class="spot-foil-close" data-foil-cancel aria-label="Close Studio Settings">×</button>
         </header>
         <div class="spot-foil-body">
+            <fieldset><legend>View settings</legend><label class="spot-foil-check"><input type="checkbox" name="disable_gloss_on_view">Disable Gloss Layer on View</label></fieldset>
             <label class="spot-foil-workflow">Workflow type<select name="workflow_id" aria-describedby="spotFoilWorkflowDescription"></select></label>
             <p id="spotFoilWorkflowDescription" class="spot-foil-hint"></p>
             <p class="spot-foil-notice">Defaults for new selections. Saved masks stay unchanged.</p>
@@ -58,7 +59,7 @@
         </div>
         <footer>
             <button type="button" class="action-button secondary-button" data-foil-reset>Reset this workflow</button>
-            <div><button type="button" class="action-button secondary-button" data-foil-cancel>Cancel</button><button type="submit" class="action-button">Save workflows</button></div>
+            <div><button type="button" class="action-button secondary-button" data-foil-cancel>Cancel</button><button type="submit" class="action-button">Save settings</button></div>
         </footer>
     </form>
 </dialog>

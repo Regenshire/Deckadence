@@ -15,16 +15,20 @@
     </header>
     <div class="spot-card-layout">
       <section class="spot-card-preview-panel" aria-label="Card preview and painting canvas">
+        <section class="art-review" data-art-review hidden aria-label="Review generated artwork"><div class="art-review-label" data-art-review-label>AI preview · not applied</div><div class="art-review-toolbar"><div class="art-segment" aria-label="Compare AI edit"><button type="button" data-art-compare="original" aria-pressed="false">Original</button><button type="button" data-art-compare="result" aria-pressed="true">AI result</button></div><button type="button" data-art-review-fit>Fit card</button></div><div class="art-review-canvas-wrap"><canvas data-art-review-canvas aria-label="Selected artwork before and after AI editing"></canvas></div><p class="spot-card-caption">Compare the selected area, then use Apply result or Discard beside the preview.</p></section>
         <div class="spot-card-preview-actions">
-        <div class="spot-card-preview-tabs" role="group" aria-label="Preview mode">
+        <div class="spot-card-preview-tabs" role="group" aria-label="Canvas tools and preview mode">
+          <button type="button" class="spot-card-pan" data-spot-pan aria-label="Pan" aria-pressed="false" title="Pan — drag to move around the zoomed canvas"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 11V7a2 2 0 0 0-4 0M14 10V5a2 2 0 0 0-4 0v6M10 10.5V7a2 2 0 0 0-4 0v9M18 8a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.9-6-3l-3.4-4.9a2 2 0 0 1 3.2-2.4L6 12"/></svg></button>
           <button type="button" data-spot-view="effect" aria-pressed="true">Preview</button>
           <button type="button" data-spot-view="all" aria-pressed="false">All Overlays</button>
           <button type="button" data-spot-view="mask" aria-pressed="false">Mask overlay</button>
+          <button type="button" data-spot-view="art" aria-pressed="false" hidden>Edit layer</button>
           <button type="button" data-spot-view="original" aria-pressed="false">Original</button>
         </div>
-        <div class="spot-card-history" role="group" aria-label="Edit history">
+        <div class="spot-card-history" data-spot-mask-history role="group" aria-label="Mask history">
           <button type="button" data-spot-undo disabled title="Undo (Ctrl+Z)">↶ Undo</button><button type="button" data-spot-redo disabled title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
         </div>
+        <div class="art-preview-tools spot-card-history" data-art-preview-tools hidden role="group" aria-label="Artwork history"><button type="button" data-art-undo title="Undo (Ctrl+Z)">↶ Undo</button><button type="button" data-art-redo title="Redo (Ctrl+Shift+Z)">↷ Redo</button></div>
         </div>
         <div class="spot-card-mask-transfer" role="group" aria-label="Copy selection between layers">
           <button type="button" data-spot-copy-mask disabled>Copy Mask</button>
@@ -63,6 +67,11 @@
           <button type="button" data-spot-layer="mask" aria-pressed="true">Foil Mask</button>
           <button type="button" data-spot-layer="gloss" aria-pressed="false">Gloss</button>
         </div>
+        <div class="art-workspace-header" data-art-header hidden>
+          <nav class="art-task-tabs" role="tablist" aria-label="Editing tasks">{% for key,label,id in [('select','Select','Select'),('paint','Paint','Paint'),('text','Text','Text'),('ai','Gen AI','AI')] %}<button type="button" id="artTab{{ id }}" role="tab" data-art-task="{{ key }}" aria-selected="{{ 'true' if key == 'paint' else 'false' }}" aria-controls="artTask{{ id }}">{{ label }}</button>{% endfor %}</nav>
+          <div class="art-job-banner" data-art-job-banner hidden><span data-art-job-summary></span><button type="button" data-art-open-job>View AI job</button></div>
+        </div>
+        <div class="art-job-banner" data-spot-mirror-job-banner hidden><span data-spot-mirror-job-summary></span><button type="button" data-spot-open-mirror-job>View AI job</button></div>
         {% include '_card_art_edit_panel.html' %}
         <details class="spot-card-step is-active" data-spot-step="automatic" open>
           <summary>1 · Automatic selection</summary>
@@ -70,13 +79,14 @@
           <div class="spot-card-fields-grid">
           <label>Choose areas by<select name="selection_mode">
             <option value="none">None</option>
+            <option value="artwork">Everything</option>
+            <option value="text">Text</option>
             <option value="highlights">Bright areas</option>
             <option value="colors">Strong colors</option>
             <option value="details">Edges and texture</option>
             <option value="shadows">Dark areas</option>
             <option value="subject">Subject · AI</option>
             <option value="background">Background · AI</option>
-            <option value="artwork">Everything</option>
           </select></label>
           <label data-spot-auto-option>Make selected areas<select name="generation_action"><option value="foil">Foiled</option><option value="opaque">Opaque · foil the rest</option></select></label>
           <label data-spot-auto-option>Apply within<select name="selection_region"><option value="full">Whole card</option><option value="artwork">Fixed art box</option></select></label>
@@ -88,14 +98,16 @@
           <p class="spot-card-caption" data-spot-area-help></p>
           <label class="spot-card-range-label"><span data-spot-amount-label>Area selected</span> <output data-spot-amount-value>35%</output><input name="selection_amount" type="range" min="5" max="100" step="1" value="35" aria-describedby="spotFoilAmountHelp"></label>
           <p class="spot-card-caption" id="spotFoilAmountHelp" data-spot-amount-help></p>
-          <label class="spot-card-range-label">Foil strength <output data-spot-coverage-value>100%</output><input name="coverage" type="range" min="1" max="100" value="100"></label>
+          <div class="spot-card-fields-grid" data-spot-art-box-controls hidden>
+      <label class="spot-card-range-label">Art box width <output data-spot-art-box-width>88%</output><input name="art_box_width" type="range" min="1" max="100" step="0.5" value="88"></label>
+      <label class="spot-card-range-label">Art box height <output data-spot-art-box-height>44%</output><input name="art_box_height" type="range" min="1" max="100" step="0.5" value="44"></label>
+      <label class="spot-card-range-label">Horizontal position <output data-spot-art-box-x>50%</output><input name="art_box_x" type="range" min="0" max="100" step="0.5" value="50"></label>
+      <label class="spot-card-range-label">Vertical position <output data-spot-art-box-y>34%</output><input name="art_box_y" type="range" min="0" max="100" step="0.5" value="34"></label>
+    </div>
+    <label class="spot-card-range-label">Foil strength <output data-spot-coverage-value>100%</output><input name="coverage" type="range" min="1" max="100" value="100"></label>
           <div class="spot-card-treatment">
             <h3>Text, frame and border</h3>
-            <div class="spot-card-fields-grid">
-            <label>Text<select name="text_mode"><option value="original">Follow automatic selection</option><option value="opaque">Opaque · no foil</option><option value="foil">Foiled</option></select></label>
-            <label>Border<select name="border_mode"><option value="original">Follow automatic selection</option><option value="opaque">Opaque · no foil</option><option value="foil">Foiled</option></select></label>
             <label>Frame<select name="frame_mode"><option value="original">Follow automatic selection</option><option value="opaque">Exclude foil</option><option value="foil">Apply foil</option></select></label>
-            </div>
             <div data-spot-frame-options hidden>
               <div class="spot-card-fields-grid">
                 <label>Include<select name="frame_scope"><option value="material">Frame only</option><option value="panels">Frame and text panels</option></select></label>
@@ -105,7 +117,7 @@
               <p class="spot-card-caption" data-spot-frame-status></p>
               <a href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins" target="_blank" rel="noopener" data-spot-frame-install hidden>Open Plugin Manager ↗</a>
             </div>
-            <label class="spot-card-range-label" data-spot-border-options>Outer border width <output data-spot-border-value>2%</output><input name="border_width" type="range" min="0" max="12" value="2" step="0.5"></label>
+            <label>Text<select name="text_mode"><option value="original">Follow automatic selection</option><option value="opaque">Opaque · no foil</option><option value="foil">Foiled</option></select></label>
             <p class="spot-card-caption" data-spot-treatment-hint></p>
             <div class="spot-card-fields-grid">
             <label>Layout<select name="text_source"><option value="standard">Standard card frame</option><option value="detected">AI detected · full art</option></select></label>
@@ -120,9 +132,11 @@
             <a class="spot-card-help" href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins" target="_blank" rel="noopener">Open Plugin Manager ↗</a>
             <button type="button" data-spot-apply-text>Apply text only</button>
           </details>
+            <label>Border<select name="border_mode"><option value="original">Follow automatic selection</option><option value="opaque">Opaque · no foil</option><option value="foil">Foiled</option></select></label>
+            <label class="spot-card-range-label" data-spot-border-options>Outer border width <output data-spot-border-value>2%</output><input name="border_width" type="range" min="0" max="12" value="2" step="0.5"></label>
           </div>
           <div class="spot-card-auto-actions">
-          <button type="button" class="spot-card-apply" data-spot-apply>Apply spot foiling</button>
+          <button type="button" class="spot-card-apply" data-spot-apply>Apply Mask</button>
           </div>
           </div>
         </fieldset>
@@ -135,17 +149,22 @@
             <button type="button" data-spot-tool="erase" aria-pressed="false">Erase <kbd>E</kbd></button>
             <button type="button" data-spot-tool="pan" aria-pressed="false">Pan <kbd>H</kbd></button>
             <button type="button" data-spot-tool="marquee" aria-pressed="false">Marquee <kbd>M</kbd></button>
+            <button type="button" data-spot-tool="ellipse" aria-pressed="false">Ellipse <kbd>O</kbd></button>
+            <button type="button" data-spot-tool="lasso" aria-pressed="false">Lasso <kbd>L</kbd></button>
+            <button type="button" data-spot-tool="selection-brush" aria-pressed="false">Selection Brush</button>
             <button type="button" data-spot-tool="wand" aria-pressed="false">Magic Wand <kbd>W</kbd></button>
             <button type="button" data-spot-tool="match" aria-pressed="false">Match Color <kbd>C</kbd></button>
             <button type="button" data-spot-tool="sample" aria-pressed="false">Sample <kbd>I</kbd></button>
           </div>
+          <div data-spot-marquee-tools hidden>
           <div class="spot-card-marquee-actions">
             <label class="spot-card-marquee-shape">Marquee shape <select data-spot-marquee-shape><option value="rectangle">Rectangle</option><option value="ellipse">Round / oval</option></select></label>
             <button type="button" data-spot-deselect disabled>Deselect marquee</button>
             <span class="spot-card-caption" data-spot-marquee-status>No marquee boundary</span>
           </div>
           <p class="spot-card-caption">Drag a marquee to limit brush, color selection, fill, clear, copy and paste. Hold Shift while drawing an oval for a circle. Paste fits inside the boundary. Esc deselects it; Delete clears inside. The boundary carries across tabs and is not saved or printed.</p>
-          <label class="spot-card-range-label">Tool amount <output data-spot-tool-coverage-value>100%</output><input name="tool_coverage" type="range" min="1" max="100" value="100"></label>
+          </div>
+          <label class="spot-card-range-label" data-spot-tool-amount>Tool amount <output data-spot-tool-coverage-value>100%</output><input name="tool_coverage" type="range" min="1" max="100" value="100"></label>
           <div data-spot-color-tools hidden>
           <label>Selection action<select name="selection_action"><option value="add">Apply foil</option><option value="erase">Remove foil</option></select></label>
           <label class="spot-card-range-label">Color tolerance <output data-spot-tolerance-value>32</output><input name="tolerance" type="range" min="0" max="128" value="32"></label>
@@ -181,7 +200,7 @@
         <details class="spot-card-step" data-spot-step="cleanup" data-spot-cleanup>
           <summary>3 · Clean up</summary>
         <fieldset data-spot-edit-controls disabled aria-label="Clean up">
-          <button type="button" data-spot-invert disabled title="Swap foil and opaque areas across the whole card. 25% foil becomes 75%.">Invert foil</button>
+          <button type="button" data-spot-invert disabled title="Invert the mask across the whole card. 25% becomes 75%.">Invert Mask</button>
           <div class="spot-card-treatment">
             <h3>Exclude colors</h3>
             <label>Remove foil from<select name="exclude_mode">
@@ -210,7 +229,7 @@
           <div class="spot-card-button-row"><button type="button" data-spot-pocket-undo disabled>↶ Undo last edit</button></div>
           </div>
           <details class="spot-card-edge-settings"><summary>Shape and edges</summary>
-            <label class="spot-card-range-label">Grow / shrink foil <output data-spot-edge-expand-value>0 px</output><input name="edge_expand" type="range" min="-12" max="12" step="1" value="0"></label>
+            <label class="spot-card-range-label">Grow / shrink mask <output data-spot-edge-expand-value>0 px</output><input name="edge_expand" type="range" min="-12" max="12" step="1" value="0"></label>
             <label class="spot-card-range-label">Smooth edges <output data-spot-edge-smooth-value>Off</output><input name="edge_smooth" type="range" min="0" max="6" step="1" value="0"></label>
             <label class="spot-card-range-label">Sharpen edges <output data-spot-edge-sharpen-value>Off</output><input name="edge_sharpen" type="range" min="0" max="100" step="1" value="0"></label>
             <p class="spot-card-caption">+ widens foil areas. − thins them. Changes the current mask.</p>
@@ -226,9 +245,25 @@
           </div>
           <p class="spot-card-caption" data-spot-preview-only>Screen preview only.</p>
           <div data-spot-pattern-controls hidden>
+            <div data-spot-particle-controls hidden style="grid-column:1 / -1">
+              <label>Confetti / Glitter type<select name="effect_particle_type"><option value="glitter_1">Glitter - Type 1</option></select></label>
+              <label class="spot-card-check"><input type="checkbox" name="effect_particle_flip"> Flip horizontally</label>
+            </div>
+            <div data-spot-ukiyo-controls hidden style="grid-column:1 / -1">
+              <label>Ukiyo-e type<select name="effect_ukiyo_type"><option value="wind_ribbons">Clouds - Wind ribbons</option></select></label>
+              <div class="spot-card-button-row">
+                <label class="spot-card-check"><input type="checkbox" name="effect_ukiyo_sparse"> Sparse</label>
+                <label class="spot-card-check"><input type="checkbox" name="effect_ukiyo_flip"> Flip horizontally</label>
+              </div>
+            </div>
             <div data-spot-pattern-rotation-slot><label class="spot-card-range-label" data-spot-effect-rotation>Effect rotation <output data-spot-rotation-value>0°</output><input name="effect_rotation" type="range" min="-180" max="180" value="0" step="1"></label></div>
-            <label data-spot-pattern-size>Pattern size (%)<input name="effect_scale" type="number" min="25" max="200" value="100"></label>
-            <label data-spot-pattern-density><span data-spot-density-label>Density (%)</span><input name="effect_density" type="number" min="25" max="200" value="100"></label>
+            <div class="spot-finish-pair" style="grid-column:1 / -1" data-spot-ripple-origin hidden>
+              <label>Origin X (%)<input type="number" name="effect_origin_x" min="0" max="100" step="1" value="20"></label>
+              <label>Origin Y (%)<input type="number" name="effect_origin_y" min="0" max="100" step="1" value="72"></label>
+            </div>
+            <label class="spot-card-check" data-spot-flame-controls hidden><input type="checkbox" name="effect_stacked"> Stacked flames</label>
+            <label data-spot-pattern-size>Pattern size (%)<input name="effect_scale" type="number" min="25" max="1000" value="100"></label>
+            <label data-spot-pattern-density><span data-spot-density-label>Density (%)</span><input name="effect_density" type="number" min="1" max="200" value="100"></label>
             <div class="spot-finish-pair" data-spot-silver-controls hidden>
               <label class="spot-card-range-label">Black depth <output data-spot-black-depth-value>0%</output><input name="effect_black_depth" type="range" min="0" max="100" value="0" step="1"></label>
               <label class="spot-card-range-label">Silver brightness <output data-spot-silver-brightness-value>90%</output><input name="effect_silver_brightness" type="range" min="0" max="100" value="90" step="1"></label>
@@ -281,6 +316,7 @@
                   <label class="spot-card-range-label">Zoom <output data-spot-scene-zoom-value>100%</output><input aria-label="Alternate image zoom" name="effect_scene_zoom" type="range" min="50" max="300" value="100" step="1"></label>
                   <label class="spot-card-range-label">Skew <output data-spot-scene-skew-value>0°</output><input aria-label="Alternate image skew" name="effect_scene_skew" type="range" min="-60" max="60" value="0" step="1"></label>
                 </div>
+                <p class="spot-card-caption">Rotation keeps the image size unchanged. Use Zoom to change its size.</p>
                 </section>
                 <section class="spot-finish-group" aria-label="Generate artwork">
                 <div class="spot-finish-group-heading"><h3>Generate artwork</h3></div>
@@ -289,12 +325,15 @@
                 <label class="spot-card-range-label">Outpainting margin <output data-spot-outpaint-margin-value>30%</output><input name="effect_outpaint_margin" type="range" min="0" max="100" value="30" step="1"></label>
                 </div>
                 <label data-spot-custom-theme hidden>Custom theme prompt<textarea name="effect_custom_prompt" rows="4" maxlength="1000" placeholder="Describe the alternate artwork, atmosphere, colors and style…"></textarea></label>
+                <label>Additional details (optional)<textarea name="effect_prompt_details" rows="3" maxlength="1000" placeholder="For example: add drifting silver mist and a faint moon behind the figures…"></textarea></label>
+                <p class="spot-card-caption">Adds to the selected theme. Leave blank to use the theme alone.</p>
                 <label class="spot-card-check"><input type="checkbox" name="effect_maintain_style" checked> Maintain art style</label>
-                <p class="spot-card-caption">Keep the source’s medium, brushwork and shading while applying the theme.</p>
-                <p class="spot-card-caption">Margin adds background on each edge (% of image width or height). FLUX generates a wider view and may change details. Regenerate to apply new settings.</p>
+                <p class="spot-card-caption">Analyze the edited artwork’s medium, palette, texture and brushwork before applying the theme.</p>
+                <p class="spot-card-caption">Margin adds background on each edge (% of image width or height), preserving the generated scene in the center. Regenerate to apply new settings.</p>
                 <input type="hidden" name="effect_scene" value="">
                 <input type="hidden" name="effect_scene_theme" value="dark">
                 <input type="hidden" name="effect_scene_custom_prompt" value="">
+                <input type="hidden" name="effect_scene_prompt_details" value="">
                 <input type="hidden" name="effect_scene_maintain_style" value="false">
                 <input type="hidden" name="effect_scene_margin" value="0">
                 <input type="hidden" name="effect_scene_padding_x" value="0">
@@ -304,12 +343,13 @@
                 <div class="spot-card-button-row spot-mirror-actions">
                   <button type="button" data-spot-generate-mirror>Generate mirror scene</button>
                   <button type="button" data-spot-view-art disabled>View generated art</button>
+                  {% if studio_development_diagnostics %}<button type="button" data-spot-export-mirror disabled>Export AI diagnostics</button>{% endif %}
                 </div>
                 <div class="spot-finish-info">
                 <p class="spot-card-caption" data-spot-mirror-status role="status"></p>
                 <a class="spot-card-help" href="{{ url_for('config') }}?open=plugins&amp;scroll=plugins#studio-local-ai" target="_blank" rel="noopener">Generative Art AI settings ↗</a>
                 </div>
-                <p class="spot-card-caption">Source: Fixed Art Box · Artwork only, without card text or frames.</p>
+                <p class="spot-card-caption">Source: Edited artwork within your art box, with detected frame and text excluded.</p>
                 </section>
               </div>
             </div>
@@ -324,6 +364,7 @@
                 <button type="button" class="spot-card-swatch" data-spot-effect-swatch="{{ color }}" style="--swatch: {{ color }}" aria-label="Use {{ color }} effect color"></button>
                 {% endfor %}
               </div>
+              <p class="spot-card-caption" data-spot-wind-wave-tint-help hidden>Choose white to restore the original colors.</p>
             </div></div>
             <p class="spot-card-caption spot-finish-footnote">Effect 2 sits above Effect 1. Both print as artwork.</p>
           </div>
@@ -336,11 +377,18 @@
           <label class="spot-card-check"><input type="checkbox" name="mask_only"> Mask only · hide artwork in Mask overlay</label>
         </fieldset>
         <a class="spot-card-help" href="{{ url_for('spot_foil_help') }}" target="_blank" rel="noopener">Card Finishing Studio guide ↗</a>
+        <section class="art-ai-job" data-spot-mirror-job hidden aria-label="Mirror AI job progress">
+          <div class="art-job-title"><strong data-spot-mirror-job-title>Starting local AI</strong><span data-spot-mirror-elapsed>0:00 elapsed</span></div>
+          <ol class="art-job-stages" data-spot-mirror-job-stages aria-label="Mirror generation stages"></ol>
+          <p class="spot-card-caption" data-spot-mirror-job-message role="status" aria-live="polite"></p>
+          <p class="spot-card-caption" data-spot-mirror-job-model></p>
+          <div class="spot-card-button-row"><button type="button" data-spot-mirror-job-cancel hidden>Cancel generation</button><button type="button" data-spot-mirror-job-view hidden>View generated art</button></div>
+        </section>
       </section>
     </div>
     <footer class="spot-card-footer">
-      <div><p data-spot-status role="status" aria-live="polite">Loading card…</p><button type="button" class="spot-card-remove" data-spot-remove disabled>Remove spot foiling</button></div>
-      <div class="spot-card-footer-actions"><button type="button" data-spot-cancel-generation hidden>Cancel render</button><button type="button" data-spot-close>Cancel</button><button type="submit" class="spot-card-save" disabled>Save for this card</button></div>
+      <div><p data-spot-status data-state="busy" role="status" aria-live="polite" aria-atomic="true"><span class="spot-card-status-icon" aria-hidden="true"></span><span data-spot-status-text>Loading card…</span></p><button type="button" class="spot-card-remove" data-spot-remove disabled>Remove spot foiling</button></div>
+      <div class="spot-card-footer-actions"><button type="button" data-spot-cancel-generation hidden>Cancel render</button><button type="button" data-spot-close>Cancel</button><button type="button" data-spot-save class="spot-card-save" disabled>Save for this card</button></div>
     </footer>
   </form>
 </dialog>

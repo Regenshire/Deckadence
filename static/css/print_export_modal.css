@@ -217,3 +217,7 @@
 .print-spot-foil-details label { display: block; margin: 12px 0 6px; }
 .print-spot-foil-details .print-spot-foil-checkbox { display: flex; align-items: center; gap: 10px; }
 .print-spot-foil-checkbox input[type="checkbox"] { flex: 0 0 18px; width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+
+.print-effect-suboption { display: flex; align-items: center; gap: 10px; margin: -2px 0 8px 20px; padding: 8px 12px; font-size: .9rem; border-left: 2px solid var(--border); }
+.print-effect-suboption[hidden] { display: none !important; }
+.print-effect-suboption input { width: auto; margin: 0; }

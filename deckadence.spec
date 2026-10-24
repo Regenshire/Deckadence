@@ -44,7 +44,7 @@ a = Analysis(
         ('print', 'print'),
         ('db', 'db'),
         ('modes', 'modes'),
-        ('plugin_src/subject-detection-ai', 'plugin_src/subject-detection-ai'),
+        ('plugin_src/card-finishing-studio', 'plugin_src/card-finishing-studio'),
     ],
     hiddenimports=hiddenimports,
     hookspath=[],

@@ -335,7 +335,7 @@
   function copyToZoom(sourceImage, zoomImage) {
     const source = sourceImage?.closest(selector);
     if (!zoomImage) return;
-    const uuid=sourceImage?.dataset.cardUuid||sourceImage?.closest('[data-card-uuid]')?.dataset.cardUuid;
+    const uuid=sourceImage?.dataset.finishingCardUuid||sourceImage?.dataset.cardUuid||sourceImage?.closest('[data-card-uuid]')?.dataset.cardUuid;
     if(uuid) {
       zoomImage.dataset.finishingCardUuid=uuid;
       zoomImage.dataset.cardFlipFace=sourceImage.dataset.cardFlipFace||'front';

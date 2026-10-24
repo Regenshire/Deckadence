@@ -9,6 +9,7 @@ import json
 import re
 
 from flask import jsonify, render_template, request
+from .print_color import PROFILE_DIR, MAX_PROFILE_BYTES, list_profiles, profile_bytes, upload_profile
 
 CONFIG_KEY = "spot_foil_workflows"
 DEFAULT_WORKFLOW = "roland_uv"
@@ -130,8 +131,15 @@ def validate_options(workflow_id, options):
     return result
 
 
+PDF_VERSIONS = ("1.5", "1.6", "1.7")
+
+def validate_pdf_version(value):
+    if value not in PDF_VERSIONS:
+        raise ValueError("Choose PDF version 1.5, 1.6, or 1.7.")
+    return value
+
 def load_preferences(config):
-    defaults = {"active_workflow": DEFAULT_WORKFLOW,
+    defaults = {"pdf_version": "1.5", "active_workflow": DEFAULT_WORKFLOW, "cmyk_profile": "", "disable_gloss_on_view": False, "include_effect1_default": True, "include_effect2_default": True,
                 "text_border_defaults_version": 1,
                 "profiles": {key: deepcopy(value["defaults"]) for key, value in PRESETS.items()}}
     try:
@@ -142,6 +150,11 @@ def load_preferences(config):
         return defaults
     if isinstance(saved.get("active_workflow"), str) and saved["active_workflow"] in PRESETS:
         defaults["active_workflow"] = saved["active_workflow"]
+    defaults["disable_gloss_on_view"] = saved.get("disable_gloss_on_view") is True
+    for key in ("include_effect1_default", "include_effect2_default"):
+        if type(saved.get(key)) is bool: defaults[key] = saved[key]
+    if isinstance(saved.get("cmyk_profile"),str): defaults["cmyk_profile"]=saved["cmyk_profile"]
+    if saved.get("pdf_version") in PDF_VERSIONS: defaults["pdf_version"] = saved["pdf_version"]
     profiles = saved.get("profiles", {})
     if isinstance(profiles, dict):
         for key, options in profiles.items():
@@ -178,6 +191,17 @@ def resolve_export_workflow(config, workflow_id=None, overrides=None):
 
 
 def register_foil_workflow_routes(app, get_config, update_config):
+    @app.route("/config/plugins/spot-foil/icc-profiles", methods=["POST"])
+    def spot_foil_icc_upload():
+        if request.content_length and request.content_length > MAX_PROFILE_BYTES + 65536:
+            return jsonify(ok=False,message="Choose an ICC profile smaller than 16 MB."),413
+        upload=request.files.get("profile")
+        if not upload: return jsonify(ok=False,message="Choose an ICC profile to upload."),400
+        try:
+            name=upload_profile(upload.filename or "profile.icc",upload.read(MAX_PROFILE_BYTES+1))
+            return jsonify(ok=True,selected=name,icc_profiles=list_profiles())
+        except (ValueError,OSError) as exc: return jsonify(ok=False,message=str(exc)),400
+
     @app.route("/help/spot-foiling")
     def spot_foil_help():
         return render_template("spot_foil_guide.html", workflows=WORKFLOWS,
@@ -188,13 +212,23 @@ def register_foil_workflow_routes(app, get_config, update_config):
         preferences = load_preferences(get_config())
         if request.method == "POST":
             payload = request.get_json(silent=True)
-            if not isinstance(payload, dict) or set(payload) - {"active_workflow", "profiles"}:
+            if not isinstance(payload, dict) or set(payload) - {"active_workflow", "profiles", "disable_gloss_on_view", "include_effect1_default", "include_effect2_default", "cmyk_profile", "pdf_version"}:
                 return jsonify(ok=False, message="Provide workflow settings as a JSON object."), 400
+            disabled = payload.get("disable_gloss_on_view", preferences["disable_gloss_on_view"])
+            if type(disabled) is not bool:
+                return jsonify(ok=False, message="Disable Gloss Layer on View must be a checkbox value."), 400
+            effect_defaults = {key:payload.get(key,preferences[key]) for key in ("include_effect1_default", "include_effect2_default")}
+            if any(type(value) is not bool for value in effect_defaults.values()):
+                return jsonify(ok=False, message="Effect defaults must be checkbox values."), 400
             active = payload.get("active_workflow", preferences["active_workflow"])
             profiles = payload.get("profiles", {})
             if not isinstance(active, str) or active not in PRESETS or not isinstance(profiles, dict):
                 return jsonify(ok=False, message="Choose a supported workflow."), 400
             try:
+                pdf_version = validate_pdf_version(payload.get("pdf_version", preferences["pdf_version"]))
+                profile = payload.get("cmyk_profile", preferences["cmyk_profile"])
+                if profile: profile_bytes(profile)
+                elif not isinstance(profile,str): raise ValueError("Choose a CMYK profile.")
                 updates = {}
                 for key, options in profiles.items():
                     if key not in PRESETS:
@@ -204,8 +238,13 @@ def register_foil_workflow_routes(app, get_config, update_config):
                     updates[key] = validate_options(key, {**preferences["profiles"][key], **options})
             except (ValueError, TypeError) as exc:
                 return jsonify(ok=False, message=str(exc)), 400
+            preferences["pdf_version"] = pdf_version
+            preferences["cmyk_profile"] = profile
+            preferences.update(effect_defaults)
+            preferences["disable_gloss_on_view"] = disabled
             preferences["active_workflow"] = active
             preferences["profiles"].update(updates)
             update_config({CONFIG_KEY: json.dumps(preferences, allow_nan=False)})
         return jsonify(ok=True, schema_version=1, preferences=preferences,
-                       workflows=WORKFLOWS, output_formats=OUTPUTS, layer_types=LAYER_TYPES)
+                       workflows=WORKFLOWS, output_formats=OUTPUTS, layer_types=LAYER_TYPES,
+                       icc_profiles=list_profiles(), icc_profile_folder=str(PROFILE_DIR.resolve()))

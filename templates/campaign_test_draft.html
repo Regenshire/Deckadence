@@ -1689,7 +1689,7 @@
 
         return (
             '<div class="campaign-test-draft-virtual-card" data-card-name="' + escapeHtml(cardName) + '" data-card-type-line="' + escapeHtml(card.type_line || "") + '" data-card-mana-value="' + escapeHtml(card.mana_value ?? "") + '">' +
-                '<img src="' + escapeHtml(card.image_src || "") + '" alt="' + escapeHtml(cardName) + '" class="campaign-test-draft-virtual-card-image">' +
+                '<img data-finishing-card-uuid="' + escapeHtml(card.card_uuid || "") + '" src="' + escapeHtml(card.image_src || "") + '" alt="' + escapeHtml(cardName) + '" class="campaign-test-draft-virtual-card-image">' +
                 '<div class="campaign-test-draft-virtual-card-main">' +
                     '<div class="campaign-test-draft-virtual-card-name">' + escapeHtml(cardName) + '</div>' +
                     '<div class="campaign-test-draft-virtual-card-pick">' + pickText + scoreBadge + '</div>' +
