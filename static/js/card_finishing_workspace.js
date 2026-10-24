@@ -301,6 +301,79 @@ window.DeckadenceFinishingWorkspace = {
     }
     new ResizeObserver(arrangePanes).observe(layout);
     window.addEventListener('resize',arrangePanes);arrangePanes();
+    this.setupRangeValues(dialog);
+  },
+  setupRangeValues(dialog) {
+    if(dialog.dataset.rangeValuesReady)return;
+    dialog.dataset.rangeValuesReady='true';
+    const bindings=new Map();let editing=null;
+    function finish(commit,restoreFocus=false){
+      const item=editing;if(!item)return;editing=null;
+      const {range,output,editor,wrapper}=item;
+      const value=editor.value.trim(),number=Number(value);
+      editor.hidden=true;editor.disabled=true;wrapper.classList.remove('is-editing');
+      if(commit&&!range.matches(':disabled')&&value&&Number.isFinite(number)){
+        const previous=range.value;
+        // The range owns min/max and step rounding, just as when it is dragged.
+        range.value=String(number);
+        if(range.value!==previous){
+          range.dispatchEvent(new Event('input',{bubbles:true}));
+          range.dispatchEvent(new Event('change',{bubbles:true}));
+        }
+      }
+      if(restoreFocus&&!range.matches(':disabled'))output.focus({preventScroll:true});
+    }
+    function enhance(root){
+      const ranges=[...(root.matches?.('input[type="range"]')?[root]:[]),...root.querySelectorAll('input[type="range"]')];
+      for(const range of ranges){
+        if(bindings.has(range))continue;
+        const label=range.closest('label'),output=label?.querySelector('output');
+        if(!output)continue;
+        const wrapper=Object.assign(document.createElement('span'),{className:'studio-range-value'});
+        const editor=Object.assign(document.createElement('input'),{type:'number',className:'studio-range-input',hidden:true,disabled:true});
+        editor.inputMode='decimal';editor.autocomplete='off';
+        output.before(wrapper);wrapper.append(output,editor);
+        const item={range,output,editor,wrapper};bindings.set(range,item);
+        const name=()=>{
+          if(range.getAttribute('aria-label'))return range.getAttribute('aria-label');
+          const text=label.cloneNode(true);text.querySelectorAll('input,output,small,.studio-range-value').forEach(node=>node.remove());
+          return text.textContent.trim().replace(/\s+/g,' ')||'Slider';
+        };
+        const sync=()=>{
+          const disabled=range.matches(':disabled');
+          output.tabIndex=disabled?-1:0;output.setAttribute('aria-disabled',String(disabled));
+          output.setAttribute('aria-label','Edit '+name()+': '+output.textContent.trim());
+          if(editing===item&&disabled)finish(false);
+        };
+        output.setAttribute('role','button');output.title='Click to edit the value';
+        const begin=event=>{
+          event.preventDefault();event.stopPropagation();
+          if(range.matches(':disabled'))return;
+          finish(true);
+          editor.min=range.min||'0';editor.max=range.max||'100';editor.step=range.step||'1';
+          editor.value=range.value;editor.setAttribute('aria-label',name()+' value');
+          editor.title='Enter to apply · Escape to cancel';editor.disabled=false;editor.hidden=false;
+          wrapper.classList.add('is-editing');editing=item;editor.focus({preventScroll:true});editor.select();
+        };
+        output.addEventListener('click',begin);
+        output.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' ')begin(event);});
+        editor.addEventListener('keydown',event=>{
+          if(event.key==='Enter'||event.key==='Escape'){
+            event.preventDefault();event.stopPropagation();finish(event.key==='Enter',true);
+          }
+        });
+        editor.addEventListener('blur',()=>{if(editing===item)finish(true);});
+        new MutationObserver(sync).observe(output,{childList:true,subtree:true,characterData:true});
+        item.sync=sync;sync();
+      }
+    }
+    enhance(dialog);
+    // Auto-select is inserted after workspace setup; include its slider too.
+    new MutationObserver(records=>{
+      for(const record of records)for(const node of record.addedNodes)if(node.nodeType===Node.ELEMENT_NODE)enhance(node);
+      if(records.some(record=>record.type==='attributes'))for(const item of bindings.values())item.sync();
+    }).observe(dialog,{childList:true,subtree:true,attributes:true,attributeFilter:['disabled']});
+    dialog.addEventListener('close',()=>finish(false));
   }
 };
 

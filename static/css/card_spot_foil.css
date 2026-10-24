@@ -127,6 +127,14 @@ html[data-theme-scheme="light"] .spot-card-dialog { color-scheme: light; }
 .spot-card-controls .spot-card-range-label { display: grid; grid-template-columns: 1fr auto; }
 .spot-card-range-label input { grid-column: 1 / -1; width: 100%; margin: 4px 0 0; }
 .spot-card-range-label output { color: var(--theme-highlight, var(--accent)); font-variant-numeric: tabular-nums; }
+.studio-range-value { position: relative; display: inline-block; justify-self: end; align-self: center; white-space: nowrap; }
+.spot-card-range-label > .studio-range-value { grid-column: 2; grid-row: 1; }
+.studio-range-value output[role="button"] { cursor: text; border-radius: 3px; }
+.studio-range-value output[role="button"]:is(:hover,:focus-visible) { text-decoration: underline dotted; text-underline-offset: 3px; }
+.studio-range-value output[aria-disabled="true"] { cursor: default; text-decoration: none; }
+.studio-range-value.is-editing > output { visibility: hidden; }
+#cardSpotFoilDialog input.studio-range-input { position: absolute; right: -4px; top: 50%; transform: translateY(-50%); z-index: 2; width: max(100%, 5.5em); min-width: 0; max-width: none; height: 26px; min-height: 0; margin: 0; padding: 2px 5px; border: 1px solid var(--theme-highlight, var(--accent)); border-radius: 4px; background: var(--panel); color: var(--theme-highlight, var(--accent)); font: inherit; font-variant-numeric: tabular-nums; text-align: right; appearance: textfield; }
+.studio-range-input::-webkit-inner-spin-button, .studio-range-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .spot-card-tools, .spot-card-button-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .spot-card-tools > button { flex: 1; }
 .spot-card-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
