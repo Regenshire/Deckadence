@@ -73,6 +73,7 @@ class Capture:
         self.size = 0
         root=Path(__file__).resolve().parents[3]
         paths=[*Path(__file__).parent.glob('*.py'),Path(__file__).parents[1]/'generation_worker.py',
+               Path(__file__).parents[1]/'generation_runtime.py',
                root/'plugin_system/art_edit.py',root/'plugin_system/local_mirror.py',root/'static/js/card_art_edit.js',
                root/'plugin_system/mirror_generation.py',root/'static/js/card_spot_foil.js']
         self.metadata['implementation_hashes']={}

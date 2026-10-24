@@ -137,7 +137,7 @@ def flux_expansion_prompt(expanded_size,padding,parts=None):
         zoom=f'{factor:.2f}',subject_percent=f'{100/factor:.0f}',user_prompt='',style='',theme_direction='',theme_style='')
 
 
-def generate(request):
+def generate(request, runtime=None):
     if request.get('edit_mode') == 'remove_text':
         raise RuntimeError('Text removal must use the text detection and local inpainting worker.')
     def progress(stage,message):
@@ -206,19 +206,21 @@ def generate(request):
         size=model_size(canvas_size,budget)
     # CPU loads the same compact files and promotes weights to float32.
     options={} if model=='flux_klein' else {'variant':'fp16'}
-    pipe=cls.from_pretrained(request['model_path'],torch_dtype=dtype,local_files_only=True,use_safetensors=True,**options)
+    from generation_runtime import GenerationRuntime
+    runtime = runtime or GenerationRuntime()
+    pipe=runtime.pipeline(cls,request['model_path'],dtype,device,options,progress)
     if checkpoint and pipe.unet.config.in_channels!=checkpoint['in_channels']:
         raise RuntimeError('This package is missing the dedicated editing model. Verify and repair the package in Studio Settings.')
     if model=='flux_klein' and request.get('edit_mode')=='outpaint':
         adapter=request.get('outpaint_adapter')
         if not adapter:raise RuntimeError('Install FLUX outpainting support in Generative Art AI settings.')
-        pipe.load_lora_weights(adapter,adapter_name='outpaint')
-        pipe.set_adapters('outpaint',adapter_weights=plan['adapter']['scale'] if plan else OUTPAINT['scale'])
+        runtime.outpaint_adapter(adapter,plan['adapter']['scale'] if plan else OUTPAINT['scale'])
+    else:
+        runtime.disable_adapter()
     if model=='instruct_pix2pix':
         pipe.scheduler=EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
     pipe.set_progress_bar_config(disable=True)
-    if device=='cuda':pipe.enable_model_cpu_offload()
-    else:pipe.to('cpu')
+    runtime.configure(device,progress)
     pipe.vae.enable_tiling()
     generator=torch.Generator(device='cpu').manual_seed(request['seed'])
     arguments=dict(image=reference,prompt=request['prompt'],generator=generator)
@@ -254,10 +256,13 @@ def generate(request):
         arguments.pop('negative_prompt',None)
         if plan['negative_prompt']:arguments['negative_prompt']=plan['negative_prompt']
         if model=='flux_klein':arguments['max_sequence_length']=plan['prompt_tokens']
-    progress('generating','Generating the selected artwork. You can cancel while the model is working.')
+    progress('generating','Encoding the prompt and artwork before the sampling steps.')
     if plan and request.get('progress_path'):
         arguments.update(callback_on_step_end=generation_step_callback(progress),callback_on_step_end_tensor_inputs=[])
+    import time
+    generated_at=time.monotonic()
     with torch.inference_mode():result=rendered_image(pipe(**arguments))
+    print(f'IMAGE_GENERATION seconds={time.monotonic()-generated_at:.3f} operation={request.get("edit_mode","mirror")}',flush=True)
     if plan and request.get('diagnostics_dir'):
         # Set only by the source-app DEV path, never by an API request field.
         # Capturing must not change inference inputs or the returned artwork.
@@ -353,9 +358,51 @@ def download_progress_class(path):
     return DownloadProgress
 
 
+def execute_request(command, payload, runtime=None):
+    os.environ['HF_HUB_OFFLINE']='1';os.environ['TRANSFORMERS_OFFLINE']='1'
+    if command=='prepare-plan':
+        from transformers import AutoTokenizer
+        from prompter.compiler import finalize_plan
+        tokenizers=[AutoTokenizer.from_pretrained(Path(payload['model_path'])/'tokenizer',local_files_only=True)]
+        if payload['plan']['model']=='sdxl': tokenizers.append(AutoTokenizer.from_pretrained(Path(payload['model_path'])/'tokenizer_2',local_files_only=True))
+        plan=finalize_plan(payload['plan'],tokenizers)
+        Path(payload['output']).write_text(json.dumps(plan),encoding='utf-8')
+    elif command=='analyze':
+        from prompter.analysis import infer
+        infer(payload)
+    elif command=='generate':
+        generate(payload,runtime)
+    else:
+        raise ValueError('Unsupported generation-session command.')
+
+
+def generation_session():
+    """Private stdin protocol; parent EOF/cancellation releases all model memory."""
+    import time, traceback
+    from generation_runtime import GenerationRuntime
+    runtime=GenerationRuntime()
+    for line in sys.stdin:
+        request=json.loads(line)
+        started=time.monotonic()
+        try:
+            print('SESSION_START '+request['command'],flush=True)
+            payload=json.loads(Path(request['request']).read_text(encoding='utf-8'))
+            execute_request(request['command'],payload,runtime)
+            result={'ok':True}
+        except Exception as exc:
+            traceback.print_exc()
+            result={'ok':False,'error':str(exc),'error_type':type(exc).__name__}
+        result['elapsed_seconds']=round(time.monotonic()-started,3)
+        print(f"SESSION_END {request['command']} seconds={result['elapsed_seconds']} ok={result['ok']}",flush=True)
+        response=Path(request['response']);temporary=response.with_suffix('.tmp')
+        temporary.write_text(json.dumps(result),encoding='utf-8');temporary.replace(response)
+        if not result['ok']:
+            return  # Never reuse a pipeline after a failed operation.
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command',choices=['health','download','download-outpaint','download-analyzer','verify-assets','analyze','prepare-plan','generate'])
+    parser.add_argument('command',choices=['health','download','download-outpaint','download-analyzer','verify-assets','analyze','prepare-plan','generate','session'])
     parser.add_argument('--hardware',choices=['nvidia','amd','cpu'],default='cpu')
     parser.add_argument('--model',choices=list(CATALOG))
     parser.add_argument('--edit-checkpoint',action='store_true',help='Download this model’s dedicated Edit checkpoint.')
@@ -365,7 +412,9 @@ def main():
     parser.add_argument('--health-output')
     parser.add_argument('--with-outpaint',action='store_true')
     args=parser.parse_args()
-    if args.command=='health':
+    if args.command=='session':
+        generation_session()
+    elif args.command=='health':
         check_health(args.hardware,args.health_output,args.with_outpaint)
     elif args.command=='download-outpaint':
         import hashlib, shutil
@@ -401,18 +450,7 @@ def main():
         if not model:raise RuntimeError('This model has no separate editing checkpoint.')
         download_snapshot(model['repository'],model['revision'],args.destination,model['patterns'],download_progress_class(args.progress_path),required=['model_index.json']+model.get('required_files',[]))
     else:
-        os.environ['HF_HUB_OFFLINE']='1';os.environ['TRANSFORMERS_OFFLINE']='1'
         payload=json.loads(Path(args.request).read_text(encoding='utf-8'))
-        if args.command=='prepare-plan':
-            from transformers import AutoTokenizer
-            from prompter.compiler import finalize_plan
-            tokenizers=[AutoTokenizer.from_pretrained(Path(payload['model_path'])/'tokenizer',local_files_only=True)]
-            if payload['plan']['model']=='sdxl': tokenizers.append(AutoTokenizer.from_pretrained(Path(payload['model_path'])/'tokenizer_2',local_files_only=True))
-            plan=finalize_plan(payload['plan'],tokenizers)
-            Path(payload['output']).write_text(json.dumps(plan),encoding='utf-8')
-        elif args.command=='analyze':
-            from prompter.analysis import infer
-            infer(payload)
-        else: generate(payload)
+        execute_request(args.command,payload)
 
 if __name__=='__main__':main()

@@ -383,7 +383,8 @@ def render_overlay(mask_png, effect, width=None):
                             rotation=effect['rotation'],scene_rotation=options['scene_rotation'],
                             scene_zoom=options['scene_zoom'],scene_skew=options['scene_skew'],template_scale=options['template_scale'],
                             scene_x=options['scene_x'],scene_y=options['scene_y'],scene_padding=options['scene_padding'],
-                            template_x=options['template_x'],template_y=options['template_y'])
+                            template_x=options['template_x'],template_y=options['template_y'],
+                            scene_flip_horizontal=options['scene_flip_horizontal'],scene_flip_vertical=options['scene_flip_vertical'])
     elif effect['finish']=='chocobo_tracks':
         image=_chocobo_overlay(*size,effect)
     elif effect["finish"]=="neon":

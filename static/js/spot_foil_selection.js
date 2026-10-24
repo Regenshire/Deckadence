@@ -299,70 +299,164 @@
     for (const region of regions) {
       output.beginPath(); region.forEach(([x,y],i)=>i ? output.lineTo(x*width,y*height) : output.moveTo(x*width,y*height)); output.closePath(); output.fill();
     }
-    const refine = () => refineMask(result, (options.text_expand || 0) * width / 756, (options.text_smooth || 0) * width / 756);
+    const refine = () => {
+      // Mana pips are complete printed symbols: protect both their circular
+      // background and internal glyph, irrespective of light/dark text ink.
+      if(options.text_source === "detected")for(const symbol of options.text_symbols||[]){
+        const xs=symbol.map(p=>p[0]*width),ys=symbol.map(p=>p[1]*height);
+        const left=Math.min(...xs),top=Math.min(...ys),right=Math.max(...xs),bottom=Math.max(...ys);
+        output.fillStyle="white";output.beginPath();output.ellipse((left+right)/2,(top+bottom)/2,(right-left)/2,(bottom-top)/2,0,0,2*Math.PI);output.fill();
+      }
+      return refineMask(result, (options.text_expand || 0) * width / 756, (options.text_smooth || 0) * width / 756);
+    };
     if (options.text_detail !== "letters" || !regions.length) return refine();
     const art = document.createElement("canvas"); art.width = width; art.height = height;
     const ac = art.getContext("2d", {willReadFrequently:true}); ac.drawImage(source,0,0,width,height);
     const pixels = ac.getImageData(0,0,width,height).data, selected = output.getImageData(0,0,width,height);
     const keep = new Uint8Array(width*height);
-    // Classify each polygon independently. The union of OCR boxes is not a
-    // valid clipping mask for a single box's background estimate: angled,
-    // overlapping boxes would otherwise erase unrelated rectangular patches.
     const local = document.createElement("canvas");
-    const edge = Math.max(1, Math.round(3 * width / 756));
+    const luminance = p => .2126*pixels[p*4]+.7152*pixels[p*4+1]+.0722*pixels[p*4+2];
     for (const region of regions) {
-      const xs=region.map(p=>p[0]*width), ys=region.map(p=>p[1]*height);
-      const l=Math.max(0,Math.floor(Math.min(...xs))), r=Math.min(width-1,Math.ceil(Math.max(...xs)));
-      const t=Math.max(0,Math.floor(Math.min(...ys))), b=Math.min(height-1,Math.ceil(Math.max(...ys)));
-      const w = r-l+1, h = b-t+1;
-      if (w <= 0 || h <= 0) continue;
-      local.width = w; local.height = h;
-      const lc = local.getContext("2d", {willReadFrequently:true});
-      lc.fillStyle = "white"; lc.beginPath();
-      region.forEach(([x,y],i)=>i ? lc.lineTo(x*width-l,y*height-t) : lc.moveTo(x*width-l,y*height-t));
-      lc.closePath(); lc.fill();
-      const clip = lc.getImageData(0,0,w,h).data;
-      const inside = (x,y) => x>=0 && y>=0 && x<w && y<h && clip[(y*w+x)*4+3]>0;
-      const buckets=new Map();
-      // Sample the polygon's actual edges, not its axis-aligned bounding box.
-      for(let y=0;y<h;y++)for(let x=0;x<w;x++) {
-        if(!inside(x,y) || (inside(x-edge,y) && inside(x+edge,y) && inside(x,y-edge) && inside(x,y+edge)))continue;
-        const i=((y+t)*width+x+l)*4;
-        if(!pixels[i+3])continue;
-        const key=(pixels[i]>>5)*64+(pixels[i+1]>>5)*8+(pixels[i+2]>>5);
-        const bin=buckets.get(key)||[0,0,0,0];bin[0]++;bin[1]+=pixels[i];bin[2]+=pixels[i+1];bin[3]+=pixels[i+2];buckets.set(key,bin);
+      const points=region.map(([x,y])=>[x*width,y*height]);
+      const lengths=points.map((p,i)=>Math.hypot(p[0]-points[(i+1)%4][0],p[1]-points[(i+1)%4][1]));
+      const lineHeight=Math.max(3,Math.min(...lengths));
+      // OCR outlines often graze serifs and italic strokes. Resolve complete
+      // glyphs in a small padded search area instead of deleting edge letters.
+      const padding=options.text_source==="detected"?Math.max(width/756,lineHeight*.18):0;
+      const padded=points.map((p,i)=>{
+        const previous=points[(i+3)%4],next=points[(i+1)%4];
+        const a=Math.max(1,lengths[(i+3)%4]),b=Math.max(1,lengths[i]);
+        return [p[0]+padding*((p[0]-previous[0])/a+(p[0]-next[0])/b),p[1]+padding*((p[1]-previous[1])/a+(p[1]-next[1])/b)];
+      });
+      const l=Math.max(0,Math.floor(Math.min(...padded.map(p=>p[0])))),r=Math.min(width-1,Math.ceil(Math.max(...padded.map(p=>p[0]))));
+      const t=Math.max(0,Math.floor(Math.min(...padded.map(p=>p[1])))),b=Math.min(height-1,Math.ceil(Math.max(...padded.map(p=>p[1]))));
+      const w=r-l+1,h=b-t+1;if(w<=0||h<=0)continue;
+      local.width=w;local.height=h;
+      const lc=local.getContext("2d",{willReadFrequently:true});lc.fillStyle="white";lc.beginPath();
+      padded.forEach(([x,y],i)=>i?lc.lineTo(x-l,y-t):lc.moveTo(x-l,y-t));lc.closePath();lc.fill();
+      const clip=lc.getImageData(0,0,w,h).data,histogram=new Uint32Array(256),edgeHistogram=new Uint32Array(256);
+      const inside=(x,y)=>x>=0&&y>=0&&x<w&&y<h&&clip[(y*w+x)*4+3]>0;
+      let count=0,total=0,edgeCount=0;
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(clip[(y*w+x)*4+3]&&pixels[((y+t)*width+x+l)*4+3]){
+        const value=Math.round(luminance((y+t)*width+x+l));histogram[value]++;count++;total+=value;
+        if(!inside(x-1,y)||!inside(x+1,y)||!inside(x,y-1)||!inside(x,y+1)){edgeHistogram[value]++;edgeCount++;}
       }
-      const bg=[...buckets.values()].sort((a,b)=>b[0]-a[0])[0];if(!bg)continue;
-      const candidates = new Uint8Array(w*h);
-      for(let y=0;y<h;y++)for(let x=0;x<w;x++) {
-        const alpha = clip[(y*w+x)*4+3];
-        if(!alpha)continue;
-        const p=(y+t)*width+x+l,i=p*4;
-        const delta = .2126 * (pixels[i] - bg[1]/bg[0]) + .7152 * (pixels[i+1] - bg[2]/bg[0]) + .0722 * (pixels[i+2] - bg[3]/bg[0]);
-        const matches = options.text_ink === "light" ? delta > 30 : options.text_ink === "dark" ? delta < -30
-          : Math.hypot(pixels[i]-bg[1]/bg[0],pixels[i+1]-bg[2]/bg[0],pixels[i+2]-bg[3]/bg[0]) > 60;
-        if(matches && pixels[i+3])candidates[y*w+x]=Math.min(alpha,pixels[i+3]);
+      if(!count)continue;
+      const percentile=q=>{let sum=0;for(let i=0;i<256;i++){sum+=histogram[i];if(sum>=count*q)return i;}return 255;};
+      const low=percentile(.01),high=percentile(.99),median=percentile(.5);
+      if(high-low<25)continue;
+      let below=0,weight=0,best=-1,split=median;
+      for(let i=0;i<255;i++){
+        weight+=histogram[i];below+=i*histogram[i];if(!weight||weight===count)continue;
+        const difference=below/weight-(total-below)/(count-weight),score=weight*(count-weight)*difference*difference;
+        if(score>best){best=score;split=i;}
       }
-      // A component cut off by an OCR box cannot be a complete letter. Leaving
-      // it unchanged is preferable to stamping that straight boundary into
-      // the foil mask. This also rejects background mistaken for lettering.
-      const queue = new Int32Array(w*h);
-      let head=0, tail=0;
-      for(let y=0;y<h;y++)for(let x=0;x<w;x++) {
-        const p=y*w+x;
-        if(candidates[p] && (!inside(x-1,y) || !inside(x+1,y) || !inside(x,y-1) || !inside(x,y+1))) {
-          candidates[p]=0; queue[tail++]=p;
+      const light=options.text_ink==="light"||(options.text_ink!=="dark"&&median<=split);
+      const threshold=light?Math.max(split,high-55):Math.min(split,low+55);
+      const strong=light?Math.min(high,Math.max(threshold+8,high-20)):Math.max(low,Math.min(threshold-8,low+20));
+      let edgeMode=0;for(let i=1;i<256;i++)if(edgeHistogram[i]>edgeHistogram[edgeMode])edgeMode=i;
+      let uniform=0;for(let i=Math.max(0,edgeMode-8);i<=Math.min(255,edgeMode+8);i++)uniform+=edgeHistogram[i];
+      // A flat mid-tone surface can carry light and dark ink in the same box.
+      const both=options.text_ink!=="light"&&options.text_ink!=="dark"&&uniform>edgeCount*.85&&edgeMode-low>35&&high-edgeMode>35;
+      const candidates=new Uint8Array(w*h),cores=new Uint8Array(w*h),smallInk=new Uint8Array(w*h);
+      // Small antialiased dots may never reach the full ink color. Keep a
+      // softer candidate map for punctuation only, not for whole letter bodies.
+      const smallThreshold=light?Math.min(threshold,median+(high-median)*.28):Math.max(threshold,median-(median-low)*.28);
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+        const p=y*w+x,alpha=clip[p*4+3],index=(y+t)*width+x+l;if(!alpha||!pixels[index*4+3])continue;
+        const value=luminance(index);
+        if(both?Math.abs(value-edgeMode)>30:light?value>threshold:value<=threshold)candidates[p]=Math.min(alpha,pixels[index*4+3]);
+        if(both?Math.abs(value-edgeMode)>50:light?value>=strong:value<=strong)cores[p]=1;
+        if(both?Math.abs(value-edgeMode)>20:light?value>smallThreshold:value<smallThreshold)smallInk[p]=Math.min(alpha,pixels[index*4+3]);
+      }
+      const queue=new Int32Array(w*h);
+      function connected(values){
+       const visited=new Uint8Array(w*h),components=[];
+       for(let p=0;p<values.length;p++)if(values[p]&&!visited[p]){
+        let head=0,tail=1,minX=w,minY=h,maxX=0,maxY=0,core=0,ink=0;queue[0]=p;visited[p]=1;
+        while(head<tail){
+          const index=queue[head++],x=index%w,y=Math.floor(index/w);core+=cores[index];ink+=Number(candidates[index]>0);
+          minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+          for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+            const nx=x+dx,ny=y+dy,n=ny*w+nx;
+            if(nx>=0&&nx<w&&ny>=0&&ny<h&&!visited[n]&&values[n]){visited[n]=1;queue[tail++]=n;}
+          }
         }
+        const cw=maxX-minX+1,ch=maxY-minY+1;
+        // Panel rules and large connected pieces of background are not ink.
+        if(tail>count*.65||(cw>lineHeight*2.5&&ch<lineHeight*.2))continue;
+        components.push({pixels:queue.slice(0,tail),minX,minY,maxX,maxY,cw,ch,area:tail,core,ink});
+       }
+       return components;
       }
-      while(head<tail) {
-        const p=queue[head++], x=p%w;
-        for(const n of [x ? p-1 : -1, x<w-1 ? p+1 : -1, p-w, p+w]) {
-          if(n>=0 && n<candidates.length && candidates[n]) {candidates[n]=0;queue[tail++]=n;}
+      const components=connected(candidates),smallComponents=connected(smallInk);
+      // Standard layout boxes contain several lines, so their box height is
+      // not a font size. Estimate stroke height from substantial components.
+      const heights=smallComponents.filter(c=>c.area>=4&&c.ch>=3).map(c=>c.ch).sort((a,b)=>a-b);
+      const glyphHeight=Math.min(lineHeight,(heights[Math.floor(heights.length*.75)]||lineHeight)*1.4);
+      const minimum=Math.max(2,Math.round(glyphHeight*glyphHeight*.018));
+      // Use complete antialiased stems for punctuation context. A thin stem
+      // need not contain a pixel as dark/bright as the largest letter strokes.
+      const bodies=smallComponents.filter(c=>c.area>=minimum&&c.ch>=glyphHeight*.4);
+      const compact=smallComponents.filter(c=>c.cw<=glyphHeight*.45&&c.ch<=glyphHeight*.55&&c.area/(c.cw*c.ch)>=.25);
+      const contexts=new Map();
+      const context=c=>{
+        if(contexts.has(c))return contexts.get(c);
+        // A layout region can contain several lines. Associate punctuation
+        // with its own row rather than one baseline for the entire region.
+        const row=bodies.filter(body=>body.maxY>=c.minY-glyphHeight*.25&&body.maxY<=c.maxY+glyphHeight*1.1);
+        const baselines=row.map(body=>body.maxY).sort((a,b)=>a-b);
+        const value={baseline:baselines[Math.floor(baselines.length*.5)],
+          first:Math.min(...row.map(body=>body.minX)),last:Math.max(...row.map(body=>body.maxX))};
+        contexts.set(c,value);return value;
+      };
+      const inLine=c=>c.maxX>=context(c).first-glyphHeight*.3&&c.minX<=context(c).last+glyphHeight*.7;
+      const atBaseline=c=>inLine(c)&&Math.abs(c.maxY-context(c).baseline)<=glyphHeight*.25;
+      const aboveLetter=c=>bodies.some(body=>{
+        const gapX=Math.max(0,body.minX-c.maxX,c.minX-body.maxX),gapY=body.minY-c.maxY;
+        // Italic dots sit to the right of their stems, not directly above them.
+        return gapX<=glyphHeight*.25&&gapY>0&&gapY<=glyphHeight*.5&&c.ch<=glyphHeight*.3;
+      });
+      const aboveJoinedStem=c=>{
+        if(c.ch>glyphHeight*.3||!inLine(c))return false;
+        const {baseline}=context(c);
+        // A neighboring capital may share the stem's component, so its box
+        // starts at cap height. Inspect ink below the dot instead of assuming
+        // the entire component begins below it.
+        const start=Math.max(c.maxY+1,Math.floor(baseline-glyphHeight*.6));
+        const end=Math.min(h-1,Math.ceil(baseline));
+        if(baseline-c.maxY<glyphHeight*.35||baseline-c.maxY>glyphHeight*1.1)return false;
+        let rows=0;
+        for(let y=start;y<=end;y++){
+          const left=Math.max(0,Math.floor(c.minX-glyphHeight*.2)),right=Math.min(w-1,Math.ceil(c.maxX));
+          for(let x=left;x<=right;x++)if(smallInk[y*w+x]){rows++;break;}
         }
+        return rows>=glyphHeight*.35;
+      };
+      const pairedDot=c=>inLine(c)&&compact.some(other=>{
+        if(other===c)return false;
+        const dx=Math.abs((c.minX+c.maxX-other.minX-other.maxX)/2);
+        const dy=Math.abs((c.minY+c.maxY-other.minY-other.maxY)/2);
+        return dx<=glyphHeight*.3&&dy>=glyphHeight*.15&&dy<=glyphHeight*.75
+          &&Math.max(c.area,other.area)<=Math.min(c.area,other.area)*12
+          &&(atBaseline(c)||atBaseline(other));
+      });
+      for(const component of components){
+        const accept=component.core&&component.area>=minimum;
+        if(accept)for(const index of component.pixels){const p=(Math.floor(index/w)+t)*width+index%w+l;keep[p]=Math.max(keep[p],candidates[index]);}
       }
-      for(let y=0;y<h;y++)for(let x=0;x<w;x++) {
-        const p=(y+t)*width+x+l;
-        keep[p]=Math.max(keep[p],candidates[y*w+x]);
+      // At small sizes a dot can join the next serif or the preceding italic
+      // descender. Recover that complete glyph only when it has a substantial
+      // ink core and stays within letter-sized bounds, not a background patch.
+      for(const component of bodies)if((component.core&&component.ink>=component.area*.3
+        &&component.ch<=glyphHeight*1.25&&component.cw<=glyphHeight*1.5)
+        ||(component.cw<=glyphHeight*.35&&component.ch<=glyphHeight&&compact.some(dot=>
+          atBaseline(dot)&&dot.minY>component.maxY&&dot.minY-component.maxY<=glyphHeight*.35
+          &&Math.abs((dot.minX+dot.maxX-component.minX-component.maxX)/2)<=glyphHeight*.25))){
+        for(const index of component.pixels){const p=(Math.floor(index/w)+t)*width+index%w+l;keep[p]=Math.max(keep[p],smallInk[index]);}
+      }
+      for(const component of compact)if(atBaseline(component)||aboveLetter(component)||aboveJoinedStem(component)||pairedDot(component)){
+        for(const index of component.pixels){const p=(Math.floor(index/w)+t)*width+index%w+l;keep[p]=Math.max(keep[p],smallInk[index]);}
       }
     }
     for(let p=0;p<keep.length;p++)selected.data[p*4+3]=keep[p];

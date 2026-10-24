@@ -87,7 +87,8 @@ class LocalMirror:
     def __init__(self, root=None):
         self.root = Path(root or Path(PLUGIN_ROOT_DIR, 'card-finishing-generation'))
         self.lock = threading.RLock()
-        self.render_lock = threading.Lock()
+        self.render_lock = threading.RLock()
+        self._generation_session = threading.local()
         self.text_repair_lock = threading.Lock()
         self.cancel = threading.Event()
         self.setup = {'running': False, 'stage': 'Not downloaded', 'message': ''}
@@ -358,7 +359,93 @@ class LocalMirror:
                    TEMP=str(self.root / 'tmp'), TMP=str(self.root / 'tmp'), TMPDIR=str(self.root / 'tmp'))
         return env
 
+    @contextmanager
+    def generation_session(self, cancel, progress=None):
+        """Keep one worker/model alive across all stages of a Mirror render."""
+        if progress:progress('queued','Waiting for the local AI processor to become available.')
+        while not self.render_lock.acquire(timeout=.25):
+            if cancel.is_set():raise LocalMirrorError('Render cancelled.')
+        session={'process':None,'output':None,'python':None}
+        try:
+            if cancel.is_set():raise LocalMirrorError('Render cancelled.')
+            self._generation_session.active=session
+            yield
+        finally:
+            self._generation_session.active=None
+            process=session['process']
+            try:
+                if process is not None:
+                    if process.stdin:
+                        try:process.stdin.close()
+                        except OSError:pass
+                    if cancel.is_set() or sys.exc_info()[0] is not None:
+                        self.stop_process(process)
+                    else:
+                        try:process.wait(timeout=2)
+                        except subprocess.TimeoutExpired:self.stop_process(process)
+            finally:
+                if session['output']:session['output'].close()
+                self.render_lock.release()
+
+    @staticmethod
+    def stop_process(process):
+        if process.poll() is not None:return
+        if os.name=='nt':
+            subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],capture_output=True,
+                           creationflags=subprocess.CREATE_NO_WINDOW,timeout=15,check=False)
+        else:
+            os.killpg(process.pid,signal.SIGTERM)
+        try:process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            process.kill();process.wait(timeout=10)
+
+    def run_session_command(self, session, command, cancel, timeout, on_tick):
+        if cancel.is_set():raise LocalMirrorError('Render cancelled.')
+        python=str(command[0])
+        if session['process'] is None:
+            self.root.mkdir(parents=True,exist_ok=True)
+            (self.root/'tmp').mkdir(parents=True,exist_ok=True)
+            session['output']=(self.root/'generation-session.log').open('ab')
+            options={'creationflags':subprocess.CREATE_NO_WINDOW|subprocess.CREATE_NEW_PROCESS_GROUP} if os.name=='nt' else {'start_new_session':True}
+            session['process']=subprocess.Popen([python,'-I',str(SOURCE/'generation_worker.py'),'session'],
+                stdin=subprocess.PIPE,stdout=session['output'],stderr=session['output'],text=True,encoding='utf-8',
+                env=self.environment(),**options)
+            session['python']=python
+        if session['python']!=python:raise LocalMirrorError('The selected processor changed. Start a new render.')
+        process=session['process']
+        request=Path(command[command.index('--request')+1])
+        response=request.with_name('session-response.json')
+        response.unlink(missing_ok=True)
+        try:
+            process.stdin.write(json.dumps(dict(command=command[3],request=str(request),response=str(response)))+'\n')
+            process.stdin.flush()
+        except OSError as exc:
+            raise LocalMirrorError('The local generation session ended unexpectedly. Start a new render.') from exc
+        started=time.monotonic()
+        while True:
+            if cancel.is_set():raise LocalMirrorError('Render cancelled.')
+            if on_tick:on_tick()
+            result=read_json(response)
+            if result:
+                if not result.get('ok'):
+                    error=str(result.get('error',''))
+                    if 'out of memory' in error.lower():
+                        raise LocalMirrorError('The selected model ran out of memory. Close other GPU apps or choose a smaller model.')
+                    if result.get('error_type') in ('PlannerError','GenerationStorageError'):
+                        raise LocalMirrorError(error)
+                    raise LocalMirrorError('The local generation session failed. See generation-session.log in the plugin folder.')
+                return
+            if process.poll() is not None:
+                raise LocalMirrorError('The local generation session ended unexpectedly. See generation-session.log in the plugin folder.')
+            if time.monotonic()-started>timeout:
+                raise LocalMirrorError('The local AI operation timed out. Start a new render.')
+            cancel.wait(.25)
+
     def run(self, command, cancel, log, timeout=7200, on_tick=None):
+        session=getattr(self._generation_session,'active',None)
+        if (session is not None and len(command)>5 and str(command[2])==str(SOURCE/'generation_worker.py')
+                and command[3] in ('analyze','prepare-plan','generate') and '--request' in command):
+            return self.run_session_command(session,command,cancel,timeout,on_tick)
         log.parent.mkdir(parents=True, exist_ok=True)
         (self.root / 'tmp').mkdir(parents=True, exist_ok=True)
         options = {'creationflags': subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == 'nt' else {'start_new_session': True}

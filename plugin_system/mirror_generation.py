@@ -103,9 +103,11 @@ def register_mirror_generation_routes(app,get_connection,resolve_context,api_err
                     if capture:
                         prefix=name.lower().replace(' ','-')+'-'
                         capture.add(prefix+'plan.json',plan);capture.add(prefix+'reference-prepared.png',reference);capture.add(prefix+'generation-mask.png',mask)
-                output=mirror.generate_scene(local_mirror(app).generate,artwork=artwork,canvas_size=canvas_size,image_box=image_box,
-                    expanded_size=expanded_size,padding=padding,theme=theme,instruction=' '.join(part for part in (custom_prompt if theme=='custom' else '',prompt_details) if part),maintain_style=maintain_style,
-                    seed=seed,model=model,cancel=job['cancel'],progress=progress,on_plan=planned,on_diagnostics=capture.add if capture else None,on_stage=phase)
+                provider=local_mirror(app)
+                with provider.generation_session(job['cancel'],progress):
+                    output=mirror.generate_scene(provider.generate,artwork=artwork,canvas_size=canvas_size,image_box=image_box,
+                        expanded_size=expanded_size,padding=padding,theme=theme,instruction=' '.join(part for part in (custom_prompt if theme=='custom' else '',prompt_details) if part),maintain_style=maintain_style,
+                        seed=seed,model=model,cancel=job['cancel'],progress=progress,on_plan=planned,on_diagnostics=capture.add if capture else None,on_stage=phase)
                 if capture:capture.add('result-scene.png',output)
             if job['cancel'].is_set():return
             if not isinstance(output,bytes) or len(output)>15_000_000:

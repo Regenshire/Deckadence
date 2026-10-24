@@ -173,7 +173,7 @@ def validate_generation(value):
                     text_expand=0, text_smooth=0, exclude_mode="off", exclude_color="#101010",
                     color_tolerance=32, selected_color="#FFFFFF", color_swatches=[],
                     edge_expand=0, edge_smooth=0, edge_sharpen=0, color_expand=0, color_smooth=0, brush_size=40, brush_softness=0, brush_shape="round",
-                    text_regions=[], border_mode="original", border_width=2,
+                    text_regions=[], text_symbols=[], border_mode="original", border_width=2,
                     frame_mode="original", frame_scope="material", frame_layout="auto")
     if not isinstance(value, dict) or set(value) - set(defaults):
         raise ValueError("Choose valid automatic selection settings.")
@@ -204,9 +204,10 @@ def validate_generation(value):
         if type(number) not in (int, float) or not limits[0] <= number <= limits[1]:
             raise ValueError("Choose a valid selection percentage.")
     regions = value["text_regions"]
-    if not isinstance(regions, list) or len(regions) > 400:
+    symbols = value["text_symbols"]
+    if not isinstance(regions, list) or len(regions) > 400 or not isinstance(symbols, list) or len(symbols) > 100:
         raise ValueError("Too many text regions.")
-    for polygon in regions:
+    for polygon in regions+symbols:
         if not isinstance(polygon, list) or len(polygon) != 4:
             raise ValueError("Text regions must have four corners.")
         for point in polygon:
@@ -412,8 +413,8 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
             raise RuntimeError("Another card is being analyzed. Try again when text detection finishes.")
         try:
             result = run_plugin_json(detector_id, "detect_text", payload, timeout=90)
-            regions = validate_generation({"text_regions": result.get("regions", [])})["text_regions"]
-            return jsonify(ok=True, regions=regions)
+            detected = validate_generation({"text_regions": result.get("regions", []),"text_symbols":result.get("symbols",[])})
+            return jsonify(ok=True, regions=detected['text_regions'],symbols=detected['text_symbols'])
         except subprocess.TimeoutExpired as exc:
             raise RuntimeError("Text detection took too long. Retry with this card or use the selection tools.") from exc
         finally:

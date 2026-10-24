@@ -328,7 +328,7 @@
   let history = [], historyIndex = -1, hasInk = false, maskReviewed = false, removal = false, activeStroke = null;
   let tool = "paint", view = "effect", artworkUrl = "", maskUrl = "", scopeToken = null;
   let disableGlossOnView = false;
-  let metadata = null, textRegions = [], showingText = false;
+  let metadata = null, textRegions = [], textSymbols = [], showingText = false;
   let subjectMasks = new Map(), frameMasks = new Map(), showingFrame = false;
   // Reuse the selection engine while keeping each finish's pixels, controls,
   // and undo history independent. Both drafts share one atomic card save.
@@ -389,7 +389,7 @@
     const values={};
     for(const field of fields)if(field.name && !["mask_file","zoom"].includes(field.name))values[field.name]=field.type==="checkbox"?field.checked:field.value;
     return {values,generation:generationOptions(),png:mask.toDataURL("image/png"),width:mask.width,
-      history:[...history],historyIndex,maskReviewed,removal,enabled:!removal&&(hasInk||maskReviewed||activeSaved()),recentColors:[...recentColors],textRegions};
+      history:[...history],historyIndex,maskReviewed,removal,enabled:!removal&&(hasInk||maskReviewed||activeSaved()),recentColors:[...recentColors],textRegions,textSymbols};
   }
   function glossDraft(record, base) {
     const values={...base.values,finish:record?.finish||"gloss",strength:record?.strength||100,overlay_color:record?.overlay_color||"#00BFFF",
@@ -405,7 +405,7 @@
     const pocket=record?.generation?.pocket_size||64;
     values.pocket_size=[...fields.pocket_size.options].some(option=>option.value===String(pocket))?String(pocket):"custom";values.pocket_size_custom=pocket;
     return {values,generation:record?.generation||{},png:record?.mask_url||null,width:base.width,history:[],historyIndex:-1,
-      maskReviewed:false,removal:false,enabled:Boolean(record),recentColors:record?.generation?.color_swatches||[],textRegions:record?.generation?.text_regions||[]};
+      maskReviewed:false,removal:false,enabled:Boolean(record),recentColors:record?.generation?.color_swatches||[],textRegions:record?.generation?.text_regions||[],textSymbols:record?.generation?.text_symbols||[]};
   }
   function effectDraft(record,base,layer) {
     const draft=glossDraft(record,base);
@@ -419,6 +419,7 @@
       effect_rotation:String(record?.rotation??0),effect_scene_rotation:String(record?.shards?.scene_rotation??0),
       effect_scene_zoom:String(record?.shards?.scene_zoom??100),effect_scene_skew:String(record?.shards?.scene_skew??0),
       effect_scene_x:String(record?.shards?.scene_x??0),effect_scene_y:String(record?.shards?.scene_y??0),
+      effect_scene_flip_horizontal:Boolean(record?.shards?.scene_flip_horizontal),effect_scene_flip_vertical:Boolean(record?.shards?.scene_flip_vertical),
       effect_color:legacyGlitter(record?.finish)?"#FFFFFF":record?.color||effectColors[record?.finish]||(!record?"#FFFFFF":"#FFE7A0"),
       effect_translucence:String(record?.translucence||0),
       effect_track_x:String(record?.position_x??0),effect_track_y:String(record?.position_y??0),effect_track_transparency:String(record?.transparency??0),
@@ -448,12 +449,12 @@
       ...(["flame_1","flame_2"].includes(values.finish)?{stacked:Boolean(values.effect_stacked)}:{}),
       ...(values.finish==="silver_black"?{black_depth:Number(values.effect_black_depth??0),silver_brightness:Number(values.effect_silver_brightness??90)}:{}),
       ...(pathEffects.has(values.finish)?{position_x:Number(values.effect_track_x||0),position_y:Number(values.effect_track_y||0),transparency:Number(values.effect_track_transparency||0)}:{}),
-      ...(values.finish==="mirror_shards"?{shards:{template:values.effect_shard_template||"falling",template_scale:Number(values.effect_shard_size??100),template_x:Number(values.effect_shard_x||0),template_y:Number(values.effect_shard_y||0),theme:values.effect_shard_theme||"dark",mirror:Boolean(values.effect_mirror),tint:Number(values.effect_tint??18),scene:values.effect_scene||"",scene_theme:values.effect_scene_theme||"dark",scene_source:values.effect_scene_source||"",scene_selection:values.effect_scene_selection||"",scene_rotation:Number(values.effect_scene_rotation||0),scene_zoom:Number(values.effect_scene_zoom||100),scene_skew:Number(values.effect_scene_skew||0),scene_x:Number(values.effect_scene_x||0),scene_y:Number(values.effect_scene_y||0),custom_prompt:(values.effect_custom_prompt||"").trim(),scene_custom_prompt:values.effect_scene_custom_prompt||"",prompt_details:(values.effect_prompt_details||"").trim(),scene_prompt_details:values.effect_scene_prompt_details||"",maintain_style:Boolean(values.effect_maintain_style),scene_maintain_style:values.effect_scene_maintain_style==="true",outpaint_margin:Number(values.effect_outpaint_margin??30),scene_margin:Number(values.effect_scene_margin??0),scene_padding:[Number(values.effect_scene_padding_x||0),Number(values.effect_scene_padding_y||0)]}}:{})};
+      ...(values.finish==="mirror_shards"?{shards:{template:values.effect_shard_template||"falling",template_scale:Number(values.effect_shard_size??100),template_x:Number(values.effect_shard_x||0),template_y:Number(values.effect_shard_y||0),theme:values.effect_shard_theme||"dark",mirror:Boolean(values.effect_mirror),tint:Number(values.effect_tint??18),scene:values.effect_scene||"",scene_theme:values.effect_scene_theme||"dark",scene_source:values.effect_scene_source||"",scene_selection:values.effect_scene_selection||"",scene_rotation:Number(values.effect_scene_rotation||0),scene_zoom:Number(values.effect_scene_zoom||100),scene_skew:Number(values.effect_scene_skew||0),scene_x:Number(values.effect_scene_x||0),scene_y:Number(values.effect_scene_y||0),scene_flip_horizontal:Boolean(values.effect_scene_flip_horizontal),scene_flip_vertical:Boolean(values.effect_scene_flip_vertical),custom_prompt:(values.effect_custom_prompt||"").trim(),scene_custom_prompt:values.effect_scene_custom_prompt||"",prompt_details:(values.effect_prompt_details||"").trim(),scene_prompt_details:values.effect_scene_prompt_details||"",maintain_style:Boolean(values.effect_maintain_style),scene_maintain_style:values.effect_scene_maintain_style==="true",outpaint_margin:Number(values.effect_outpaint_margin??30),scene_margin:Number(values.effect_scene_margin??0),scene_padding:[Number(values.effect_scene_padding_x||0),Number(values.effect_scene_padding_y||0)]}}:{})};
   }
   function effectControlValues() {
     const names=["finish","strength","effect_scale","effect_density","effect_seed","effect_color","effect_translucence","effect_rotation","effect_scene_rotation","effect_scene_zoom","effect_scene_skew","effect_scene_x","effect_scene_y","effect_shard_template","effect_shard_size","effect_shard_x","effect_shard_y","effect_shard_theme","effect_mirror","effect_tint","effect_scene","effect_scene_theme","effect_scene_source","effect_scene_selection","effect_custom_prompt","effect_scene_custom_prompt","effect_maintain_style","effect_scene_maintain_style","effect_outpaint_margin","effect_scene_margin","effect_scene_padding_x","effect_scene_padding_y"];
     names.push("effect_particle_type","effect_particle_flip","effect_ukiyo_type","effect_ukiyo_sparse","effect_ukiyo_flip","effect_origin_x","effect_origin_y","effect_disabled","effect_stacked","effect_track_x","effect_track_y","effect_track_transparency","effect_black_depth","effect_silver_brightness");
-    names.push('effect_prompt_details','effect_scene_prompt_details');
+    names.push('effect_prompt_details','effect_scene_prompt_details','effect_scene_flip_horizontal','effect_scene_flip_vertical');
     return Object.fromEntries(names.map(name=>[name,fields[name].type==="checkbox"?fields[name].checked:fields[name].value]));
   }
   function showPrintedPreviews() {effects.setPrintedEffects(stage,["effect1","effect2"].map(layer=>{const item=effectPreviews.get(layer);return item?.url?{url:item.url,translucence:item.translucence,finish:item.finish,density:item.density,black_depth:item.black_depth,silver_brightness:item.silver_brightness}:null;}));}
@@ -505,7 +506,7 @@
       for(const [name,value] of Object.entries(draft.values))if(fields[name]){if(fields[name].type==="checkbox")fields[name].checked=value;else fields[name].value=value;}
       updateEffectColor();
       sizeMask(Math.max(draft.width,saved?.naturalWidth||0));ctx.clearRect(0,0,mask.width,mask.height);if(saved)ctx.drawImage(saved,0,0,mask.width,mask.height);
-      textRegions=draft.textRegions;recentColors=draft.recentColors;removal=draft.removal;maskReviewed=draft.maskReviewed;
+      textRegions=draft.textRegions;textSymbols=draft.textSymbols||[];recentColors=draft.recentColors;removal=draft.removal;maskReviewed=draft.maskReviewed;
       showingText=false;showingFrame=false;history=[...draft.history];historyIndex=draft.historyIndex;
       ready=true;updatePocketSize();updateBrushControls();updateEdgeControls();updateExclusionControls();updateRegionControls();updateFrameControls();chooseColor(fields.selection_color.value);
       dialog.querySelector("[data-spot-strength-value]").value=fields.strength.value+"%";
@@ -1082,7 +1083,7 @@
     if (!info) return;
     const token = ++session;
     current = {...info, trigger, record: null}; ready = false; busy = false; removal = false; activeStroke = null;
-    metadata = null; history = []; historyIndex = -1; hasInk = false; maskArea = "0"; maskReviewed = false; textRegions = []; showingText = false;
+    metadata = null; history = []; historyIndex = -1; hasInk = false; maskArea = "0"; maskReviewed = false; textRegions = []; textSymbols = []; showingText = false;
     subjectMasks = new Map(); frameMasks = new Map(); showingFrame = false;
     editingLayer="mask";layerDrafts={};setLayerLabels();
     try {
@@ -1137,7 +1138,7 @@
       fields.selection_amount.value = generation.amount || workflowOptions.selection_amount || 35; updateGenerationHint();
       fields.coverage.value = generation.coverage || workflowOptions.foil_coverage_percent || 100;
       fields.text_mode.value = generation.text_mode || treatmentDefaults.text_treatment || "original"; fields.text_source.value = generation.text_source || "standard";
-      fields.text_detail.value = generation.text_detail || "letters"; textRegions = generation.text_regions || [];
+      fields.text_detail.value = generation.text_detail || "letters"; textRegions = generation.text_regions || []; textSymbols = generation.text_symbols || [];
       fields.text_ink.value = generation.text_ink || "auto";
       fields.text_expand.value = generation.text_expand || 0; fields.text_smooth.value = generation.text_smooth || 0;
       fields.exclude_mode.value = generation.exclude_mode || "off";
@@ -1151,7 +1152,7 @@
       artworkColors = window.DeckadenceSpotSelection.artworkPalette(image);
       recentColors = [...(generation.color_swatches || [])];
       chooseColor(generation.selected_color || "#FFFFFF");
-      if(record?.artwork_signature && record.artwork_signature!==current.signature)textRegions=[];
+      if(record?.artwork_signature && record.artwork_signature!==current.signature){textRegions=[];textSymbols=[];}
       fields.border_mode.value = generation.border_mode || treatmentDefaults.border_treatment || "original"; fields.border_width.value = generation.border_width ?? workflowOptions.border_width_percent ?? 2;
       fields.frame_mode.value = generation.frame_mode || "original";
       fields.frame_scope.value = generation.frame_scope || "material";
@@ -1273,7 +1274,7 @@
       edge_expand:Number(fields.edge_expand.value), edge_smooth:Number(fields.edge_smooth.value), edge_sharpen:Number(fields.edge_sharpen.value),
       color_expand:Number(fields.color_expand.value), color_smooth:Number(fields.color_smooth.value),
       brush_size:Number(fields.brush_size.value), brush_softness:Number(fields.brush_softness.value), brush_shape:fields.brush_shape.value,
-      text_regions:textRegions, border_mode:fields.border_mode.value, border_width:Number(fields.border_width.value),
+      text_regions:textRegions, text_symbols:textSymbols, border_mode:fields.border_mode.value, border_width:Number(fields.border_width.value),
       frame_mode:fields.frame_mode.value, frame_scope:fields.frame_scope.value, frame_layout:fields.frame_layout.value};
   }
   function updateRegionControls() {
@@ -1288,7 +1289,7 @@
     dialog.querySelector("[data-spot-apply-text]").disabled = fields.text_mode.value === "original";
     dialog.querySelector("[data-spot-show-text]").textContent=showingText?"Hide text preview":"Preview text";
     dialog.querySelector("[data-spot-detector-status]").textContent = textRegions.length
-      ? `${textRegions.length} detected text regions.`
+      ? `${textRegions.length} detected text regions${textSymbols.length ? ` and ${textSymbols.length} circular symbols` : ""}.`
       : metadata?.text_detector_ready ? "AI text detection ready."
       : "Install or update Card Finishing Studio in Plugin Manager.";
     updateGenerationHint();
@@ -1355,11 +1356,11 @@
   async function detectText() {
     const token=session; ready=false; controls(); message("Detecting text locally with AI…");
     try {
-      const source=document.createElement("canvas"); source.width=756;source.height=1056;
+      const source=document.createElement("canvas"); source.width=Math.min(1512,Math.max(756,image.naturalWidth||756));source.height=Math.round(source.width*1056/756);
       source.getContext("2d").drawImage(image,0,0,source.width,source.height);
-      const result=await api(apiUrl(endpoint(current.target)+"/detect-text"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image:source.toDataURL("image/png").split(",")[1]})});
+      const result=await api(apiUrl(endpoint(current.target)+"/detect-text"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image:source.toDataURL("image/jpeg",.95).split(",")[1]})});
       if(token!==session || current?.artworkChanged)return false;
-      textRegions=result.regions;fields.text_source.value="detected";updateRegionControls();
+      textRegions=result.regions;textSymbols=result.symbols||[];fields.text_source.value="detected";updateRegionControls();
       message(textRegions.length ? "Text detected. Check Preview text, then apply." : "No text found. Try Magic Wand or Match Color.");
       return textRegions.length>0;
     } catch(error){if(token===session)message(error.message,true);return false;}
@@ -1429,7 +1430,7 @@
       const text = fields.text_mode.value === "opaque" ? "kept opaque" : "foiled";
       treatments.push(fields.text_detail.value === "regions"
         ? `Text-box backgrounds will also be ${text}.`
-        : "Letters cut off by a detection box stay unchanged.");
+        : "Complete letter strokes are kept and isolated specks are removed. Detected mana symbols are selected as complete circles.");
       treatments.push(fields.text_source.value === "detected"
         ? "Check Preview text for missed lettering."
         : "Fixed text positions; choose AI detected for full-art cards.");
@@ -1613,7 +1614,7 @@
   dialog.querySelector("[data-spot-remove]").addEventListener("click", () => {
     if (selectArea("none",true)) {removal = true; markChanged();}
   });
-  for (const field of [fields.effect_particle_type,fields.effect_particle_flip,fields.effect_ukiyo_type,fields.effect_ukiyo_sparse,fields.effect_ukiyo_flip,fields.finish, fields.strength, fields.effect_origin_x,fields.effect_origin_y,fields.effect_disabled, fields.effect_stacked, fields.effect_scale, fields.effect_density,fields.effect_black_depth,fields.effect_silver_brightness, fields.effect_color, fields.effect_translucence,fields.effect_track_x,fields.effect_track_y,fields.effect_track_transparency,fields.effect_rotation,fields.effect_scene_rotation,fields.effect_scene_zoom,fields.effect_scene_skew,fields.effect_scene_x,fields.effect_scene_y, fields.effect_shard_template,fields.effect_shard_size,fields.effect_shard_x,fields.effect_shard_y,fields.effect_shard_theme,fields.effect_mirror,fields.effect_tint,fields.effect_custom_prompt,fields.effect_prompt_details,fields.effect_maintain_style,fields.effect_outpaint_margin]) field.addEventListener("input", () => {
+  for (const field of [fields.effect_particle_type,fields.effect_particle_flip,fields.effect_ukiyo_type,fields.effect_ukiyo_sparse,fields.effect_ukiyo_flip,fields.finish, fields.strength, fields.effect_origin_x,fields.effect_origin_y,fields.effect_disabled, fields.effect_stacked, fields.effect_scale, fields.effect_density,fields.effect_black_depth,fields.effect_silver_brightness, fields.effect_color, fields.effect_translucence,fields.effect_track_x,fields.effect_track_y,fields.effect_track_transparency,fields.effect_rotation,fields.effect_scene_rotation,fields.effect_scene_zoom,fields.effect_scene_skew,fields.effect_scene_x,fields.effect_scene_y,fields.effect_scene_flip_horizontal,fields.effect_scene_flip_vertical, fields.effect_shard_template,fields.effect_shard_size,fields.effect_shard_x,fields.effect_shard_y,fields.effect_shard_theme,fields.effect_mirror,fields.effect_tint,fields.effect_custom_prompt,fields.effect_prompt_details,fields.effect_maintain_style,fields.effect_outpaint_margin]) field.addEventListener("input", () => {
     updateEffectColor(field===fields.finish);
     dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%"; scheduleRender(); markChanged();
   });

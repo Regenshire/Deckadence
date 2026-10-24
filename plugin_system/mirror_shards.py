@@ -35,13 +35,17 @@ def expanded_scene_geometry(size,margin):
 
 
 def validate_shards(value):
-    if not isinstance(value,dict) or set(value)-{'template','template_scale','template_x','template_y','theme','mirror','tint','scene','scene_theme','scene_source','scene_selection','scene_rotation','scene_zoom','scene_skew','scene_x','scene_y','custom_prompt','scene_custom_prompt','prompt_details','scene_prompt_details','outpaint_margin','scene_margin','scene_padding','maintain_style','scene_maintain_style'}:
+    if not isinstance(value,dict) or set(value)-{'template','template_scale','template_x','template_y','theme','mirror','tint','scene','scene_theme','scene_source','scene_selection','scene_rotation','scene_zoom','scene_skew','scene_x','scene_y','scene_flip_horizontal','scene_flip_vertical','custom_prompt','scene_custom_prompt','prompt_details','scene_prompt_details','outpaint_margin','scene_margin','scene_padding','maintain_style','scene_maintain_style'}:
         raise ValueError('Choose valid mirror shard settings.')
     value={'template':'falling','theme':'dark','mirror':False,'tint':18,'scene':'',**value}
     value.setdefault('scene_theme',value['theme'])
     value.setdefault('scene_source','')
     value.setdefault('scene_selection','')
     value.setdefault('scene_rotation',0)
+    for key in ('scene_flip_horizontal','scene_flip_vertical'):
+        value.setdefault(key,False)
+        if type(value[key]) is not bool:
+            raise ValueError('Choose a valid horizontal or vertical image flip.')
     value.setdefault('scene_margin',0)
     value.setdefault('outpaint_margin',value['scene_margin'] if value['scene'] else 30)
     value.setdefault('scene_padding',[0,0])
@@ -186,7 +190,7 @@ def shard_selection(template,width,height,rotation=0,scale=100,offset_x=0,offset
     return mask.resize((width,height),Image.Resampling.LANCZOS)
 
 
-def render_shards(template,color,tint,width,height,scene=None,rotation=0,scene_rotation=0,scene_zoom=100,scene_skew=0,template_scale=100,scene_x=0,scene_y=0,scene_padding=(0,0),template_x=0,template_y=0):
+def render_shards(template,color,tint,width,height,scene=None,rotation=0,scene_rotation=0,scene_zoom=100,scene_skew=0,template_scale=100,scene_x=0,scene_y=0,scene_padding=(0,0),template_x=0,template_y=0,scene_flip_horizontal=False,scene_flip_vertical=False):
     """Render clean glass or one aligned scene inside the same exact shards.
 
     `scene` is already-generated artwork, never a procedural AI substitute.
@@ -197,9 +201,14 @@ def render_shards(template,color,tint,width,height,scene=None,rotation=0,scene_r
     sampling=_edge_sampling(width)
     result=Image.new('RGBA',(width,height))
     if scene is not None:
+        # Flip the saved artwork on its own axes before rotation/placement.
+        # The symmetric generated margin and shard geometry stay aligned.
+        scene=scene.convert('RGBA')
+        if scene_flip_horizontal:scene=scene.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        if scene_flip_vertical:scene=scene.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
         # Keep scene scale independent of its angle; the generated margin is
         # available to cover exposed edges without automatically zooming in.
-        result=transform_image(scene.convert('RGBA'),scene_rotation,scene_zoom,scene_skew,output_size=(width,height),offset_x=scene_x,offset_y=scene_y,content_padding=scene_padding,cover_rotation=False)
+        result=transform_image(scene,scene_rotation,scene_zoom,scene_skew,output_size=(width,height),offset_x=scene_x,offset_y=scene_y,content_padding=scene_padding,cover_rotation=False)
         # Clip the scene without making its transparent pixels opaque. Glass
         # reflections still render over those areas as they do in glass mode.
         result.putalpha(ImageChops.multiply(result.getchannel('A'),shard_selection(template,width,height,rotation,template_scale,template_x,template_y)))
