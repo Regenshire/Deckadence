@@ -212,6 +212,7 @@ from ui.ui import (
 )
 
 from plugin_system.catalog import PLUGIN_CATALOG
+from plugin_system.mpcfill import register_mpcfill_routes
 from plugin_system.foil_workflows import register_foil_workflow_routes, resolve_export_workflow, load_preferences as load_studio_preferences, validate_pdf_version
 from plugin_system.card_spot_foil import register_card_spot_foil_routes
 from plugin_system.spot_foil_pdf import SpotFoilPdfJob, place_spot_foil, draw_print_artwork
@@ -2465,6 +2466,7 @@ def inject_global_template_state():
     access_url = build_access_url()
 
     return {
+        "global_mpcfill_ready": get_plugin_status("mpcfill-browser").get("ready", False),
         "global_deck_art_upload_max_mb": DECK_ART_UPLOAD_MAX_BYTES / (1024 * 1024),
         "global_card_size_percentages": CARD_SIZE_PERCENTAGES,
         "global_card_export_template_options": get_card_export_template_options(),
@@ -13226,6 +13228,21 @@ class AlternateImageEditor:
         bleed_mm = ALTERNATE_UPLOAD_BLEED_MM if remove_bleed else None
         uploaded_file = request.files.get("alternate_image_file")
         uploaded = bool(uploaded_file and uploaded_file.filename)
+        mpcfill_key = request.form.get("mpcfill_key")
+        notes = request.form.get("notes") or ""
+        if mpcfill_key:
+            from plugin_system.mpcfill import require_ready, record_for, image_path
+            require_ready()
+            record = record_for(mpcfill_key)
+            # Only a server-cached original can enter this path. Preserve the
+            # full bleed original using the existing 3mm full-bleed pipeline.
+            local_path = str(image_path(mpcfill_key, "original", download=False))
+            source_type = "local_file"
+            source_name = "MPCFill · " + str(record.get("sourceName") or "Creator")
+            external_url = ""
+            uploaded_file, uploaded = None, False
+            remove_bleed, bleed_mm = True, ALTERNATE_UPLOAD_BLEED_MM
+            notes = "MPCFill: {}\nGoogle Drive file: {}".format(record.get("name") or "", record["identifier"])
         if not source_name:
             source_name = (
                 "Upload File" if uploaded else "Local File" if source_type == "local_file"
@@ -13390,7 +13407,7 @@ class AlternateImageEditor:
                     fullbleed_image_path=fullbleed_path, remove_bleed=remove_bleed,
                     bleed_size_mm=bleed_mm,
                     export_frame_template=request.form.get("export_frame_template") or "auto",
-                    notes=request.form.get("notes") or "",
+                    notes=notes,
                 )
                 if files is not None:
                     values.update(files.prepare_source(values))
@@ -19999,6 +20016,7 @@ register_card_spot_foil_routes(
     alternate_image_api, isolation_operation,
     load_artwork=load_finishing_original_artwork,
 )
+register_mpcfill_routes(app)
 
 @app.route(
     "/print-template-registration-background/"

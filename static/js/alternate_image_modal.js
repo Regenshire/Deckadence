@@ -1489,6 +1489,44 @@ for (const button of document.querySelectorAll(
     openAlternateModal(cardUuid || "", cardName || "", options || {});
   };
 
+  const mpcFillButton = document.getElementById("alternateImageMpcFillButton");
+  mpcFillButton?.addEventListener("click", function () {
+    if (!currentAlternatePayload || alternateMutationPending) {
+      showAlternateMessage("Wait for the image library to load before browsing.", false);
+      return;
+    }
+    const version = alternateModalVersion;
+    const cardUuid = currentAlternateCardUuid;
+    const card = currentAlternatePayload.card || {};
+    const faces = Array.from(alternateFaceKind.options)
+      .filter(option => !option.hidden && !option.disabled)
+      .map(option => ({ value: option.value, label: option.textContent.trim() }));
+    window.DeckadenceMpcFill?.open({
+      cardName: currentAlternateCardName,
+      cardType: /token/i.test(card.type_line || card.card_type || "") ? "TOKEN" : "CARD",
+      faces: card.is_dual_faced ? faces.filter(face => face.value !== "single") : [{ value: "single", label: "Card" }],
+      face: card.is_dual_faced ? (alternateFaceKind.value === "back" ? "back" : "front") : "single",
+      scope: currentAlternatePayload.image_scope.is_isolated ? "This collection only" : "Shared image library",
+      parent: alternateOverlay,
+      returnFocus: mpcFillButton,
+      apply: async function (key, face) {
+        if (version !== alternateModalVersion || cardUuid !== currentAlternateCardUuid || alternateMutationPending)
+          throw new Error("The card changed. Reopen MPCFill from the image picker.");
+        const formData = new FormData();
+        formData.set("mpcfill_key", key);
+        formData.set("face_kind", face);
+        formData.set("export_frame_template", alternateExportFrameTemplate?.value || "auto");
+        const payload = await saveAlternateChange(
+          "/chaos/cards/" + encodeURIComponent(cardUuid) + "/alternate-sources/add",
+          { body: formData },
+        );
+        if (!payload) throw new Error(alternateMessage.textContent || "The artwork could not be applied.");
+        if (alternateRemoveBleedInput) alternateRemoveBleedInput.checked = true;
+        return payload;
+      },
+    });
+  });
+
   if (alternateBackdrop) {
     alternateBackdrop.addEventListener("click", closeAlternateModal);
   }
@@ -1601,6 +1639,7 @@ for (const button of document.querySelectorAll(
   document.addEventListener("keydown", function (event) {
     if (
       event.key === "Escape" &&
+      !window.DeckadenceMpcFill?.isOpen() &&
       alternateOverlay &&
       !alternateOverlay.classList.contains("hidden")
     ) {

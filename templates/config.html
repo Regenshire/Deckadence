@@ -1115,6 +1115,8 @@
                                         Install Release Copy
                                     {% elif plugin_status.get("installed") %}
                                         Update / Reinstall
+                                    {% elif plugin.get("runtime") == "application" %}
+                                        Install
                                     {% else %}
                                         Download & Install
                                     {% endif %}
@@ -1450,7 +1452,7 @@
 
 
 <script
-    src="{{ url_for('static', filename='js/plugin_manager.js', v='3') }}"
+    src="{{ url_for('static', filename='js/plugin_manager.js', v='4') }}"
 ></script>
 <script src="{{ url_for('static', filename='js/spot_foil_workflows.js', v='13') }}"></script>
 

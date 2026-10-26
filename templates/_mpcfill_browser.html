@@ -1,0 +1,56 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mpcfill_browser.css', v='3') }}">
+<div id="mpcfillBrowser" class="mpcf-overlay" hidden>
+  <div class="mpcf-backdrop" data-mpcf-action="close"></div>
+  <section class="mpcf-window" role="dialog" aria-modal="true" aria-labelledby="mpcfTitle">
+    <header class="mpcf-header">
+      <div><h2 id="mpcfTitle"><i class="fa-solid fa-images" aria-hidden="true"></i> MPCFill Browser</h2>
+        <p>Choose artwork for <strong id="mpcfCardName"></strong></p></div>
+      <div class="mpcf-header-actions">
+        <button type="button" id="mpcfMaximize" class="custom-draft-header-icon-button" data-mpcf-action="maximize" title="Maximize" aria-label="Maximize MPCFill browser" aria-pressed="false">
+          <svg class="custom-draft-header-icon custom-draft-maximize-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 9V5h4 M19 9V5h-4 M5 15v4h4 M19 15v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg class="custom-draft-header-icon custom-draft-restore-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 4h9v9 M6 8h9v12H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" class="mpcf-icon" data-mpcf-action="close" aria-label="Close MPCFill browser"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+    </header>
+    <form id="mpcfSearchForm" class="mpcf-searchbar">
+      <label class="mpcf-searchbox"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="mpcfQuery" type="search" maxlength="200" placeholder="Search a card name" aria-label="Search a card name" required autocomplete="off"></label>
+      <select id="mpcfCardType" aria-label="Card type"><option value="CARD">Cards</option><option value="TOKEN">Tokens</option><option value="CARDBACK">Card backs</option></select>
+      <button type="submit" class="mpcf-button mpcf-primary" id="mpcfSearchButton">Search</button>
+      <button type="button" class="mpcf-button" data-mpcf-action="filters" aria-expanded="true"><i class="fa-solid fa-sliders" aria-hidden="true"></i> Filters</button>
+    </form>
+    <div id="mpcfMessage" class="mpcf-message" role="status" hidden></div>
+    <div class="mpcf-workspace">
+      <aside id="mpcfFilters" class="mpcf-filters" aria-label="Artwork filters">
+        <div class="mpcf-filter-heading"><strong>Refine results</strong><button type="button" class="mpcf-text-button" data-mpcf-action="reset">Reset</button></div>
+        <label class="mpcf-label" for="mpcfCreatorSearch">Creators</label>
+        <input id="mpcfCreatorSearch" type="search" placeholder="Find a creator…" aria-label="Find a creator">
+        <div id="mpcfCreators" class="mpcf-creators"></div>
+        <label class="mpcf-label" for="mpcfDpi">Minimum resolution</label>
+        <select id="mpcfDpi"><option value="0">Any resolution</option><option value="300">300 DPI and above</option><option value="600">600 DPI and above</option><option value="800">800 DPI and above</option><option value="1200">1200 DPI and above</option></select>
+        <label class="mpcf-label" for="mpcfLanguage">Language</label><select id="mpcfLanguage"><option value="">All languages</option></select>
+        <label class="mpcf-label" for="mpcfTag">Tag</label><select id="mpcfTag"><option value="">All tags</option></select>
+        <label class="mpcf-check mpcf-fuzzy"><input id="mpcfFuzzy" type="checkbox">Broader name matching</label>
+        <p class="mpcf-cache-note"><i class="fa-solid fa-hard-drive" aria-hidden="true"></i> Previews and originals stay cached on this Deckadence computer.</p>
+      </aside>
+      <main class="mpcf-browser">
+        <div class="mpcf-toolbar"><div class="mpcf-tabs" role="group" aria-label="Artwork collection"><button type="button" data-mpcf-tab="all" aria-pressed="true">All artwork <span id="mpcfTotal">0</span></button><button type="button" data-mpcf-tab="saved" aria-pressed="false"><i class="fa-regular fa-bookmark" aria-hidden="true"></i> Saved <span id="mpcfSavedCount">0</span></button></div>
+          <label class="mpcf-sort">Sort <select id="mpcfSort"><option value="recommended">Recommended</option><option value="newest">Newest first</option><option value="dpi">Highest DPI</option><option value="creator">Creator A–Z</option><option value="size">Smallest file</option></select></label>
+        </div>
+        <div class="mpcf-results-bar"><span id="mpcfResultCount" aria-live="polite">Search to find artwork</span><div class="mpcf-view-controls"><label class="mpcf-size-control">Card Size <select id="mpcfSize">{% include "_card_size_options.html" %}</select></label><button type="button" class="mpcf-icon" data-mpcf-action="refresh" aria-label="Refresh search results" title="Refresh catalogue results"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i></button></div></div>
+        <input id="mpcfArtworkFilter" class="mpcf-artwork-filter" type="search" placeholder="Filter these images by artwork name, creator or tag…" aria-label="Filter artwork results">
+        <div id="mpcfGalleryScroll" class="mpcf-gallery-scroll"><div id="mpcfGallery" class="mpcf-gallery"></div></div>
+        <div class="mpcf-pagination"><div class="mpcf-page-info"><span id="mpcfPageSummary"></span><label class="mpcf-size-control">Per page <select id="mpcfPerPage" aria-label="Results per page"><option value="12">12</option><option value="24" selected>24</option><option value="48">48</option><option value="96">96</option><option value="192">192</option></select></label></div><div id="mpcfPages" aria-label="Result pages"></div></div>
+      </main>
+      <aside id="mpcfPreview" class="mpcf-preview" aria-label="Selected artwork" hidden>
+          <div class="mpcf-preview-heading">Selected artwork<button type="button" class="mpcf-icon" data-mpcf-action="hide-preview" aria-label="Close artwork details"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+          <div class="mpcf-preview-image"><img id="mpcfPreviewImage" alt="Selected artwork"><button type="button" class="mpcf-icon mpcf-enlarge" data-mpcf-action="zoom" aria-label="Enlarge artwork"><i class="fa-solid fa-expand" aria-hidden="true"></i></button></div>
+          <h3 id="mpcfPreviewName"></h3><p id="mpcfPreviewCreator"></p><div id="mpcfPreviewTags" class="mpcf-tags"></div>
+          <dl class="mpcf-specs"><div><dt>Resolution</dt><dd id="mpcfPreviewDpi"></dd></div><div><dt>Original file</dt><dd id="mpcfPreviewSize"></dd></div><div><dt>Language</dt><dd id="mpcfPreviewLanguage"></dd></div><div><dt>Bleed</dt><dd>MPC bleed retained</dd></div></dl>
+          <a id="mpcfSourceLink" target="_blank" rel="noopener noreferrer">View original on Google Drive <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+      </aside>
+    </div>
+    <footer class="mpcf-footer"><div><span id="mpcfScope" class="mpcf-scope"></span><span class="mpcf-bleed-note">Adds an alternate image with MPC bleed enabled</span></div><div class="mpcf-footer-actions"><label id="mpcfFaceLabel" hidden>Apply to <select id="mpcfFace"></select></label><button type="button" class="mpcf-button" data-mpcf-action="close">Cancel</button><button type="button" id="mpcfApply" class="mpcf-button mpcf-primary" disabled><i class="fa-solid fa-download" aria-hidden="true"></i> Use this image</button></div></footer>
+    <div id="mpcfZoom" class="mpcf-zoom" role="dialog" aria-modal="true" aria-label="Enlarged artwork" hidden><button type="button" class="mpcf-icon" data-mpcf-action="unzoom" aria-label="Close enlarged artwork"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button><img id="mpcfZoomImage" alt="Enlarged artwork"><p>Cached preview · full-resolution original downloads when applied</p></div>
+  </section>
+</div>
+<script src="{{ url_for('static', filename='js/mpcfill_browser.js', v='3') }}"></script>

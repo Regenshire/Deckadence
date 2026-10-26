@@ -42,6 +42,38 @@ PERSISTENT_PLUGIN_COMMANDS = {
 PLUGIN_WORKERS = {}
 PLUGIN_WORKERS_LOCK = threading.Lock()
 
+# Only built-in, first-party handlers may run inside Deckadence. A downloaded
+# manifest cannot opt an arbitrary Python entrypoint into the application.
+APPLICATION_PLUGINS = frozenset({"mpcfill-browser"})
+
+
+def _run_application_plugin_json(plugin_id, command, payload, timeout):
+    if plugin_id == "mpcfill-browser":
+        from .mpcfill_adapter import execute
+        return execute(command, payload or {}, timeout=timeout)
+    raise ValueError("This plugin cannot use the application runtime.")
+
+
+def _application_plugin_context(plugin_id):
+    installed = load_plugin_manifest(plugin_id)
+    bundled = _load_plugin_manifest_from_directory(plugin_id, get_plugin_development_dir(plugin_id))
+    if not installed or not bundled or bundled.get("runtime") != "application":
+        return None
+    # The installed manifest enables the plugin. Its implementation always
+    # ships with the application, including when migrating a 1.0 installation.
+    return {
+        "plugin_id": plugin_id,
+        "plugin_dir": get_plugin_install_dir(plugin_id),
+        "plugin_python": None,
+        "entrypoint_path": None,
+        "manifest": bundled,
+        "runtime": "application",
+        "runtime_source": "application",
+        "development": False,
+        "update_available": installed.get("runtime") != "application"
+                            or installed.get("version") != bundled.get("version"),
+    }
+
 
 # *** PLUGIN FILES - Locate Plugins and Read Their Details ***
 def ensure_plugin_directories():
@@ -281,6 +313,11 @@ def _load_plugin_manifest_from_directory(
 def get_plugin_runtime_context(
     plugin_id,
 ):
+    if plugin_id in APPLICATION_PLUGINS:
+        # No development-source fallback: installation must remain optional,
+        # and uninstalling must disable the browser even in a source checkout.
+        return _application_plugin_context(plugin_id)
+
     runtime_candidates = [
         (
             "installed",
@@ -398,7 +435,7 @@ def get_plugin_status(
         manifest = runtime_context[
             "manifest"
         ]
-        update_available = not set(catalog_entry.get("required_capabilities", [])).issubset(
+        update_available = runtime_context.get("update_available", False) or not set(catalog_entry.get("required_capabilities", [])).issubset(
             manifest.get("capabilities", [])
         )
 
@@ -434,6 +471,9 @@ def get_plugin_status(
             "manifest": manifest,
 
             "message": (
+                ("Update the installation to use Deckadence's runtime and remove the old plugin environment."
+                 if update_available else "Plugin is ready using Deckadence's existing runtime.")
+                if runtime_context.get("runtime") == "application" else
                 "Update to include text, subject, and frame detection in one plugin."
                 if update_available else
                 "Development plugin is ready."
@@ -728,6 +768,15 @@ def _validate_manifest(
             "match the requested plugin."
         )
 
+    if manifest.get("runtime") == "application":
+        if plugin_id not in APPLICATION_PLUGINS:
+            raise ValueError("This plugin cannot use the application runtime.")
+        if manifest.get("entrypoint") or manifest.get("requirements_file") or manifest.get("bundled_runtime"):
+            raise ValueError("Application plugins use a built-in handler and the application's dependencies.")
+        return manifest
+    if plugin_id in APPLICATION_PLUGINS:
+        raise ValueError("Update this plugin to use Deckadence's application runtime.")
+
     if manifest.get("bundled_runtime"):
         expected = manifest.get("runtime_platform", "win32")
         if expected != sys.platform:
@@ -859,6 +908,14 @@ def _install_plugin_requirements(
     plugin_id,
     manifest,
 ):
+    if manifest.get("runtime") == "application":
+        _set_install_status(plugin_id, stage="Checking Plugin",
+                            message="Using Deckadence's existing runtime. No additional downloads needed.")
+        health = _run_application_plugin_json(plugin_id, "health", {}, timeout=30)
+        if not health.get("ok"):
+            raise RuntimeError("The built-in plugin could not be loaded. Update Deckadence and retry.")
+        return
+
     plugin_dir = (
         get_plugin_install_dir(
             plugin_id
@@ -1229,8 +1286,8 @@ def install_plugin(
 
     try:
         if bundled_source:
-            # First-party small plugins ship source with the app; libraries are
-            # installed into the same isolated runtime as downloaded plugins.
+            # Bundled plugins ship their installation files with the app.
+            # Application-runtime plugins do not install separate libraries.
             package_root = get_plugin_development_dir(plugin_id)
             if not os.path.isdir(package_root):
                 raise RuntimeError("This plugin's source is missing. Update Deckadence and try again.")
@@ -1709,6 +1766,9 @@ def run_plugin_json(
             "Plugin is not ready."
         )
 
+    if runtime_context.get("runtime") == "application":
+        return _run_application_plugin_json(plugin_id, command, payload, timeout)
+
     if command in PERSISTENT_PLUGIN_COMMANDS or (
         plugin_id == 'card-finishing-studio' and command in ('detect_text', 'detect_subject', 'detect_frame')
         and command in runtime_context.get('manifest', {}).get('persistent_commands', [])
@@ -1742,6 +1802,7 @@ def run_plugin_json(
         text=True,
         timeout=timeout,
         check=False,
+        **({'creationflags': subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {}),
     )
 
     if process.returncode != 0:

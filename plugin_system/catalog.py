@@ -1,5 +1,15 @@
 # *** PLUGIN CATALOG - List Available Plugins ***
 PLUGIN_CATALOG = {
+    "mpcfill-browser": {
+        "plugin_id": "mpcfill-browser",
+        "name": "MPCFill Browser",
+        "plugin_type": "image_browser",
+        "type_label": "Alternate images",
+        "description": "Browse MPCFill artwork, save favorites, and apply high-resolution images with MPC bleed. Previews and originals are cached locally.",
+        "requirements": "Internet for new searches and downloads. Uses Deckadence's existing runtime; no extra Python or libraries to download. No GPU or Google account required.",
+        "bundled_source": True,
+        "runtime": "application",
+    },
     "card-finishing-studio": {
         "plugin_id": "card-finishing-studio",
         "name": "Card Finishing Studio",

@@ -163,9 +163,10 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
               value=""
             />
 
+            <div class="alternate-image-source-selection{% if global_mpcfill_ready %} alternate-image-source-selection-with-mpcfill{% endif %}">
             <div
               id="alternateImageSourceComposer"
-              class="alternate-image-source-composer"
+              class="alternate-image-source-composer{% if global_mpcfill_ready %} alternate-image-source-composer-with-mpcfill{% endif %}"
               data-help-id="alternate-image-source-input"
             >
               <label
@@ -228,6 +229,13 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
                   placeholder="data/alternate_sources/example.png"
                 />
               </label>
+            </div>
+              {% if global_mpcfill_ready %}
+              <button type="button" id="alternateImageMpcFillButton" class="alternate-image-mpcfill-button">
+                <i class="fa-solid fa-images" aria-hidden="true"></i>
+                <span>Browse MPCFill</span>
+              </button>
+              {% endif %}
             </div>
 
             <div class="alternate-image-settings-stack">
@@ -359,3 +367,6 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
     </div>
   </div>
 </div>
+{% if global_mpcfill_ready %}
+{% include "_mpcfill_browser.html" %}
+{% endif %}

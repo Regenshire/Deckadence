@@ -222,6 +222,18 @@ CPU upscaling does not require a dedicated GPU. NVIDIA and AMD upscalers require
 
 ---
 
+## 8. Optional: Install MPCFill Browser
+
+Install **MPCFill Browser** from **Settings → Plugins → Plugin Manager**. Then open a card's **Alternate Image Settings** and choose **Browse MPCFill** to search artwork, filter by creator, language, tags, or resolution, and save favorites.
+
+MPCFill Browser uses Deckadence's existing runtime and libraries. Installing it requires no separate Python environment or dependency downloads; the plugin remains optional.
+
+Choose **Use this image** to add the selected artwork to the current image library. The **3mm Full-Bleed File (MPCFill Bleed)** option is enabled automatically, and Deckadence retains the original full-bleed file. Double-faced cards let you select the face to update.
+
+Deckadence caches previews and downloaded originals on disk in `data/cache/mpcfill`, so reopening or reusing artwork does not download it again. Catalogue results refresh after 24 hours or when you choose Refresh; unchanged artwork keeps its cached files. Previously cached results remain available when MPCFill is temporarily unreachable.
+
+---
+
 # Technical Information
 
 Deckadence is written in Python and uses a local web interface. The packaged Windows, Linux, and macOS releases include the Python runtime and Deckadence's normal runtime libraries, so end users do not need to install Python separately.

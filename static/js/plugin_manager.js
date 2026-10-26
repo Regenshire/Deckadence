@@ -298,7 +298,7 @@
                     "Update / Reinstall";
             } else {
                 installButton.textContent =
-                    "Download & Install";
+                    plugin.runtime === "application" ? "Install" : "Download & Install";
             }
         }
 
