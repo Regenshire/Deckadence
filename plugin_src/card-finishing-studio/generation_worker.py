@@ -24,19 +24,7 @@ def prompt_parts(model):
     return json.loads(Path(__file__).with_name('generation_prompts.json').read_text(encoding='utf-8'))['models'][model]
 
 
-def hardware_device(hardware):
-    import torch
-    if hardware=='cpu':return 'cpu'
-    if not torch.cuda.is_available():raise RuntimeError('The selected GPU runtime cannot access a compatible GPU. Check its driver or choose CPU.')
-    hip=bool(torch.version.hip)
-    if hardware=='amd' and not hip:raise RuntimeError('This runtime is not using AMD ROCm.')
-    if hardware=='nvidia' and (hip or not torch.version.cuda):raise RuntimeError('This runtime is not using NVIDIA CUDA.')
-    if hardware=='nvidia' and torch.cuda.get_device_capability()[0]<8:
-        raise RuntimeError('The shared artwork analyzer requires native BF16 support, such as NVIDIA RTX 30-series or newer.')
-    # Verify a real GPU kernel, rather than relying only on driver detection.
-    for dtype in (torch.float16,torch.bfloat16):
-        (torch.ones((16,16),device='cuda',dtype=dtype) @ torch.ones((16,16),device='cuda',dtype=dtype)).sum().item()
-    return 'cuda'
+from prompter.hardware import hardware_device
 
 
 def model_size(dimensions,budget):
@@ -59,7 +47,7 @@ def check_health(hardware, output=None, outpaint=False):
                 raise RuntimeError('The installed outpainting loader does not match the package version.')
         phase='processor'
         device=hardware_device(hardware)
-        result=dict(ok=True,device=torch.cuda.get_device_name(0) if device=='cuda' else 'CPU',torch=torch.__version__)
+        result=dict(ok=True,device=torch.cuda.get_device_name(0) if device=='cuda' else 'Apple Silicon GPU (Metal)' if device=='mps' else 'CPU',torch=torch.__version__)
     except Exception as exc:
         if output:Path(output).write_text(json.dumps(dict(ok=False,component=phase,error=type(exc).__name__)),encoding='utf-8')
         raise
@@ -248,8 +236,8 @@ def generate(request, runtime=None):
                 pipe.remove_all_hooks()
                 cls=StableDiffusionXLInpaintPipeline if model=='sdxl' else StableDiffusionInpaintPipeline
                 pipe=cls.from_pipe(pipe,torch_dtype=dtype);pipe.set_progress_bar_config(disable=True)
-                if device=='cuda':pipe.enable_model_cpu_offload()
-                else:pipe.to('cpu')
+                runtime.pipe=pipe;runtime.placement=None
+                runtime.configure(device,progress)
             arguments.update(mask_image=edit_mask,height=size[1],width=size[0],strength=1.0)
     if plan:
         arguments.update(plan['parameters'], prompt=plan['prompt'])
@@ -289,8 +277,8 @@ def generate(request, runtime=None):
             cls=StableDiffusionXLInpaintPipeline if model=='sdxl' else StableDiffusionInpaintPipeline
             pipe=cls.from_pipe(pipe,torch_dtype=dtype)
             pipe.set_progress_bar_config(disable=True)
-            if device=='cuda':pipe.enable_model_cpu_offload()
-            else:pipe.to('cpu')
+            runtime.pipe=pipe;runtime.placement=None
+            runtime.configure(device,progress)
             arguments.update(mask_image=missing,height=size[1],width=size[0],strength=1.0,
                              prompt=request.get('outpaint_description',request['outpaint_prompt']))
             if model=='sd_turbo':arguments.update(num_inference_steps=4,guidance_scale=0.0)
@@ -405,7 +393,7 @@ def generation_session():
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('command',choices=['health','download','download-outpaint','download-analyzer','verify-assets','analyze','prepare-plan','generate','session'])
-    parser.add_argument('--hardware',choices=['nvidia','amd','cpu'],default='cpu')
+    parser.add_argument('--hardware',choices=['nvidia','amd','mps','cpu'],default='cpu')
     parser.add_argument('--model',choices=list(CATALOG))
     parser.add_argument('--edit-checkpoint',action='store_true',help='Download this model’s dedicated Edit checkpoint.')
     parser.add_argument('--destination')

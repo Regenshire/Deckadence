@@ -51,6 +51,6 @@ def validate_plan(plan):
     dimensions = plan.get('dimensions')
     if not isinstance(dimensions, list) or len(dimensions) != 2 or any(type(v) is not int or not 64 <= v <= 8192 or v % 32 for v in dimensions):
         raise PlannerError('Invalid generation dimensions.')
-    if plan.get('hardware') not in ('nvidia', 'amd', 'cpu'):
+    if plan.get('hardware') not in ('nvidia', 'amd', 'mps', 'cpu'):
         raise PlannerError('Invalid generation processor.')
     return plan

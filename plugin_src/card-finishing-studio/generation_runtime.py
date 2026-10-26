@@ -2,6 +2,7 @@
 import gc
 from pathlib import Path
 import time
+from prompter.hardware import empty_device_cache, mps_available_memory
 
 
 class GenerationRuntime:
@@ -17,10 +18,10 @@ class GenerationRuntime:
         if self.pipe is None:
             return
         import torch
+        device = self.key[2] if self.key else self.placement
         self.pipe = self.key = self.adapter = self.placement = None
         gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        empty_device_cache(torch, device)
 
     def pipeline(self, cls, model_path, dtype, device, options, progress):
         import torch
@@ -34,11 +35,9 @@ class GenerationRuntime:
                 self.pipe = cls.from_pipe(self.pipe, torch_dtype=dtype)
                 self.placement = None
             return self.pipe
-        self.pipe = None
-        self.key = self.adapter = self.placement = None
-        gc.collect()
-        if device == 'cuda':
-            torch.cuda.empty_cache()
+        self.clear()
+        # The preceding analyzer can leave allocator cache without a pipeline.
+        empty_device_cache(torch, device)
         started = time.monotonic()
         self.pipe = cls.from_pretrained(model_path, torch_dtype=dtype,
                                        local_files_only=True, use_safetensors=True, **options)
@@ -56,6 +55,37 @@ class GenerationRuntime:
         if device == 'cpu':
             self.pipe.to('cpu')
             self.placement = 'cpu'
+        elif device == 'mps':
+            # Unified memory still has a separate Metal working-set limit.
+            # Keep activation headroom and offload components when needed.
+            seen = set()
+            weight_bytes = 0
+            for component in self.pipe.components.values():
+                if not isinstance(component, torch.nn.Module):
+                    continue
+                for tensor in (*component.parameters(), *component.buffers()):
+                    storage = tensor.untyped_storage()
+                    identity = (str(tensor.device), storage.data_ptr())
+                    if identity not in seen and tensor.device.type != 'mps':
+                        weight_bytes += storage.nbytes()
+                    seen.add(identity)
+            free = mps_available_memory(torch)
+            reserve = max(1024**3, min(4 * 1024**3, free // 4))
+            self.pipe.enable_attention_slicing()
+            if weight_bytes + reserve <= free:
+                progress('loading', 'Moving the image model into Apple GPU memory.')
+                try:
+                    self.pipe.to('mps')
+                    self.placement = 'mps'
+                except RuntimeError as exc:
+                    if 'out of memory' not in str(exc).lower():
+                        raise
+                    self.pipe.to('cpu')
+                    empty_device_cache(torch, 'mps')
+            if self.placement is None:
+                progress('loading', 'Preparing Apple GPU generation with model components shared with system memory.')
+                self.pipe.enable_model_cpu_offload(device='mps')
+                self.placement = 'mps-offload'
         else:
             # Count unique model storage, including components already on GPU.
             seen = set()

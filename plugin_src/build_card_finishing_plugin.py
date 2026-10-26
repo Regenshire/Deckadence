@@ -1,7 +1,7 @@
 """Build the portable Card Finishing Studio source distribution (no model downloads).
 
-Called by .dev_prompts/build_Deckadence_card_finishing_studio.ps1 on Windows,
-Linux, or WSL. Can also be run directly with Python 3.10+ on either platform.
+Called by .dev_prompts/build_Deckadence_studio.ps1 on Windows,
+Linux, macOS, or WSL. Can also be run directly with Python 3.10+ on these platforms.
 The app owns installation of Python dependencies and optional model packages.
 """
 import argparse
@@ -31,6 +31,7 @@ REQUIRED = {
     "prompter/compiler.py", "prompter/dictionary.py", "prompter/preparation.py",
     "prompter/diagnostics.py", "prompter/mirror.py", "prompter/color_reference.py",
     "prompter/color_continuity.py", "prompter/targets.py",
+    "prompter/hardware.py",
 }
 EXCLUDED = {"__pycache__", "models", "runtime", "runtimes", "venv", "tests"}
 
@@ -137,7 +138,9 @@ def build(root, output_dir, check_only=False):
             raise ValueError("Plugin manifest changed during the build. Save changes and retry.")
         hashes = {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in staged_files.items()}
         info = dict(plugin_id=PLUGIN_ID, version=version, package_type="portable-source",
-                    target_platforms=["win32", "linux"], bundled_runtime=False, bundled_models=False,
+                    target_platforms=["win32", "linux", "darwin"],
+                    target_architectures={"win32": ["x86_64"], "linux": ["x86_64"], "darwin": ["arm64"]},
+                    minimum_macos_version="14.0", bundled_runtime=False, bundled_models=False,
                     built_at=datetime.now(timezone.utc).isoformat(), build_platform=platform.platform(),
                     build_python=platform.python_version(), files=hashes)
         (package / "BUILD_INFO.json").write_text(json.dumps(info, indent=2) + "\n", encoding="utf-8")
@@ -168,7 +171,7 @@ def build(root, output_dir, check_only=False):
             checksum.replace(output_dir / checksum.name)
     print("[4/4] Build complete.\n", flush=True)
     result = output_dir / ASSET_NAME
-    print(f"Plugin: {manifest['name']}\nVersion: {version}\nPlatforms: Windows / Linux (same source ZIP)")
+    print(f"Plugin: {manifest['name']}\nVersion: {version}\nPlatforms: Windows / Linux / macOS Apple Silicon (same source ZIP)")
     print(f"Release ZIP: {result}\nZIP size: {result.stat().st_size / 1048576:.2f} MB")
     print(f"SHA-256: {digest}\nChecksum file: {result}.sha256")
     print(f"Suggested release tag: plugin-card-finishing-studio-v{version}")

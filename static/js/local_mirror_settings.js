@@ -19,7 +19,7 @@
     for (const item of values) {
       select.add(new Option(item.name, item.id));
     }
-    if (active) select.value = active;
+    if (active && values.some(item => item.id === active)) select.value = active;
   }
   function bytes(value) {
     const n=Math.max(0,Number(value)||0);

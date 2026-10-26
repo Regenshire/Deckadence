@@ -2,14 +2,26 @@
 import json
 from pathlib import Path
 from .contracts import validate_analysis, PlannerError
+from .hardware import hardware_device, mps_available_memory
 
 def model_loading_options(model_path, device, torch):
     """Reserve inference space before assigning analyzer weights to a GPU."""
     if device == 'cpu':
         return {}
     weight_bytes = sum(path.stat().st_size for path in Path(model_path).glob('*.safetensors'))
-    free, _ = torch.cuda.mem_get_info()
     gib = 1024 ** 3
+    if device == 'mps':
+        free = mps_available_memory(torch)
+        reserve = max(2 * gib, min(4 * gib, free // 4))
+        if weight_bytes and weight_bytes + reserve <= free:
+            return {}
+        # Metal and CPU share physical RAM; do not add their budgets together.
+        # Run the analyzer in system memory if it exceeds Metal's working set.
+        import psutil
+        if psutil.virtual_memory().available < weight_bytes + 2 * gib:
+            raise RuntimeError('Not enough unified memory for artwork analysis. Close other memory-heavy apps and try again.')
+        return dict(device_map={'': 'cpu'})
+    free, _ = torch.cuda.mem_get_info()
     reserve = max(2 * gib, min(4 * gib, free // 4))
     if weight_bytes and weight_bytes + reserve <= free:
         return {}
@@ -38,15 +50,18 @@ def infer(request):
     import torch
     from PIL import Image
     from transformers import AutoProcessor, AutoModelForImageTextToText
-    device = 'cpu' if request['hardware'] == 'cpu' else 'cuda'
+    device = hardware_device(request['hardware'])
     dtype = torch.float32 if device == 'cpu' else torch.bfloat16
     loading = model_loading_options(request['model_path'], device, torch)
-    shared = bool(loading)
-    report_progress(request, 'Loading the artwork analyzer with weights shared between GPU and system RAM. Analysis may take longer.' if shared else 'Loading the artwork analyzer.')
+    cpu_fallback = device == 'mps' and loading.get('device_map') == {'': 'cpu'}
+    shared = bool(loading) and not cpu_fallback
+    report_progress(request, 'Loading the artwork analyzer in system memory to fit this Mac. Analysis may take longer.' if cpu_fallback else 'Loading the artwork analyzer with weights shared between GPU and system RAM. Analysis may take longer.' if shared else 'Loading the artwork analyzer.')
     processor = AutoProcessor.from_pretrained(request['model_path'], local_files_only=True)
     model = AutoModelForImageTextToText.from_pretrained(request['model_path'], local_files_only=True,
                                                       dtype=dtype, attn_implementation='sdpa', **loading)
-    if not shared:
+    if cpu_fallback:
+        device = 'cpu'
+    elif not shared:
         model = model.to(device)
     elif all(value == 'cpu' for value in model.hf_device_map.values()):
         device = 'cpu'
@@ -67,7 +82,7 @@ def infer(request):
     messages = [{'role': 'system', 'content': request['instruction']}, {'role':'user','content':content}]
     inputs = processor.apply_chat_template(messages, tokenize=True, add_generation_prompt=True,
                                             return_dict=True, return_tensors='pt').to(device)
-    report_progress(request, 'Analyzing the artwork with GPU and system RAM. Analysis may take longer.' if shared else 'Analyzing the artwork medium, palette, texture, lighting and boundaries.')
+    report_progress(request, 'Analyzing the artwork in system memory on this Mac. Analysis may take longer.' if cpu_fallback else 'Analyzing the artwork with GPU and system RAM. Analysis may take longer.' if shared else 'Analyzing the artwork medium, palette, texture, lighting and boundaries.')
     with torch.inference_mode():
         output = model.generate(**inputs, max_new_tokens=request['max_new_tokens'], do_sample=False)
     text = processor.batch_decode(output[:, inputs['input_ids'].shape[1]:], skip_special_tokens=True)[0].strip()

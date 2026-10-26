@@ -7,6 +7,7 @@ import atexit
 import json
 import math
 import os
+import platform
 from pathlib import Path
 import shutil
 import signal
@@ -33,6 +34,7 @@ RUNTIME_VERSION = 1
 COMMON_PACKAGES = ['diffusers==0.41.0', 'transformers==5.20.2', 'accelerate==1.15.0',
                    'safetensors>=0.6,<1', 'sentencepiece>=0.2,<1', 'Pillow>=11.3,<13']
 HARDWARE = {
+    'mps': {'name': 'Apple Silicon GPU · Metal', 'description': 'M-series Mac with macOS 14 or newer. Uses the Apple GPU and unified memory. Setup tests the GPU before downloading models; private Python is installed automatically.'},
     'nvidia': {'name': 'NVIDIA CUDA', 'description': 'RTX 30-series or newer, or an equivalent NVIDIA GPU with native BF16 support. Setup tests the GPU before downloading models. Requires a current NVIDIA driver; private Python is installed automatically.'},
     'amd': {'name': 'AMD Radeon · ROCm', 'description': 'Supported Radeon GPUs with a compatible AMD ROCm driver. Private Python 3.12 is installed automatically.'},
     'cpu': {'name': 'CPU', 'description': 'No GPU required; uses substantial system RAM and can take a long time per scene. Private Python is installed automatically.'},
@@ -43,7 +45,30 @@ class LocalMirrorError(RuntimeError):
     """A safe, user-facing setup or inference failure."""
 
 
+def available_hardware():
+    if sys.platform == 'darwin':
+        keys = ('mps', 'cpu') if platform.machine().lower() in ('arm64', 'aarch64') else ()
+    else:
+        keys = ('nvidia', 'amd', 'cpu') if sys.platform in ('win32', 'linux') else ()
+    return {key: HARDWARE[key] for key in keys}
+
+
+def validate_processor(hardware):
+    if sys.platform == 'darwin':
+        if platform.machine().lower() not in ('arm64', 'aarch64'):
+            raise LocalMirrorError('Generative Art AI on macOS requires Apple Silicon and the native Apple Silicon version of Deckadence.')
+        version = platform.mac_ver()[0].split('.')
+        if not version[0].isdigit() or int(version[0]) < 14:
+            raise LocalMirrorError('Generative Art AI on Mac requires macOS 14 or newer.')
+    if hardware not in available_hardware():
+        raise LocalMirrorError('Choose a processor available on this operating system.')
+
+
 def runtime_packages(hardware):
+    validate_processor(hardware)
+    if sys.platform == 'darwin':
+        # Official arm64 wheels include both Metal and CPU; CUDA/ROCm indexes do not.
+        return ['torch==2.11.0', 'torchvision==0.26.0']
     if hardware == 'nvidia':
         return ['--index-url', 'https://download.pytorch.org/whl/cu128', 'torch==2.11.0+cu128', 'torchvision==0.26.0+cu128']
     if hardware == 'amd':
@@ -138,7 +163,7 @@ class LocalMirror:
         return self.root/'models'/(model+'-edit')/checkpoint['revision'] if checkpoint else self.model_path(model)
 
     def runtime_ready(self, hardware):
-        return (isinstance(hardware, str) and hardware in HARDWARE and self.python(hardware).is_file()
+        return (isinstance(hardware, str) and hardware in available_hardware() and self.python(hardware).is_file()
                 and read_json(self.runtime(hardware) / 'ready.json').get('version') == RUNTIME_VERSION)
 
     def model_ready(self, model):
@@ -204,7 +229,7 @@ class LocalMirror:
         return parts
 
     def package_ready(self, package, hardware):
-        return isinstance(package,str) and package in PACKAGES and isinstance(hardware,str) and hardware in HARDWARE and all(part['ready'] for part in self.package_components(package,hardware))
+        return isinstance(package,str) and package in PACKAGES and isinstance(hardware,str) and hardware in available_hardware() and all(part['ready'] for part in self.package_components(package,hardware))
 
     def status(self):
         # Merely opening settings must never create directories, load torch,
@@ -218,11 +243,11 @@ class LocalMirror:
                 setup.update(stage='Ready', message='Local AI is ready. Saved scenes can also be used with local AI disabled.')
             return dict(ok=True, ready=bool(active), active=active, setup=setup, default_model=DEFAULT_MODEL,
                         default_package=PACKAGE_CATALOG['default_package'],providers=PACKAGE_CATALOG['providers'],
-                        packages=[dict(id=key,**value,hardware={hardware:dict(ready=self.package_ready(key,hardware),components=self.package_components(key,hardware)) for hardware in HARDWARE}) for key,value in PACKAGES.items()],
+                        packages=[dict(id=key,**value,hardware={hardware:dict(ready=self.package_ready(key,hardware),components=self.package_components(key,hardware)) for hardware in available_hardware()}) for key,value in PACKAGES.items()],
                         analyzer=dict(**ANALYZER, downloaded=self.analyzer_ready()),
                         models=[dict(id=key, **value, downloaded=self.model_ready(key),package=self.package_for_model(key),ready=bool(active and self.package_ready(self.package_for_model(key),active['hardware'])),operations=list(contracts.EDIT_OPERATIONS) if key!='instruct_pix2pix' else ['replace','remove_object'])
                                 for key, value in sorted(MODELS.items(), key=lambda item: item[1]['download_gb'])],
-                        hardware=[dict(id=key, **value, installed=self.runtime_ready(key),outpaint_ready=self.outpaint_ready(key)) for key, value in HARDWARE.items()])
+                        hardware=[dict(id=key, **value, installed=self.runtime_ready(key),outpaint_ready=self.outpaint_ready(key)) for key, value in available_hardware().items()])
 
     def analyzer_path(self):
         return self.root / 'analyzer' / ANALYZER['revision']
@@ -286,7 +311,7 @@ class LocalMirror:
 
     def outpaint_ready(self, hardware):
         path=self.outpaint_path()
-        return (hardware in HARDWARE and (path/OUTPAINT['filename']).is_file()
+        return (hardware in available_hardware() and (path/OUTPAINT['filename']).is_file()
                 and (path/OUTPAINT['filename']).stat().st_size==OUTPAINT['size_bytes']
                 and read_json(path/'ready.json').get('revision')==OUTPAINT['revision']
                 and read_json(self.runtime(hardware)/'outpaint-ready.json').get('peft')==OUTPAINT['peft'])
@@ -294,8 +319,7 @@ class LocalMirror:
     def select(self, model, hardware):
         if not isinstance(model, str) or not isinstance(hardware, str) or model not in MODELS or hardware not in HARDWARE:
             raise LocalMirrorError('Choose a listed model and processor.')
-        if sys.platform not in ('win32', 'linux'):
-            raise LocalMirrorError('Generative Art AI currently supports Windows and Linux.')
+        validate_processor(hardware)
 
     def start(self, package, hardware, activate=True):
         if not isinstance(package,str) or package not in PACKAGES:raise LocalMirrorError('Choose an available generation package.')
@@ -335,6 +359,7 @@ class LocalMirror:
         for the real kernel test after installing the selected runtime.
         """
         if cancel.is_set():raise LocalMirrorError('Package setup cancelled.')
+        validate_processor(hardware)
         if hardware!='nvidia':return
         executable=shutil.which('nvidia-smi')
         if not executable and os.name=='nt':
@@ -366,6 +391,9 @@ class LocalMirror:
                    TORCH_HOME=str(self.root / 'cache' / 'torch'), TRITON_CACHE_DIR=str(self.root / 'cache' / 'triton'),
                    CUDA_CACHE_PATH=str(self.root / 'cache' / 'cuda'),
                    TEMP=str(self.root / 'tmp'), TMP=str(self.root / 'tmp'), TMPDIR=str(self.root / 'tmp'))
+        if sys.platform == 'darwin':
+            # Unsupported Metal operators can run on CPU within the chosen runtime.
+            env['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
         return env
 
     @contextmanager
@@ -922,7 +950,7 @@ class LocalMirror:
                                    expanded_size=expanded_size,scene_padding=padding,background_prompt=prompts['background_prompt'],
                                    background_description=prompts['background_prompt'],background_negative=prompts['background_negative'])
                 write_json(folder / 'request.json', payload)
-                if progress:progress('loading','Preparing '+model_spec['name']+' on '+{'nvidia':'NVIDIA GPU','amd':'AMD GPU','cpu':'CPU'}[selected['hardware']]+'. The first render can take longer.')
+                if progress:progress('loading','Preparing '+model_spec['name']+' on '+{'nvidia':'NVIDIA GPU','amd':'AMD GPU','mps':'Apple GPU','cpu':'CPU'}[selected['hardware']]+'. The first render can take longer.')
                 reported=None
                 def report():
                     nonlocal reported
