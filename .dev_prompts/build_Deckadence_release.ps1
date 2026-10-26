@@ -179,6 +179,18 @@ if ($LASTEXITCODE -ne 0) {
     throw "Waitress is not installed for the selected Python environment. Run: python -m pip install -r requirements.txt"
 }
 
+# Studio's printable mirrors require NumPy in the application itself. Private
+# plugin Python is downloaded later by Studio setup, never by this check.
+& $PythonCommand.Source -I -B -c "import numpy, requests, tarfile; from PIL import Image; assert hasattr(tarfile, 'data_filter'), 'Update build Python: safe tar extraction support is required'"
+if ($LASTEXITCODE -ne 0) {
+    throw "Studio build dependencies are incomplete. Update build Python and run: python -m pip install -r requirements.txt"
+}
+& $PythonCommand.Source -B (Join-Path $RepoRoot "plugin_src/build_card_finishing_plugin.py") --check-only
+if ($LASTEXITCODE -ne 0) { throw "Card Finishing Studio source validation failed." }
+if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot "plugin_system/python_runtime.py") -PathType Leaf)) {
+    throw "Studio's private Python installer is missing from the application source."
+}
+
 Write-Host "      Python:      $($PythonCommand.Source)"
 Write-Host "      PyInstaller: $PyInstallerVersion"
 Write-Host "      Waitress:    $WaitressVersion"
@@ -387,7 +399,8 @@ Write-Host ""
 
 $ZipHelperPath = Join-Path `
     $RepoRoot `
-    "build\zip_Deckadence_release.py"
+    ".dev_prompts\ai_work\windows-release\zip_Deckadence_release.py"
+New-Item -ItemType Directory -Path (Split-Path -Parent $ZipHelperPath) -Force | Out-Null
 
 $ZipHelperCode = @'
 import os

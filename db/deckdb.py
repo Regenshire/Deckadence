@@ -980,7 +980,7 @@ def get_saved_deckbuilder_cards_for_deck(deck_id, deck_zone=None, include_basic_
     finally:
         conn.close()
 
-def add_card_to_deckbuilder_sideboard(deck_id, card_uuid):
+def add_card_to_deckbuilder_sideboard(deck_id, card_uuid, *, if_absent=False, is_foil=False):
     ensure_deck_schema()
 
     parsed_deck_id = normalize_deck_optional_int(deck_id)
@@ -1045,6 +1045,20 @@ def add_card_to_deckbuilder_sideboard(deck_id, card_uuid):
             "message": "Card was not found.",
         }
 
+    if if_absent:
+        # Custom-card creation retries should not add a second deck copy.
+        conn.execute("BEGIN IMMEDIATE")
+        existing = conn.execute(
+            "SELECT deck_card_id, sheet_is_foil FROM deck_cards WHERE deck_id = ? AND card_uuid = ? LIMIT 1",
+            (parsed_deck_id, clean_card_uuid),
+        ).fetchone()
+        if existing:
+            conn.close()
+            return {"ok": True, "message": "Card is already in this deck.",
+                    "deck_id": parsed_deck_id, "deck_card_id": existing["deck_card_id"],
+                    "card_uuid": clean_card_uuid, "card_name": card_row["card_name"],
+                    "deck_zone": "sideboard", "sheet_is_foil": existing["sheet_is_foil"], "inserted": False}
+
     cursor.execute(
         """
         INSERT INTO deck_cards (
@@ -1077,7 +1091,7 @@ def add_card_to_deckbuilder_sideboard(deck_id, card_uuid):
             parsed_deck_id,
             None,
             0,
-            0,
+            int(bool(is_foil)),
             DECK_ROLE_MAIN,
             None,
             None,
@@ -1088,6 +1102,9 @@ def add_card_to_deckbuilder_sideboard(deck_id, card_uuid):
     )
 
     deck_card_id = int(cursor.lastrowid)
+
+    if is_foil:
+        cursor.execute("UPDATE deck_cards SET foil_type = 'foil' WHERE deck_card_id = ?", (deck_card_id,))
 
     cursor.execute(
         """
@@ -1112,6 +1129,7 @@ def add_card_to_deckbuilder_sideboard(deck_id, card_uuid):
         "card_uuid": clean_card_uuid,
         "card_name": card_row["card_name"],
         "deck_zone": "sideboard",
+        "sheet_is_foil": int(bool(is_foil)),
     }
 
 

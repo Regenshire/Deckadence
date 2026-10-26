@@ -14,3 +14,164 @@ html[data-theme] .card-search-themed>.page-panel>h2{margin:-24px -24px 20px;padd
 .card-search-themed .card-placeholder{min-height:0;height:auto;padding:28px 20px;border:0;background:transparent;font:400 14px/1.5 Arial,sans-serif}
 
 @media(max-width:600px){.card-search-themed .card-search-form{flex-wrap:wrap}.card-search-themed .card-search-controls{flex-basis:100%}html[data-theme] .card-search-heading .page-title{font-size:26px}}
+
+/* Shared Add Cards / Change Printing dialogs. Use the active theme's palette. */
+html #customDraftCardSearchOverlay { padding:24px; color:var(--text); }
+html #customDraftCardSearchOverlay .custom-draft-card-search-window {
+  width:100%; max-width:1120px; height:calc(100dvh - 48px); max-height:920px;
+  background:var(--panel); border:1px solid var(--border); border-radius:14px;
+}
+html #customDraftCardSearchOverlay.card-search-is-maximized { padding:0; }
+html #customDraftCardSearchOverlay.card-search-is-maximized .custom-draft-card-search-window {
+  max-width:none; height:100dvh; max-height:none; border-radius:0;
+}
+html #customDraftCardSearchOverlay .custom-draft-card-search-window-header {
+  flex:none; align-items:center; padding:20px 26px; gap:16px; background:var(--panel);
+}
+html #customDraftCardSearchOverlay h2 { font-size:23px; line-height:1.25; margin:0; color:var(--text); }
+html #customDraftCardSearchOverlay .page-subtitle { margin:6px 0 0; color:var(--muted); font-size:13px; }
+html #customDraftCardSearchOverlay .card-search-header-actions { position:relative; display:flex; align-items:center; gap:8px; flex:none; }
+html #customDraftCardSearchOverlay button { font-family:inherit; }
+html #customDraftCardSearchOverlay :is(button,input,select,textarea,[role="button"]):focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+html #customDraftCardSearchOverlay .action-button { width:auto; min-width:88px; min-height:38px; margin:0; padding:8px 18px; border-radius:8px; font-size:14px; line-height:1.3; }
+html #customDraftCardSearchOverlay .secondary-button { background:var(--button); border:1px solid var(--border); color:var(--text); }
+html #customDraftCardSearchOverlay .secondary-button:hover:not(:disabled) { background:var(--button-hover); border-color:var(--accent); }
+html #customDraftCardSearchOverlay :is(.card-search-quiet-button,.card-search-printings-toggle,.card-search-icon-button) {
+  display:inline-flex; align-items:center; justify-content:center; gap:8px; width:auto; min-height:36px; padding:6px 10px;
+  border:1px solid transparent; border-radius:7px; background:transparent; color:var(--muted); font-size:13px; line-height:1.3; cursor:pointer;
+}
+html #customDraftCardSearchOverlay :is(.card-search-quiet-button,.card-search-printings-toggle,.card-search-icon-button):hover:not(:disabled) { color:var(--text); background:var(--button-hover); }
+html #customDraftCardSearchOverlay :is(.card-search-quiet-button,.card-search-printings-toggle):disabled { opacity:.45; cursor:default; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-close-button { width:32px; height:32px; flex:none; border:0; border-radius:7px; background:transparent; color:var(--muted); font-size:24px; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-close-button:hover { background:var(--button-hover); color:var(--text); }
+html #customDraftCardSearchOverlay svg { width:18px; height:18px; flex:none; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+html #customDraftCardSearchOverlay .card-search-more-wrap { position:static; }
+html #customDraftCardSearchOverlay .card-search-window-size-button { width:32px; height:32px; min-height:32px; padding:6px; flex:none; }
+html #customDraftCardSearchOverlay .card-search-options-menu {
+  position:absolute; top:calc(100% + 8px); right:0; width:288px; z-index:20; padding:6px;
+  border:1px solid var(--border); border-radius:10px; background:var(--panel-2); box-shadow:0 12px 32px #0003;
+}
+html #customDraftCardSearchOverlay .card-search-options-menu button {
+  display:flex; align-items:center; gap:12px; width:100%; margin:0; padding:12px; border:0; border-radius:6px;
+  background:transparent; text-align:left; color:var(--text); cursor:pointer;
+}
+html #customDraftCardSearchOverlay .card-search-options-menu button:hover { background:var(--button-hover); }
+html #customDraftCardSearchOverlay .card-search-options-menu strong { display:block; font-size:14px; font-weight:600; }
+html #customDraftCardSearchOverlay .card-search-options-menu small { display:block; margin-top:4px; font-size:12px; color:var(--muted); }
+html #customDraftCardSearchOverlay .custom-draft-card-search-panel { padding:0; height:auto; flex:1; min-height:0; background:var(--panel); }
+html #customDraftCardSearchOverlay .card-search-controls { flex:none; padding:20px 26px 16px; border-bottom:1px solid var(--border); }
+html #customDraftCardSearchOverlay .custom-draft-card-search-text-row { display:flex; align-items:stretch; gap:10px; margin:0 0 14px; }
+html #customDraftCardSearchOverlay .custom-draft-filter-field { min-width:0; margin:0; gap:6px; color:var(--muted); font-size:12px; }
+html #customDraftCardSearchOverlay .custom-draft-search-text-field { flex:1; }
+html #customDraftCardSearchOverlay .custom-draft-search-text-input-wrap { position:relative; display:block; }
+html #customDraftCardSearchOverlay .card-search-search-icon { position:absolute; top:50%; left:14px; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
+html #customDraftCardSearchOverlay :is(input,select,textarea,.custom-draft-multi-select-button) {
+  box-sizing:border-box; color:var(--text); background:var(--panel-2); border:1px solid var(--border); border-radius:7px;
+  min-height:34px; font-family:inherit; font-size:13px; font-weight:400; line-height:1.4;
+}
+html #customDraftCardSearchOverlay input::placeholder,html #customDraftCardSearchOverlay textarea::placeholder { color:var(--muted); opacity:1; }
+html #customDraftCardSearchOverlay #customDraftCardSearchInput { height:44px; padding:10px 14px 10px 42px; font-size:14px; }
+html #customDraftCardSearchOverlay #customDraftCardSearchButton { min-width:100px; }
+html #customDraftCardSearchOverlay .card-search-common-filters { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+html #customDraftCardSearchOverlay .card-search-printing-scope { display:inline-flex; align-items:center; gap:7px; min-height:34px; padding:0 6px; color:var(--muted); font-size:12px; cursor:pointer; white-space:nowrap; }
+html #customDraftCardSearchOverlay .card-search-printing-scope input { width:15px; height:15px; margin:0; accent-color:var(--accent); }
+html #customDraftCardSearchOverlay .card-search-printing-scope:has(:checked) { color:var(--text); }
+html #customDraftCardSearchOverlay .card-search-common-filters>.custom-draft-filter-field {
+  display:flex; flex-direction:row; align-items:center; gap:8px; width:150px; height:34px; padding:0 10px;
+  border:1px solid var(--border); border-radius:7px; background:var(--panel-2);
+}
+html #customDraftCardSearchOverlay .card-search-common-filters :is(input.custom-draft-filter-input,select,.custom-draft-multi-select-button) {
+  flex:1; width:0; min-width:0; min-height:30px; padding:3px 0; border:0; background:transparent; font-size:13px;
+}
+html #customDraftCardSearchOverlay .card-search-common-filters .custom-draft-multi-select-label { overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+html #customDraftCardSearchOverlay #customDraftSearchClearFiltersButton { margin-left:auto; }
+html #customDraftCardSearchOverlay .custom-draft-multi-select-menu { z-index:15; min-width:200px; background:var(--panel-2); color:var(--text); border-color:var(--border); box-shadow:0 10px 25px #0003; }
+html #customDraftCardSearchOverlay .custom-draft-multi-select-menu label { color:var(--text); }
+html #customDraftCardSearchOverlay .custom-draft-multi-select-menu label:hover { background:var(--button-hover); }
+html #customDraftCardSearchOverlay input[type="checkbox"] { min-height:0; accent-color:var(--accent); }
+html #customDraftCardSearchOverlay .card-search-advanced-filters { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; padding-top:16px; margin-top:16px; border-top:1px solid var(--border); }
+html #customDraftCardSearchOverlay .card-search-advanced-filters .custom-draft-filter-input { width:100%; height:36px; padding:6px 10px; }
+html #customDraftCardSearchOverlay .card-search-results-toolbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 26px; flex:none; color:var(--muted); font-size:12px; }
+html #customDraftCardSearchOverlay .card-search-result-settings { display:flex; gap:16px; }
+html #customDraftCardSearchOverlay .card-search-result-settings .custom-draft-filter-field { display:flex; flex-direction:row; align-items:center; gap:8px; width:auto; }
+html #customDraftCardSearchOverlay .card-search-result-settings select { width:145px; padding:5px 8px; }
+html #customDraftCardSearchOverlay #customDraftSearchPageSizeSelect { width:76px; }
+html #customDraftCardSearchOverlay .card-search-start-state { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:120px; padding:24px; text-align:center; color:var(--muted); }
+html #customDraftCardSearchOverlay .card-search-start-state svg { width:32px; height:32px; }
+html #customDraftCardSearchOverlay .card-search-start-state h3 { color:var(--text); font-size:17px; margin:16px 0 6px; }
+html #customDraftCardSearchOverlay .card-search-start-state p { font-size:13px; margin:0; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-results { flex:1; height:auto; min-height:0; margin:0; padding:0 18px 20px 26px; overflow-y:auto; scrollbar-gutter:stable; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-empty { padding:40px 20px; color:var(--muted); text-align:center; background:transparent; border:0; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-group { border:1px solid var(--border); border-radius:9px; background:var(--panel-2); }
+html #customDraftCardSearchOverlay .custom-draft-card-search-group-header { display:flex; gap:14px; min-height:90px; padding:14px 16px; background:transparent; cursor:default; }
+html #customDraftCardSearchOverlay :is(.custom-draft-card-search-group-image-wrap,.custom-draft-card-search-image-wrap) {
+  width:44px; height:62px; min-width:44px; min-height:62px; max-width:44px; max-height:62px; flex:none; border-radius:4px; background:var(--bg); grid-area:auto;
+}
+html #customDraftCardSearchOverlay :is(.custom-draft-card-search-group-image,.custom-draft-card-search-image) { width:100%; height:100%; object-fit:contain; border-radius:4px; cursor:zoom-in; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-group-main { flex:1; grid-area:auto; }
+html #customDraftCardSearchOverlay :is(.custom-draft-card-search-group-title,.custom-draft-card-search-title) { color:var(--text); font-size:14px; font-weight:600; overflow-wrap:anywhere; }
+html #customDraftCardSearchOverlay :is(.custom-draft-card-search-group-meta,.custom-draft-card-search-meta) { color:var(--muted); font-size:12px; line-height:1.5; margin-top:5px; overflow-wrap:anywhere; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-group-added-pill { background:var(--button); color:var(--text); border:1px solid var(--border); font-size:11px; padding:3px 7px; grid-area:auto; }
+html #customDraftCardSearchOverlay .card-search-printings-toggle { flex:none; gap:8px; white-space:nowrap; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-group-count { color:inherit; font-size:12px; font-weight:400; padding:0; border:0; border-radius:0; background:transparent; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-group-expand-icon { display:block; width:16px; height:16px; flex:none; border:0; background:transparent; color:inherit; grid-area:auto; stroke-width:1.8; transition:transform 140ms ease; }
+html #customDraftCardSearchOverlay .card-search-printings-toggle[aria-expanded="true"] .custom-draft-card-search-group-expand-icon { transform:rotate(180deg); }
+html #customDraftCardSearchOverlay .custom-draft-card-search-group-printings { padding:0 16px 0 74px; border-top:0; gap:0; }
+html #customDraftCardSearchOverlay .card-search-printings-feedback { display:flex; align-items:center; gap:10px; padding:12px 0; color:var(--muted); font-size:12px; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-printing-row { display:grid; grid-template-columns:44px minmax(0,1fr) auto; gap:14px; min-height:88px; padding:12px 0; border:0; border-top:1px solid var(--border); border-radius:0; background:transparent; align-items:center; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-row-disabled { opacity:1; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-row-disabled :is(.custom-draft-card-search-image-wrap,.custom-draft-card-search-main) { opacity:1; }
+/* Override the legacy global green disabled-button treatment, including loading. */
+html #customDraftCardSearchOverlay :is(.custom-draft-card-add-button,.card-search-group-add):disabled {
+  background:var(--button)!important; color:var(--muted)!important; border:1px solid var(--border)!important; box-shadow:none; cursor:default;
+}
+html #customDraftCardSearchOverlay .custom-draft-card-search-actions { grid-column:auto; width:auto; }
+html #customDraftCardSearchOverlay :is(.custom-draft-card-add-button,.card-search-group-add) { min-width:82px; flex:none; min-height:34px; padding:6px 12px; font-size:13px; }
+html #customDraftCardSearchOverlay .card-search-footer { display:flex; align-items:center; flex-wrap:wrap; gap:16px; flex:none; padding:14px 26px; border-top:1px solid var(--border); background:var(--panel-2); }
+html #customDraftCardSearchOverlay .card-search-feedback { flex:1; min-width:100px; color:var(--muted); font-size:12px; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-status { width:auto; min-height:0; margin:4px 0 0; padding:0; color:var(--muted); background:transparent; border:0; border-radius:0; white-space:normal; line-height:1.4; font-size:12px; font-weight:400; }
+html #customDraftCardSearchOverlay .custom-draft-card-search-status-error { color:var(--theme-error,var(--danger)); }
+html #customDraftCardSearchOverlay .custom-draft-search-pagination { width:auto; gap:6px; color:var(--muted); font-size:12px; }
+html #customDraftCardSearchOverlay :is(.custom-draft-page-arrow,.custom-draft-page-input) { width:30px; min-width:30px; height:30px; min-height:30px; padding:0; border-radius:6px; color:var(--text); background:var(--button); border:1px solid var(--border); text-align:center; }
+html #customDraftCardSearchOverlay .custom-draft-page-input { width:42px; }
+html #customDraftCardSearchOverlay .custom-draft-page-label-suffix { white-space:nowrap; }
+html #customDraftCardSearchOverlay .custom-draft-bulk-import-panel { display:none; position:absolute; inset:0; margin:0; border:0; border-radius:0; padding:24px; background:#0007; z-index:30; align-items:center; justify-content:center; }
+html #customDraftCardSearchOverlay .custom-draft-bulk-import-panel-open { display:flex; }
+html #customDraftCardSearchOverlay .custom-draft-bulk-import-body { width:min(720px,100%); max-height:100%; overflow:auto; padding:24px; border:1px solid var(--border); border-radius:12px; background:var(--panel); }
+html #customDraftCardSearchOverlay .card-search-import-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+html #customDraftCardSearchOverlay .card-search-import-heading h3 { margin:0; font-size:20px; color:var(--text); }
+html #customDraftCardSearchOverlay .card-search-icon-button { font-size:24px; }
+.card-search-sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
+html .custom-draft-card-search-zoom-overlay { position:fixed; inset:0; z-index:100000; display:flex; align-items:center; justify-content:center; padding:48px 24px 24px; background:color-mix(in srgb,var(--bg) 90%,transparent); }
+html .custom-draft-card-search-zoom-image { display:block; max-width:100%; max-height:100%; object-fit:contain; border-radius:12px; box-shadow:0 12px 40px #0005; }
+html .card-search-zoom-close { position:absolute; top:12px; right:18px; width:36px; height:36px; padding:0; font-size:26px; background:var(--panel-2); color:var(--text); border:1px solid var(--border); border-radius:8px; cursor:pointer; }
+html .card-search-zoom-close:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+@media(prefers-reduced-motion:reduce) {
+  html #customDraftCardSearchOverlay .custom-draft-card-search-group-expand-icon { transition:none; }
+}
+@media(max-width:760px) {
+  html #customDraftCardSearchOverlay { padding:8px; }
+  html #customDraftCardSearchOverlay .custom-draft-card-search-window { height:calc(100dvh - 16px); max-height:none; border-radius:10px; }
+  html #customDraftCardSearchOverlay .custom-draft-card-search-window-header { padding:16px; }
+  html #customDraftCardSearchOverlay .card-search-header-actions { gap:4px; }
+  html #customDraftCardSearchOverlay .card-search-controls { padding:16px; }
+  html #customDraftCardSearchOverlay .card-search-common-filters>.custom-draft-filter-field { width:calc(50% - 4px); box-sizing:border-box; }
+  html #customDraftCardSearchOverlay .card-search-advanced-filters { grid-template-columns:repeat(2,minmax(0,1fr)); max-height:22dvh; overflow-y:auto; }
+  html #customDraftCardSearchOverlay .card-search-results-toolbar { padding:12px 16px; flex-wrap:wrap; }
+  html #customDraftCardSearchOverlay .card-search-result-settings { gap:10px; }
+  html #customDraftCardSearchOverlay .card-search-result-settings select { width:130px; }
+  html #customDraftCardSearchOverlay .custom-draft-card-search-results { padding:0 10px 16px 16px; }
+  html #customDraftCardSearchOverlay .custom-draft-card-search-group-header { display:grid; grid-template-columns:44px minmax(0,1fr) auto; grid-template-areas:"image main add" "image toggle toggle"; gap:6px 10px; padding:12px; }
+  html #customDraftCardSearchOverlay .custom-draft-card-search-group-image-wrap { grid-area:image; }
+  html #customDraftCardSearchOverlay .custom-draft-card-search-group-main { grid-area:main; }
+  html #customDraftCardSearchOverlay .card-search-group-add { grid-area:add; min-width:64px; }
+  html #customDraftCardSearchOverlay .card-search-printings-toggle { grid-area:toggle; justify-self:start; padding:3px 0; min-height:28px; }
+  html #customDraftCardSearchOverlay .custom-draft-card-search-group-added-pill { display:none; }
+  html #customDraftCardSearchOverlay .custom-draft-card-search-group-printings { padding:0 12px; }
+  html #customDraftCardSearchOverlay .custom-draft-card-search-printing-row { gap:10px; }
+  html #customDraftCardSearchOverlay .custom-draft-card-add-button { min-width:64px; }
+  html #customDraftCardSearchOverlay .card-search-footer { padding:12px 16px; gap:10px; }
+  html #customDraftCardSearchOverlay .card-search-feedback { flex-basis:calc(100% - 110px); }
+  html #customDraftCardSearchOverlay #customDraftCardSearchDoneButton { margin-left:auto; }
+  html #customDraftCardSearchOverlay .custom-draft-bulk-import-row { grid-template-columns:1fr; }
+}

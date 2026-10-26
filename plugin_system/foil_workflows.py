@@ -20,6 +20,7 @@ OUTPUTS = {
     "alpha_png": "Alpha mask PNG (export planned)",
 }
 LAYER_TYPES = {
+    "inkjet_reveal": "White foil reveal (standard inkjet)",
     "white_underbase": "White underbase (hide foil)",
     "foil_application": "Foil / adhesive (apply foil)",
     "varnish": "Varnish / gloss",
@@ -39,7 +40,7 @@ def _preset(identifier, label, description, *, layer="white_underbase",
             spot="White", output="spot_pdf", solid_only=False, custom=False):
     return {
         "id": identifier, "label": label, "description": description,
-        "layer_types": list(LAYER_TYPES) if custom else [layer],
+        "layer_types": [key for key in LAYER_TYPES if key != 'inkjet_reveal'] if custom else [layer],
         "output_formats": ["spot_pdf", "mask_pdf"] if solid_only else list(OUTPUTS),
         "mask_tones": ["binary"] if solid_only else ["binary", "grayscale"],
         "defaults": {**BASE_OPTIONS, "layer_type": layer, "spot_name": spot,
@@ -48,6 +49,13 @@ def _preset(identifier, label, description, *, layer="white_underbase",
 
 
 WORKFLOWS = [
+    {**_preset("standard_inkjet", "Standard Inkjet",
+            "Lighten saved Foil Mask areas with an editable white overlay for each card. Higher Percent Foil reveals more of the foil stock.",
+            layer="inkjet_reveal", spot="RDG_WHITE"),
+     "output_formats": ["spot_pdf"],
+     "defaults": {**BASE_OPTIONS, "layer_type":"inkjet_reveal", "spot_name":"RDG_WHITE",
+                  "spot_display_color":"#FFFFFF", "overprint":False, "mask_tone":"grayscale",
+                  "add_white_foil_layer":False, "percent_foil":12}},
     _preset("roland_uv", "Roland UV / VersaWorks",
             "White ink over holographic or metallic stock. Uses RDG_WHITE.", spot="RDG_WHITE"),
     _preset("mimaki_uv", "Mimaki UV / RasterLink",
@@ -95,7 +103,8 @@ def normalize_display_color(value):
 def validate_options(workflow_id, options):
     """Reject invalid user input rather than silently changing print intent."""
     preset = PRESETS[workflow_id]
-    if not isinstance(options, dict) or set(options) - set(BASE_OPTIONS):
+    allowed = set(BASE_OPTIONS) | ({'add_white_foil_layer','percent_foil'} if workflow_id=='standard_inkjet' else set())
+    if not isinstance(options, dict) or set(options) - allowed:
         raise ValueError("Unrecognized workflow settings.")
     result = {**preset["defaults"], **options}
     enums = {
@@ -128,6 +137,13 @@ def validate_options(workflow_id, options):
         raise ValueError("Use a spot name of 1-80 printable ASCII characters, other than All or None.")
     result["spot_name"] = name.strip()
     result["spot_display_color"] = normalize_display_color(result["spot_display_color"])
+    if workflow_id == 'standard_inkjet':
+        if type(result['add_white_foil_layer']) is not bool:
+            raise ValueError('Add White Foil Layer must be on or off.')
+        percent = result['percent_foil']
+        if type(percent) not in (int,float) or not 0 <= percent <= 100:
+            raise ValueError('Percent Foil must be between 0 and 100.')
+        result.update(spot_name='RDG_WHITE', spot_display_color='#FFFFFF', overprint=False, coverage_percent=100)
     return result
 
 

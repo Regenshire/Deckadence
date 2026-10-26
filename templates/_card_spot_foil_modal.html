@@ -245,6 +245,19 @@
           </div>
           <p class="spot-card-caption" data-spot-preview-only>Screen preview only.</p>
           <div data-spot-pattern-controls hidden>
+            <div data-spot-dragon-controls hidden style="grid-column:1 / -1">
+              <h3>Dragon emblem</h3>
+              <input type="hidden" name="effect_dragon_emblem" value="bolas_command">
+              <div class="spot-shard-templates spot-dragon-emblems" role="group" aria-label="Dragon emblem">
+                {% for key, label in [('bolas_command','Bolas · Command'),('ugin_ascendant','Ugin · Ascendant'),('ugin_glide','Ugin · Glide'),('bolas_dominion','Bolas · Dominion'),('bolas_sovereign','Bolas · Sovereign')] %}
+                <button type="button" data-spot-dragon-emblem="{{ key }}" aria-pressed="{{ 'true' if loop.first else 'false' }}"><img src="{{ url_for('static',filename='img/card-effects/dragon-strike/' ~ key ~ '.png') }}" alt="" loading="lazy" decoding="async"><span>{{ label }}</span></button>
+                {% endfor %}
+              </div>
+              <label>Magic path<select name="effect_dragon_trail"><option value="winding_magic">Wandering magic</option></select></label>
+              <label>Path Alignment<select name="effect_dragon_alignment"><option value="dragon">Starts at dragon</option><option value="bottom">Bottom of Card</option></select></label>
+              <label>Color effect<select name="effect_dragon_color_effect"><option value="normal">Normal</option></select></label>
+              <p class="spot-card-caption" data-spot-fixed-copy>Use Copy Path, then paste onto the Foil Mask or Gloss tab. Choose Emblem only to use the dragon by itself.</p>
+            </div>
             <div data-spot-particle-controls hidden style="grid-column:1 / -1">
               <label>Confetti / Glitter type<select name="effect_particle_type"><option value="glitter_1">Glitter - Type 1</option></select></label>
               <label class="spot-card-check"><input type="checkbox" name="effect_particle_flip"> Flip horizontally</label>
@@ -325,7 +338,7 @@
                 <section class="spot-finish-group" aria-label="Generate artwork">
                 <div class="spot-finish-group-heading"><h3>Generate artwork</h3></div>
                 <div class="spot-finish-pair">
-                <label>Theme<select name="effect_shard_theme">{% for key, label in [('dark','Dark'),('spooky','Spooky'),('normal','Normal'),('modern','Modern'),('echo','Echo'),('angelic','Angelic'),('demonic','Demonic'),('custom','Custom')] %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
+                <label>Theme<select name="effect_shard_theme">{% for key, label in [('dark','Dark'),('spooky','Spooky'),('normal','Normal'),('modern','Modern'),('echo','Echo'),('angelic','Angelic'),('demonic','Demonic'),('evil_goatee','Evil Goatee'),('custom','Custom')] %}<option value="{{ key }}">{{ label }}</option>{% endfor %}</select></label>
                 <label class="spot-card-range-label">Outpainting margin <output data-spot-outpaint-margin-value>30%</output><input name="effect_outpaint_margin" type="range" min="0" max="100" value="30" step="1"></label>
                 </div>
                 <label data-spot-custom-theme hidden>Custom theme prompt<textarea name="effect_custom_prompt" rows="4" maxlength="1000" placeholder="Describe the alternate artwork, atmosphere, colors and style…"></textarea></label>

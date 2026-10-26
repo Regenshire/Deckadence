@@ -535,11 +535,12 @@ def get_current_upscaled_image_for_card(
             scryfall_id
         )
 
-    if set_code and collector_number:
+    if set_code and collector_number and not card_uuid.startswith("custom-"):
         identity_conditions.append(
             """
             (
-                UPPER(COALESCE(set_code, '')) = UPPER(?)
+                COALESCE(card_uuid, '') NOT LIKE 'custom-%'
+                AND UPPER(COALESCE(set_code, '')) = UPPER(?)
                 AND LOWER(COALESCE(collector_number, '')) = LOWER(?)
             )
             """
@@ -1024,6 +1025,8 @@ def register_upscaled_candidate(
     now_utc = upscaling_utc_now()
 
     conn = get_db_connection()
+    from db.custom_cards import guard_custom_card_image_write
+    guard_custom_card_image_write(conn, card_uuid, absolute_output_path)
     cursor = conn.cursor()
 
     cursor.execute(
@@ -2853,6 +2856,8 @@ def register_upscaled_image(
     now_utc = upscaling_utc_now()
 
     conn = get_db_connection()
+    from db.custom_cards import guard_custom_card_image_write
+    guard_custom_card_image_write(conn, card_uuid, absolute_output_path)
     cursor = conn.cursor()
 
     if card_uuid:

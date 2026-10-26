@@ -1,6 +1,6 @@
 # *** CARD PRICE CONTROLS - Provide Prices to the App ***
 from flask import jsonify, request
-from db.market_prices import lookup_card_prices, normalize_finish, summarize_card_prices, _uuid
+from db.market_prices import lookup_card_prices, normalize_finish, summarize_card_prices, normalize_card_uuid
 
 
 def register_card_price_routes(app, get_config=lambda: {}):
@@ -22,7 +22,7 @@ def register_card_price_routes(app, get_config=lambda: {}):
         for card in cards:
             if isinstance(card, str):
                 card = {"card_uuid": card}
-            if not isinstance(card, dict) or not _uuid(card.get("card_uuid")):
+            if not isinstance(card, dict) or not normalize_card_uuid(card.get("card_uuid")):
                 return jsonify(ok=False, message="Each card needs a valid printing UUID."), 400
             normalized.append({"card_uuid": card["card_uuid"], "finish": normalize_finish(card.get("finish"))})
         results = lookup_card_prices(normalized)
@@ -30,7 +30,7 @@ def register_card_price_routes(app, get_config=lambda: {}):
 
     @app.get("/api/card-prices/<card_uuid>")
     def card_price_lookup(card_uuid):
-        if not _uuid(card_uuid):
+        if not normalize_card_uuid(card_uuid):
             return jsonify(ok=False, message="A valid printing UUID is required."), 400
         cards = lookup_card_prices([{"card_uuid": card_uuid, "finish": normalize_finish(request.args.get("finish"))}])
         return jsonify(ok=True, card=cards[0])

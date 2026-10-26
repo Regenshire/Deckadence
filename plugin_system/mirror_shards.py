@@ -13,7 +13,7 @@ TEMPLATES={'falling':'Falling shards','impact':'Mirror impact','diagonal':'Diago
            'radiant':'Radiant burst','spell':'Spell splinters','cascade':'Crystal cascade','revelation':'Mirror revelation'}
 THEMES={
     'dark':'Dark','spooky':'Spooky','normal':'Normal','modern':'Modern',
-    'echo':'Echo','angelic':'Angelic','demonic':'Demonic','custom':'Custom',
+    'echo':'Echo','angelic':'Angelic','demonic':'Demonic','evil_goatee':'Evil Goatee','custom':'Custom',
 }
 ASSET_ROOT=Path(__file__).resolve().parents[1]/'static/img/card-effects/mirror-shards'
 SCENE_SELECTION_BYTES=756*1056//8

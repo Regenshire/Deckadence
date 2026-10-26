@@ -11,4 +11,4 @@ if NAME not in sys.modules:
     module = importlib.util.module_from_spec(spec)
     sys.modules[NAME] = module
     spec.loader.exec_module(module)
-from deckadence_studio_prompter import compiler, contracts, dictionary, preparation, diagnostics, mirror
+from deckadence_studio_prompter import compiler, contracts, dictionary, preparation, diagnostics, mirror, targets

@@ -1548,7 +1548,7 @@
 
       '<div class="custom-draft-current-card-meta">',
       "<span>" + escapeHtml(setCode) + "</span>",
-      "<span>#" + escapeHtml(collectorNumber || "?") + "</span>",
+      collectorNumber ? "<span>#" + escapeHtml(collectorNumber) + "</span>" : "",
       "<span>" + escapeHtml(rarity || "unknown rarity") + "</span>",
       "<span>MV " +
         escapeHtml(formatCurrentCardNumber(card.mana_value, 1)) +
@@ -1933,7 +1933,7 @@
 
       [
         setCode,
-        "#" + (collectorNumber || "?"),
+        collectorNumber ? "#" + collectorNumber : "",
         rarity || "unknown rarity",
         "MV " + formatCurrentCardNumber(card.mana_value, 1),
         "EDHREC " +
@@ -1941,7 +1941,7 @@
             ? "?"
             : card.edhrec_rank),
         "Salt " + formatCurrentCardNumber(card.edhrec_saltiness, 2),
-      ].forEach(function (metaText) {
+      ].filter(Boolean).forEach(function (metaText) {
         const span = document.createElement("span");
         span.textContent = metaText;
         metaWrap.appendChild(span);
@@ -2759,12 +2759,16 @@
   }
 
   function updateCurrentCardCountBadge() {
+    const count = getCurrentCardRows().length;
+    document.querySelectorAll('[data-custom-set-card-count]').forEach(label => { label.textContent = String(count); });
+    const empty = document.getElementById("customDraftCurrentCardEmpty");
+    if (empty) empty.classList.toggle("hidden", count > 0);
     if (!currentCardCountBadge) {
       return;
     }
 
     currentCardCountBadge.textContent =
-      String(getCurrentCardRows().length) + " card(s)";
+      String(count) + " card(s)";
   }
 
   function invalidateCurrentCardRowsCache() {
@@ -4650,6 +4654,19 @@
     initializeCustomDraftCardContextMenu,
     { once: true },
   );
+
+  document.addEventListener("deckadence:custom-card-deleted", function (event) {
+    const rows = findCurrentCardRowsByCardUuid(event.detail?.cardUuid);
+    rows.forEach(function (row) {
+      setCurrentCardRowSelection(row, false);
+      row.remove();
+    });
+    if (!rows.length) return;
+    invalidateCurrentCardRowsCache();
+    updateCurrentCardCountBadge();
+    updateCurrentSelectionState();
+    filterCurrentCards();
+  });
 
   document.addEventListener("imomir:card-image-refreshed", function (event) {
     const detail = event.detail || {};

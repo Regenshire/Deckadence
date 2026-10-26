@@ -24,7 +24,7 @@
   exportDefaults.innerHTML='<legend>Print / Export defaults</legend><label>PDF Version<select name="pdf_version"><option>1.5</option><option>1.6</option><option>1.7</option></select></label><div class="spot-foil-checks"><label class="spot-foil-check"><input type="checkbox" name="include_effect1_default">Include Effect 1</label><label class="spot-foil-check"><input type="checkbox" name="include_effect2_default">Include Effect 2</label></div>';
   fields.workflow_id.closest('label').before(exportDefaults);
   const colorSettings=document.createElement('fieldset');
-  colorSettings.innerHTML='<legend>PDF color</legend><p class="spot-foil-hint">RGB by default. Spot Foiling or Gloss uses CMYK.</p><label>CMYK ICC profile<select name="cmyk_profile"></select></label><div class="plugin-card-actions"><label class="spot-foil-profile-upload">Upload ICC profile<input type="file" accept=".icc,.icm" data-icc-upload></label><button type="button" class="action-button secondary-button" data-icc-refresh>Refresh profiles</button></div><p class="spot-foil-hint" data-icc-folder></p><p class="spot-foil-hint" role="status" data-icc-status></p>';
+  colorSettings.innerHTML='<legend>PDF color</legend><p class="spot-foil-hint">RGB by default, including Standard Inkjet. Printer spot inks or Gloss use CMYK.</p><label>CMYK ICC profile<select name="cmyk_profile"></select></label><div class="plugin-card-actions"><label class="spot-foil-profile-upload">Upload ICC profile<input type="file" accept=".icc,.icm" data-icc-upload></label><button type="button" class="action-button secondary-button" data-icc-refresh>Refresh profiles</button></div><p class="spot-foil-hint" data-icc-folder></p><p class="spot-foil-hint" role="status" data-icc-status></p>';
   fields.workflow_id.closest('label').before(colorSettings);
   const iccStatus=colorSettings.querySelector('[data-icc-status]');
   function showProfiles(result,selected=fields.cmyk_profile.value) {
@@ -53,8 +53,8 @@
   content.append(dialog.querySelector('[data-foil-reset]'));
   form.addEventListener('invalid',event=>{if(workflows.contains(event.target))workflows.open=true;},true);
 
-  const boolKeys = ['protect_text', 'protect_frame', 'review_mask', 'overprint'];
-  const numberKeys = ['coverage_percent', 'edge_adjustment_mm', 'safe_margin_mm', 'resolution_ppi', 'selection_amount', 'foil_coverage_percent', 'border_width_percent'];
+  const boolKeys = ['protect_text', 'protect_frame', 'review_mask', 'overprint','add_white_foil_layer'];
+  const numberKeys = ['coverage_percent', 'edge_adjustment_mm', 'safe_margin_mm', 'resolution_ppi', 'selection_amount', 'foil_coverage_percent', 'border_width_percent','percent_foil'];
   const clone = value => JSON.parse(JSON.stringify(value));
   let data, drafts, selected, dirty, saving = false, loadVersion = 0;
 
@@ -103,18 +103,26 @@
   function showSummary() {
     const active = data.preferences.active_workflow;
     const profile = data.preferences.profiles[active];
-    summary.textContent = `${data.workflows.find(item => item.id === active).label} · ${data.output_formats[profile.output_format]}`;
+    const output = active === 'standard_inkjet'
+      ? (profile.add_white_foil_layer ? `White foil layer · ${profile.percent_foil}% opacity` : 'White foil layer off')
+      : data.output_formats[profile.output_format];
+    summary.textContent = `${data.workflows.find(item => item.id === active).label} · ${output}`;
   }
   function updateVisibility() {
     const output = fields.output_format.value;
+    const inkjet=selected==='standard_inkjet';
+    dialog.querySelector('[data-foil-inkjet]').hidden=!inkjet;
+    fields.add_white_foil_layer.disabled=!inkjet||saving;
+    fields.percent_foil.disabled=!inkjet||saving||!fields.add_white_foil_layer.checked;
     ['spot_name', 'spot_display_color', 'overprint', 'raster_polarity'].forEach(key => {
-      const visible = key === 'raster_polarity' ? output === 'grayscale_png' : output === 'spot_pdf';
+      const visible = !inkjet && (key === 'raster_polarity' ? output === 'grayscale_png' : output === 'spot_pdf');
       dialog.querySelector(`[data-foil-field="${key}"]`).hidden = !visible;
       fields[key].disabled = !visible || saving;
     });
     colorPicker.disabled = fields.spot_display_color.disabled;
     const solid = preset().mask_tones.length === 1;
-    fields.coverage_percent.disabled = solid || saving;
+    fields.coverage_percent.disabled = inkjet || solid || saving;
+    fields.coverage_percent.closest('label').hidden=inkjet;
     fields.layer_type.disabled = preset().layer_types.length === 1 || saving;
     dialog.querySelector('[data-foil-coverage-hint]').textContent = solid
       ? 'This workflow uses solid 100% coverage.' : 'Coverage is an ink value, not a calibrated foil intensity.';
@@ -124,15 +132,18 @@
       grayscale_png: 'The mask is independent of the artwork. Set its polarity to match your RIP.',
       alpha_png: 'Opaque = ink or material. Transparent = no deposit. Import separately.'
     }[output];
+    if(inkjet)dialog.querySelector('[data-foil-output-hint]').textContent='RGB artwork with editable white overlays. No white-ink spot separation is created.';
     dialog.querySelector('[data-foil-layer-hint]').textContent = fields.layer_type.value === 'white_underbase'
       ? 'Selected areas reveal foil. White ink covers the rest.'
       : 'Selected areas receive foil or coating.';
+    if(inkjet)dialog.querySelector('[data-foil-layer-hint]').textContent='Selected areas are lightened to reveal more foil stock.';
   }
   function showProfile() {
     const item = preset();
     const values = drafts[selected];
     setOptions(fields.layer_type, item.layer_types, data.layer_types);
     setOptions(fields.output_format, item.output_formats, data.output_formats);
+    if(selected==='standard_inkjet')fields.output_format.options[0].textContent='Artwork + editable white foil layer';
     setOptions(fields.mask_tone, item.mask_tones, {binary: 'Solid areas', grayscale: 'Grayscale coverage'});
     fields.workflow_id.value = selected;
     Object.entries(values).forEach(([key, value]) => {

@@ -19,10 +19,10 @@ USER_RECORD_LIMIT = 16 * 1024 * 1024
 FINISH_RECORD_LIMIT = 144 * 1024 * 1024
 
 # Catalogue rows are dependencies, not an export of the base catalogue.
-DEPENDENCIES = {"sets", "chaos_cards", "cards"}
+DEPENDENCIES = {"sets", "chaos_cards", "cards", "custom_cards"}
 SETTINGS = {"app_config", "selected_sets", "chaos_session_state"}
 TABLES = (
-    "alternate_image_scopes", "sets", "chaos_cards", "cards", "alternate_sources",
+    "alternate_image_scopes", "sets", "chaos_cards", "cards", "custom_cards", "alternate_sources",
     "alternate_image_isolation", "card_spot_foil", "upscaled_images", "custom_draft_sets",
     "custom_draft_set_cards", "custom_draft_pack_slots", "chaos_pack_art",
     "chaos_booster_variants", "chaos_booster_variant_contents", "chaos_booster_sheets",
@@ -53,6 +53,7 @@ REFERENCES.update(opened_by_player_id="chaos_players", campaign_player_id="chaos
                   current_human_pack_id="draft_test_packs", original_alternate_source_id="alternate_sources")
 SCOPE_FIELDS = {"image_scope_id", "alternate_image_scope_id", "source_image_scope_id", "scope_token"}
 KINDS = {
+    "custom_card": "data/custom_cards",
     "alternate": "data/alternate_sources", "isolated": "data/alternate_sources/isolation", "upscale": "data/upscaled_scryfall",
     "deck_source": "data/deck_art_sources", "deck_generated": "data/deck_art_generated",
     "portrait": "data/campaign_player_portraits", "icon": "data/custom_set_icons",
@@ -118,8 +119,8 @@ class UserContentExporter:
         self.static = self.bundle / "static"
 
     def asset(self, path, kind, relative=None, style="absolute"):
-        option = {"alternate": "modified_cards", "isolated": "modified_cards", "upscale": "modified_cards", "deck_source": "deck_art", "deck_generated": "deck_art", "icon": "custom_set_icons", "card_back": "card_backs", "print": "print_templates", "cutting": "cutting_templates", "portrait": "campaigns", "pack_art": "custom_sets"}[kind]
-        if not self.selection.enabled(option) and not (kind == "pack_art" and self.selection.enabled("packs")):
+        option = {"custom_card": None, "alternate": "modified_cards", "isolated": "modified_cards", "upscale": "modified_cards", "deck_source": "deck_art", "deck_generated": "deck_art", "icon": "custom_set_icons", "card_back": "card_backs", "print": "print_templates", "cutting": "cutting_templates", "portrait": "campaigns", "pack_art": "custom_sets"}[kind]
+        if option and not self.selection.enabled(option) and not (kind == "pack_art" and self.selection.enabled("packs")):
             return None
         self.progress(stage="Selecting custom content", current_file=Path(path).name)
         try:
@@ -230,6 +231,8 @@ class UserContentExporter:
         if extension not in IMAGE_EXTENSIONS or not any(word in field for word in ("path", "file", "artwork", "icon")):
             return value
         kind = "isolated" if table == "alternate_image_isolation" else "alternate"
+        if table == "custom_cards":
+            kind = "custom_card"
         style = "absolute" if os.path.isabs(value) else "runtime"
         base = self.root
         if table == "upscaled_images" and field in {"output_image_path", "fullbleed_image_path"}:
@@ -368,7 +371,7 @@ class UserContentExporter:
                 self.custom_codes = self.selection.ids["set_code"]
             with (self.temporary / "records.jsonl").open("w", encoding="utf-8") as writer:
                 # Discover dependencies while streaming user rows, then export only those catalogue rows.
-                for table in (*[name for name in TABLES if name not in DEPENDENCIES], "chaos_cards", "cards", "sets"):
+                for table in (*[name for name in TABLES if name not in DEPENDENCIES], "custom_cards", "chaos_cards", "cards", "sets"):
                     if table not in existing or table not in DEPENDENCIES and not self.selection.includes_table(table):
                         continue
                     schemas[table] = [row["name"] for row in connection.execute("PRAGMA table_info(" + _quote(table) + ")")]
@@ -391,14 +394,14 @@ class UserContentExporter:
                             query += " WHERE " + " OR ".join(conditions)
                         elif table == "cards":
                             query += " WHERE card_key IN (" + references("backup_card_keys", self.card_keys) + ")"
-                        else:
+                        elif table == "sets":
                             query += " WHERE set_code IN (" + references("backup_set_codes", self.set_codes | self.custom_codes) + ")"
                     if table.startswith("chaos_booster_") or table == "chaos_pack_art":
                         if not self.custom_codes and table != "chaos_pack_art":
                             continue
                     for raw in connection.execute(query):
                         row = dict(raw)
-                        if table not in DEPENDENCIES and not self.selection.allows(table, row):
+                        if (table not in DEPENDENCIES or table == "custom_cards") and not self.selection.allows(table, row):
                             continue
                         row = self.selection.clean(row, REFERENCES, SCOPE_FIELDS, table=table)
                         if table == "chaos_session_state" and str(row.get("state_key", "")).startswith("pending_"):

@@ -6,6 +6,7 @@ Uncertain candidates are omitted, not replaced by geometric templates.
 Copyrights/licenses: see NOTICE.txt.
 """
 import base64
+from functools import lru_cache
 from io import BytesIO
 
 import cv2
@@ -283,6 +284,11 @@ def encode_mask(alpha, size):
     return base64.b64encode(output.getvalue()).decode("ascii")
 
 
+@lru_cache(maxsize=1)
+def frame_engine():
+    return Contours()
+
+
 def detect_frame(payload):
     layout = payload.get("layout", "auto")
     layout = {"modern":"m15", "classic":"retro"}.get(layout,layout)
@@ -291,7 +297,7 @@ def detect_frame(payload):
     image = read_image(payload); size = image.size
     image.thumbnail((1000,1400), Image.Resampling.LANCZOS)
     w,h = image.size
-    engine = Contours(); encoded = engine.encode(image)
+    engine = frame_engine(); encoded = engine.encode(image)
     all_frame = np.zeros((h,w),np.uint8); interiors = all_frame.copy()
     pieces = []
     boxes = dict(title=(.025,.015,.975,.14),type=(.03,.55,.97,.64),

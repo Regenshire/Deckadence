@@ -6,6 +6,14 @@ The dependency supplies the PaddleOCR detector and its model assets.
 import base64
 from io import BytesIO
 import math
+from functools import lru_cache
+
+
+@lru_cache(maxsize=1)
+def text_engine():
+    from rapidocr_onnxruntime import RapidOCR
+    return RapidOCR(det_limit_side_len=1600, det_limit_type="max",
+                    intra_op_num_threads=2, inter_op_num_threads=2)
 
 
 def detect_symbols(image, regions):
@@ -70,7 +78,6 @@ def detect_symbols(image, regions):
 def detect_text(payload):
     from PIL import Image
     import numpy as np
-    from rapidocr_onnxruntime import RapidOCR
 
     encoded = payload.get("image", "")
     if not isinstance(encoded, str) or len(encoded) > 6_000_000:
@@ -81,8 +88,7 @@ def detect_text(payload):
             raise ValueError("Use a card image of 4 megapixels or less.")
         image = image.convert("RGB")
     width, height = image.size
-    engine = RapidOCR(det_limit_side_len=1600, det_limit_type="max",
-                      intra_op_num_threads=2, inter_op_num_threads=2)
+    engine = text_engine()
     polygons = []
     # Angled and quarter-turn passes catch non-horizontal lettering. The
     # returned regions are suggestions, not a guarantee of complete OCR.

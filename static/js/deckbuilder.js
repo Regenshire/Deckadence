@@ -2866,7 +2866,7 @@
       card_name: result.card_name || resultRow.dataset.displayCardName || "",
       deck_zone: "sideboard",
       is_basic_land: 0,
-      sheet_is_foil: 0,
+      sheet_is_foil: Number(result.sheet_is_foil || 0),
       deck_role: "main",
       stack_column: "",
       stack_order: "",
@@ -6102,6 +6102,19 @@
         }
       });
   }
+
+  document.addEventListener("deckadence:custom-card-deleted", function (event) {
+    const uuid = event.detail?.cardUuid;
+    if (!uuid || !workspace) return;
+    const cards = Array.from(workspace.querySelectorAll('.deckbuilder-card[data-card-uuid="' + CSS.escape(uuid) + '"]'));
+    if (!cards.length) return;
+    const payloads = cards.map(getCardContextPayload).filter(Boolean);
+    hideHoverPreview();
+    setDeckbuilderContextMenuOpen(false);
+    applyDeckbuilderCardActionDelta({ response_mode: "delta" }, payloads, "remove");
+    applySideboardFilters();
+    applyDeckFilters();
+  });
 
   document.addEventListener("imomir:card-image-refreshed", function (event) {
     const detail = event.detail || {};

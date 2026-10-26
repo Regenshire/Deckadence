@@ -487,8 +487,10 @@ class AlternateImageRepository:
         identities = []
         if card.get("card_uuid"):
             identities.append(("card_uuid = ?", (card["card_uuid"],)))
-        if card.get("set_code") and card.get("collector_number"):
+        if (card.get("set_code") and card.get("collector_number")
+                and not str(card.get("card_uuid") or "").startswith("custom-")):
             identities.append((
+                "COALESCE(card_uuid, '') NOT LIKE 'custom-%' AND "
                 "UPPER(COALESCE(set_code, '')) = UPPER(?) "
                 "AND LOWER(COALESCE(collector_number, '')) = LOWER(?)",
                 (card["set_code"], card["collector_number"]),
@@ -530,6 +532,8 @@ class AlternateImageRepository:
                 a.card_uuid = ? OR EXISTS (
                     SELECT 1 FROM chaos_cards AS c
                     WHERE c.card_uuid = ?
+                      AND c.card_uuid NOT LIKE 'custom-%'
+                      AND COALESCE(a.card_uuid, '') NOT LIKE 'custom-%'
                       AND COALESCE(c.set_code, '') <> ''
                       AND COALESCE(c.collector_number, '') <> ''
                       AND UPPER(COALESCE(a.set_code, '')) = UPPER(c.set_code)
@@ -560,7 +564,9 @@ class AlternateImageRepository:
                       AND (? = 0 OR a.remove_bleed = 1)
                       AND (
                         a.card_uuid = c.card_uuid OR (
-                            COALESCE(c.set_code, '') <> ''
+                            c.card_uuid NOT LIKE 'custom-%'
+                            AND COALESCE(a.card_uuid, '') NOT LIKE 'custom-%'
+                            AND COALESCE(c.set_code, '') <> ''
                             AND COALESCE(c.collector_number, '') <> ''
                             AND UPPER(COALESCE(a.set_code, '')) = UPPER(c.set_code)
                             AND LOWER(COALESCE(a.collector_number, '')) =
@@ -572,6 +578,22 @@ class AlternateImageRepository:
                 tuple(batch) + self._scope_parameters + (int(remove_bleed_only),),
             ).fetchall()
             enabled.update(row["card_uuid"] for row in rows)
+            # A custom card's permanent image is also an alternate image,
+            # including in an isolated library with no local override yet.
+            originals = self.connection.execute(
+                f"""
+                SELECT custom.card_uuid FROM custom_cards AS custom
+                WHERE custom.card_uuid IN ({placeholders})
+                  AND (? = 0 OR (custom.remove_bleed = 1 AND NOT EXISTS (
+                    SELECT 1 FROM {self._table} AS a
+                    WHERE {self._scope_filter}a.is_enabled = 1
+                      AND a.card_uuid = custom.card_uuid
+                      AND a.face_kind IN ('single', 'front')
+                  )))
+                """,
+                tuple(batch) + (int(remove_bleed_only),) + self._scope_parameters,
+            ).fetchall()
+            enabled.update(row["card_uuid"] for row in originals)
         return enabled
 
     def _bump_revision(self):
@@ -1302,6 +1324,9 @@ def initialize_database():
     ensure_column_exists(cursor, "chaos_cards", "edhrec_rank", "INTEGER")
     ensure_column_exists(cursor, "chaos_cards", "edhrec_saltiness", "REAL")
     ensure_column_exists(cursor, "chaos_cards", "promo_types_json", "TEXT")
+
+    from db.custom_cards import initialize_custom_cards
+    initialize_custom_cards(cursor)
 
     cursor.execute(
         """
@@ -3779,9 +3804,11 @@ def search_chaos_cards_for_custom_draft_set(
     exclude_deck_id=None,
     page=1,
     page_size=50,
+    exact_card_name=None,
 ):
     clean_set_code = normalize_custom_draft_set_code(set_code)
     clean_search_text = str(search_text or "").strip().lower()
+    clean_exact_card_name = str(exact_card_name or "").strip()
 
     valid_rarity_values = {"common", "uncommon", "rare", "mythic"}
 
@@ -3893,6 +3920,7 @@ def search_chaos_cards_for_custom_draft_set(
 
     has_any_filter = any([
         clean_search_text,
+        clean_exact_card_name,
         clean_rarity_filter,
         clean_color_identity_filter,
         clean_mana_operator and parsed_mana_value is not None,
@@ -3912,6 +3940,12 @@ def search_chaos_cards_for_custom_draft_set(
 
     where_clauses = []
     params = [clean_set_code]
+
+    if clean_exact_card_name:
+        # Use the canonical name from a selected card and the existing name
+        # index; broad text search also matches unrelated names and types.
+        where_clauses.append("cc.card_name = ?")
+        params.append(clean_exact_card_name)
 
     if clean_search_text:
         normalized_search_text = normalize_search_text_for_sql(clean_search_text)
@@ -4302,6 +4336,7 @@ def search_chaos_cards_for_custom_draft_set(
             cc.card_uuid,
             cc.card_name,
             cc.set_code,
+            s.set_name,
             s.release_date,
             cc.collector_number,
             cc.rarity,
@@ -4404,7 +4439,7 @@ def search_chaos_cards_for_custom_draft_set(
         ORDER BY
             already_in_set DESC,
             {search_rank_sql}
-            {sort_sql}
+            {sort_sql}, cc.card_uuid ASC
         LIMIT ? OFFSET ?
         """,
         params + order_exact_params + [parsed_page_size, parsed_offset],
@@ -4573,6 +4608,7 @@ def search_chaos_cards_for_custom_draft_import_list(set_code, import_items, limi
             cc.card_uuid,
             cc.card_name,
             cc.set_code,
+            s.set_name,
             s.release_date,
             cc.collector_number,
             cc.rarity,
@@ -4955,7 +4991,7 @@ def bulk_add_cards_to_custom_draft_set(set_code, search_rows, preserve_finish=Fa
 
 
 
-def add_card_to_custom_draft_set(set_code, card_uuid):
+def add_card_to_custom_draft_set(set_code, card_uuid, *, is_foil=False):
     clean_set_code = normalize_custom_draft_set_code(set_code)
     clean_card_uuid = str(card_uuid or "").strip()
 
@@ -5027,13 +5063,17 @@ def add_card_to_custom_draft_set(set_code, card_uuid):
             clean_set_code,
             clean_card_uuid,
             0,
-            0,
+            int(bool(is_foil)),
             card_row["card_name"] or "",
             now_utc,
         ),
     )
 
     inserted = cursor.rowcount > 0
+
+    if inserted and is_foil:
+        cursor.execute("UPDATE custom_draft_set_cards SET foil_type = 'foil' WHERE custom_set_card_id = ?",
+                       (cursor.lastrowid,))
 
     conn.commit()
     conn.close()

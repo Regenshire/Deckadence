@@ -19,11 +19,11 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-layers-5') }}"
+  href="{{ url_for('static', filename='css/print_export_modal.css', v='inkjet-6') }}"
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/alternate_image_modal.css') }}"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='custom-delete-2') }}"
 />
 {% endblock %} {% block content %}
 <div
@@ -38,7 +38,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
         <div class="pack-eyebrow">CHAOS DRAFT / {{ "PACK PREVIEW" if pack.is_preview else "SAVED PACK" }}</div>
         <h1 class="page-title">{{ pack.pack_display_name }}</h1>
         <p class="page-subtitle">
-          {{ pack.pack_tracking_code }} • {{ pack.total_cards }} cards {% if
+          {{ pack.pack_tracking_code }} • <span data-pack-card-count>{{ pack.total_cards }}</span> cards {% if
           pack.is_preview %} • Preview - not saved yet {% else %} • Opened {{
           pack.opened_count }}x {% if not pack.campaign_enabled %} • Disabled
           from Campaign Mode{% endif %} {% endif %}
@@ -530,7 +530,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
   print_export_pack_ids = [] %} {% else %} {% set print_export_pack_ids =
   [pack.tracked_pack_id] %} {% endif %} {% include "_print_export_modal.html" %}
   {% include "_alternate_image_modal.html" %}
-  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='dynamic-buttons-1') }}"></script>
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='custom-delete-2') }}"></script>
   <div
     id="campaignPackZoomOverlay"
     class="card-zoom-overlay hidden"
@@ -543,7 +543,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
   </div>
 </div>
 
-<script src="{{ url_for('static', filename='js/print_export_modal.js', v='pdf-version-5') }}"></script>
+<script src="{{ url_for('static', filename='js/print_export_modal.js', v='inkjet-6') }}"></script>
 <script src="{{ url_for('static', filename='js/campaign_pack_detail.js', v='foil-types-1') }}"></script>
 {% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>

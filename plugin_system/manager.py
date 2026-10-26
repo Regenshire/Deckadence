@@ -844,6 +844,17 @@ def _resolve_python_command():
     )
 
 
+def _resolve_studio_python(cancel=None, progress=None):
+    from .python_runtime import ensure_python, validate_python
+    environment = _plugin_environment()
+    configured = os.environ.get('DECKADENCE_PLUGIN_PYTHON', '').strip()
+    if configured:
+        validate_python([configured], environment, require_minor=(3, 12))
+        return [configured]
+    return [ensure_python(os.path.join(PLUGIN_ROOT_DIR, '.python'),
+                          environment=environment, cancel=cancel, progress=progress)]
+
+
 def _install_plugin_requirements(
     plugin_id,
     manifest,
@@ -886,7 +897,9 @@ def _install_plugin_requirements(
     )
 
     bootstrap_python = (
-        _resolve_python_command()
+        _resolve_studio_python(progress=lambda stage, message: _set_install_status(
+            plugin_id, stage=stage, message=message))
+        if plugin_id == 'card-finishing-studio' else _resolve_python_command()
     )
 
     _set_install_status(
@@ -908,11 +921,14 @@ def _install_plugin_requirements(
     subprocess.run(
         bootstrap_python
         + [
+            "-I",
             "-m",
             "venv",
             venv_dir,
         ],
         check=True,
+        env=_plugin_environment(),
+        **({'creationflags': subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {}),
     )
 
     plugin_python = (
@@ -954,14 +970,18 @@ def _install_plugin_requirements(
     subprocess.run(
         [
             plugin_python,
+            "-I",
             "-m",
             "pip",
+            "--isolated",
             "install",
             "--disable-pip-version-check",
             "-r",
             requirements_path,
         ],
         check=True,
+        env=_plugin_environment(),
+        **({'creationflags': subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {}),
     )
 
 
@@ -1395,8 +1415,10 @@ def start_plugin_install(
     )
 
 
-def _stop_plugin_worker(plugin_id):
+def _stop_plugin_worker(plugin_id, expected=None):
     with PLUGIN_WORKERS_LOCK:
+        if expected is not None and PLUGIN_WORKERS.get(plugin_id) is not expected:
+            return
         worker = PLUGIN_WORKERS.pop(
             plugin_id,
             None,
@@ -1404,6 +1426,8 @@ def _stop_plugin_worker(plugin_id):
 
     if not worker:
         return
+    if worker.get('idle_timer'):
+        worker['idle_timer'].cancel()
 
     process = worker["process"]
 
@@ -1415,6 +1439,19 @@ def _stop_plugin_worker(plugin_id):
 
         except subprocess.TimeoutExpired:
             process.kill()
+            process.wait(timeout=2)
+    for stream in (process.stdin, process.stdout):
+        if stream:
+            stream.close()
+
+
+def _expire_detection_worker(plugin_id, worker, epoch):
+    if worker['lock'].acquire(blocking=False):
+        try:
+            if worker.get('idle_epoch') is epoch:
+                _stop_plugin_worker(plugin_id, expected=worker)
+        finally:
+            worker['lock'].release()
 
 
 def uninstall_plugin(
@@ -1527,6 +1564,7 @@ def _get_plugin_worker(
             stderr=subprocess.DEVNULL,
             text=True,
             bufsize=1,
+            **({'creationflags': subprocess.CREATE_NO_WINDOW} if os.name == 'nt' else {}),
         )
 
         worker = {
@@ -1554,6 +1592,11 @@ def _run_persistent_plugin_json(
     )
 
     with worker["lock"]:
+        if worker['process'].poll() is not None or PLUGIN_WORKERS.get(plugin_id) is not worker:
+            return _run_persistent_plugin_json(plugin_id, command, payload, timeout, runtime_context)
+        if worker.get('idle_timer'):
+            worker['idle_timer'].cancel()
+        worker['idle_epoch'] = None
         process = worker["process"]
 
         try:
@@ -1619,16 +1662,26 @@ def _run_persistent_plugin_json(
                 "without a response."
             )
 
-        result = json.loads(
-            response_text
-        )
+        try:
+            result = json.loads(response_text)
+        except (ValueError, TypeError):
+            _stop_plugin_worker(plugin_id, expected=worker)
+            raise RuntimeError('Plugin worker returned an unreadable response.') from None
 
         if not result.get("ok"):
+            _stop_plugin_worker(plugin_id, expected=worker)
             raise RuntimeError(
                 result.get("error")
                 or "Plugin worker failed."
             )
 
+        if plugin_id == 'card-finishing-studio':
+            epoch = object()
+            worker['idle_epoch'] = epoch
+            timer = threading.Timer(120, _expire_detection_worker, args=(plugin_id, worker, epoch))
+            timer.daemon = True
+            worker['idle_timer'] = timer
+            timer.start()
         return result.get(
             "result",
             {},
@@ -1656,7 +1709,10 @@ def run_plugin_json(
             "Plugin is not ready."
         )
 
-    if command in PERSISTENT_PLUGIN_COMMANDS:
+    if command in PERSISTENT_PLUGIN_COMMANDS or (
+        plugin_id == 'card-finishing-studio' and command in ('detect_text', 'detect_subject', 'detect_frame')
+        and command in runtime_context.get('manifest', {}).get('persistent_commands', [])
+    ):
         return _run_persistent_plugin_json(
             plugin_id,
             command,

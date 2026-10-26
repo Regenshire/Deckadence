@@ -30,12 +30,13 @@
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-layers-5') }}"
+  href="{{ url_for('static', filename='css/print_export_modal.css', v='inkjet-6') }}"
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/alternate_image_modal.css') }}"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='custom-delete-2') }}"
 />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='modal-2') }}">
 {% endblock %} {% block content %} {% set player = deckbuilder.human_player %}
 
 <div
@@ -1328,8 +1329,9 @@
     </div>
   </div>
 
+  {% include "_custom_card_modal.html" %}
   {% include "_alternate_image_modal.html" %}
-  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='dynamic-buttons-1') }}"></script>
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='custom-delete-2') }}"></script>
   {% include "_deck_image_generator.html" %} {% include
   "_moxfield_sync_modal.html" %}
 
@@ -1517,13 +1519,14 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
-<script src="{{ url_for('static', filename='js/card_search_modal.js', v='shared-price-1') }}"></script>
-<script src="{{ url_for('static', filename='js/print_export_modal.js', v='pdf-version-5') }}"></script>
+<script src="{{ url_for('static', filename='js/custom_card_modal.js', v='2') }}"></script>
+<script src="{{ url_for('static', filename='js/card_search_modal.js', v='custom-delete-1') }}"></script>
+<script src="{{ url_for('static', filename='js/print_export_modal.js', v='inkjet-6') }}"></script>
 <script src="{{ url_for('static', filename='js/moxfield_sync.js') }}"></script>
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
-<script src="{{ url_for('static', filename='js/deckbuilder.js', v='foil-types-1') }}"></script>
+<script src="{{ url_for('static', filename='js/deckbuilder.js', v='custom-delete-1') }}"></script>
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}

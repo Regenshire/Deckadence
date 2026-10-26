@@ -6,6 +6,7 @@ Card pixels are processed locally; only the fixed model download uses the networ
 """
 import base64
 from contextlib import redirect_stdout
+from functools import lru_cache
 import hashlib
 from io import BytesIO
 import json
@@ -15,6 +16,8 @@ import sys
 import tempfile
 import time
 from urllib.request import urlopen
+
+sys.dont_write_bytecode = True
 
 MODEL_URL = "https://github.com/danielgatis/rembg/releases/download/v0.0.0/isnet-general-use.onnx"
 MODEL_SHA256 = "60920e99c45464f2ba57bee2ad08c919a52bbf852739e96947fbb4358c0d964a"
@@ -69,16 +72,20 @@ def read_image(payload):
         return ImageOps.exif_transpose(source).convert("RGB")
 
 
-def detect_subject(payload):
-    import numpy as np
+@lru_cache(maxsize=1)
+def subject_engine():
     import onnxruntime as ort
-    from PIL import Image
-
-    image = read_image(payload)
     options = ort.SessionOptions()
     options.intra_op_num_threads = 2
     options.inter_op_num_threads = 2
-    engine = ort.InferenceSession(str(model_file()), sess_options=options, providers=["CPUExecutionProvider"])
+    return ort.InferenceSession(str(model_file()), sess_options=options, providers=["CPUExecutionProvider"])
+
+
+def detect_subject(payload):
+    import numpy as np
+    from PIL import Image
+    image = read_image(payload)
+    engine = subject_engine()
     samples = np.asarray(image.resize((1024, 1024), Image.Resampling.LANCZOS), dtype=np.float32)
     samples = samples / max(float(samples.max()), 1e-6) - 0.5
     tensor = np.ascontiguousarray(samples.transpose(2, 0, 1)[None, ...])
@@ -98,25 +105,56 @@ def detect_subject(payload):
             "width": mask.width, "height": mask.height, "engine": "IS-Net general-use"}
 
 
-if __name__ == "__main__":
+def execute(command, payload):
+    if command == 'detect_text':
+        from text_detection import detect_text
+        return detect_text(payload)
+    if command == 'detect_subject':
+        return detect_subject(payload)
+    if command == 'detect_frame':
+        from frame_detection import detect_frame
+        return detect_frame(payload)
+    if command in ('info', 'health'):
+        import numpy, onnxruntime, PIL
+        import cv2, rapidocr_onnxruntime
+        return {'ok': True, 'plugin_id': 'card-finishing-studio', 'commands': ['detect_text', 'detect_subject', 'detect_frame']}
+    raise ValueError('Unsupported Card Finishing Studio command.')
+
+
+def worker():
+    previous = None
+    for line in sys.stdin:
+        try:
+            request = json.loads(line)
+            command = request['command']
+            with redirect_stdout(sys.stderr):
+                if command != previous:
+                    # Keep only one detector's weights resident at a time.
+                    subject_engine.cache_clear()
+                    for name, factory in (('text_detection', 'text_engine'), ('frame_detection', 'frame_engine')):
+                        module = sys.modules.get(name)
+                        if module:
+                            getattr(module, factory).cache_clear()
+                    import gc
+                    gc.collect()
+                previous = command
+                result = execute(command, request.get('payload', {}))
+            print(json.dumps({'ok': True, 'result': result}, allow_nan=False), flush=True)
+        except Exception as exc:
+            print(json.dumps({'ok': False, 'error': str(exc)}), flush=True)
+            return  # The host discards failed workers, including their model state.
+
+
+if __name__ == '__main__':
+    sys.modules.setdefault('plugin', sys.modules[__name__])
     try:
-        command = sys.argv[1] if len(sys.argv) > 1 else "info"
-        with redirect_stdout(sys.stderr):
-            if command == "detect_text":
-                from text_detection import detect_text
-                result = detect_text(json.load(sys.stdin))
-            elif command == "detect_subject":
-                result = detect_subject(json.load(sys.stdin))
-            elif command == "detect_frame":
-                from frame_detection import detect_frame
-                result = detect_frame(json.load(sys.stdin))
-            elif command in ("info", "health"):
-                import numpy, onnxruntime, PIL
-                import cv2, rapidocr_onnxruntime
-                result = {"ok": True, "plugin_id": "card-finishing-studio", "commands": ["detect_text", "detect_subject", "detect_frame"]}
-            else:
-                raise ValueError("Unsupported Card Finishing Studio command.")
-        print(json.dumps(result, allow_nan=False))
+        command = sys.argv[1] if len(sys.argv) > 1 else 'info'
+        if command == 'worker':
+            worker()
+        else:
+            with redirect_stdout(sys.stderr):
+                result = execute(command, json.load(sys.stdin) if command.startswith('detect_') else {})
+            print(json.dumps(result, allow_nan=False))
     except Exception as exc:
         print(str(exc), file=sys.stderr)
         sys.exit(1)

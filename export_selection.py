@@ -8,7 +8,7 @@ class ExportSelection:
         "custom_sets", "decks", "packs", "modified_cards", "deck_art", "custom_set_icons",
         "campaigns", "print_templates", "cutting_templates", "card_backs", "config_settings",
     )
-    MODIFIED = {"alternate_sources", "alternate_image_isolation", "upscaled_images", "alternate_image_scopes", "card_spot_foil"}
+    MODIFIED = {"custom_cards", "alternate_sources", "alternate_image_isolation", "upscaled_images", "alternate_image_scopes", "card_spot_foil"}
     CONFIG = {"app_config", "selected_sets", "chaos_session_state"}
     SETS = {"custom_draft_sets", "custom_draft_set_cards", "custom_draft_pack_slots", "chaos_pack_art"}
     PACKS = {"tracked_chaos_packs", "tracked_chaos_pack_cards", "tracked_chaos_pack_campaigns", "tracked_chaos_pack_openings"}
@@ -141,6 +141,11 @@ class ExportSelection:
 
     # *** EXPORT FILTERS - Check Which Records to Include ***
     def allows(self, table, row):
+        if table == "custom_cards":
+            # Original artwork is a catalogue dependency even when alternate
+            # images are excluded from a deck/set/pack export.
+            return (row.get("card_uuid") in self.cards or
+                    self.enabled("modified_cards") and not self.entities and not getattr(self, "scope", None))
         if table == "chaos_pack_art":
             return (self.enabled("custom_sets") and row.get("set_code") in self.ids.get("set_code", set())
                     or self.enabled("packs") and ("pack_ids" not in self.entities or row.get("set_code") in self.pack_codes))

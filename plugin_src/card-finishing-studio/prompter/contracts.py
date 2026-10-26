@@ -7,7 +7,7 @@ class PlannerError(ValueError):
     pass
 
 EDIT_OPERATIONS = ('replace', 'remove_object', 'outpaint')
-OPERATIONS = (*EDIT_OPERATIONS, 'mirror')
+OPERATIONS = (*EDIT_OPERATIONS, 'mirror', 'micro_scene')
 PIPELINES = {
     'flux_klein': ('Flux2KleinPipeline', 'Flux2KleinInpaintPipeline'),
     'sdxl': ('StableDiffusionXLInpaintPipeline', 'StableDiffusionXLImg2ImgPipeline'),
@@ -24,11 +24,16 @@ def image_digest(image):
     return hashlib.sha256(str((image.size, image.mode)).encode() + image.tobytes()).hexdigest()
 
 def validate_analysis(value):
-    if not isinstance(value, dict) or set(value) != set(ANALYSIS_FIELDS):
+    if not isinstance(value, dict) or set(value)-{'regions'} != set(ANALYSIS_FIELDS):
         raise PlannerError('Artwork analysis returned incomplete observations. Retry analysis or enter a custom description.')
-    if any(not isinstance(v, str) or len(v) > 1500 for v in value.values()):
+    if any(not isinstance(value[k], str) or len(value[k]) > 1500 for k in ANALYSIS_FIELDS):
         raise PlannerError('Artwork analysis returned invalid observations.')
-    return {k: v.strip() for k, v in value.items()}
+    result = {k: value[k].strip() for k in ANALYSIS_FIELDS}
+    if 'regions' in value:
+        from .targets import validate_regions
+        try: result['regions'] = validate_regions(value['regions'])
+        except ValueError as exc: raise PlannerError(str(exc)) from None
+    return result
 
 def validate_plan(plan):
     if not isinstance(plan, dict) or plan.get('version') != 1 or plan.get('operation') not in OPERATIONS:

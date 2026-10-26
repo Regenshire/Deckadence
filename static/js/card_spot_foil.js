@@ -32,7 +32,7 @@
   const layerOrder={effect1:5,effect2:6,mask:7,gloss:8};
   const printedLayer=()=>editingLayer.startsWith("effect");
   const effectPreviews=new Map();
-  let mirrorGeneration=null;
+  let mirrorGeneration=null,mirrorLayers=null;
   let mirrorDiagnostics=null;
   let mirrorJobState=null,mirrorClock=null;
   const mirrorExport=dialog.querySelector('[data-spot-export-mirror]');
@@ -139,9 +139,10 @@
   }
   const legacyGlitter=finish=>["glitter_1","glitter_2","glitter_3","confetti"].includes(finish);
   const windWaveEffect=finish=>/^(wind_(ribbons|curls|storm|painted)|waves_(swells|crests|field))(_sparse)?$/.test(finish);
-  const effectColors={confetti_glitter:"#FFFFFF",ukiyo_e:"#FFFFFF",stars:"#FFF4C3",halftone:"#121930",neon:"#46F5FF",mirror_shards:"#B8EFFF",chocobo_tracks:"#FFFFFF",phyrexian:"#FFFFFF",mana_foil:"#FFFFFF",dragonscale:"#FFFFFF",gilded:"#F4CA70",halo:"#FFFFFF",ripple:"#FFFFFF",invisible_ink:"#B7A1FF",neon_ink:"#FF298A"};
+  const effectColors={confetti_glitter:"#FFFFFF",ukiyo_e:"#FFFFFF",stars:"#FFF4C3",halftone:"#121930",neon:"#46F5FF",mirror_shards:"#B8EFFF",mirror_layers:"#B8EFFF",chocobo_tracks:"#FFFFFF",phyrexian:"#FFFFFF",mana_foil:"#FFFFFF",dragonscale:"#FFFFFF",gilded:"#F4CA70",halo:"#FFFFFF",ripple:"#FFFFFF",invisible_ink:"#B7A1FF",neon_ink:"#FF298A"};
   for(const family of ["wind_ribbons","wind_curls","wind_storm","wind_painted","waves_swells","waves_crests","waves_field"])for(const suffix of ["","_sparse"])effectColors[family+suffix]="#FFFFFF";
-  const pathEffects=new Set(["confetti_glitter","ukiyo_e","chocobo_tracks","phyrexian","mana_foil","dragonscale","gilded","invisible_ink"]);
+  effectColors.dragon_strike="#FFFFFF";
+  const pathEffects=new Set(["confetti_glitter","ukiyo_e","chocobo_tracks","dragon_strike","phyrexian","mana_foil","dragonscale","gilded","invisible_ink"]);
   const copyPathEffects=new Set([...pathEffects,"galaxy","confetti","glitter_1","glitter_2","glitter_3","halftone","stars","water_beads"]);
   const effectBlend=value=>value.finish==="oil_slick"?100:value.finish==="neon_ink"?85:value.finish==="fracture"?Number(value.translucence)||0:0;
   const effectHelp={silver_black:"Converts selected artwork to deep black shadows and silver highlights. For Oil Slick, use this in Effect 1 and Oil Slick Rainbow in Effect 2 with the same mask.",oil_slick:"A subtle rainbow that follows the light and dark detail underneath. Use above Silver & Black Art for the oil slick look; strength controls the color intensity.",phyrexian:"Repeating Phyrexian symbols inspired by Step-and-Compleat foil. Copy Path reuses the symbols as a foil or gloss mask.",mana_foil:"Staggered rows of the five mana symbols. Copy Path keeps the symbol shapes at full coverage.",dragonscale:"Overlapping pointed scales with fine reflective edges and clear centers.",gilded:"Gold Art Deco corner fans, stepped rails and ornaments. Copy Path can add foil or raised gloss to the filigree.",halo:"Flowing, irregular iridescent rings inspired by Halo foil.",ripple:"Fine, curved interference bands inspired by Ripple foil.",invisible_ink:"This effect has been removed. Choose another effect or remove this layer.",neon_ink:"Colored ink across the selected area, preserving artwork detail. Choose a color below."};
@@ -150,7 +151,7 @@
     if(resetDefault && fields.effect_color.value.toUpperCase()===(effectColors[previousEffectFinish]||"#FFE7A0"))fields.effect_color.value=effectColors[fields.finish.value]||"#FFE7A0";
     previousEffectFinish=fields.finish.value;
     dialog.querySelector("[data-spot-effect-color-controls]").hidden=!printedLayer()||!effectColors[fields.finish.value];
-    dialog.querySelector("[data-spot-effect-color-label]").textContent=(["ukiyo_e","confetti_glitter"].includes(fields.finish.value)||windWaveEffect(fields.finish.value))?"Tint color":{stars:"Star color",halftone:"Dot color",neon:"Glow color",mirror_shards:"Tint color",chocobo_tracks:"Track tint"}[fields.finish.value]||"Effect color";
+    dialog.querySelector("[data-spot-effect-color-label]").textContent=(["ukiyo_e","confetti_glitter","dragon_strike"].includes(fields.finish.value)||windWaveEffect(fields.finish.value))?"Tint color":{stars:"Star color",halftone:"Dot color",neon:"Glow color",mirror_shards:"Tint color",mirror_layers:"Tint color",chocobo_tracks:"Track tint"}[fields.finish.value]||"Effect color";
     dialog.querySelector("[data-spot-wind-wave-tint-help]").hidden=!["ukiyo_e","confetti_glitter"].includes(fields.finish.value)&&!windWaveEffect(fields.finish.value);
     dialog.querySelector("[data-spot-effect-color]").textContent=fields.effect_color.value.toUpperCase();
     dialog.querySelector("[data-spot-fracture-controls]").hidden=!printedLayer()||fields.finish.value!=="fracture";
@@ -167,12 +168,15 @@
   }
   function updateShardControls() {
     disableEffect.hidden=!printedLayer();
+    dialog.querySelector('[data-spot-dragon-controls]').hidden=!printedLayer()||fields.finish.value!=='dragon_strike';
+    dialog.querySelectorAll('[data-spot-dragon-emblem]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.spotDragonEmblem===fields.effect_dragon_emblem.value)));
     dialog.querySelector("[data-spot-particle-controls]").hidden=!printedLayer()||fields.finish.value!=="confetti_glitter";
     dialog.querySelector("[data-spot-ukiyo-controls]").hidden=!printedLayer()||fields.finish.value!=="ukiyo_e";
     dialog.querySelector("[data-spot-ripple-origin]").hidden=!printedLayer()||fields.finish.value!=="ripple";
     dialog.querySelector("[data-spot-flame-controls]").hidden=!printedLayer()||!["flame_1","flame_2"].includes(fields.finish.value);
+    const layers=printedLayer()&&fields.finish.value==="mirror_layers";
     const shards=printedLayer()&&fields.finish.value==="mirror_shards";
-    const tracks=printedLayer()&&fields.finish.value==="chocobo_tracks";
+    const tracks=printedLayer()&&["chocobo_tracks","dragon_strike"].includes(fields.finish.value);
     const pattern=printedLayer()&&pathEffects.has(fields.finish.value);
     const flat=["silver_black","neon_ink"].includes(fields.finish.value);
     const help=dialog.querySelector("[data-spot-effect-help]");help.textContent=effectHelp[fields.finish.value]||"";help.hidden=!help.textContent;
@@ -188,17 +192,17 @@
     // switching between a template and the other printable effects.
     for(const [control,slot] of [["effect-rotation","rotation"],["effect-color-controls","color"]]) {
       const element=dialog.querySelector(`[data-spot-${control}]`);
-      const target=dialog.querySelector(`[data-spot-${shards?"shard":"pattern"}-${slot}-slot]`);
+      const target=layers&&slot==='color'?dialog.querySelector('[data-ml-color-slot]'):dialog.querySelector(`[data-spot-${shards?"shard":"pattern"}-${slot}-slot]`);
       if(element.parentElement!==target)target.appendChild(element);
       dialog.querySelector(`[data-spot-pattern-${slot}-slot]`).hidden=shards || (slot==="color"&&element.hidden);
     }
     dialog.querySelector("[data-spot-shard-controls]").hidden=!shards;
-    dialog.querySelector("[data-spot-pattern-size]").hidden=shards||flat;
-    dialog.querySelector("[data-spot-pattern-rotation-slot]").hidden=shards||flat;
-    dialog.querySelector("[data-spot-pattern-density]").hidden=shards||tracks||fields.finish.value==="neon_ink"||["oil_slick","halo","ripple","gilded"].includes(fields.finish.value);
+    dialog.querySelector("[data-spot-pattern-size]").hidden=shards||layers||flat;
+    dialog.querySelector("[data-spot-pattern-rotation-slot]").hidden=shards||layers||flat;
+    dialog.querySelector("[data-spot-pattern-density]").hidden=shards||layers||tracks||fields.finish.value==="neon_ink"||["oil_slick","halo","ripple","gilded"].includes(fields.finish.value);
     dialog.querySelector("[data-spot-density-label]").textContent=fields.finish.value==="silver_black"?"Contrast (%)":"Density (%)";
     dialog.querySelector("[data-spot-silver-controls]").hidden=!printedLayer()||fields.finish.value!=="silver_black";
-    dialog.querySelector("[data-spot-new-pattern]").hidden=shards||tracks||flat||fields.finish.value==="gilded";
+    dialog.querySelector("[data-spot-new-pattern]").hidden=shards||layers||tracks||flat||fields.finish.value==="gilded";
     dialog.querySelector("[data-spot-mirror-controls]").hidden=!fields.effect_mirror.checked;
     dialog.querySelector("[data-spot-tint-value]").value=fields.effect_tint.value+"%";
     dialog.querySelector("[data-spot-shard-size-value]").value=fields.effect_shard_size.value+"%";
@@ -212,7 +216,7 @@
     dialog.querySelector("[data-spot-view-art]").disabled=!fields.effect_scene.value;
     if(mirrorExport)mirrorExport.disabled=busy||!mirrorDiagnostics||mirrorDiagnostics.session!==session||mirrorDiagnostics.layer!==editingLayer;
     renderMirrorJob();
-    updateMirrorStatus();
+    updateMirrorStatus();mirrorLayers?.update();
   }
   async function generateMirrorScene() {
     if(!ready||busy||!metadata?.mirror_generator_ready||!printedLayer())return;
@@ -327,6 +331,17 @@
   let lookupTimer, renderFrame, session = 0, current = null, ready = false, busy = false;
   let history = [], historyIndex = -1, hasInk = false, maskReviewed = false, removal = false, activeStroke = null;
   let tool = "paint", view = "effect", artworkUrl = "", maskUrl = "", scopeToken = null;
+  let maskVersion=0,encodedMaskVersion=-1,coverageVersion=-1,effectRenderTimer=null,artworkRevision=0;
+  const requestId=()=>crypto.randomUUID?.()||Array.from(crypto.getRandomValues(new Uint32Array(4)),n=>n.toString(16)).join('');
+  const previewClient=requestId(),previewSequences=new Map();
+  function previewHeaders(kind){const key=previewClient+':'+session+':'+kind,n=(previewSequences.get(key)||0)+1;previewSequences.set(key,n);return {'X-Studio-Preview-Session':key,'X-Studio-Preview-Sequence':String(n)};}
+  function maskChanged(){maskVersion++;}
+  function encodedMask(){if(encodedMaskVersion!==maskVersion){maskUrl=mask.toDataURL('image/png');encodedMaskVersion=maskVersion;}return maskUrl;}
+  function scheduleEffectRender(){clearTimeout(effectRenderTimer);effectRenderTimer=setTimeout(()=>{effectRenderTimer=null;scheduleRender();},180);}
+  function invalidateDetections(){
+    artworkRevision++;subjectMasks.clear();frameMasks.clear();textRegions=[];textSymbols=[];showingText=showingFrame=false;
+    for(const draft of Object.values(layerDrafts)){draft.textRegions=[];draft.textSymbols=[];if(draft.generation){draft.generation.text_regions=[];draft.generation.text_symbols=[];}}
+  }
   let disableGlossOnView = false;
   let metadata = null, textRegions = [], textSymbols = [], showingText = false;
   let subjectMasks = new Map(), frameMasks = new Map(), showingFrame = false;
@@ -337,10 +352,10 @@
   const copyWalker = document.createTreeWalker(dialog.querySelector(".spot-card-controls"), NodeFilter.SHOW_TEXT);
   while(copyWalker.nextNode()) {
     const node=copyWalker.currentNode;
-    if(/foil|opaque|mask/iu.test(node.textContent) && !node.parentElement.closest('[data-spot-layer], [data-spot-effect-label], [data-spot-overlay-label]')) layerCopy.push([node,node.textContent]);
+    if(/foil|opaque|mask/iu.test(node.textContent) && !node.parentElement.closest('[data-spot-layer], [data-spot-effect-label], [data-spot-overlay-label], [data-spot-fixed-copy]')) layerCopy.push([node,node.textContent]);
   }
   const layerWording = text => printedLayer() ? text
-    .replace(/spot foiling/giu,"effect").replace(/Opaque · no foil/gu,"No effect").replace(/Foiled/gu,"Effect").replace(/foiled/gu,"effect")
+    .replace(/spot foiling/giu,"effect").replace(/Opaque · no foil/gu,"Exclude Effect").replace(/Foiled/gu,"Effect").replace(/foiled/gu,"effect")
     .replace(/Foil strength/gu,"Mask strength").replace(/Foil/gu,"Effect").replace(/foil/gu,"effect").replace(/Opaque/gu,"No effect").replace(/opaque/gu,"clear")
     : editingLayer !== "gloss" ? text : text
     .replace(/Spot foiling/gu,"Gloss").replace(/spot foiling/gu,"gloss").replace(/Foiling/gu,"Gloss").replace(/foiling/gu,"gloss")
@@ -362,6 +377,15 @@
     const selectedUkiyo=fields.effect_ukiyo_type.value;
     fields.effect_ukiyo_type.replaceChildren(...Object.entries(metadata?.ukiyo_types||{wind_ribbons:"Clouds - Wind ribbons"}).map(([value,label])=>new Option(label,value)));
     if([...fields.effect_ukiyo_type.options].some(option=>option.value===selectedUkiyo))fields.effect_ukiyo_type.value=selectedUkiyo;
+    const selectedTrail=fields.effect_dragon_trail.value;
+    fields.effect_dragon_trail.replaceChildren(...Object.entries(metadata?.dragon_trails||{winding_magic:'Wandering magic'}).map(([value,label])=>new Option(label,value)));
+    const oldDragonTrails={spirit_ribbons:'Spirit ribbons',arc_lightning:'Arc lightning',entwined_streams:'Entwined streams',arcane_wake:'Arcane wake'};
+    for(const value of new Set([selectedTrail,...Object.values(layerDrafts).map(draft=>draft.values.effect_dragon_trail)]))
+      if(oldDragonTrails[value])fields.effect_dragon_trail.add(new Option('Previous path · '+oldDragonTrails[value],value));
+    if([...fields.effect_dragon_trail.options].some(option=>option.value===selectedTrail))fields.effect_dragon_trail.value=selectedTrail;
+    const selectedDragonColor=fields.effect_dragon_color_effect.value;
+    fields.effect_dragon_color_effect.replaceChildren(...Object.entries(metadata?.dragon_color_effects||{normal:'Normal'}).map(([value,label])=>new Option(label,value)));
+    if([...fields.effect_dragon_color_effect.options].some(option=>option.value===selectedDragonColor))fields.effect_dragon_color_effect.value=selectedDragonColor;
     // Existing cards can replace/remove a retired layer without losing its
     // stored settings when saving a different tab. It cannot be selected anew.
     if(printedLayer()&&layerDrafts[editingLayer]?.values.finish==="invisible_ink") {
@@ -386,10 +410,11 @@
     fields.effect_seed.value=String(crypto.getRandomValues(new Uint32Array(1))[0]%2147483648);markChanged();scheduleRender();
   });
   function captureLayer() {
+    mirrorLayers?.flush();
     const values={};
     for(const field of fields)if(field.name && !["mask_file","zoom"].includes(field.name))values[field.name]=field.type==="checkbox"?field.checked:field.value;
-    return {values,generation:generationOptions(),png:mask.toDataURL("image/png"),width:mask.width,
-      history:[...history],historyIndex,maskReviewed,removal,enabled:!removal&&(hasInk||maskReviewed||activeSaved()),recentColors:[...recentColors],textRegions,textSymbols};
+    return {values,generation:generationOptions(),png:encodedMask(),width:mask.width,
+      history:[...history],historyIndex,maskReviewed,removal,enabled:!removal&&(hasInk||maskReviewed||activeSaved()||printedLayer()&&fields.finish.value==='mirror_layers'),recentColors:[...recentColors],textRegions,textSymbols};
   }
   function glossDraft(record, base) {
     const values={...base.values,finish:record?.finish||"gloss",strength:record?.strength||100,overlay_color:record?.overlay_color||"#00BFFF",
@@ -410,12 +435,14 @@
   function effectDraft(record,base,layer) {
     const draft=glossDraft(record,base);
     Object.assign(draft.values,{finish:windWaveEffect(record?.finish||"")?"ukiyo_e":legacyGlitter(record?.finish)?"confetti_glitter":record?.finish||"confetti_glitter",
+      effect_dragon_emblem:record?.dragon_emblem||'bolas_command',effect_dragon_trail:record?.dragon_trail||'winding_magic',effect_dragon_alignment:record?.dragon_alignment||'dragon',effect_dragon_color_effect:record?.dragon_color_effect||'normal',
       effect_particle_type:record?.particle_type||(legacyGlitter(record?.finish)?record.finish:"glitter_1"),effect_particle_flip:Boolean(record?.flip_horizontal),
       effect_ukiyo_type:record?.ukiyo_type||(windWaveEffect(record?.finish||"")?record.finish.replace(/_sparse$/u,""):"wind_ribbons"),effect_ukiyo_sparse:record?.sparse??Boolean(record?.finish?.endsWith("_sparse")),effect_ukiyo_flip:Boolean(record?.flip_horizontal),strength:String(record?.strength||65),
       overlay_color:record?.overlay_color||(layer==="effect1"?"#FF9800":"#76FF03"),
       effect_origin_x:String(record?.origin_x??20),effect_origin_y:String(record?.origin_y??72),
       effect_disabled:Boolean(record?.disabled),effect_stacked:Boolean(record?.stacked),effect_scale:String(record?.scale||100),effect_density:String(record?.density||100),
       effect_black_depth:String(record?.black_depth??0),effect_silver_brightness:String(record?.silver_brightness??90),
+      effect_mirrors:JSON.stringify(record?.mirrors||window.DeckadenceMirrorLayers.defaults()),
       effect_rotation:String(record?.rotation??0),effect_scene_rotation:String(record?.shards?.scene_rotation??0),
       effect_scene_zoom:String(record?.shards?.scene_zoom??100),effect_scene_skew:String(record?.shards?.scene_skew??0),
       effect_scene_x:String(record?.shards?.scene_x??0),effect_scene_y:String(record?.shards?.scene_y??0),
@@ -443,6 +470,8 @@
   }
   function effectParams(values) {
     return {finish:values.finish,disabled:Boolean(values.effect_disabled),strength:Number(values.strength),scale:Number(values.effect_scale),density:Number(values.effect_density),seed:Number(values.effect_seed),color:values.effect_color||effectColors[values.finish]||"#FFE7A0",translucence:Number(values.effect_translucence||0),rotation:Number(values.effect_rotation||0),
+      ...(values.finish==="mirror_layers"?{mirrors:JSON.parse(values.effect_mirrors||JSON.stringify(window.DeckadenceMirrorLayers.defaults()))}:{}),
+      ...(values.finish==="dragon_strike"?{dragon_emblem:values.effect_dragon_emblem||'bolas_command',dragon_trail:values.effect_dragon_trail||'winding_magic',dragon_alignment:values.effect_dragon_alignment||'dragon',dragon_color_effect:values.effect_dragon_color_effect||'normal'}:{}),
       ...(values.finish==="confetti_glitter"?{particle_type:values.effect_particle_type||"glitter_1",flip_horizontal:Boolean(values.effect_particle_flip)}:{}),
       ...(values.finish==="ukiyo_e"?{ukiyo_type:values.effect_ukiyo_type||"wind_ribbons",sparse:Boolean(values.effect_ukiyo_sparse),flip_horizontal:Boolean(values.effect_ukiyo_flip)}:{}),
       ...(values.finish==="ripple"?{origin_x:Number(values.effect_origin_x??20),origin_y:Number(values.effect_origin_y??72)}:{}),
@@ -452,10 +481,24 @@
       ...(values.finish==="mirror_shards"?{shards:{template:values.effect_shard_template||"falling",template_scale:Number(values.effect_shard_size??100),template_x:Number(values.effect_shard_x||0),template_y:Number(values.effect_shard_y||0),theme:values.effect_shard_theme||"dark",mirror:Boolean(values.effect_mirror),tint:Number(values.effect_tint??18),scene:values.effect_scene||"",scene_theme:values.effect_scene_theme||"dark",scene_source:values.effect_scene_source||"",scene_selection:values.effect_scene_selection||"",scene_rotation:Number(values.effect_scene_rotation||0),scene_zoom:Number(values.effect_scene_zoom||100),scene_skew:Number(values.effect_scene_skew||0),scene_x:Number(values.effect_scene_x||0),scene_y:Number(values.effect_scene_y||0),scene_flip_horizontal:Boolean(values.effect_scene_flip_horizontal),scene_flip_vertical:Boolean(values.effect_scene_flip_vertical),custom_prompt:(values.effect_custom_prompt||"").trim(),scene_custom_prompt:values.effect_scene_custom_prompt||"",prompt_details:(values.effect_prompt_details||"").trim(),scene_prompt_details:values.effect_scene_prompt_details||"",maintain_style:Boolean(values.effect_maintain_style),scene_maintain_style:values.effect_scene_maintain_style==="true",outpaint_margin:Number(values.effect_outpaint_margin??30),scene_margin:Number(values.effect_scene_margin??0),scene_padding:[Number(values.effect_scene_padding_x||0),Number(values.effect_scene_padding_y||0)]}}:{})};
   }
   function effectControlValues() {
+    mirrorLayers?.flush();
     const names=["finish","strength","effect_scale","effect_density","effect_seed","effect_color","effect_translucence","effect_rotation","effect_scene_rotation","effect_scene_zoom","effect_scene_skew","effect_scene_x","effect_scene_y","effect_shard_template","effect_shard_size","effect_shard_x","effect_shard_y","effect_shard_theme","effect_mirror","effect_tint","effect_scene","effect_scene_theme","effect_scene_source","effect_scene_selection","effect_custom_prompt","effect_scene_custom_prompt","effect_maintain_style","effect_scene_maintain_style","effect_outpaint_margin","effect_scene_margin","effect_scene_padding_x","effect_scene_padding_y"];
     names.push("effect_particle_type","effect_particle_flip","effect_ukiyo_type","effect_ukiyo_sparse","effect_ukiyo_flip","effect_origin_x","effect_origin_y","effect_disabled","effect_stacked","effect_track_x","effect_track_y","effect_track_transparency","effect_black_depth","effect_silver_brightness");
+    names.push('effect_mirrors');
+    names.push('effect_dragon_emblem','effect_dragon_trail','effect_dragon_alignment','effect_dragon_color_effect');
     names.push('effect_prompt_details','effect_scene_prompt_details','effect_scene_flip_horizontal','effect_scene_flip_vertical');
     return Object.fromEntries(names.map(name=>[name,fields[name].type==="checkbox"?fields[name].checked:fields[name].value]));
+  }
+  function visualEffectParams(params){
+    const result={...params};delete result.translucence;
+    if(result.mirrors){
+      const value={...result.mirrors};
+      for(const key of ['target','variation','theme','prompt','maintain_style','layout','layout_seed','layout_origin'])delete value[key];
+      value.objects=(value.objects||[]).map(obj=>Object.fromEntries(Object.entries(obj).filter(([key])=>!['prompt','theme','style','home','focus'].includes(key))));
+      result.mirrors=value;
+    }
+    if(result.shards){const keys=['template','mirror','scene','tint','scene_rotation','scene_zoom','scene_skew','template_scale','scene_x','scene_y','scene_padding','template_x','template_y','scene_flip_horizontal','scene_flip_vertical'];result.shards=Object.fromEntries(Object.entries(result.shards).filter(([key])=>keys.includes(key)));}
+    return result;
   }
   function showPrintedPreviews() {effects.setPrintedEffects(stage,["effect1","effect2"].map(layer=>{const item=effectPreviews.get(layer);return item?.url?{url:item.url,translucence:item.translucence,finish:item.finish,density:item.density,black_depth:item.black_depth,silver_brightness:item.silver_brightness}:null;}));}
   function clearPrintedPreviews() {
@@ -469,7 +512,7 @@
       if(previous?.url?.startsWith("blob:"))URL.revokeObjectURL(previous.url);
       effectPreviews.delete(layer);showPrintedPreviews();return;
     }
-    const params=effectParams(draft.values),{translucence,...textureParams}=params,key=JSON.stringify(textureParams)+draft.png;
+    const params=effectParams(draft.values),key=JSON.stringify(visualEffectParams(params))+draft.png;
     const shards=params.shards;
     if(shards?.mirror&&(!shards.scene||shards.scene_theme!==shards.theme||shards.scene_margin!==shards.outpaint_margin||shards.maintain_style!==shards.scene_maintain_style||shards.prompt_details!==shards.scene_prompt_details||shards.theme==="custom"&&(!shards.custom_prompt||shards.custom_prompt!==shards.scene_custom_prompt)))return;
     const blend=effectBlend(params);
@@ -483,13 +526,19 @@
         const source=new Image();source.src=draft.png;await source.decode();
         if(token!==session||effectPreviews.get(layer)!==item)return;
         const small=document.createElement("canvas");small.width=756;small.height=1056;small.getContext("2d").drawImage(source,0,0,756,1056);
-        const response=await fetch(apiUrl(endpoint(current.target)+"/effect-preview"),{method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({effect:params,mask_data:small.toDataURL("image/png")}),signal:item.controller.signal});
+        const body=JSON.stringify({effect:params,mask_data:small.toDataURL('image/png')});let response;
+        for(let attempt=0;attempt<4;attempt++){
+          if(token!==session||effectPreviews.get(layer)!==item)return;
+          response=await fetch(apiUrl(endpoint(current.target)+"/effect-preview"),{method:"POST",headers:{"Content-Type":"application/json",...previewHeaders('effect:'+layer)},body,signal:item.controller.signal});
+          if(response.status!==429)break;
+          await new Promise(resolve=>setTimeout(resolve,300*(attempt+1)));
+        }
+        if(response.status===204)return;
         if(!response.ok)throw new Error((await response.json()).message||"Effect preview failed.");
         const blob=await response.blob();
         if(token!==session||effectPreviews.get(layer)!==item)return;
         if(item.url?.startsWith("blob:"))URL.revokeObjectURL(item.url);
-        item.url=URL.createObjectURL(blob);showPrintedPreviews();
+        item.url=URL.createObjectURL(blob);showPrintedPreviews();if(layer===editingLayer)mirrorLayers?.previewReady();
       }catch(error){if(error.name!=="AbortError"&&token===session&&effectPreviews.get(layer)===item){effectPreviews.delete(layer);message(error.message,true);}}
     },180);
   }
@@ -518,9 +567,49 @@
   dialog.querySelectorAll("[data-spot-layer]").forEach(button=>button.addEventListener("click",()=>switchLayer(button.dataset.spotLayer)));
   let artworkColors = [], recentColors = [], maskArea = "0";
   const artEditor=window.DeckadenceArtEditor.create({dialog,stage,image,viewport,
-    onChange:()=>{if(ready&&current){renderMask();controls();message(artEditor.dirty?'Unsaved artwork edits.':'Artwork unchanged.');}},
+    onChange:()=>{invalidateDetections();if(ready&&current){renderMask();controls();message(artEditor.dirty?'Unsaved artwork edits.':'Artwork unchanged.');}},
     onBusy:value=>{busy=value;controls();},onMessage:text=>message(text),onTool:()=>syncPreviewInteraction(),
     onView:value=>{setView(value);if(ready)renderMask();}});
+  mirrorLayers=window.DeckadenceMirrorLayers.create({dialog,stage,
+    active:()=>printedLayer()&&!artEditor.active&&!removal&&fields.finish.value==='mirror_layers',
+    busy:()=>busy||!ready||Boolean(activeStroke),scope:()=>session+':'+editingLayer,
+    generatorReady:()=>Boolean(metadata?.mirror_generator_ready),hasMask:()=>hasInk,
+    canMove:()=>tool==='pan'&&view==='effect'&&!showingText&&!showingFrame&&!fields.effect_disabled.checked,
+    surfaceParams:()=>effectParams(effectControlValues()),
+    surfaceMask:()=>hasInk?maskUrl:null,
+    surfaceOpacity:()=>{
+      const overrides=JSON.parse(fields.effect_mirrors.value||'{}').objects?.some(o=>Object.hasOwn(o.appearance||{},'strength'));
+      return (overrides?1:Number(fields.strength.value)/100)*(1-Number(fields.effect_translucence.value)/100);
+    },
+    appearanceDefaults:()=>({color:fields.effect_color.value,strength:Number(fields.strength.value)}),
+    livePreview:value=>{stage.dataset.mirrorLive=value?editingLayer:'';},
+    setBusy:value=>{busy=value;controls();},message,
+    changed:()=>{scheduleEffectRender();markChanged();},settingsChanged:()=>message('Unsaved generation settings. Generate artwork to use them.'),moveTool:()=>{setTool('pan');setView('effect');syncPreviewInteraction();},
+    request:(route,body,signal)=>api(apiUrl(endpoint(current.target)+'/'+route),{method:'POST',headers:{'Content-Type':'application/json',...(route==='mirror-surfaces'?previewHeaders('surfaces:'+editingLayer):{})},body:JSON.stringify(body),signal}),
+    url:route=>apiUrl(endpoint(current.target)+'/'+route),
+    focusSource:()=>({image:artEditor.artworkSource(),bounds:window.DeckadenceSpotSelection.artworkBounds(artBoxOptions())}),
+    generationInputs:()=>{
+      const source=document.createElement('canvas');source.width=1512;source.height=2112;source.getContext('2d').drawImage(artEditor.artworkSource(),0,0,1512,2112);
+      const selection=document.createElement('canvas');selection.width=mask.width;selection.height=mask.height;
+      if(hasInk)selection.getContext('2d').drawImage(mask,0,0);else selection.getContext('2d').fillRect(0,0,selection.width,selection.height);
+      return {image:source.toDataURL('image/png').split(',')[1],mask_data:selection.toDataURL('image/png'),
+        source_bounds:window.DeckadenceSpotSelection.artworkBounds(Object.fromEntries(['width','height','x','y'].map(key=>['art_box_'+key,Number(fields['art_box_'+key].value)])))};
+    },
+    view:encoded=>{artDialog.querySelector('h2').textContent='Mirror Layers · generated image';artImage.onload=()=>{artDialog.querySelector('[data-spot-art-info]').textContent=`${artImage.naturalWidth} × ${artImage.naturalHeight} pixels`;};setArtView(false);artImage.src='data:image/png;base64,'+encoded;artDialog.showModal();},
+    copyPath:async value=>{
+      if(busy||!ready)return;const token=session;busy=true;controls();
+      const geometry={...value,scenes:{},shared_scene:'',objects:value.objects.map(o=>({...o,scene:''}))};
+      try{
+        const response=await fetch(apiUrl(endpoint(current.target)+'/mirror-path'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mirrors:geometry,width:mask.width})});
+        if(!response.ok)throw new Error((await response.json()).message||'Could not copy mirror paths.');
+        const bitmap=await createImageBitmap(await response.blob());
+        try{if(token!==session)return;const copy=document.createElement('canvas');copy.width=mask.width;copy.height=mask.height;
+          const c=copy.getContext('2d');if(!fields.effect_disabled.checked)c.drawImage(bitmap,0,0);if(hasInk){c.globalCompositeOperation='destination-in';c.drawImage(mask,0,0);}
+          maskClipboard=copy;maskClipboardRegion=null;message('Visible mirror paths copied. Use Paste Mask or Append Paste on any layer.');
+        }finally{bitmap.close();}
+      }catch(error){if(token===session)message(error.message,true);}finally{if(token===session){busy=false;controls();}}
+    }
+  });
   window.DeckadenceArtAutoSelect?.create({dialog,editor:artEditor,
     request:(route,body)=>api(apiUrl(endpoint(current.target)+'/'+route),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
     setBusy:value=>{busy=value;controls();},message});
@@ -550,6 +639,7 @@
       const error = new Error("Could not connect to Deckadence. Check that it is running, then try again.");
       error.retryable = true; throw error;
     }
+    if(response.status===204)return {ok:true,superseded:true};
     const payload = await response.json().catch(() => null);
     if (!response.ok || !payload?.ok) {
       const error = new Error(payload?.message || (response.ok
@@ -567,6 +657,8 @@
     return url.pathname.endsWith('/baked-art') ? (url.searchParams.get('original') || raw) : raw;
   }
   function describe(host) {
+    // Search artwork stays lightweight, including its enlarged preview.
+    if (host.closest('[data-card-finishing="off"]')) return null;
     const img = host.matches('img') ? host : host.querySelector(imageSelector);
     if(img?.closest("#cardSpotFoilDialog"))return null;
     const uuid = host.dataset.finishingCardUuid || host.dataset.cardUuid || img?.dataset.cardUuid || img?.closest("[data-card-uuid]")?.dataset.cardUuid;
@@ -691,18 +783,18 @@
     }
   }
   function enhance(root = document) {
-    if (root.closest?.("#cardSpotFoilDialog")) return;
+    if (root.closest?.('#cardSpotFoilDialog, [data-card-finishing="off"]')) return;
     if(root.matches?.(viewImageSelector))enhanceHost(root);
     root.querySelectorAll?.(viewImageSelector).forEach(enhanceHost);
     if (root.matches?.(hostSelector)) enhanceHost(root);
     root.querySelectorAll?.(hostSelector).forEach(enhanceHost);
   }
-  function message(text, error = false) {
+  function message(text, error = false, {preserveWording = false} = {}) {
     if (current?.artworkChanged) {
       text = "The artwork changed. Close and reopen Card Finishing Studio to realign the mask."; error = true;
     }
     const wasWorking = status.dataset.state === "busy";
-    status.querySelector("[data-spot-status-text]").textContent = layerWording(text);
+    status.querySelector("[data-spot-status-text]").textContent = preserveWording ? text : layerWording(text);
     status.dataset.error = String(error);
     status.dataset.state = error ? "error" : wasWorking ? "success" : "info";
     updateStatusState();
@@ -728,7 +820,7 @@
     dialog.querySelector("[data-spot-apply]").disabled = fields.selection_mode.value === "none";
     artEditor.setDisabled(!ready||busy||painting);
     dialog.querySelector('[data-spot-edit-tab]').disabled=!ready||busy||painting;
-    save.disabled = !ready || busy || painting || artEditor.pending || (!artEditor.dirty && !hasInk && !maskReviewed && !current?.record && !removal && !Object.values(layerDrafts).some(draft=>draft.enabled||draft.removal));
+    save.disabled = !ready || busy || painting || artEditor.pending || (!artEditor.dirty && !hasInk && !maskReviewed && !current?.record && !removal && !(printedLayer()&&fields.finish.value==='mirror_layers') && !Object.values(layerDrafts).some(draft=>draft.enabled||draft.removal));
     dialog.querySelectorAll("[data-spot-layer]").forEach(button=>button.disabled=!ready||busy||Boolean(activeStroke)||artEditor.pending);
     dialog.querySelectorAll('[data-spot-view]').forEach(button=>{button.disabled=!ready||busy||painting||artEditor.pending;button.title=artEditor.pending?'Apply or discard the AI preview before changing views.':'';});
     dialog.querySelector("[data-spot-invert]").disabled = !ready || busy || painting;
@@ -741,20 +833,23 @@
     dialog.querySelector("[data-spot-append-mask]").disabled = !ready || busy || Boolean(activeStroke) || !maskClipboard;
     dialog.querySelector("[data-spot-remove]").disabled = !ready || busy || painting || !activeSaved();
     dialog.querySelectorAll("[data-spot-close]").forEach(button => {button.disabled = busy;});
-    renderMirrorJob();
+    renderMirrorJob();mirrorLayers?.update();
   }
   function coverage() {
+    if(coverageVersion===maskVersion)return maskArea;
     const pixels = ctx.getImageData(0, 0, mask.width, mask.height).data;
     let selected = 0;
     for (let i = 3; i < pixels.length; i += 4) selected += pixels[i] > 0;
     hasInk = selected > 0;
     const percent = selected / (mask.width * mask.height) * 100;
     maskArea = selected && percent < 1 ? "<1" : String(Math.round(percent));
+    coverageVersion=maskVersion;
     updatePreviewHelp();
     return maskArea;
   }
   function markChanged() {
-    message(removal ? "Removal pending · save to restore the regular card finish." : `Unsaved changes · ${coverage()}% of the card selected`);
+    const area=coverage(),whole=printedLayer()&&fields.finish.value==='mirror_layers'&&!hasInk;
+    message(removal ? "Removal pending · save to restore the regular card finish." : whole?'Unsaved changes · no mask: mirrors use the whole card.':`Unsaved changes · ${area}% of the card selected`);
     updateMirrorStatus();
     controls();
   }
@@ -775,7 +870,7 @@
     const painting = activeStroke && !activeStroke.pan;
     let effectUrl = maskUrl;
     if (!painting) {
-      effectUrl = maskUrl = mask.toDataURL("image/png");
+      effectUrl = encodedMask();
     } else if (view === "effect") {
       const width = Math.min(mask.width, 1512, Math.max(756, Math.ceil(stage.clientWidth * (window.devicePixelRatio || 1))));
       const height = Math.round(width * mask.height / mask.width);
@@ -811,7 +906,7 @@
       overlay.fillRect(0, 0, canvas.width, canvas.height); overlay.globalCompositeOperation = "source-over";
     }
     if (!painting || view === "effect") {
-      const draftFor=layer=>layer===editingLayer?{enabled:!removal&&(hasInk||maskReviewed||activeSaved()),png:effectUrl,
+      const draftFor=layer=>layer===editingLayer?{enabled:!removal&&(hasInk||maskReviewed||activeSaved()||printedLayer()&&fields.finish.value==='mirror_layers'),png:effectUrl,
         values:effectControlValues()}:layerDrafts[layer];
       const preview=layer=>{const draft=draftFor(layer);return draft?.enabled&&draft.png?{maskUrl:draft.png,finish:draft.values.finish,strength:Number(draft.values.strength)}:null;};
       effects.setSpotFoil(stage,preview("mask"));effects.setGloss(stage,preview("gloss"));
@@ -828,11 +923,13 @@
       : view === "original" ? "Original artwork · comparison only in Edit."
       : view === "art" ? "Original artwork + Edit layer. Effect, Foil and Gloss layers are hidden."
       : artEditor.active ? "Full card preview · Edit, Effect 1, Effect 2, Foil and Gloss."
+      : printedLayer()&&fields.finish.value==='mirror_layers' ? "Use Hand to select and drag mirrors. Drag the corner handle to resize."
       : "Hover with Pan to tilt and catch the light.";
     const help=dialog.querySelector("[data-spot-preview-help]");if(!artEditor.active)help.textContent=layerWording(help.textContent);
   }
   function scheduleRender() {if (!renderFrame) renderFrame = requestAnimationFrame(renderMask);}
   function commitMask() {
+    maskChanged();coverage();
     showingFrame = false;
     maskReviewed = true;
     renderMask();
@@ -844,6 +941,7 @@
     removal = false; markChanged();
   }
   function sizeMask(width) {
+    maskChanged();
     const height = Math.round(width * 1056 / 756);
     for (const surface of [mask, canvas, strokeMask, strokeBase]) {
       surface.width = width; surface.height = height;
@@ -946,7 +1044,8 @@
       rotation:Number(fields.effect_rotation.value),width:mask.width} : {finish:fields.finish.value,template:fields.effect_shard_template.value,
       scale:Number(fields.effect_shard_size.value),rotation:Number(fields.effect_rotation.value),
       x:Number(fields.effect_shard_x.value),y:Number(fields.effect_shard_y.value),width:mask.width};
-    if(tracks&&fields.finish.value!=="chocobo_tracks")Object.assign(settings,{density:Number(fields.effect_density.value),seed:Number(fields.effect_seed.value)});
+    if(tracks&&!["chocobo_tracks","dragon_strike"].includes(fields.finish.value))Object.assign(settings,{density:Number(fields.effect_density.value),seed:Number(fields.effect_seed.value)});
+    if(fields.finish.value==='dragon_strike')Object.assign(settings,{dragon_emblem:fields.effect_dragon_emblem.value,dragon_trail:fields.effect_dragon_trail.value,dragon_alignment:fields.effect_dragon_alignment.value});
     if(fields.finish.value==="confetti_glitter")Object.assign(settings,{particle_type:fields.effect_particle_type.value,flip_horizontal:fields.effect_particle_flip.checked});
     if(fields.finish.value==="ukiyo_e")Object.assign(settings,{ukiyo_type:fields.effect_ukiyo_type.value,sparse:fields.effect_ukiyo_sparse.checked,flip_horizontal:fields.effect_ukiyo_flip.checked});
     if(pathEffects.has(fields.finish.value))Object.assign(settings,{x:Number(fields.effect_track_x.value),y:Number(fields.effect_track_y.value)});
@@ -964,7 +1063,7 @@
         copied.drawImage(visibleMask,0,0,copy.width,copy.height);
         copied.globalCompositeOperation="source-over";
         maskClipboard=copy;maskClipboardRegion=null;
-        message(`${tracks?metadata.effect_types[fields.finish.value]:"Shard"} visible path copied. Choose any tab and use Paste Mask or Append Paste.`);
+        message(`${tracks?metadata.effect_types[fields.finish.value]:"Shard"} visible path copied. Choose any tab and use Paste Mask or Append Paste.`,false,{preserveWording:true});
       } finally {bitmap.close();}
     } catch(error) {if(token===session&&dialog.open)message(error.message,true);}
     finally {if(token===session){busy=false;controls();}}
@@ -1007,7 +1106,7 @@
     // Keep saved high-resolution strokes even if the artwork is later replaced
     // with a smaller image. Undo entries share the current canvas dimensions.
     if (img.naturalWidth > mask.width) sizeMask(Math.min(3024, img.naturalWidth));
-    ctx.clearRect(0, 0, mask.width, mask.height); ctx.drawImage(img, 0, 0, mask.width, mask.height);
+    ctx.clearRect(0, 0, mask.width, mask.height); ctx.drawImage(img, 0, 0, mask.width, mask.height);maskChanged();
     return true;
   }
   async function travelHistory(direction) {
@@ -1041,10 +1140,11 @@
     syncPreviewInteraction();
   }
   function syncPreviewInteraction() {
-    const enabled = ready && !busy && !artEditor.active && !showingText && !showingFrame && tool === "pan" && view === "effect" && !activeStroke;
+    const enabled = ready && !busy && !mirrorLayers?.moving && !artEditor.active && !showingText && !showingFrame && tool === "pan" && view === "effect" && !activeStroke;
     stage.dataset.tilt = String(enabled);
     effects.setInteractive(stage, enabled);
     const pan=dialog.querySelector('[data-spot-pan]');pan.disabled=!ready||busy||Boolean(activeStroke)||artEditor.pending;pan.setAttribute('aria-pressed',String(artEditor.active?artEditor.panning:tool==='pan'));
+    mirrorLayers?.update();
   }
   function setTool(value) {
     if (activeStroke) return;
@@ -1091,7 +1191,7 @@
       fields.overlay_color.value=/^#[0-9a-f]{6}$/i.test(color||"")?color:"#00D8FF";
       fields.mask_only.checked=localStorage.getItem("deckadence.spot.maskOnly")==="true";
     } catch (_) {}
-    ctx.clearRect(0, 0, mask.width, mask.height); overlay.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, mask.width, mask.height);maskChanged(); overlay.clearRect(0, 0, canvas.width, canvas.height);
     fields.finish.value = "foil"; fields.strength.value = "100"; fields.zoom.value = "100"; fields.mask_file.value = ""; fields.mask_channel.value = "auto";
     dialog.querySelector("[data-spot-strength-value]").value = "100%";
     dialog.querySelector("[data-spot-card-name]").textContent = `${info.name} · ${info.target.face} face`;
@@ -1166,7 +1266,7 @@
       ready=false;controls();
       await artEditor.load(record?.edit,image,mask.width,apiUrl(endpoint(current.target)+'/art-generation'));
       if(token!==session||current?.artworkChanged)return;
-      ready=true;renderMask();controls();
+      artworkRevision++;ready=true;renderMask();controls();
       dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%";
       dialog.querySelector("[data-spot-scope]").textContent = payload.image_scope.is_isolated
         ? "Isolation on · saved only in this collection"
@@ -1216,6 +1316,7 @@
     subjectMasks.clear(); frameMasks.clear(); showingFrame = false;
     layerDrafts={};clearPrintedPreviews();effects.setGloss(stage,null);for(const element of otherOverlays){element.hidden=true;element.style.removeProperty("--spot-other-mask");}
     if (renderFrame) cancelAnimationFrame(renderFrame); renderFrame = null;
+    clearTimeout(effectRenderTimer);effectRenderTimer=null;previewSequences.clear();
     if (artworkUrl) URL.revokeObjectURL(artworkUrl); artworkUrl = "";
     image.removeAttribute("src"); history = []; current?.trigger.focus(); current = null;
   }
@@ -1354,12 +1455,12 @@
     } catch (error) {message(error.message || "Color selection could not be applied.", true);}
   });
   async function detectText() {
-    const token=session; ready=false; controls(); message("Detecting text locally with AI…");
+    const token=session,revision=artworkRevision; ready=false; controls(); message("Detecting text locally with AI…");
     try {
       const source=document.createElement("canvas"); source.width=Math.min(1512,Math.max(756,image.naturalWidth||756));source.height=Math.round(source.width*1056/756);
       source.getContext("2d").drawImage(image,0,0,source.width,source.height);
       const result=await api(apiUrl(endpoint(current.target)+"/detect-text"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image:source.toDataURL("image/jpeg",.95).split(",")[1]})});
-      if(token!==session || current?.artworkChanged)return false;
+      if(token!==session || revision!==artworkRevision || current?.artworkChanged)return false;
       textRegions=result.regions;textSymbols=result.symbols||[];fields.text_source.value="detected";updateRegionControls();
       message(textRegions.length ? "Text detected. Check Preview text, then apply." : "No text found. Try Magic Wand or Match Color.");
       return textRegions.length>0;
@@ -1482,7 +1583,7 @@
     } catch (error) {if(token===session)message(error.message || "The automatic selection could not be generated.", true);}
   });
   async function detectFrame() {
-    const token=session, layout=fields.frame_layout.value;
+    const token=session,revision=artworkRevision, layout=fields.frame_layout.value;
     if(frameMasks.has(layout))return frameMasks.get(layout);
     ready=false;controls();message("Tracing frame contours locally… First use downloads the frame model (118 MB).");
     try {
@@ -1490,18 +1591,18 @@
       source.height=Math.round(source.width*image.naturalHeight/image.naturalWidth);
       source.getContext("2d").drawImage(image,0,0,source.width,source.height);
       const response=await api(apiUrl(endpoint(current.target)+"/detect-frame"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image:source.toDataURL("image/jpeg",.95).split(",")[1],layout})});
-      if(token!==session || !dialog.open || current?.artworkChanged)return null;
+      if(token!==session || revision!==artworkRevision || !dialog.open || current?.artworkChanged)return null;
       const detected={found:response.found,parts:response.parts};
       for(const key of ["material","panels"]) {
         const decoded=new Image();decoded.src=response.masks[key];await decoded.decode();detected[key]=decoded;
       }
-      if(token!==session || !dialog.open || current?.artworkChanged)return null;
+      if(token!==session || revision!==artworkRevision || !dialog.open || current?.artworkChanged)return null;
       frameMasks.set(layout,detected);message(detected.found?"Frame contours detected.":"No distinct frame found.");
       return detected;
     } finally {if(token===session){ready=true;controls();updateFrameControls();}}
   }
   async function detectSubject() {
-    const token=session, region=fields.selection_region.value;
+    const token=session,revision=artworkRevision, region=fields.selection_region.value;
     const bounds=region==="artwork" ? window.DeckadenceSpotSelection.artworkBounds(artBoxOptions()) : [0,0,1,1];
     const cacheKey=JSON.stringify(bounds);
     let detected=subjectMasks.get(cacheKey);
@@ -1513,9 +1614,9 @@
         source.height=Math.round(source.width*1056/756*(b-t)/(r-l));
         source.getContext("2d").drawImage(image,l*image.naturalWidth,t*image.naturalHeight,(r-l)*image.naturalWidth,(b-t)*image.naturalHeight,0,0,source.width,source.height);
         const response=await api(apiUrl(endpoint(current.target)+"/detect-subject"),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({image:source.toDataURL("image/jpeg",.95).split(",")[1]})});
-        if(token!==session || current?.artworkChanged)return null;
+        if(token!==session || revision!==artworkRevision || current?.artworkChanged)return null;
         detected=new Image();detected.src=response.mask_data;await detected.decode();
-        if(token!==session || current?.artworkChanged)return null;
+        if(token!==session || revision!==artworkRevision || current?.artworkChanged)return null;
         subjectMasks.set(cacheKey,detected);
       } finally {if(token===session){ready=true;controls();}}
     }
@@ -1615,9 +1716,36 @@
     if (selectArea("none",true)) {removal = true; markChanged();}
   });
   for (const field of [fields.effect_particle_type,fields.effect_particle_flip,fields.effect_ukiyo_type,fields.effect_ukiyo_sparse,fields.effect_ukiyo_flip,fields.finish, fields.strength, fields.effect_origin_x,fields.effect_origin_y,fields.effect_disabled, fields.effect_stacked, fields.effect_scale, fields.effect_density,fields.effect_black_depth,fields.effect_silver_brightness, fields.effect_color, fields.effect_translucence,fields.effect_track_x,fields.effect_track_y,fields.effect_track_transparency,fields.effect_rotation,fields.effect_scene_rotation,fields.effect_scene_zoom,fields.effect_scene_skew,fields.effect_scene_x,fields.effect_scene_y,fields.effect_scene_flip_horizontal,fields.effect_scene_flip_vertical, fields.effect_shard_template,fields.effect_shard_size,fields.effect_shard_x,fields.effect_shard_y,fields.effect_shard_theme,fields.effect_mirror,fields.effect_tint,fields.effect_custom_prompt,fields.effect_prompt_details,fields.effect_maintain_style,fields.effect_outpaint_margin]) field.addEventListener("input", () => {
+    if(field===fields.effect_custom_prompt||field===fields.effect_prompt_details){
+      message('Unsaved prompt changes. Generate artwork to use them.');return;
+    }
+    if(field===fields.effect_rotation||field===fields.effect_scene_rotation){
+      dialog.querySelector(field===fields.effect_rotation?'[data-spot-rotation-value]':'[data-spot-scene-rotation-value]').value=field.value+'°';return;
+    }
     updateEffectColor(field===fields.finish);
-    dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%"; scheduleRender(); markChanged();
+    if(field===fields.finish&&fields.finish.value==='mirror_layers'){setTool('pan');setView('effect');}
+    dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%";
+    scheduleEffectRender(); markChanged();
   });
+  for(const button of dialog.querySelectorAll('[data-spot-dragon-emblem]'))button.addEventListener('click',()=>{
+    if(!ready||busy||fields.effect_dragon_emblem.value===button.dataset.spotDragonEmblem)return;
+    fields.effect_dragon_emblem.value=button.dataset.spotDragonEmblem;
+    updateShardControls();scheduleRender();markChanged();
+  });
+  fields.effect_dragon_trail.addEventListener('change',()=>{scheduleRender();markChanged();});
+  fields.effect_dragon_alignment.addEventListener('change',()=>{scheduleRender();markChanged();});
+  fields.effect_dragon_color_effect.addEventListener('change',()=>{scheduleRender();markChanged();});
+  // Rotation sliders update their readouts immediately, but the costly artwork
+  // preview is requested only when the gesture or numeric edit is committed.
+  for(const field of [fields.effect_rotation,fields.effect_scene_rotation]){
+    let held=false,pending=false;
+    field.addEventListener('input',()=>{pending=true;});
+    const commit=()=>{if(!pending||held)return;pending=false;scheduleRender();markChanged();};
+    field.addEventListener('change',commit);
+    field.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','PageUp','PageDown','Home','End'].includes(event.key))held=true;});
+    field.addEventListener('keyup',()=>{held=false;commit();});
+    field.addEventListener('blur',()=>{held=false;commit();});
+  }
   dialog.querySelectorAll("[data-spot-shard-template]").forEach(button=>button.addEventListener("click",()=>{
     fields.effect_shard_template.value=button.dataset.spotShardTemplate;fields.effect_shard_template.dispatchEvent(new Event("input",{bubbles:true}));
   }));
@@ -1659,6 +1787,7 @@
     applyToolMask(strokeMask,activeStroke.erase,activeStroke.amount,activeStroke.blur);scheduleRender();
   }
   function applyToolMask(selection, erase, amount = Number(fields.coverage.value) / 100, blur = 0) {
+    maskChanged();
     ctx.save();clipToMarquee();ctx.globalCompositeOperation=erase?"destination-out":"source-over";
     ctx.globalAlpha=amount;ctx.filter=blur ? `blur(${blur}px)` : "none";
     ctx.drawImage(selection,0,0);ctx.restore();
@@ -1779,11 +1908,25 @@
     } catch (error) {if (token === session) {ready = true; message(error.message, true); controls();}}
     finally {if (url) URL.revokeObjectURL(url); if (token === session) fields.mask_file.value = "";}
   });
+  async function saveFinish(target,body,method){
+    const send=attempt=>api(attempt.url,{method:attempt.method,headers:{'Content-Type':'application/json','X-Studio-Save-ID':attempt.id},body:attempt.body});
+    // An explicit Save retries an uncertain request first. A subsequent edit
+    // can then use the acknowledged revision without overwriting another editor.
+    if(current.pendingSave){
+      const previous=current.pendingSave,unchanged=previous.method===method&&previous.body===JSON.stringify(body);
+      const result=await send(previous);current.pendingSave=null;current.record=result.record;
+      if(unchanged)return result;
+      body.revision=result.record?.revision||null;
+    }
+    const attempt={id:requestId(),url:apiUrl(endpoint(target),true),method,body:JSON.stringify(body)};
+    current.pendingSave=attempt;
+    const result=await send(attempt);current.pendingSave=null;current.record=result.record;return result;
+  }
   // Saving requires explicit activation of Save, never implicit Enter submission.
   form.addEventListener("submit", event => event.preventDefault());
   save.addEventListener("click", async event => {
     event.preventDefault(); if (!ready || busy || save.disabled || !form.reportValidity()) return;
-    busy = true; controls(); message("Saving card finishes…");
+    busy = true; controls(); message("Baking effects and saving card finishes…");
     const target = current.target;
     try {
       layerDrafts[editingLayer]=captureLayer();
@@ -1804,12 +1947,13 @@
         finish:foil.values.finish,strength:Number(foil.values.strength),artwork_signature:current.signature,
         generation:foil.generation,mask_data:foil.png,foil_enabled:foil.enabled,revision:current.record?.revision||null,...layerPayloads,
       };
-      const result = await api(apiUrl(endpoint(target), true), {method: removeAll ? "DELETE" : "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+      const result = await saveFinish(target,body,removeAll?'DELETE':'PUT');
       publish(target, result.record); channel?.postMessage({scope: current.scope, target});
       document.dispatchEvent(new CustomEvent("deckadence:spot-foil-saved", {detail: {target, scope: current.scope}}));
       busy = false; dialog.close();
     } catch (error) {
       busy = false;
+      if(!error.retryable&&current)current.pendingSave=null;
       message(error.message + (error.retryable ? " Your changes are still here; try Save again." : ""), true);
       controls();
     }

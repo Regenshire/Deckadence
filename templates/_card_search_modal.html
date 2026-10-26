@@ -1,512 +1,238 @@
-{# *** CARD SEARCH - Card Selection Dialog *** #}
-<div
-  id="customDraftCardSearchOverlay"
-  class="custom-draft-card-search-overlay hidden"
-  aria-hidden="true"
->
-  <div class="custom-draft-card-search-window">
+{# Shared by deck and custom-set Add Cards / Change Printing. #}
+<div id="customDraftCardSearchOverlay" class="custom-draft-card-search-overlay hidden" aria-hidden="true" data-card-finishing="off">
+  <div class="custom-draft-card-search-window" role="dialog" aria-modal="true" aria-labelledby="customDraftSearchTitle">
     <div class="custom-draft-card-search-window-header">
-      <div>
-        <h2>Add Cards</h2>
+      <div class="card-search-heading-copy"><h2 id="customDraftSearchTitle">Add Cards</h2><p class="page-subtitle">Choose cards to add to your collection.</p></div>
+      <div class="card-search-header-actions">
+        <div class="card-search-more-wrap">
+          <button type="button" id="customDraftMoreOptionsButton" class="card-search-quiet-button" aria-haspopup="menu" aria-expanded="false" aria-controls="customDraftMoreOptionsMenu">More options <span aria-hidden="true">⋯</span></button>
+          <div id="customDraftMoreOptionsMenu" class="card-search-options-menu hidden" role="menu">
+            <button type="button" id="customDraftBulkImportToggleButton" role="menuitem" aria-controls="customDraftBulkImportPanel"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H5v18h14v-8M8 8h3M8 12h3M8 16h7m2-14v7m-3-3 3 3 3-3"/></svg><span><strong>Import card list</strong><small>Paste a list or upload a text file</small></span></button>
+            <button type="button" id="customDraftCreateCardButton" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="14" height="18" rx="2"/><path d="M8 8h6M8 16h3m6-6v8m-4-4h8"/></svg><span><strong>Upload Custom Card</strong><small>Add an existing custom card image</small></span></button>
+          </div>
+        </div>
+        <button type="button" id="customDraftCardSearchMaximizeButton" class="card-search-icon-button card-search-window-size-button" aria-label="Maximize card search" aria-pressed="false" title="Maximize">
+          <svg class="card-search-maximize-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></svg>
+          <svg class="card-search-restore-icon hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h12v12h-4M9 7V3"/><rect x="3" y="7" width="14" height="14" rx="1"/></svg>
+        </button>
+        <button type="button" id="customDraftCardSearchCloseButton" class="custom-draft-card-search-close-button" aria-label="Close card search" title="Close">×</button>
       </div>
-
-      <button
-        type="button"
-        id="customDraftCardSearchCloseButton"
-        class="custom-draft-card-search-close-button"
-        aria-label="Close Add Cards search"
-        title="Close"
-      >
-        ×
-      </button>
     </div>
-
     <div class="custom-draft-card-search-panel">
-      <div class="custom-draft-card-search-text-row">
-        <label class="custom-draft-filter-field custom-draft-search-text-field">
-          <span>Search Text</span>
-          <div class="custom-draft-search-text-input-wrap">
-            <input
-              type="text"
-              id="customDraftCardSearchInput"
-              class="campaign-add-pack-custom-input custom-draft-search-text-input"
-              placeholder="Optional: card name, rarity, type, collector number..."
-              autocomplete="off"
-            />
-            <button
-              type="button"
-              id="customDraftBulkImportToggleButton"
-              class="custom-draft-bulk-import-toggle-button"
-              aria-expanded="false"
-              aria-controls="customDraftBulkImportPanel"
-              title="Bulk import from Moxfield / Archidekt list"
-              aria-label="Bulk import cards from a list"
-            >
-              <svg
-                viewBox="0 0 20 20"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden="true"
-                focusable="false"
-                class="custom-draft-bulk-import-icon"
-              >
-                <rect
-                  x="3"
-                  y="2"
-                  width="9"
-                  height="12"
-                  rx="1.5"
-                  stroke="currentColor"
-                  stroke-width="1.6"
-                />
-                <rect
-                  x="5"
-                  y="4"
-                  width="9"
-                  height="12"
-                  rx="1.5"
-                  stroke="currentColor"
-                  stroke-width="1.6"
-                  fill="none"
-                />
-                <line
-                  x1="6"
-                  y1="7"
-                  x2="10"
-                  y2="7"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linecap="round"
-                />
-                <line
-                  x1="6"
-                  y1="9.5"
-                  x2="10"
-                  y2="9.5"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linecap="round"
-                />
-                <line
-                  x1="6"
-                  y1="12"
-                  x2="8.5"
-                  y2="12"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linecap="round"
-                />
-                <line
-                  x1="14"
-                  y1="13"
-                  x2="14"
-                  y2="18"
-                  stroke="currentColor"
-                  stroke-width="1.6"
-                  stroke-linecap="round"
-                />
-                <polyline
-                  points="11.5,15.5 14,18 16.5,15.5"
-                  stroke="currentColor"
-                  stroke-width="1.6"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  fill="none"
-                />
-              </svg>
-            </button>
-          </div>
-        </label>
-      </div>
-
-      <div
-        class="custom-draft-bulk-import-panel"
-        id="customDraftBulkImportPanel"
-        aria-hidden="true"
-      >
-        <div class="custom-draft-bulk-import-body">
+      <div class="card-search-controls">
+        <div class="custom-draft-card-search-text-row">
+          <label class="custom-draft-filter-field custom-draft-search-text-field"><span class="card-search-sr-only">Search cards</span><div class="custom-draft-search-text-input-wrap"><svg class="card-search-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.7" cy="10.7" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input type="text" id="customDraftCardSearchInput" class="campaign-add-pack-custom-input custom-draft-search-text-input" placeholder="Search by card name, type, or collector number…" autocomplete="off" /></div></label>
+          <button type="button" id="customDraftCardSearchButton" class="action-button">Search</button>
+        </div>
+        <div class="card-search-common-filters">
           <label class="custom-draft-filter-field">
-            <span>Paste List</span>
-            <textarea
-              id="customDraftBulkImportText"
-              class="campaign-add-pack-custom-textarea custom-draft-bulk-import-textarea"
-              placeholder="Paste a Moxfield or Archidekt export list here..."
-            ></textarea>
-          </label>
-
-          <div class="custom-draft-bulk-import-row">
-            <label class="custom-draft-filter-field">
-              <span>Upload List File</span>
-              <input
-                type="file"
-                id="customDraftBulkImportFile"
-                class="campaign-player-file"
-                accept=".txt,.csv,.dek,.dec,text/plain,text/csv"
-              />
-            </label>
-
-            <div class="custom-draft-bulk-import-button-stack">
-              <button
-                type="button"
-                id="customDraftBulkImportButton"
-                class="action-button secondary-button custom-draft-bulk-import-button"
-              >
-                Load List into Search Results
-              </button>
-
-              <button
-                type="button"
-                id="customDraftBulkImportAddMostRecentButton"
-                class="action-button custom-draft-bulk-import-button"
-              >
-                Add Most Recent to Set
-              </button>
-            </div>
-          </div>
-
-          <p class="custom-draft-bulk-import-help">
-            Load matching cards, then choose which printings to add.
-          </p>
+<span>Set</span>
+<input aria-describedby="customDraftSearchSetCodeHelp" autocomplete="off" class="custom-draft-filter-input" id="customDraftSearchSetCodeFilter" maxlength="1000" placeholder="Any set" title="Enter one set code or a comma-separated list. Matches any listed set." type="text"/>
+<small class="card-search-sr-only" id="customDraftSearchSetCodeHelp">Separate multiple codes with commas.</small>
+</label>
+          <label class="card-search-printing-scope" title="Find cards using the search filters, then show every printing from all sets when expanded."><input type="checkbox" id="customDraftSeeAnyPrinting" aria-describedby="customDraftSeeAnyPrintingHelp" /><span>See any printing</span></label>
+          <span id="customDraftSeeAnyPrintingHelp" class="card-search-sr-only">Search filters choose the cards. Expand a card to load all its printings, including other sets.</span>
+<div class="custom-draft-filter-field custom-draft-multi-select" data-placeholder="Any" id="customDraftSearchRarityFilter">
+<span>Rarity</span>
+<button aria-expanded="false" aria-haspopup="true" class="custom-draft-multi-select-button" type="button">
+<span class="custom-draft-multi-select-label">Any</span>
+<span class="custom-draft-multi-select-chevron">▾</span>
+</button>
+<div class="custom-draft-multi-select-menu hidden">
+<label>
+<input type="checkbox" value="common"/>
+<span>Common</span>
+</label>
+<label>
+<input type="checkbox" value="uncommon"/>
+<span>Uncommon</span>
+</label>
+<label>
+<input type="checkbox" value="rare"/>
+<span>Rare</span>
+</label>
+<label>
+<input type="checkbox" value="mythic"/>
+<span>Mythic</span>
+</label>
+</div>
+</div> <div class="custom-draft-filter-field custom-draft-multi-select" data-all-label="All colors" data-placeholder="Any" id="customDraftSearchColorFilter">
+<span>Color</span>
+<button aria-expanded="false" aria-haspopup="true" class="custom-draft-multi-select-button" type="button">
+<span class="custom-draft-multi-select-label">Any</span>
+<span class="custom-draft-multi-select-chevron">▾</span>
+</button>
+<div class="custom-draft-multi-select-menu hidden">
+<label>
+<input type="checkbox" value="w"/>
+<span>White</span>
+</label>
+<label>
+<input type="checkbox" value="u"/>
+<span>Blue</span>
+</label>
+<label>
+<input type="checkbox" value="b"/>
+<span>Black</span>
+</label>
+<label>
+<input type="checkbox" value="r"/>
+<span>Red</span>
+</label>
+<label>
+<input type="checkbox" value="g"/>
+<span>Green</span>
+</label>
+<label>
+<input type="checkbox" value="colorless"/>
+<span>Colorless</span>
+</label>
+<label>
+<input type="checkbox" value="land"/>
+<span>Land</span>
+</label>
+<label>
+<input type="checkbox" value="multi_selected"/>
+<span>Multi (Selected Colors Only)</span>
+</label>
+<label>
+<input type="checkbox" value="multi_has_selected"/>
+<span>Multi (Has Selected)</span>
+</label>
+<label>
+<input type="checkbox" value="multi_any"/>
+<span>Multi (Any)</span>
+</label>
+</div>
+</div> <label class="custom-draft-filter-field">
+<span>Type</span>
+<select class="custom-draft-filter-input" id="customDraftSearchTypeFilter">
+<option value="">Any</option>
+<option value="creature">Creature</option>
+<option value="artifact">Artifact</option>
+<option value="enchantment">Enchantment</option>
+<option value="instant">Instant</option>
+<option value="sorcery">Sorcery</option>
+<option value="planeswalker">Planeswalker</option>
+<option value="battle">Battle</option>
+<option value="land">Land</option>
+<option value="token">Token</option>
+</select>
+</label>
+          <button type="button" id="customDraftMoreFiltersButton" class="card-search-quiet-button" aria-expanded="false" aria-controls="customDraftAdvancedFilters"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M4 17h3m4 0h9"/><circle cx="13" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>More filters<span id="customDraftAdvancedFilterCount"></span></button>
+          <button type="button" id="customDraftSearchClearFiltersButton" class="card-search-quiet-button">Clear filters</button>
         </div>
+        <div id="customDraftAdvancedFilters" class="card-search-advanced-filters hidden"><label class="custom-draft-filter-field">
+<span>Mana Value Rule</span>
+<select class="custom-draft-filter-input" id="customDraftSearchManaOperatorFilter">
+<option value="">Any</option>
+<option value="=">=</option>
+<option value="&lt;=">&lt;=</option>
+<option value="&gt;=">&gt;=</option>
+<option value="&lt;">&lt;</option>
+<option value="&gt;">&gt;</option>
+</select>
+</label>
+<label class="custom-draft-filter-field">
+<span>Mana Value</span>
+<input class="custom-draft-filter-input" id="customDraftSearchManaValueFilter" min="0" placeholder="Any" step="1" type="number"/>
+</label>
+<label class="custom-draft-filter-field">
+<span>Start Year</span>
+<input class="custom-draft-filter-input" id="customDraftSearchYearStartFilter" max="2100" min="1993" placeholder="Any" step="1" type="number"/>
+</label>
+<label class="custom-draft-filter-field">
+<span>End Year</span>
+<input class="custom-draft-filter-input" id="customDraftSearchYearEndFilter" max="2100" min="1993" placeholder="Any" step="1" type="number"/>
+</label>
+<label class="custom-draft-filter-field">
+<span>Digital Cards</span>
+<select class="custom-draft-filter-input" id="customDraftSearchDigitalFilter">
+<option selected="" value="exclude">Exclude MTGO/Arena/Alchemy</option>
+<option value="">Include Digital</option>
+<option value="only">Digital Only</option>
+</select>
+</label>
+<label class="custom-draft-filter-field">
+<span>Exclude Added Cards</span>
+<select class="custom-draft-filter-input" id="customDraftSearchExcludeAddedFilter">
+<option selected="" value="">No</option>
+<option value="exclude">Exclude</option>
+</select>
+</label></div>
       </div>
-
-      <div class="custom-draft-search-builder-grid">
-        <div
-          id="customDraftSearchRarityFilter"
-          class="custom-draft-filter-field custom-draft-multi-select"
-          data-placeholder="Any"
-        >
-          <span>Rarity</span>
-
-          <button
-            type="button"
-            class="custom-draft-multi-select-button"
-            aria-haspopup="true"
-            aria-expanded="false"
-          >
-            <span class="custom-draft-multi-select-label">Any</span>
-            <span class="custom-draft-multi-select-chevron">▾</span>
-          </button>
-
-          <div class="custom-draft-multi-select-menu hidden">
-            <label>
-              <input type="checkbox" value="common" />
-              <span>Common</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="uncommon" />
-              <span>Uncommon</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="rare" />
-              <span>Rare</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="mythic" />
-              <span>Mythic</span>
-            </label>
-          </div>
-        </div>
-
-        <div
-          id="customDraftSearchColorFilter"
-          class="custom-draft-filter-field custom-draft-multi-select"
-          data-placeholder="Any"
-          data-all-label="All colors"
-        >
-          <span>Color Identity</span>
-
-          <button
-            type="button"
-            class="custom-draft-multi-select-button"
-            aria-haspopup="true"
-            aria-expanded="false"
-          >
-            <span class="custom-draft-multi-select-label">Any</span>
-            <span class="custom-draft-multi-select-chevron">▾</span>
-          </button>
-
-          <div class="custom-draft-multi-select-menu hidden">
-            <label>
-              <input type="checkbox" value="w" />
-              <span>White</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="u" />
-              <span>Blue</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="b" />
-              <span>Black</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="r" />
-              <span>Red</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="g" />
-              <span>Green</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="colorless" />
-              <span>Colorless</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="land" />
-              <span>Land</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="multi_selected" />
-              <span>Multi (Selected Colors Only)</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="multi_has_selected" />
-              <span>Multi (Has Selected)</span>
-            </label>
-
-            <label>
-              <input type="checkbox" value="multi_any" />
-              <span>Multi (Any)</span>
-            </label>
-          </div>
-        </div>
-
-        <label class="custom-draft-filter-field">
-          <span>Set Codes</span>
-          <input
-            type="text"
-            id="customDraftSearchSetCodeFilter"
-            class="custom-draft-filter-input"
-            maxlength="1000"
-            placeholder="Any, or LTR, LTC"
-            title="Enter one set code or a comma-separated list. Matches any listed set."
-            aria-describedby="customDraftSearchSetCodeHelp"
-            autocomplete="off"
-          />
-          <small id="customDraftSearchSetCodeHelp">Separate multiple codes with commas.</small>
-        </label>
-
-        <label class="custom-draft-filter-field">
-          <span>Mana Value Rule</span>
-          <select
-            id="customDraftSearchManaOperatorFilter"
-            class="custom-draft-filter-input"
-          >
-            <option value="">Any</option>
-            <option value="=">=</option>
-            <option value="<=">&lt;=</option>
-            <option value=">=">&gt;=</option>
-            <option value="<">&lt;</option>
-            <option value=">">&gt;</option>
-          </select>
-        </label>
-
-        <label class="custom-draft-filter-field">
-          <span>Mana Value</span>
-          <input
-            type="number"
-            id="customDraftSearchManaValueFilter"
-            class="custom-draft-filter-input"
-            min="0"
-            step="1"
-            placeholder="Any"
-          />
-        </label>
-
-        <label class="custom-draft-filter-field">
-          <span>Spell Type</span>
-          <select
-            id="customDraftSearchTypeFilter"
-            class="custom-draft-filter-input"
-          >
-            <option value="">Any</option>
-            <option value="creature">Creature</option>
-            <option value="artifact">Artifact</option>
-            <option value="enchantment">Enchantment</option>
-            <option value="instant">Instant</option>
-            <option value="sorcery">Sorcery</option>
-            <option value="planeswalker">Planeswalker</option>
-            <option value="battle">Battle</option>
-            <option value="land">Land</option>
-            <option value="token">Token</option>
-          </select>
-        </label>
-
-        <label class="custom-draft-filter-field">
-          <span>Start Year</span>
-          <input
-            type="number"
-            id="customDraftSearchYearStartFilter"
-            class="custom-draft-filter-input"
-            min="1993"
-            max="2100"
-            step="1"
-            placeholder="Any"
-          />
-        </label>
-
-        <label class="custom-draft-filter-field">
-          <span>End Year</span>
-          <input
-            type="number"
-            id="customDraftSearchYearEndFilter"
-            class="custom-draft-filter-input"
-            min="1993"
-            max="2100"
-            step="1"
-            placeholder="Any"
-          />
-        </label>
-
-        <label class="custom-draft-filter-field">
-          <span>Digital Cards</span>
-          <select
-            id="customDraftSearchDigitalFilter"
-            class="custom-draft-filter-input"
-          >
-            <option value="exclude" selected>Exclude MTGO/Arena/Alchemy</option>
-            <option value="">Include Digital</option>
-            <option value="only">Digital Only</option>
-          </select>
-        </label>
-
-        <label class="custom-draft-filter-field">
-          <span>Exclude Added Cards</span>
-          <select
-            id="customDraftSearchExcludeAddedFilter"
-            class="custom-draft-filter-input"
-          >
-            <option value="" selected>No</option>
-            <option value="exclude">Exclude</option>
-          </select>
-        </label>
-
-        <label class="custom-draft-filter-field">
-          <span>Per Page</span>
-          <select
-            id="customDraftSearchPageSizeSelect"
-            class="custom-draft-filter-input"
-          >
-            <option value="100" selected>100</option>
-            <option value="250">250</option>
-            <option value="500">500</option>
-            <option value="750">750</option>
-            <option value="1000">1000</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="custom-draft-search-action-row">
-        <div class="custom-draft-search-action-left">
-          <button
-            type="button"
-            id="customDraftCardSearchButton"
-            class="action-button"
-          >
-            Search
-          </button>
-          <button
-            type="button"
-            id="customDraftSearchClearFiltersButton"
-            class="action-button secondary-button"
-          >
-            Clear Search
-          </button>
-          <button
-            type="button"
-            id="customDraftAddAllResultsButton"
-            class="action-button secondary-button hidden"
-            disabled
-          >
-            Add All Results to Set
-          </button>
-        </div>
-
-        <label class="custom-draft-filter-field custom-draft-search-sort-field">
-          <span>Sort By</span>
-          <select
-            id="customDraftSearchSortSelect"
-            class="custom-draft-filter-input"
-          >
-            <option value="name_asc">Name A-Z</option>
-            <option value="name_desc">Name Z-A</option>
-            <option value="set_asc">Set Code A-Z</option>
-            <option value="set_desc">Set Code Z-A</option>
-            <option value="year_newest">Year Newest</option>
-            <option value="year_oldest">Year Oldest</option>
-            <option value="rarity_low_high">Rarity Common → Mythic</option>
-            <option value="rarity_high_low">Rarity Mythic → Common</option>
-            <option value="mv_low_high">Mana Value Low → High</option>
-            <option value="mv_high_low">Mana Value High → Low</option>
-            <option value="edhrec_rank_best">EDHREC Rank Best</option>
-            <option value="edhrec_rank_worst">EDHREC Rank Worst</option>
-            <option value="edhrec_salt_high">EDHREC Salt High</option>
-            <option value="edhrec_salt_low">EDHREC Salt Low</option>
-            <option value="price_high">Price High</option>
-            <option value="price_low">Price Low</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="custom-draft-search-footer-bar">
-        <div
-          id="customDraftCardSearchPagination"
-          class="custom-draft-search-pagination custom-draft-search-pagination-hidden"
-        >
-          <button
-            type="button"
-            id="customDraftSearchPrevButton"
-            class="custom-draft-page-arrow"
-            disabled
-            aria-label="Previous page"
-          >
+      <div class="card-search-results-toolbar"><div id="customDraftSearchSummary">Your card library</div><div class="card-search-result-settings"><label class="custom-draft-filter-field custom-draft-search-sort-field">
+<span>Sort</span>
+<select class="custom-draft-filter-input" id="customDraftSearchSortSelect">
+<option value="name_asc">Name A-Z</option>
+<option value="name_desc">Name Z-A</option>
+<option value="set_asc">Set Code A-Z</option>
+<option value="set_desc">Set Code Z-A</option>
+<option value="year_newest">Year Newest</option>
+<option value="year_oldest">Year Oldest</option>
+<option value="rarity_low_high">Rarity Common → Mythic</option>
+<option value="rarity_high_low">Rarity Mythic → Common</option>
+<option value="mv_low_high">Mana Value Low → High</option>
+<option value="mv_high_low">Mana Value High → Low</option>
+<option value="edhrec_rank_best">EDHREC Rank Best</option>
+<option value="edhrec_rank_worst">EDHREC Rank Worst</option>
+<option value="edhrec_salt_high">EDHREC Salt High</option>
+<option value="edhrec_salt_low">EDHREC Salt Low</option>
+<option value="price_high">Price High</option>
+<option value="price_low">Price Low</option>
+</select>
+</label> <label class="custom-draft-filter-field">
+<span>Show</span>
+<select class="custom-draft-filter-input" id="customDraftSearchPageSizeSelect">
+<option selected="" value="100">100</option>
+<option value="250">250</option>
+<option value="500">500</option>
+<option value="750">750</option>
+<option value="1000">1000</option>
+</select>
+</label></div></div>
+      <div id="customDraftSearchEmpty" class="card-search-start-state"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.7" cy="10.7" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><h3>Find cards to add</h3><p>Search your library, or combine filters to find the right cards.</p></div>
+      <div id="customDraftCardSearchResults" class="custom-draft-card-search-results hidden"></div>
+      <div class="card-search-footer">
+        <div class="card-search-feedback"><span id="customDraftSearchAddedCount">0 cards added</span><div id="customDraftCardSearchStatus" class="custom-draft-card-search-status hidden" role="status" aria-live="polite"></div></div>
+        <button type="button" id="customDraftAddAllResultsButton" class="card-search-quiet-button hidden" disabled>Add All Results to Set</button>
+        <div class="custom-draft-search-pagination custom-draft-search-pagination-hidden" id="customDraftCardSearchPagination">
+<button aria-label="Previous page" class="custom-draft-page-arrow" disabled="" id="customDraftSearchPrevButton" type="button">
             ‹
           </button>
-          <span class="custom-draft-page-label-prefix">Page</span>
-          <input
-            type="number"
-            id="customDraftSearchPageInput"
-            class="custom-draft-page-input"
-            value="1"
-            min="1"
-            step="1"
-            aria-label="Current page"
-          />
-          <span
-            id="customDraftSearchPageTotal"
-            class="custom-draft-page-label-suffix"
-            >of —</span
-          >
-          <button
-            type="button"
-            id="customDraftSearchNextButton"
-            class="custom-draft-page-arrow"
-            disabled
-            aria-label="Next page"
-          >
+<span class="custom-draft-page-label-prefix">Page</span>
+<input aria-label="Current page" class="custom-draft-page-input" id="customDraftSearchPageInput" min="1" step="1" type="number" value="1"/>
+<span class="custom-draft-page-label-suffix" id="customDraftSearchPageTotal">of —</span>
+<button aria-label="Next page" class="custom-draft-page-arrow" disabled="" id="customDraftSearchNextButton" type="button">
             ›
           </button>
-        </div>
-        <div
-          id="customDraftCardSearchStatus"
-          class="custom-draft-card-search-status hidden"
-        ></div>
+</div>
+        <button type="button" id="customDraftCardSearchDoneButton" class="action-button">Done</button>
       </div>
-      <div
-        id="customDraftCardSearchResults"
-        class="custom-draft-card-search-results hidden"
-      ></div>
     </div>
   </div>
+  <div id="customDraftBulkImportPanel" class="custom-draft-bulk-import-panel" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="cardSearchImportTitle"><div class="custom-draft-bulk-import-body"><div class="card-search-import-heading"><h3 id="cardSearchImportTitle">Import card list</h3><button aria-label="Close import" class="card-search-icon-button" id="customDraftBulkImportCloseButton" type="button">×</button></div>
+<label class="custom-draft-filter-field">
+<span>Paste List</span>
+<textarea class="campaign-add-pack-custom-textarea custom-draft-bulk-import-textarea" id="customDraftBulkImportText" placeholder="Paste a Moxfield or Archidekt export list here..."></textarea>
+</label>
+<div class="custom-draft-bulk-import-row">
+<label class="custom-draft-filter-field">
+<span>Upload List File</span>
+<input accept=".txt,.csv,.dek,.dec,text/plain,text/csv" class="campaign-player-file" id="customDraftBulkImportFile" type="file"/>
+</label>
+<div class="custom-draft-bulk-import-button-stack">
+<button class="action-button secondary-button custom-draft-bulk-import-button" id="customDraftBulkImportButton" type="button">
+                Load List into Search Results
+              </button>
+<button class="action-button custom-draft-bulk-import-button" id="customDraftBulkImportAddMostRecentButton" type="button">
+                Add Most Recent to Set
+              </button>
+</div>
+</div>
+<p class="custom-draft-bulk-import-help">
+            Load matching cards, then choose which printings to add.
+          </p>
+<div id="customDraftBulkImportStatus" class="custom-draft-card-search-status hidden" role="status" aria-live="polite"></div>
+</div></div>
 </div>

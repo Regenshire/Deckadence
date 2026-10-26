@@ -6,7 +6,7 @@ PLUGIN_CATALOG = {
         "plugin_type": "card_finishing",
         "type_label": "Card finishing",
         "description": "Foil masks, gloss, printable effects, and local AI selection. Complete Generative Art AI packages are available below.",
-        "requirements": "Detection: 64-bit Python 3.10–3.13; CPU; internet for setup and first-use model downloads",
+        "requirements": "Detection: CPU; internet for setup and first-use model downloads. Private Python is installed automatically.",
         "bundled_source": True,
         "required_capabilities": ["text", "subject", "frame"],
         "preserve_models": True,

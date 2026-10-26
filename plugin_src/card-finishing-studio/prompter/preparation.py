@@ -17,14 +17,82 @@ def generation_blend_mask(alpha):
     ramp = ImageChops.lighter(ramp, core)
     return ImageChops.darker(alpha, ramp)
 
+def removal_blend_mask(alpha):
+    """Keep removal strokes opaque and include their antialiased edge pixels.
+
+    Inward feathering can erase most of a thin letter selection. Extend a small,
+    resolution-scaled fringe instead, without turning stroke masks into boxes.
+    """
+    if not alpha.getbbox():return alpha.copy()
+    radius=max(2,min(6,round(min(alpha.size)/250)))
+    core=alpha.filter(ImageFilter.MaxFilter(2*radius+1))
+    return ImageChops.lighter(core,core.filter(ImageFilter.GaussianBlur(.65)))
+
+
+def removal_generation_mask(alpha):
+    """Join close stroke gaps for generation without widening final application.
+
+    An exact letter-shaped conditioning hole can teach a reference editor to
+    recreate that letter. Closing nearby gaps supplies a continuous repair area.
+    """
+    selected=alpha.point(lambda v:255 if v else 0)
+    radius=max(3,min(12,round(min(alpha.size)/55)))
+    closed=selected.filter(ImageFilter.MaxFilter(2*radius+1)).filter(ImageFilter.MinFilter(2*radius+1))
+    return ImageChops.lighter(selected,closed)
+
+
 def removal_reference(source, alpha):
-    """Remove selected visual information before asking AI to rebuild it."""
+    """Erase selected content with nearby background colors, not a flat glyph.
+
+    Harmonic background interpolation ignores all removed pixels. This avoids
+    flat letter-shaped cues and importing a nearby frame's color with a broad
+    Gaussian average. Generation supplies the missing texture and structure.
+    """
+    import numpy as np
     selected = alpha.point(lambda value:255 if value else 0)
+    if not selected.getbbox():return source.copy()
     context = ImageChops.invert(selected)
     if not context.getbbox():
         raise PlannerError('Leave some surrounding artwork outside the selection for object removal.')
-    color = tuple(round(v) for v in ImageStat.Stat(source.convert('RGB'),context).mean)
-    return Image.composite(Image.new('RGBA',source.size,(*color,255)),source,selected)
+    rgb=source.convert('RGB')
+    box=selected.getbbox();l,t,r,b=box
+    box=(max(0,l-2),max(0,t-2),min(source.width,r+2),min(source.height,b+2))
+    color=tuple(round(v) for v in ImageStat.Stat(rgb,context).mean)
+    # Clear before resampling so selected content cannot leak into known pixels.
+    area=Image.composite(Image.new('RGB',source.size,color),rgb,selected).crop(box);holes=selected.crop(box)
+    # Bound coarse work for a large removed object. Fine strokes remain native.
+    ratio=min(1,512/max(area.size));small=tuple(max(1,round(v*ratio)) for v in area.size)
+    work=np.asarray(area.resize(small),dtype=np.float32).copy()
+    missing=np.asarray(holes.resize(small,Image.Resampling.NEAREST))>0
+    work[missing]=ImageStat.Stat(rgb,context).mean
+    known=~missing
+    # Seed from the nearest local boundary before relaxing, so narrow text
+    # repairs never start from a whole-crop average contaminated by card frames.
+    for _ in range(max(small)):
+        colors=np.pad(work*known[:,:,None],((1,1),(1,1),(0,0)),mode='constant')
+        available=np.pad(known.astype('float32'),1,mode='constant')
+        count=available[:-2,1:-1]+available[2:,1:-1]+available[1:-1,:-2]+available[1:-1,2:]
+        ready=~known & (count>0)
+        if not ready.any():break
+        total=colors[:-2,1:-1]+colors[2:,1:-1]+colors[1:-1,:-2]+colors[1:-1,2:]
+        work[ready]=total[ready]/count[ready,None];known[ready]=True
+        if known.all():break
+    def relax(work,missing,steps):
+        for iteration in range(steps):
+            pad=np.pad(work,((1,1),(1,1),(0,0)),mode='edge')
+            next_values=(pad[:-2,1:-1]+pad[2:,1:-1]+pad[1:-1,:-2]+pad[1:-1,2:])*.25
+            delta=np.max(np.abs(next_values[missing]-work[missing])) if missing.any() else 0
+            work[missing]=next_values[missing]
+            if delta<.035:break
+        return work
+    work=relax(work,missing,400)
+    local=Image.fromarray(np.clip(np.round(work),0,255).astype('uint8')).resize(area.size,Image.Resampling.BILINEAR)
+    if ratio<1:
+        fine=np.asarray(area,dtype=np.float32).copy();mask=np.asarray(holes)>0
+        fine[mask]=np.asarray(local)[mask];fine=relax(fine,mask,60)
+        local=Image.fromarray(np.clip(np.round(fine),0,255).astype('uint8'))
+    replacement=source.copy();replacement.paste(local,box[:2])
+    return Image.composite(replacement,source,selected)
 
 def clean_outpaint_bounds(source, bounds, excluded):
     """Find the largest rectangular art sample containing no detected frame or text."""

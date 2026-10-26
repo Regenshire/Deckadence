@@ -22,6 +22,11 @@
             <label class="spot-foil-workflow">Workflow type<select name="workflow_id" aria-describedby="spotFoilWorkflowDescription"></select></label>
             <p id="spotFoilWorkflowDescription" class="spot-foil-hint"></p>
             <p class="spot-foil-notice">Defaults for new selections. Saved masks stay unchanged.</p>
+            <fieldset data-foil-inkjet hidden><legend>Standard Inkjet</legend>
+                <label class="spot-foil-check"><input type="checkbox" name="add_white_foil_layer">Add White Foil Layer</label>
+                <label>Percent Foil<input type="number" name="percent_foil" min="0" max="100" step="1" value="12" required disabled></label>
+                <p class="spot-foil-hint">Each card receives a separate editable white overlay in RDG_WHITE. Percent Foil controls its opacity over the saved Foil Mask.</p>
+            </fieldset>
             <fieldset><legend>Print output</legend><div class="spot-foil-grid">
                 <label>Layer purpose<select name="layer_type"></select></label>
                 <label>Output format<select name="output_format"></select></label>

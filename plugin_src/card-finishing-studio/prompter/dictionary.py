@@ -58,6 +58,9 @@ def validate(value):
             if 'match_style' in recipe:
                 template(recipe['match_style'], set())
                 if not recipe['match_style'].strip(): raise PlannerError('Reference style guidance cannot be empty.')
+            if 'prompted_match_style' in recipe:
+                template(recipe['prompted_match_style'],set())
+                if not recipe['prompted_match_style'].strip():raise PlannerError('Prompted reference style guidance cannot be empty.')
             if 'analysis_focus' in recipe:
                 if not isinstance(recipe['analysis_focus'],str) or len(recipe['analysis_focus'])>4000:
                     raise PlannerError('Artwork analysis focus must be text of at most 4,000 characters.')
@@ -74,17 +77,18 @@ def validate(value):
                 if key == 'num_inference_steps' and type(number) is not int: raise PlannerError('Steps must be a whole number.')
             if 'strength' in recipe['parameters'] and int(recipe['parameters']['strength']*recipe['parameters']['num_inference_steps'])<1:
                 raise PlannerError('Strength and inference steps must allow at least one generation step.')
-            if 'normal_parameters' in recipe:
-                parameters=recipe['normal_parameters']
+            for parameter_set in ('normal_parameters','prompted_parameters'):
+                if parameter_set not in recipe:continue
+                parameters=recipe[parameter_set]
                 if not isinstance(parameters,dict) or set(parameters)!=set(recipe['parameters']):
-                    raise PlannerError('Keep the supported Normal theme parameters.')
+                    raise PlannerError('Keep the supported '+parameter_set+' fields.')
                 for key,number in parameters.items():
                     if type(number) not in (int,float) or not math.isfinite(number) or not limits[key][0]<=number<=limits[key][1]:
-                        raise PlannerError('Invalid Normal theme '+key+'.')
+                        raise PlannerError('Invalid '+parameter_set+' '+key+'.')
                     if key=='num_inference_steps' and type(number) is not int:
                         raise PlannerError('Normal theme steps must be a whole number.')
                 if 'strength' in parameters and int(parameters['strength']*parameters['num_inference_steps'])<1:
-                    raise PlannerError('Normal theme must allow at least one generation step.')
+                    raise PlannerError(parameter_set+' must allow at least one generation step.')
     if len(json.dumps(value).encode()) > 512000: raise PlannerError('Dictionary must be smaller than 512 KB.')
     return value
 

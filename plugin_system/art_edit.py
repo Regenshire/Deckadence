@@ -143,6 +143,8 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
             if capture:
                 capture.add('source-edited.png',source)
                 capture.add('selection-original.png',alpha)
+            if mode=='remove_object':
+                alpha=preparation.removal_blend_mask(alpha)
             extension_reference=None
             sample_bounds=source_bounds
             if mode=='outpaint' or (mode!='remove_text' and style_mode=='match'):
@@ -165,6 +167,8 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
                 capture.add('source-crop.png',crop)
             if mode=='outpaint':
                 selection.putalpha(extension_mask.crop(box))
+            elif mode=='remove_object':
+                selection.putalpha(preparation.removal_generation_mask(alpha.crop(box)))
             def encoded(im):
                 out=BytesIO();im.save(out,format='PNG');return out.getvalue()
             generator=app.config.get('ART_EDIT_GENERATOR')
@@ -193,7 +197,7 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
             progress('detecting' if mode=='remove_text' else 'generating',
                      'Detecting lettering before repairing its strokes from the surrounding background.' if mode=='remove_text'
                      else 'The local model is working. Timing depends on your model and processor.')
-            reference = extension_reference.crop(box) if mode=='outpaint' else removal_reference(crop, alpha.crop(box)) if mode=='remove_object' else crop
+            reference = extension_reference.crop(box) if mode=='outpaint' else removal_reference(crop, selection.getchannel('A')) if mode=='remove_object' else crop
             if capture:
                 capture.add('reference-prepared.png',reference)
                 capture.add('generation-mask.png',selection.getchannel('A'))
@@ -211,12 +215,13 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
                 patch=generated.convert('RGBA').resize(crop.size,Image.Resampling.LANCZOS)
             # Compare only selected pixels. This is a visibility hint, not a
             # model-quality verdict; users can still inspect and apply it.
-            blend_mask = generation_blend_mask(alpha.crop(box)) if mode != 'remove_text' else alpha.crop(box)
+            blend_mask = alpha.crop(box) if mode in ('remove_object','remove_text') else generation_blend_mask(alpha.crop(box))
             if capture:
                 capture.add('worker-output.png',output)
                 capture.add('blend-mask.png',blend_mask)
             compare_mask=blend_mask.point(lambda v:255 if v else 0)
-            difference=ImageChops.difference(crop.convert('RGB'),patch.convert('RGB'))
+            visible_patch=Image.composite(patch,crop,blend_mask)
+            difference=ImageChops.difference(crop.convert('RGB'),visible_patch.convert('RGB'))
             mean=sum(ImageStat.Stat(difference,compare_mask).mean)/3
             channels=difference.split()
             changed=ImageChops.lighter(ImageChops.lighter(channels[0],channels[1]),channels[2]).point(lambda v:255 if v>8 else 0)

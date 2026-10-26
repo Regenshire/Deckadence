@@ -3,6 +3,7 @@
 The existing component directory and API names remain stable so installed
 models, active downloads and saved settings survive the display-name change.
 """
+import atexit
 import json
 import math
 import os
@@ -32,9 +33,9 @@ RUNTIME_VERSION = 1
 COMMON_PACKAGES = ['diffusers==0.41.0', 'transformers==5.20.2', 'accelerate==1.15.0',
                    'safetensors>=0.6,<1', 'sentencepiece>=0.2,<1', 'Pillow>=11.3,<13']
 HARDWARE = {
-    'nvidia': {'name': 'NVIDIA CUDA', 'description': 'RTX 30-series or newer, or an equivalent NVIDIA GPU with native BF16 support. Setup tests the GPU before downloading models. Requires 64-bit Python 3.10–3.13 and a current NVIDIA driver.'},
-    'amd': {'name': 'AMD Radeon · ROCm', 'description': 'Supported Radeon GPUs only. Windows requires Python 3.12 and a compatible AMD ROCm driver.'},
-    'cpu': {'name': 'CPU', 'description': 'Requires 64-bit Python 3.10–3.13. No GPU required; uses substantial system RAM and can take a long time per scene.'},
+    'nvidia': {'name': 'NVIDIA CUDA', 'description': 'RTX 30-series or newer, or an equivalent NVIDIA GPU with native BF16 support. Setup tests the GPU before downloading models. Requires a current NVIDIA driver; private Python is installed automatically.'},
+    'amd': {'name': 'AMD Radeon · ROCm', 'description': 'Supported Radeon GPUs with a compatible AMD ROCm driver. Private Python 3.12 is installed automatically.'},
+    'cpu': {'name': 'CPU', 'description': 'No GPU required; uses substantial system RAM and can take a long time per scene. Private Python is installed automatically.'},
 }
 
 
@@ -89,6 +90,10 @@ class LocalMirror:
         self.lock = threading.RLock()
         self.render_lock = threading.RLock()
         self._generation_session = threading.local()
+        self._warm_session = None
+        self._warm_timer = None
+        self.worker_idle_seconds = 120
+        atexit.register(self._shutdown_worker)
         self.text_repair_lock = threading.Lock()
         self.cancel = threading.Event()
         self.setup = {'running': False, 'stage': 'Not downloaded', 'message': ''}
@@ -229,7 +234,7 @@ class LocalMirror:
                 and all((folder/file).is_file() for file in ANALYZER.get('required_files',[]))
                 and weights_ready(folder))
 
-    def analyze_artwork(self, image, selected, dictionary, cancel, progress, context_image=None, context_mask=None):
+    def analyze_artwork(self, image, selected, dictionary, cancel, progress, context_image=None, context_mask=None, *, target_regions=False):
         from io import BytesIO
         from PIL import Image
         if not self.analyzer_ready():
@@ -238,20 +243,22 @@ class LocalMirror:
         for data in (image, context_image, context_mask):
             if data:
                 with Image.open(BytesIO(data)) as source: fingerprints.append(contracts.image_digest(source))
-        fingerprint = contracts.digest(dict(images=fingerprints, preparation_version=2, revision=ANALYZER['revision'], instruction=dictionary['planner']['analysis_prompt']))
+        fingerprint = contracts.digest(dict(images=fingerprints, preparation_version=2, revision=ANALYZER['revision'], instruction=dictionary['planner']['analysis_prompt'], **({'target_regions':True} if target_regions else {})))
         cache = self.root / 'analysis-cache' / (fingerprint + '.json')
         cached = read_json(cache)
         if cached:
             try:
                 result = contracts.validate_analysis(cached)
+                if target_regions and 'regions' not in result:raise contracts.PlannerError('Missing target regions.')
                 if progress: progress('analyzing', 'Reusing analysis of this exact artwork and analyzer recipe.')
                 return result
             except contracts.PlannerError: pass
-        if progress: progress('analyzing', 'Analyzing the artwork medium, palette, texture, lighting and boundaries locally.')
+        if progress: progress('analyzing', 'Locating faces and bodies and analyzing the source style once for this batch.' if target_regions else 'Analyzing the artwork medium, palette, texture, lighting and boundaries locally.')
         jobs = self.root / 'jobs'; jobs.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='analysis-', dir=jobs) as folder:
             folder = Path(folder); (folder / 'source.png').write_bytes(image)
             payload = dict(hardware=selected['hardware'], model_path=str(self.analyzer_path()), image=str(folder / 'source.png'), output=str(folder / 'analysis.json'), instruction=dictionary['planner']['analysis_prompt'], max_new_tokens=ANALYZER['max_new_tokens'])
+            if target_regions:payload.update(target_regions=True,max_new_tokens=1200)
             if progress: payload['progress_path'] = str(folder / 'progress.json')
             if context_image and context_mask:
                 (folder/'context.png').write_bytes(context_image);(folder/'context-mask.png').write_bytes(context_mask)
@@ -263,6 +270,7 @@ class LocalMirror:
                     progress('analyzing', str(value.get('message', ''))[:300])
             self.run([self.python(selected['hardware']), '-I', SOURCE / 'generation_worker.py', 'analyze', '--request', folder / 'request.json'], cancel, self.root / 'analysis.log', 1200, **({'on_tick': report} if progress else {}))
             result = contracts.validate_analysis(read_json(folder / 'analysis.json'))
+            if target_regions and 'regions' not in result:raise contracts.PlannerError('Artwork targeting returned no region list. Retry analysis or choose Random.')
             write_json(cache, result)
             return result
 
@@ -315,6 +323,7 @@ class LocalMirror:
                 if cancel.is_set():raise LocalMirrorError('Package setup cancelled. Installed files are unchanged.')
         try:
             if cancel.is_set():raise LocalMirrorError('Package setup cancelled. Installed files are unchanged.')
+            self.release_worker()
             yield
         finally:
             self.render_lock.release()
@@ -361,31 +370,70 @@ class LocalMirror:
 
     @contextmanager
     def generation_session(self, cancel, progress=None):
-        """Keep one worker/model alive across all stages of a Mirror render."""
+        """One serialized worker; reuse its one image model briefly between jobs."""
+        if getattr(self._generation_session, 'active', None) is not None:
+            yield
+            return
         if progress:progress('queued','Waiting for the local AI processor to become available.')
         while not self.render_lock.acquire(timeout=.25):
             if cancel.is_set():raise LocalMirrorError('Render cancelled.')
-        session={'process':None,'output':None,'python':None}
+        if self._warm_timer:
+            self._warm_timer.cancel()
+            self._warm_timer = None
+        session = self._warm_session or {'process':None,'output':None,'python':None}
+        self._warm_session = session
+        session['idle_epoch'] = None
+        failed = True
         try:
             if cancel.is_set():raise LocalMirrorError('Render cancelled.')
             self._generation_session.active=session
             yield
+            failed = False
         finally:
             self._generation_session.active=None
-            process=session['process']
             try:
-                if process is not None:
-                    if process.stdin:
-                        try:process.stdin.close()
-                        except OSError:pass
-                    if cancel.is_set() or sys.exc_info()[0] is not None:
-                        self.stop_process(process)
-                    else:
-                        try:process.wait(timeout=2)
-                        except subprocess.TimeoutExpired:self.stop_process(process)
+                if failed or cancel.is_set():
+                    self.release_worker()
+                else:
+                    epoch = session['idle_epoch'] = object()
+                    timer = threading.Timer(self.worker_idle_seconds, self._expire_worker, args=(session, epoch))
+                    timer.daemon = True
+                    self._warm_timer = timer
+                    timer.start()
             finally:
-                if session['output']:session['output'].close()
                 self.render_lock.release()
+
+    def _expire_worker(self, session, epoch):
+        if self.render_lock.acquire(blocking=False):
+            try:
+                if self._warm_session is session and session.get('idle_epoch') is epoch:
+                    self.release_worker()
+            finally:
+                self.render_lock.release()
+
+    def release_worker(self):
+        with self.render_lock:
+            if self._warm_timer:
+                self._warm_timer.cancel()
+                self._warm_timer = None
+            session, self._warm_session = self._warm_session, None
+            if session:
+                process = session['process']
+                try:
+                    if process is not None:
+                        self.stop_process(process)
+                        if process.stdin:
+                            process.stdin.close()
+                finally:
+                    if session['output']:
+                        session['output'].close()
+
+    def _shutdown_worker(self):
+        # Daemon render threads may own render_lock during app shutdown.
+        if self._warm_timer:self._warm_timer.cancel()
+        session = self._warm_session
+        if session and session['process'] is not None:
+            self.stop_process(session['process'])
 
     @staticmethod
     def stop_process(process):
@@ -402,6 +450,12 @@ class LocalMirror:
     def run_session_command(self, session, command, cancel, timeout, on_tick):
         if cancel.is_set():raise LocalMirrorError('Render cancelled.')
         python=str(command[0])
+        process = session['process']
+        if process is not None and (process.poll() is not None or session['python'] != python):
+            self.stop_process(process)
+            if process.stdin:process.stdin.close()
+            if session['output']:session['output'].close()
+            session.update(process=None, output=None, python=None)
         if session['process'] is None:
             self.root.mkdir(parents=True,exist_ok=True)
             (self.root/'tmp').mkdir(parents=True,exist_ok=True)
@@ -493,29 +547,11 @@ class LocalMirror:
                         process.kill(); process.wait(timeout=10)
 
     def resolve_python(self, hardware, cancel, log):
-        from .manager import _resolve_python_command
-        candidates = []
+        from .manager import _resolve_studio_python
         try:
-            candidates.append(_resolve_python_command())
-        except RuntimeError:
-            pass
-        if os.name == 'nt':
-            candidates.extend([['py', '-3.12'], ['py', '-3.13'], ['py', '-3.11'], ['python']])
-        else:
-            candidates.extend([['python3.12'], ['python3.13'], ['python3.11'], ['python3']])
-        amd_windows = hardware == 'amd' and os.name == 'nt'
-        version_check = 'sys.version_info[:2]==(3,12)' if amd_windows else '(3,10)<=sys.version_info[:2]<(3,14)'
-        seen = set()
-        for candidate in candidates:
-            if tuple(candidate) in seen: continue
-            seen.add(tuple(candidate))
-            try:
-                self.run(candidate + ['-c', 'import sys;sys.exit(0 if ' + version_check + ' and sys.maxsize>2**32 else 1)'], cancel, log, 30)
-                return candidate
-            except (OSError, LocalMirrorError):
-                if cancel.is_set(): raise
-        required = '3.12' if amd_windows else '3.10–3.13'
-        raise LocalMirrorError('This processor option requires 64-bit Python ' + required + '. Install it, then retry the optional download.')
+            return _resolve_studio_python(cancel=cancel, progress=self.stage)
+        except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+            raise LocalMirrorError(str(exc)) from exc
 
     def download(self, command, cancel, log):
         progress_path=self.root/'download-progress.json'
@@ -629,6 +665,11 @@ class LocalMirror:
             if not self.setup['running']:
                 self.setup.update(stage='Disabled',message='Generation is disabled. Installed packages and saved artwork are kept.')
                 self.persist_setup()
+        # Do not block the settings request behind an active render. Its session
+        # still expires normally; an idle worker can release memory immediately.
+        if self.render_lock.acquire(blocking=False):
+            try:self.release_worker()
+            finally:self.render_lock.release()
 
     def start_verification(self, package, hardware):
         if not isinstance(package,str) or package not in PACKAGES:raise LocalMirrorError('Choose an available generation package.')
@@ -805,11 +846,8 @@ class LocalMirror:
                 user_prompt if user_prompt is not None else prompt,theme,maintain_style,self.root)
         except ai_prompts.PromptDictionaryError as exc:
             raise LocalMirrorError(str(exc)) from None
-        # Serialize GPU inference, keeping queued jobs cancellable.
-        if progress:progress('queued','Waiting for the local AI processor to become available.')
-        while not self.render_lock.acquire(timeout=.25):
-            if cancel.is_set(): raise LocalMirrorError('Render cancelled.')
-        try:
+        # Edit and Mirror operations share the same bounded warm worker.
+        with self.generation_session(cancel, progress):
             if cancel.is_set(): raise LocalMirrorError('Render cancelled.')
             current=self.generation_selection(selected['model'])
             if current['hardware']!=selected['hardware']:
@@ -820,8 +858,9 @@ class LocalMirror:
                 from PIL import Image
                 planning = planning or {}
                 style_mode = planning.get('style_mode', 'match' if maintain_style else 'none')
-                needs_analysis = compiler.needs_analysis(dictionary,selected['model'],edit_mode,style_mode)
-                whole_artwork = edit_mode in ('outpaint','mirror')
+                needs_analysis = compiler.needs_analysis(dictionary,selected['model'],edit_mode,style_mode,
+                    edit_mode=='micro_scene' and bool(planning.get('geometry',{}).get('has_requested_change')))
+                whole_artwork = edit_mode in ('outpaint','mirror','micro_scene')
                 if capture and needs_analysis:
                     capture('analysis-source.png',planning.get('analysis_image',image) if whole_artwork else image)
                     if not whole_artwork:capture('analysis-mask.png',mask)
@@ -829,15 +868,24 @@ class LocalMirror:
                 focus=dictionary['planner']['recipes'][selected['model']][edit_mode].get('analysis_focus','')
                 if focus:
                     analysis_dictionary={**dictionary,'planner':{**dictionary['planner'],'analysis_prompt':dictionary['planner']['analysis_prompt']+'\n'+focus}}
-                observations = self.analyze_artwork(planning.get('analysis_image', image), selected, analysis_dictionary, cancel, progress,
-                    image if not whole_artwork else None, mask if not whole_artwork else None) if needs_analysis else None
+                # Mirror batches analyze their clean source once before loading
+                # the image model, then reuse those observations for every crop.
+                observations = contracts.validate_analysis(planning['analysis']) if needs_analysis and planning.get('analysis') is not None else (
+                    self.analyze_artwork(planning.get('analysis_image', image), selected, analysis_dictionary, cancel, progress,
+                        image if not whole_artwork else None, mask if not whole_artwork else None) if needs_analysis else None)
                 if progress: progress('planning', 'Compiling the model recipe and exact generation inputs.')
                 reference_image = Image.open(BytesIO(image)).convert('RGBA')
                 mask_image = Image.open(BytesIO(mask)).getchannel('A')
                 instruction=user_prompt if user_prompt is not None else prompt
-                if edit_mode=='mirror' and theme!='custom':
-                    instruction=' '.join(part for part in (ai_prompts.render(dictionary['models'][selected['model']],'theme_'+theme),instruction.strip()) if part)
-                if edit_mode=='mirror':
+                if edit_mode in ('mirror','micro_scene') and theme!='custom':
+                    theme_key=('micro_theme_' if edit_mode=='micro_scene' else 'theme_')+theme
+                    parts=dictionary['models'][selected['model']]
+                    theme_direction=ai_prompts.render(parts,theme_key)
+                    if edit_mode=='micro_scene':
+                        instruction=ai_prompts.render(parts,'mirror_micro_context',user_prompt=instruction.strip(),theme_direction=theme_direction)
+                    else:
+                        instruction=' '.join(part for part in (theme_direction,instruction.strip()) if part)
+                if edit_mode in ('mirror','micro_scene'):
                     planning={**planning,'geometry':{**planning.get('geometry',{}),'theme':theme}}
                 plan = compiler.compile_plan(dictionary=dictionary, model=selected['model'], model_revision=model_spec['revision'], hardware=selected['hardware'], operation=edit_mode, instruction=instruction, style_mode=style_mode, custom_style=planning.get('custom_style',''), analysis=observations, reference=reference_image, mask=mask_image, seed=seed, geometry=planning.get('geometry',{}), adapter=dict(OUTPAINT) if selected['model']=='flux_klein' and edit_mode=='outpaint' else None, analyzer=dict(id=ANALYZER['id'],revision=ANALYZER['revision'],max_new_tokens=ANALYZER['max_new_tokens'],preparation_version=2,reference='clean_artwork_edges' if whole_artwork else 'local_neighborhood') if needs_analysis else None)
                 jobs = self.root / 'jobs'; jobs.mkdir(parents=True, exist_ok=True)
@@ -874,7 +922,7 @@ class LocalMirror:
                                    expanded_size=expanded_size,scene_padding=padding,background_prompt=prompts['background_prompt'],
                                    background_description=prompts['background_prompt'],background_negative=prompts['background_negative'])
                 write_json(folder / 'request.json', payload)
-                if progress:progress('loading','Loading '+model_spec['name']+' on '+{'nvidia':'NVIDIA GPU','amd':'AMD GPU','cpu':'CPU'}[selected['hardware']]+'. The first render can take longer.')
+                if progress:progress('loading','Preparing '+model_spec['name']+' on '+{'nvidia':'NVIDIA GPU','amd':'AMD GPU','cpu':'CPU'}[selected['hardware']]+'. The first render can take longer.')
                 reported=None
                 def report():
                     nonlocal reported
@@ -895,10 +943,6 @@ class LocalMirror:
                         if path.suffix in ('.png','.json') and path.stat().st_size<=32_000_000:
                             capture(path.name,path.read_bytes())
                 return output.read_bytes()
-        finally:
-            self.render_lock.release()
-
-
 def local_mirror(app):
     if 'local_mirror' not in app.extensions:
         app.extensions['local_mirror'] = LocalMirror(app.config.get('LOCAL_MIRROR_ROOT'))

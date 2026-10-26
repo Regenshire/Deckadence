@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
+import runpy
 import shutil
 import subprocess
 import sys
@@ -7,6 +8,8 @@ import sys
 from PyInstaller.utils.hooks import collect_submodules
 
 hiddenimports = ['paths', 'settings', 'image_export_templates', 'pack_label_templates']
+# This installer is reached only when the user sets up Studio.
+hiddenimports += ['plugin_system.python_runtime']
 hiddenimports += collect_submodules('db')
 hiddenimports += collect_submodules('modes')
 hiddenimports += collect_submodules('ui')
@@ -18,6 +21,13 @@ import json
 from pathlib import Path
 
 ROOT = Path(SPECPATH)
+# Bundle the same validated source payload as the standalone Studio ZIP.
+# Local models, virtual environments and user prompt overrides are excluded.
+studio_builder = runpy.run_path(str(ROOT / 'plugin_src/build_card_finishing_plugin.py'))
+studio_manifest, studio_files = studio_builder['validate_package'](ROOT / 'plugin_src/card-finishing-studio')
+studio_datas = [(str(path), str(Path('plugin_src/card-finishing-studio') / Path(name).parent))
+                for name, path in studio_files.items()]
+compile((ROOT / 'plugin_system/python_runtime.py').read_bytes(), 'plugin_system/python_runtime.py', 'exec')
 PREFIXES = ("print/templates/", "static/sil/", "static/img/card_backs/", "static/img/pack_art/")
 listing = subprocess.check_output(["git", "ls-tree", "-r", "-z", "--name-only", "HEAD"], cwd=ROOT).decode().split("\0")
 files, cutting = {}, {}
@@ -44,8 +54,7 @@ a = Analysis(
         ('print', 'print'),
         ('db', 'db'),
         ('modes', 'modes'),
-        ('plugin_src/card-finishing-studio', 'plugin_src/card-finishing-studio'),
-    ],
+    ] + studio_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

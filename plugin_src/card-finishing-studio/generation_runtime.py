@@ -12,6 +12,16 @@ class GenerationRuntime:
         self.placement = None
         self.loads = 0
 
+    def clear(self):
+        """Release the image model before loading an artwork analyzer."""
+        if self.pipe is None:
+            return
+        import torch
+        self.pipe = self.key = self.adapter = self.placement = None
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     def pipeline(self, cls, model_path, dtype, device, options, progress):
         import torch
         key = (str(Path(model_path).resolve()), str(dtype), device)

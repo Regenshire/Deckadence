@@ -18,14 +18,19 @@ from .finishing_ukiyo import TYPES as UKIYO_TYPES, render_ukiyo
 from .finishing_materials import MATERIAL_EFFECTS, render_material
 from .finishing_patterns import EFFECTS as PATTERN_EFFECTS, COLORS as PATTERN_COLORS, PATH_EFFECTS, RETIRED_EFFECTS, render_pattern
 from .mirror_shards import validate_shards, decode_scene, render_shards, transform_image
+from .mirror_layers import validate_mirrors, render_mirrors, has_strength_overrides
+from .dragon_strike import EMBLEMS as DRAGON_EMBLEMS, TRAILS as DRAGON_TRAILS, LEGACY_TRAILS as LEGACY_DRAGON_TRAILS, selection as dragon_selection
+from .dragon_strike import RENDER_VERSION as DRAGON_RENDER_VERSION, ALIGNMENTS as DRAGON_ALIGNMENTS
+from .dragon_strike import COLOR_EFFECTS as DRAGON_COLOR_EFFECTS, color_overlay as dragon_color_overlay
 
 CACHE_ROOT = Path(IMAGE_CACHE_DIR) / "finishing_effects"
-RENDER_VERSION = 31
+RENDER_VERSION = 36
 CONFETTI_GLITTER_TYPES = {"glitter_1":"Glitter - Type 1","glitter_2":"Glitter - Type 2","glitter_3":"Glitter - Type 3","confetti":"Confetti Foil"}
 PARTICLE_PATH_EFFECTS = frozenset(('galaxy','confetti','glitter_1','glitter_2','glitter_3','halftone','stars','water_beads'))
-COLOR_DEFAULTS = {'stars':'#FFF4C3','halftone':'#121930','neon':'#46F5FF','mirror_shards':'#B8EFFF','chocobo_tracks':'#FFFFFF'}
+COLOR_DEFAULTS = {'stars':'#FFF4C3','halftone':'#121930','neon':'#46F5FF','mirror_shards':'#B8EFFF','mirror_layers':'#B8EFFF','chocobo_tracks':'#FFFFFF'}
 COLOR_DEFAULTS['ukiyo_e']='#FFFFFF'
 COLOR_DEFAULTS['confetti_glitter']='#FFFFFF'
+COLOR_DEFAULTS['dragon_strike']='#FFFFFF'
 COLOR_DEFAULTS.update(PATTERN_COLORS)
 COLOR_DEFAULTS.update(dict.fromkeys(WIND_WAVE_EFFECTS, "#FFFFFF"))
 MATERIAL_PATH = Path(__file__).resolve().parents[1] / 'static/img/card-effects/fracture-foil-material-v1.png'
@@ -34,23 +39,34 @@ EFFECT_TYPES = {
     "stars": "Big Stars", "gold": "Gold Foil Effect", "silver": "Silver Foil Effect",
     "galaxy": "Galaxy Foil Effect", "fracture": "Fracture Foil Effect",
     "chocobo_tracks": "Chocobo Track",
+    "dragon_strike": "Dragon Strike Foil",
     "pearl": "Pearlescent Wash", "etched": "Etched Metal", "watercolor": "Watercolor Texture",
     "halftone": "Halftone Dots", "neon": "Neon Edge Glow",
     **{key:label for key,label in MATERIAL_EFFECTS.items() if key not in CONFETTI_GLITTER_TYPES},
     "ukiyo_e": "Ukiyo-e Style",
     **PATTERN_EFFECTS,
     'mirror_shards':'Dark Mirror Shards · AI Effect',
+    'mirror_layers':'Mirror Layers - AI Effect',
 }
 
 
 def validate_effect(value):
-    if not isinstance(value, dict) or set(value)-{'color','translucence','shards','rotation','position_x','position_y','transparency','black_depth','silver_brightness','stacked','disabled','origin_x','origin_y','ukiyo_type','sparse','flip_horizontal','particle_type'} != {"finish", "strength", "scale", "density", "seed"}:
+    if not isinstance(value, dict) or set(value)-{'color','translucence','shards','mirrors','rotation','position_x','position_y','transparency','black_depth','silver_brightness','stacked','disabled','origin_x','origin_y','ukiyo_type','sparse','flip_horizontal','particle_type','dragon_emblem','dragon_trail','dragon_alignment','dragon_color_effect'} != {"finish", "strength", "scale", "density", "seed"}:
         raise ValueError("Choose valid finishing effect settings.")
     if not isinstance(value["finish"],str) or (value["finish"] not in EFFECT_TYPES and value["finish"] not in RETIRED_EFFECTS and value["finish"] not in WIND_WAVE_EFFECTS and value["finish"] not in CONFETTI_GLITTER_TYPES):
         raise ValueError("Choose a supported finishing effect.")
     for key, low, high in (("strength", 1, 100), ("scale", 25, 1000), ("density", 1, 200), ("seed", 0, 2147483647)):
         if type(value[key]) is not int or not low <= value[key] <= high:
             raise ValueError("Choose valid effect strength, size, density, and pattern.")
+    if value['finish']=='dragon_strike':
+        value=dict(value)
+        for key, choices in (('dragon_emblem',DRAGON_EMBLEMS),('dragon_trail',DRAGON_TRAILS),('dragon_alignment',DRAGON_ALIGNMENTS),('dragon_color_effect',DRAGON_COLOR_EFFECTS)):
+            chosen=value.get(key,next(iter(choices)))
+            if not isinstance(chosen,str) or chosen not in choices and not (key=='dragon_trail' and chosen in LEGACY_DRAGON_TRAILS):
+                raise ValueError('Choose a valid Dragon Strike Foil emblem, path, alignment and color effect.')
+            value[key]=chosen
+    elif {'dragon_emblem','dragon_trail','dragon_alignment','dragon_color_effect'} & set(value):
+        raise ValueError('Dragon settings only apply to Dragon Strike Foil.')
     if value['finish']=='ukiyo_e':
         value=dict(value)
         key=value.get('ukiyo_type','wind_ribbons')
@@ -100,8 +116,12 @@ def validate_effect(value):
         value=dict(value,shards=validate_shards(value.get('shards',{})))
     elif 'shards' in value:
         raise ValueError('Shard settings only apply to Dark Mirror Shards.')
+    if value['finish']=='mirror_layers':
+        value=dict(value,mirrors=validate_mirrors(value.get('mirrors',{})))
+    elif 'mirrors' in value:
+        raise ValueError('Mirror object settings only apply to Mirror Layers.')
     track_keys={'position_x','position_y','transparency'}
-    if value['finish'] in ('chocobo_tracks','ukiyo_e','confetti_glitter') or value['finish'] in PATH_EFFECTS:
+    if value['finish'] in ('chocobo_tracks','dragon_strike','ukiyo_e','confetti_glitter') or value['finish'] in PATH_EFFECTS:
         value=dict(value)
         for key,low,high in (('position_x',-100,100),('position_y',-100,100),('transparency',0,100)):
             number=value.get(key,0)
@@ -128,13 +148,37 @@ def parameters(value):
             'translucence':value.get('translucence',0),
             'rotation':value.get('rotation',0),
             'disabled':value.get('disabled',False),
+            **({'dragon_emblem':value.get('dragon_emblem','bolas_command'),'dragon_trail':value.get('dragon_trail','winding_magic')} if value['finish']=='dragon_strike' else {}),
+            # Preserve the hash of saved bakes from before alignment was selectable.
+            **({'dragon_alignment':value['dragon_alignment']} if value['finish']=='dragon_strike' and 'dragon_alignment' in value else {}),
+            **({'dragon_color_effect':value['dragon_color_effect']} if value['finish']=='dragon_strike' and 'dragon_color_effect' in value else {}),
             **({'particle_type':value.get('particle_type','glitter_1'),'flip_horizontal':value.get('flip_horizontal',False)} if value['finish']=='confetti_glitter' else {}),
             **({'ukiyo_type':value.get('ukiyo_type','wind_ribbons'),'sparse':value.get('sparse',False),'flip_horizontal':value.get('flip_horizontal',False)} if value['finish']=='ukiyo_e' else {}),
             **({'origin_x':value.get('origin_x',20),'origin_y':value.get('origin_y',72)} if value['finish']=='ripple' else {}),
             **({'stacked':value.get('stacked',False)} if value['finish'] in ('flame_1','flame_2') else {}),
             **({'black_depth':value.get('black_depth',0),'silver_brightness':value.get('silver_brightness',90)} if value['finish']=='silver_black' else {}),
-            **({key:value.get(key,0) for key in ('position_x','position_y','transparency')} if value['finish'] in ('chocobo_tracks','ukiyo_e','confetti_glitter') or value['finish'] in PATH_EFFECTS else {}),
-            **({'shards':value.get('shards',{})} if value['finish']=='mirror_shards' else {})}
+            **({key:value.get(key,0) for key in ('position_x','position_y','transparency')} if value['finish'] in ('chocobo_tracks','dragon_strike','ukiyo_e','confetti_glitter') or value['finish'] in PATH_EFFECTS else {}),
+            **({'shards':value.get('shards',{})} if value['finish']=='mirror_shards' else {}),
+            **({'mirrors':value.get('mirrors',{})} if value['finish']=='mirror_layers' else {})}
+
+
+def visual_parameters(value):
+    """Only inputs that change pixels; future generation instructions are metadata."""
+    result = parameters(value)
+    if 'mirrors' in result:
+        mirrors = dict(result['mirrors'])
+        for key in ('target', 'variation', 'theme', 'prompt', 'maintain_style', 'layout', 'layout_seed', 'layout_origin'):
+            mirrors.pop(key, None)
+        mirrors['objects'] = [{key: item for key, item in obj.items()
+                               if key not in ('prompt', 'theme', 'style', 'home', 'focus')}
+                              for obj in mirrors.get('objects', [])]
+        result['mirrors'] = mirrors
+    if 'shards' in result:
+        keys = ('template', 'mirror', 'scene', 'tint', 'scene_rotation', 'scene_zoom', 'scene_skew',
+                'template_scale', 'scene_x', 'scene_y', 'scene_padding', 'template_x', 'template_y',
+                'scene_flip_horizontal', 'scene_flip_vertical')
+        result['shards'] = {key: item for key, item in result['shards'].items() if key in keys}
+    return result
 
 
 def translucence_amount(effect):
@@ -232,13 +276,20 @@ def chocobo_selection(width, height, scale=100, rotation=0, position_x=0, positi
 
 
 def _chocobo_overlay(width, height, effect):
+    if effect['finish']=='dragon_strike' and effect.get('dragon_color_effect','normal')!='normal':
+        alpha=dragon_selection(width,height,effect['scale'],effect['rotation'],effect['position_x'],effect['position_y'],effect['dragon_emblem'],effect['dragon_trail'],effect.get('dragon_alignment','dragon'))
+        return dragon_color_overlay(alpha,effect['dragon_color_effect'],effect['color'])
     # Use the original print foil's reflected colors, tinted by this layer.
     gradient = Image.new('RGB', (128, 128))
     gradient.putdata([tuple(round(c * 255) for c in colorsys.hsv_to_rgb(
         ((x + y * .55) / 160) % 1, .45, 1)) for y in range(128) for x in range(128)])
     image = ImageChops.multiply(gradient.resize((width, height), Image.Resampling.BICUBIC),
                                Image.new('RGB', (width, height), effect['color'])).convert('RGBA')
-    image.putalpha(chocobo_selection(width,height,effect['scale'],effect['rotation'],effect['position_x'],effect['position_y']))
+    if effect['finish']=='dragon_strike':
+        alpha=dragon_selection(width,height,effect['scale'],effect['rotation'],effect['position_x'],effect['position_y'],effect['dragon_emblem'],effect['dragon_trail'],effect.get('dragon_alignment','dragon'))
+    else:
+        alpha=chocobo_selection(width,height,effect['scale'],effect['rotation'],effect['position_x'],effect['position_y'])
+    image.putalpha(alpha)
     return image
 
 
@@ -365,6 +416,10 @@ def render_overlay(mask_png, effect, width=None):
         width=min(3024,width or source.width)
         size=(width,round(width*source.height/source.width))
         alpha=source.getchannel("A").resize(size,Image.Resampling.LANCZOS)
+    if effect['finish']=='mirror_layers' and not alpha.getbbox():
+        # No mask means unrestricted placement. A nonempty mask still clips
+        # every glass/image pixel, identically in preview and PDF export.
+        alpha=Image.new('L',size,255)
     if effect.get('disabled',False):
         output=BytesIO();Image.new('RGBA',size).save(output,format='PNG');return output.getvalue()
     unit=width/756
@@ -376,6 +431,9 @@ def render_overlay(mask_png, effect, width=None):
         image=render_wind_waves(effect['finish'],effect['scale'],effect['density'],effect['seed'],*size,color=effect['color'])
     elif effect['finish'] in PATTERN_EFFECTS or effect['finish'] in RETIRED_EFFECTS:
         image=render_pattern(effect,*size)
+    elif effect['finish']=='mirror_layers':
+        image=render_mirrors(effect['mirrors'],effect['color'],*size,
+                             layer_strength=effect['strength'] if has_strength_overrides(effect['mirrors']) else None)
     elif effect['finish']=='mirror_shards':
         options=effect['shards']
         scene=decode_scene(options['scene']) if options['mirror'] else None
@@ -385,7 +443,7 @@ def render_overlay(mask_png, effect, width=None):
                             scene_x=options['scene_x'],scene_y=options['scene_y'],scene_padding=options['scene_padding'],
                             template_x=options['template_x'],template_y=options['template_y'],
                             scene_flip_horizontal=options['scene_flip_horizontal'],scene_flip_vertical=options['scene_flip_vertical'])
-    elif effect['finish']=='chocobo_tracks':
+    elif effect['finish'] in ('chocobo_tracks','dragon_strike'):
         image=_chocobo_overlay(*size,effect)
     elif effect["finish"]=="neon":
         # A clear interior with a luminous inner edge; never paints outside the mask.
@@ -401,23 +459,29 @@ def render_overlay(mask_png, effect, width=None):
         image=Image.new("RGBA",size,rgb);image.putalpha(glow)
     else:
         image=_texture(effect["finish"],effect["scale"],effect["density"],effect["seed"],*size,effect["color"],effect.get("stacked",False)).copy()
-    if effect['finish'] not in ('mirror_shards','chocobo_tracks','silver_black','neon_ink','ripple','ukiyo_e','confetti_glitter') and effect['finish'] not in PATH_EFFECTS:
+    if effect['finish'] not in ('mirror_layers','mirror_shards','chocobo_tracks','dragon_strike','silver_black','neon_ink','ripple','ukiyo_e','confetti_glitter') and effect['finish'] not in PATH_EFFECTS:
         image=transform_image(image,effect['rotation'],cover_rotation=False)
     image.putalpha(ImageChops.multiply(image.getchannel('A'),alpha))
-    image.putalpha(image.getchannel("A").point(lambda v:round(v*effect["strength"]/100)))
-    if effect['finish'] in ('chocobo_tracks','ukiyo_e','confetti_glitter') or effect['finish'] in PATH_EFFECTS:
+    if effect['finish']!='mirror_layers' or not has_strength_overrides(effect['mirrors']):
+        image.putalpha(image.getchannel("A").point(lambda v:round(v*effect["strength"]/100)))
+    if effect['finish'] in ('chocobo_tracks','dragon_strike','ukiyo_e','confetti_glitter') or effect['finish'] in PATH_EFFECTS:
         image.putalpha(image.getchannel('A').point(lambda v:round(v*(1-effect['transparency']/100))))
-    if effect['finish']=='mirror_shards':
+    if effect['finish'] in ('mirror_shards','mirror_layers'):
         # Generated scenes are detailed even behind transparent gaps. Drop only
         # fully hidden RGB so cached/print PNGs need not retain those pixels.
         image.paste((0,0,0,0),mask=image.getchannel('A').point(lambda v:255 if v==0 else 0))
     output=BytesIO();image.save(output,format="PNG");return output.getvalue()
 
 
+def renderer_version(effect):
+    # A Dragon Strike geometry fix must not force unrelated effects to rebake.
+    return RENDER_VERSION*1000+DRAGON_RENDER_VERSION if effect['finish']=='dragon_strike' else RENDER_VERSION
+
+
 def cached_overlay(mask_png, effect, width=1512):
-    texture_parameters=parameters(effect)
+    texture_parameters=visual_parameters(effect)
     texture_parameters.pop('translucence')  # Applied over the artwork at display/export time.
-    key=hashlib.sha256(mask_png+json.dumps([RENDER_VERSION,texture_parameters,width],sort_keys=True).encode()).hexdigest()
+    key=hashlib.sha256(mask_png+json.dumps([renderer_version(effect),texture_parameters,width],sort_keys=True).encode()).hexdigest()
     CACHE_ROOT.mkdir(parents=True,exist_ok=True)
     target=CACHE_ROOT/(key+".png")
     if not target.is_file():
@@ -438,12 +502,13 @@ def cached_overlay(mask_png, effect, width=1512):
 
 
 def composite_effects(image, layers, trim_size=None, *, extend_bleed=False):
-    """Composite ordered artwork layers, with an optional centered trim footprint."""
+    """Place saved effect pixels, with an optional centered trim footprint."""
+    from .finishing_bakes import saved_overlay
     result=image.convert("RGBA")
     size=trim_size or image.size
     offset=((image.width-size[0])//2,(image.height-size[1])//2)
     for layer in layers:
-        overlay=Image.open(BytesIO(layer['png'] if layer.get('finish')=='art_edit' else render_overlay(layer['png'],parameters(layer),min(3024,size[0]))))
+        overlay=Image.open(BytesIO(layer['png'] if layer.get('finish')=='art_edit' else saved_overlay(layer)))
         overlay=overlay.resize(size,Image.Resampling.LANCZOS)
         if extend_bleed and size != image.size:
             # Continue the edge pixels into print bleed, matching the artwork.

@@ -4,12 +4,13 @@ import math
 from .contracts import PlannerError, OPERATIONS, ANALYSIS_FIELDS, digest, image_digest, validate_analysis, validate_plan
 from .color_reference import measure_palette
 
-def needs_analysis(dictionary, model, operation, style_mode):
+def needs_analysis(dictionary, model, operation, style_mode, requested_change=False):
     if style_mode != 'match':
         return False
     recipe = dictionary['planner']['recipes'][model][operation]
     templates = ' '.join(recipe[key] for key in ('prompt','prompt_compact','negative_prompt'))
-    return any(token in templates for token in ('{boundary}','{scene}')) or ('{style}' in templates and not recipe.get('match_style'))
+    match_style=recipe.get('prompted_match_style',recipe.get('match_style')) if requested_change else recipe.get('match_style')
+    return any(token in templates for token in ('{boundary}','{scene}')) or ('{style}' in templates and not match_style)
 
 
 def compile_plan(*, dictionary, model, model_revision, hardware, operation, instruction, style_mode,
@@ -22,19 +23,30 @@ def compile_plan(*, dictionary, model, model_revision, hardware, operation, inst
         raise PlannerError('This model has no recipe for the selected operation.') from None
     if recipe['status'] == 'unsupported':
         raise PlannerError('This model does not support this operation. Choose another downloaded model.')
-    if operation == 'mirror' and geometry.get('theme') == 'normal':
+    requested_micro = operation=='micro_scene' and bool(geometry.get('has_requested_change'))
+    if requested_micro:
+        recipe['parameters']=recipe.get('prompted_parameters',recipe['parameters'])
+        if recipe.get('prompted_match_style'):recipe['match_style']=recipe['prompted_match_style']
+    elif operation in ('mirror', 'micro_scene') and geometry.get('theme') == 'normal':
         recipe['parameters'] = recipe.get('normal_parameters', recipe['parameters'])
     if style_mode not in ('match', 'custom', 'none'):
         raise PlannerError('Choose Match artwork, Custom description, or No style guidance.')
     analysis = validate_analysis(analysis) if analysis else dict.fromkeys(ANALYSIS_FIELDS, '')
-    if needs_analysis(dictionary, model, operation, style_mode) and not any(analysis[k] for k in ANALYSIS_FIELDS[:6]):
+    if needs_analysis(dictionary, model, operation, style_mode, requested_micro) and not any(analysis[k] for k in ANALYSIS_FIELDS[:6]):
         raise PlannerError('Match artwork requires the local artwork analyzer. Install it in Generative Art AI settings, or enter a custom style description.')
     if style_mode == 'custom' and not custom_style.strip():
         raise PlannerError('Enter a custom artwork style description.')
     style_observations=dict(analysis)
+    # An explicit edit may replace clothing, colors, lighting or expression.
+    # Source palette/caption constraints fight that edit even when followed by
+    # a generic "requested changes take priority" instruction. Keep structural
+    # rendering observations; retain the full analysis in diagnostics only.
+    style_fields = ('medium','brushwork','linework') if requested_micro else ANALYSIS_FIELDS[:6]
+    if requested_micro:
+        style_observations['style_summary']='; '.join(style_observations[k] for k in style_fields if style_observations[k])
     color_reference=None
-    if style_mode=='match' and recipe.get('palette_source')=='reference' and not recipe.get('match_style'):
-        if operation == 'mirror':
+    if style_mode=='match' and not requested_micro and recipe.get('palette_source')=='reference' and not recipe.get('match_style'):
+        if operation in ('mirror','micro_scene'):
             from PIL import Image
             color_reference=measure_palette(reference,Image.new('L',reference.size))
         else:
@@ -42,14 +54,14 @@ def compile_plan(*, dictionary, model, model_revision, hardware, operation, inst
         if color_reference:
             style_observations['palette']=color_reference['description']
             style_observations['style_summary']='; '.join(style_observations[key] for key in ('medium','palette','texture') if style_observations[key])
-    style = custom_style.strip() if style_mode == 'custom' else '; '.join(style_observations[k] for k in ANALYSIS_FIELDS[:6] if style_observations[k]) if style_mode == 'match' else ''
+    style = custom_style.strip() if style_mode == 'custom' else '; '.join(style_observations[k] for k in style_fields if style_observations[k]) if style_mode == 'match' else ''
     if style_mode == 'match' and recipe.get('match_style'):
         style = recipe['match_style']
     directions = geometry.get('directions') or ['selected']
     boundary = '; '.join(f'{side}: {analysis[side]}' for side in directions if side in analysis and analysis[side])
     # Replacements and mirror transformations use the full scene description. Outpainting and removal
     # use boundary context so the subject caption does not request new subjects.
-    context = dict(style=style, instruction=instruction.strip(), scene=analysis['scene'] if operation in ('replace','mirror') else '',
+    context = dict(style=style, instruction=instruction.strip(), scene=analysis['scene'] if operation in ('replace','mirror','micro_scene') and not requested_micro else '',
                    boundary=boundary, directions=', '.join(directions))
     prompt = recipe['prompt'].format_map(context).strip(' .\n')
     negative = recipe['negative_prompt'].format_map(context).strip()
@@ -79,7 +91,7 @@ def compile_plan(*, dictionary, model, model_revision, hardware, operation, inst
     candidates.append(recipe['prompt_compact'].format_map(compact).strip(' .\n'))
     compact['boundary'] = analysis['background_summary'] or boundary
     candidates.append(recipe['prompt_compact'].format_map(compact).strip(' .\n'))
-    if style_mode == 'match': compact['style'] = style if recipe.get('match_style') else '; '.join(style_observations[k] for k in ('medium','palette') if style_observations[k])
+    if style_mode == 'match': compact['style'] = style if recipe.get('match_style') else '; '.join(style_observations[k] for k in (('medium',) if requested_micro else ('medium','palette')) if style_observations[k])
     candidates.append(recipe['prompt_compact'].format_map(compact).strip(' .\n'))
     plan['prompt_candidates'] = list(dict.fromkeys(candidates))
     plan['id'] = digest(plan)

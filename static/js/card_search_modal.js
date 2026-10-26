@@ -369,6 +369,77 @@
     const searchResults = getElement("customDraftCardSearchResults");
     const searchOverlay = getElement("customDraftCardSearchOverlay");
     const closeButton = getElement("customDraftCardSearchCloseButton");
+    const maximizeButton = getElement("customDraftCardSearchMaximizeButton");
+    const doneButton = getElement("customDraftCardSearchDoneButton");
+    const moreOptionsButton = getElement("customDraftMoreOptionsButton");
+    const moreOptionsMenu = getElement("customDraftMoreOptionsMenu");
+    const moreFiltersButton = getElement("customDraftMoreFiltersButton");
+    const advancedFilters = getElement("customDraftAdvancedFilters");
+    const emptyState = getElement("customDraftSearchEmpty");
+    const resultsSummary = getElement("customDraftSearchSummary");
+    const addedCountLabel = getElement("customDraftSearchAddedCount");
+    const seeAnyPrinting = getElement("customDraftSeeAnyPrinting");
+    let addedThisSession = 0;
+    let searchOpener = null;
+    let zoomOpener = null;
+    let importedSearchCards = null;
+    let searchMaximized = false;
+    const windowSizeSetting = "deckadence.cardSearch.maximized";
+
+    function setSearchMaximized(maximized, remember = true) {
+      searchMaximized = Boolean(maximized);
+      searchOverlay?.classList.toggle("card-search-is-maximized", searchMaximized);
+      const action = searchMaximized ? "Restore" : "Maximize";
+      maximizeButton?.setAttribute("aria-label", action + " card search");
+      maximizeButton?.setAttribute("title", action);
+      maximizeButton?.setAttribute("aria-pressed", String(searchMaximized));
+      maximizeButton?.querySelector(".card-search-maximize-icon")?.classList.toggle("hidden", searchMaximized);
+      maximizeButton?.querySelector(".card-search-restore-icon")?.classList.toggle("hidden", !searchMaximized);
+      if (remember) {
+        try {
+          window.localStorage.setItem(windowSizeSetting, searchMaximized ? "1" : "0");
+        } catch (_) {
+          // Keep the choice for this page when browser storage is unavailable.
+        }
+      }
+    }
+
+    function restoreSearchWindowSize() {
+      try {
+        const saved = window.localStorage.getItem(windowSizeSetting);
+        if (saved !== null) searchMaximized = saved === "1";
+      } catch (_) {
+        // The current in-memory choice still works without browser storage.
+      }
+      setSearchMaximized(searchMaximized, false);
+    }
+
+    function setMoreOptionsOpen(open, restoreFocus = false) {
+      moreOptionsMenu?.classList.toggle("hidden", !open);
+      moreOptionsButton?.setAttribute("aria-expanded", String(open));
+      if (restoreFocus) moreOptionsButton?.focus();
+    }
+
+    function updateAdvancedFilterCount() {
+      const count = [searchManaOperatorFilter, searchManaValueFilter,
+        searchYearStartFilter, searchYearEndFilter, searchExcludeAddedFilter]
+        .filter(field => field?.value).length + (searchDigitalFilter?.value !== "exclude" ? 1 : 0);
+      const label = getElement("customDraftAdvancedFilterCount");
+      if (label) label.textContent = count ? " (" + count + ")" : "";
+    }
+
+    function recordAdded(count = 1) {
+      addedThisSession += count;
+      if (addedCountLabel) addedCountLabel.textContent = addedThisSession + " card" + (addedThisSession === 1 ? "" : "s") + " added";
+    }
+
+    function searchArtworkUrl(raw, fullSize = false) {
+      const source = window.iMomirImageUrl ? window.iMomirImageUrl(raw) : raw;
+      if (!source || !fullSize) return source || "";
+      const url = new URL(source, location.href);
+      url.pathname = url.pathname.replace("/chaos-card-image-preview/", "/chaos-card-image/");
+      return url.href;
+    }
 
     const searchRarityFilter = getElement("customDraftSearchRarityFilter");
     const searchColorFilter = getElement("customDraftSearchColorFilter");
@@ -399,6 +470,14 @@
       "customDraftSearchClearFiltersButton",
     );
     const addAllResultsButton = getElement("customDraftAddAllResultsButton");
+    const customCardButton = getElement("customDraftCreateCardButton");
+    customCardButton?.addEventListener("click", function () {
+      setMoreOptionsOpen(false, true);
+      window.iMomirCustomCardModal?.open(async function (card, isFoil) {
+        const row = createSearchResultPrintingRow(card);
+        return await addCard(card.card_uuid, row.querySelector(".custom-draft-card-add-button"), true, isFoil);
+      });
+    });
 
     const bulkImportToggleButton = getElement(
       "customDraftBulkImportToggleButton",
@@ -422,6 +501,10 @@
     const clientAddedPrintingKeyLookup = new Set();
 
     function updateAddAllResultsButtonState() {
+      moreOptionsButton?.classList.toggle("hidden", Boolean(activeChangePrintingState));
+      if (customCardButton) {
+        customCardButton.classList.toggle("hidden", Boolean(activeChangePrintingState) || !config.addUrl);
+      }
       if (!addAllResultsButton) {
         return;
       }
@@ -445,29 +528,21 @@
       modalZoomOverlay.className =
         "custom-draft-card-search-zoom-overlay hidden";
       modalZoomOverlay.setAttribute("aria-hidden", "true");
-
-      modalZoomOverlay.style.position = "fixed";
-      modalZoomOverlay.style.inset = "0";
-      modalZoomOverlay.style.zIndex = "99999";
-      modalZoomOverlay.style.display = "none";
-      modalZoomOverlay.style.alignItems = "center";
-      modalZoomOverlay.style.justifyContent = "center";
-      modalZoomOverlay.style.background = "rgba(0, 0, 0, 0.72)";
-      modalZoomOverlay.style.backdropFilter = "blur(3px)";
-      modalZoomOverlay.style.padding = "24px";
-      modalZoomOverlay.style.cursor = "zoom-out";
+      modalZoomOverlay.setAttribute("role", "dialog");
+      modalZoomOverlay.setAttribute("aria-modal", "true");
+      modalZoomOverlay.setAttribute("aria-label", "Card image preview");
+      modalZoomOverlay.dataset.cardFinishing = "off";
 
       modalZoomImage = document.createElement("img");
       modalZoomImage.className = "custom-draft-card-search-zoom-image";
       modalZoomImage.alt = "Card preview";
 
-      modalZoomImage.style.maxWidth = "min(92vw, 520px)";
-      modalZoomImage.style.maxHeight = "92vh";
-      modalZoomImage.style.objectFit = "contain";
-      modalZoomImage.style.borderRadius = "16px";
-      modalZoomImage.style.boxShadow = "0 24px 80px rgba(0, 0, 0, 0.75)";
-      modalZoomImage.style.cursor = "zoom-out";
-
+      const dismiss = document.createElement("button");
+      dismiss.type = "button";
+      dismiss.className = "card-search-zoom-close";
+      dismiss.textContent = "×";
+      dismiss.setAttribute("aria-label", "Close card preview");
+      modalZoomOverlay.appendChild(dismiss);
       modalZoomOverlay.appendChild(modalZoomImage);
       document.body.appendChild(modalZoomOverlay);
 
@@ -484,12 +559,13 @@
       }
 
       ensureModalZoomOverlay();
-
+      zoomOpener = document.activeElement;
+      if (searchOverlay) searchOverlay.inert = true;
       modalZoomImage.src = cleanImageSrc;
       modalZoomImage.alt = imageAlt || "Card preview";
       modalZoomOverlay.classList.remove("hidden");
       modalZoomOverlay.setAttribute("aria-hidden", "false");
-      modalZoomOverlay.style.display = "flex";
+      modalZoomOverlay.querySelector("button").focus();
     }
 
     function closeModalImageZoom() {
@@ -499,9 +575,10 @@
 
       modalZoomOverlay.classList.add("hidden");
       modalZoomOverlay.setAttribute("aria-hidden", "true");
-      modalZoomOverlay.style.display = "none";
+      if (searchOverlay) searchOverlay.inert = false;
       modalZoomImage.src = "";
       modalZoomImage.alt = "Card preview";
+      if (zoomOpener?.isConnected) zoomOpener.focus({preventScroll: true});
     }
 
     function bindModalZoomableImages() {
@@ -982,15 +1059,25 @@
         Boolean(isError),
       );
       searchStatus.classList.toggle("hidden", !cleanMessage);
+      const importStatus = getElement("customDraftBulkImportStatus");
+      if (importStatus && bulkImportPanel?.classList.contains("custom-draft-bulk-import-panel-open")) {
+        importStatus.textContent = cleanMessage;
+        importStatus.classList.toggle("hidden", !cleanMessage);
+        importStatus.classList.toggle("custom-draft-card-search-status-error", Boolean(isError));
+      }
     }
 
     function clearSearchResults() {
+      importedSearchCards = null;
+      abortPrintingRequests();
       if (!searchResults) {
         return;
       }
 
       searchResults.innerHTML = "";
       searchResults.classList.add("hidden");
+      emptyState?.classList.remove("hidden");
+      if (resultsSummary) resultsSummary.textContent = "Your card library";
     }
 
     function hidePagination() {
@@ -1346,11 +1433,13 @@
       const image = document.createElement("img");
       image.className =
         "custom-draft-card-search-image custom-draft-card-zoomable";
-      image.src = card.image_src || "";
+      image.loading = "lazy";
+      image.decoding = "async";
+      image.src = searchArtworkUrl(card.image_src);
       image.alt = card.card_name || "Card";
       image.setAttribute("role", "button");
       image.setAttribute("tabindex", "0");
-      image.dataset.zoomSrc = card.image_src || "";
+      image.dataset.zoomSrc = searchArtworkUrl(card.image_src, true);
       image.dataset.zoomAlt = card.card_name || "Card";
 
       imageWrap.appendChild(image);
@@ -1360,7 +1449,7 @@
 
       const title = document.createElement("div");
       title.className = "custom-draft-card-search-title";
-      title.textContent = card.card_name || "Unknown Card";
+      title.textContent = card.set_name || card.set_code || "Custom printing";
 
       if (hasAlternateSource) {
         const alternateBadge = document.createElement("span");
@@ -1401,8 +1490,6 @@
       const meta = document.createElement("div");
       meta.className = "custom-draft-card-search-meta";
 
-      const displayManaValue = manaValue || "?";
-
       const metaLineOne = document.createElement("div");
       metaLineOne.className = "custom-draft-card-search-meta-line";
       metaLineOne.textContent = [
@@ -1410,20 +1497,6 @@
         card.release_year ? card.release_year : "",
         card.collector_number ? "#" + card.collector_number : "",
         card.rarity || "",
-        "MV " + displayManaValue,
-        "EDHREC " +
-          (card.edhrec_rank === null || card.edhrec_rank === undefined
-            ? "?"
-            : card.edhrec_rank),
-        "Salt " +
-          (card.edhrec_saltiness === null || card.edhrec_saltiness === undefined
-            ? "?"
-            : Number(card.edhrec_saltiness).toFixed(2)),
-        "Color Identity: " +
-          getColorIdentityLabel(
-            card.color_identity_json || "[]",
-            card.type_line || "",
-          ),
       ]
         .filter(Boolean)
         .join(" • ");
@@ -1431,9 +1504,13 @@
       const metaLineTwo = document.createElement("div");
       metaLineTwo.className = "custom-draft-card-search-type-line";
       metaLineTwo.textContent = card.type_line || "";
+      meta.title = [
+        "Color identity: " + getColorIdentityLabel(card.color_identity_json || "[]", card.type_line || ""),
+        card.edhrec_rank != null ? "EDHREC " + card.edhrec_rank : "",
+        card.edhrec_saltiness != null ? "Salt " + Number(card.edhrec_saltiness).toFixed(2) : "",
+      ].filter(Boolean).join(" • ");
 
       meta.appendChild(metaLineOne);
-      metaLineOne.appendChild(window.DeckadencePrices.create(card));
       meta.appendChild(metaLineTwo);
 
       main.appendChild(title);
@@ -1578,217 +1655,173 @@
       }
 
       const headerButton = groupElement.querySelector(
-        ".custom-draft-card-search-group-header",
+        ".card-search-printings-toggle",
       );
-      const expandIcon = groupElement.querySelector(
-        ".custom-draft-card-search-group-expand-icon",
-      );
-
       groupElement.classList.remove("custom-draft-card-search-group-expanded");
 
       if (headerButton) {
         headerButton.setAttribute("aria-expanded", "false");
       }
 
-      if (expandIcon) {
-        expandIcon.textContent = "+";
-      }
     }
 
     function updateSearchResultGroupFromAddedRow(resultRow) {
-      if (!resultRow) {
+      const group = resultRow?.closest(".custom-draft-card-search-group");
+      if (!group) return;
+      const restoreFocus = resultRow.contains(document.activeElement);
+      // Keep the representative artwork aligned with the header's Add action.
+      collapseSearchResultGroup(group);
+      if (restoreFocus) group.querySelector(".card-search-printings-toggle")?.focus();
+    }
+
+    function abortPrintingRequests() {
+      searchResults?.querySelectorAll(".custom-draft-card-search-group").forEach(group => group.printingsAbortController?.abort());
+    }
+
+    function renderGroupPrintings(groupElement, cards, allPrintings) {
+      const printings = groupElement.querySelector(".custom-draft-card-search-group-printings");
+      printings.querySelectorAll(".custom-draft-card-search-row").forEach(row => row.remove());
+      const fragment = document.createDocumentFragment();
+      const grouped = getGroupedSearchCards(cards);
+      grouped.forEach(group => group.cards.forEach(card => fragment.appendChild(createSearchResultPrintingRow(card))));
+      printings.appendChild(fragment);
+      groupElement.dataset.allPrintings = allPrintings ? "1" : "0";
+      refreshSearchResultAddedStates();
+      bindModalZoomableImages();
+      filterSearchResults();
+    }
+
+    async function loadAllPrintings(groupElement) {
+      if (groupElement.allPrintingCards) {
+        if (seeAnyPrinting?.checked) renderGroupPrintings(groupElement, groupElement.allPrintingCards, true);
         return;
       }
-
-      const groupElement = resultRow.closest(".custom-draft-card-search-group");
-
-      if (!groupElement) {
-        return;
+      if (groupElement.printingsAbortController) return;
+      const controller = new AbortController();
+      groupElement.printingsAbortController = controller;
+      const feedback = groupElement.querySelector(".card-search-printings-feedback");
+      feedback.textContent = "Loading all printings…";
+      feedback.classList.remove("hidden");
+      groupElement.querySelector(".card-search-printings-toggle").setAttribute("aria-busy", "true");
+      try {
+        const cardsByUuid = new Map(groupElement.matchingCards.map(card => [card.card_uuid, card]));
+        let page = 1;
+        let totalPages = 1;
+        do {
+          const url = new URL(config.searchUrl, location.href);
+          url.searchParams.set("printing_card_uuid", groupElement.dataset.primaryCardUuid);
+          url.searchParams.set("page_size", "1000");
+          url.searchParams.set("page", String(page));
+          const response = await fetch(url, {headers: {Accept: "application/json"}, signal: controller.signal});
+          const payload = await response.json();
+          if (!response.ok || !payload.ok) throw new Error(payload.message || "Could not load printings.");
+          (payload.results || []).forEach(card => cardsByUuid.set(card.card_uuid, card));
+          totalPages = Math.max(1, Number(payload.total_pages) || 1);
+          page += 1;
+          if (!groupElement.isConnected || controller.signal.aborted) return;
+        } while (page <= totalPages);
+        groupElement.allPrintingCards = [...cardsByUuid.values()];
+        if (seeAnyPrinting?.checked) renderGroupPrintings(groupElement, groupElement.allPrintingCards, true);
+        feedback.classList.add("hidden");
+      } catch (error) {
+        if (error.name !== "AbortError" && groupElement.isConnected && seeAnyPrinting?.checked) {
+          feedback.textContent = "Could not load all printings. ";
+          const retry = document.createElement("button");
+          retry.type = "button";
+          retry.className = "card-search-quiet-button";
+          retry.textContent = "Retry";
+          retry.addEventListener("click", () => loadAllPrintings(groupElement));
+          feedback.appendChild(retry);
+        }
+      } finally {
+        groupElement.printingsAbortController = null;
+        groupElement.querySelector(".card-search-printings-toggle").removeAttribute("aria-busy");
       }
-
-      const groupImage = groupElement.querySelector(
-        ".custom-draft-card-search-group-image",
-      );
-      const groupMeta = groupElement.querySelector(
-        ".custom-draft-card-search-group-meta",
-      );
-      const addedPill = groupElement.querySelector(
-        ".custom-draft-card-search-group-added-pill",
-      );
-
-      const imageSrc = resultRow.dataset.imageSrc || "";
-      const displayCardName = resultRow.dataset.displayCardName || "";
-      const setCode = resultRow.dataset.setCode || "";
-      const releaseYear = resultRow.dataset.releaseYear || "";
-      const collectorNumber = resultRow.dataset.collectorNumber || "";
-      const rarityDisplay = resultRow.dataset.rarityDisplay || "";
-      const manaValue = resultRow.dataset.manaValue || "";
-      const typeLine = resultRow.dataset.typeLine || "";
-
-      if (groupImage && imageSrc) {
-        groupImage.src = imageSrc;
-        groupImage.alt = displayCardName || "Added card";
-        groupImage.dataset.zoomSrc = imageSrc;
-        groupImage.dataset.zoomAlt = displayCardName || "Added card";
-      }
-
-      if (groupMeta) {
-        groupMeta.textContent = [
-          "Added: " + (setCode || "?"),
-          releaseYear || "",
-          collectorNumber ? "#" + collectorNumber : "",
-          rarityDisplay || "",
-          manaValue ? "MV " + manaValue : "",
-          typeLine || "",
-        ]
-          .filter(Boolean)
-          .join(" • ");
-      }
-
-      if (addedPill) {
-        addedPill.classList.remove("hidden");
-      }
-
-      collapseSearchResultGroup(groupElement);
     }
 
     function createSearchResultGroup(group) {
-      const representativeCard =
-        group.representative_card || group.cards[0] || {};
+      const representative = group.representative_card || group.cards[0] || {};
       const groupElement = document.createElement("div");
       groupElement.className = "custom-draft-card-search-group";
-
-      const startsExpanded = false;
-
-      groupElement.classList.toggle(
-        "custom-draft-card-search-group-expanded",
-        startsExpanded,
-      );
-
-      const headerButton = document.createElement("div");
-      headerButton.className = "custom-draft-card-search-group-header";
-      headerButton.setAttribute("role", "button");
-      headerButton.setAttribute("tabindex", "0");
-      headerButton.setAttribute(
-        "aria-expanded",
-        startsExpanded ? "true" : "false",
-      );
-
+      groupElement.dataset.primaryCardUuid = representative.card_uuid || "";
+      groupElement.matchingCards = group.cards;
+      groupElement.matchingCardUuids = new Set(group.cards.map(card => card.card_uuid));
+      const header = document.createElement("div");
+      header.className = "custom-draft-card-search-group-header";
       const imageWrap = document.createElement("div");
       imageWrap.className = "custom-draft-card-search-group-image-wrap";
-
       const image = document.createElement("img");
-      image.className =
-        "custom-draft-card-search-group-image custom-draft-card-zoomable";
-      image.src = representativeCard.image_src || "";
+      image.className = "custom-draft-card-search-group-image custom-draft-card-zoomable";
+      image.src = searchArtworkUrl(representative.image_src);
+      image.loading = "lazy";
+      image.decoding = "async";
       image.alt = group.card_name || "Card";
       image.setAttribute("role", "button");
-      image.setAttribute("tabindex", "0");
-      image.dataset.zoomSrc = representativeCard.image_src || "";
-      image.dataset.zoomAlt = group.card_name || "Card";
-
+      image.tabIndex = 0;
+      image.dataset.zoomSrc = searchArtworkUrl(representative.image_src, true);
+      image.dataset.zoomAlt = image.alt;
       imageWrap.appendChild(image);
-
       const main = document.createElement("div");
       main.className = "custom-draft-card-search-group-main";
-
-      const titleRow = document.createElement("div");
-      titleRow.className = "custom-draft-card-search-group-title-row";
-
       const title = document.createElement("div");
       title.className = "custom-draft-card-search-group-title";
       title.textContent = group.card_name || "Unknown Card";
-
-      const countBadge = document.createElement("span");
-      countBadge.className = "custom-draft-card-search-group-count";
-      countBadge.textContent = group.cards.length + " printing(s)";
-
-      titleRow.appendChild(title);
-      titleRow.appendChild(countBadge);
-
       const meta = document.createElement("div");
       meta.className = "custom-draft-card-search-group-meta";
-      meta.textContent = [
-        representativeCard.set_code
-          ? "Newest: " + representativeCard.set_code
-          : "",
-        representativeCard.release_year || "",
-        representativeCard.rarity || "",
-        representativeCard.type_line || "",
-        !activeChangePrintingState && group.already_in_set_count > 0
-          ? group.already_in_set_count + " already added"
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" • ");
-
-      main.appendChild(titleRow);
-      main.appendChild(meta);
-
-      const addedPill = document.createElement("div");
-      addedPill.className = "custom-draft-card-search-group-added-pill";
-      addedPill.classList.toggle(
-        "hidden",
-        Boolean(activeChangePrintingState) || !(group.already_in_set_count > 0),
-      );
-      addedPill.textContent =
-        group.already_in_set_count > 1
-          ? group.already_in_set_count + " Added"
-          : "Added";
-
-      const expandIcon = document.createElement("div");
-      expandIcon.className = "custom-draft-card-search-group-expand-icon";
-      expandIcon.textContent = startsExpanded ? "−" : "+";
-
-      headerButton.appendChild(imageWrap);
-      headerButton.appendChild(main);
-      headerButton.appendChild(addedPill);
-      headerButton.appendChild(expandIcon);
-
-      const printingsWrap = document.createElement("div");
-      printingsWrap.className = "custom-draft-card-search-group-printings";
-
-      group.cards.forEach(function (card) {
-        printingsWrap.appendChild(createSearchResultPrintingRow(card));
+      const manaLabel = representative.mana_value == null || representative.mana_value === "" ? "" : "MV " + representative.mana_value;
+      meta.textContent = [representative.type_line, representative.set_name || representative.set_code, representative.release_year, manaLabel].filter(Boolean).join(" • ");
+      main.append(title, meta);
+      const addedPill = document.createElement("span");
+      addedPill.className = "custom-draft-card-search-group-added-pill hidden";
+      addedPill.textContent = "Added";
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "card-search-printings-toggle";
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.setAttribute("aria-label", "Show printings of " + group.card_name);
+      const count = document.createElement("span");
+      count.className = "custom-draft-card-search-group-count";
+      const expandIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      expandIcon.classList.add("custom-draft-card-search-group-expand-icon");
+      expandIcon.setAttribute("viewBox", "0 0 24 24");
+      expandIcon.setAttribute("aria-hidden", "true");
+      expandIcon.setAttribute("focusable", "false");
+      const chevron = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      chevron.setAttribute("d", "m6 9 6 6 6-6");
+      expandIcon.appendChild(chevron);
+      toggle.append(count, expandIcon);
+      const printings = document.createElement("div");
+      printings.className = "custom-draft-card-search-group-printings";
+      printings.id = "search-printings-" + String(representative.card_uuid || "");
+      toggle.setAttribute("aria-controls", printings.id);
+      const feedback = document.createElement("div");
+      feedback.className = "card-search-printings-feedback hidden";
+      feedback.setAttribute("role", "status");
+      printings.appendChild(feedback);
+      group.cards.forEach(card => printings.appendChild(createSearchResultPrintingRow(card)));
+      toggle.addEventListener("click", () => {
+        const expanded = groupElement.classList.toggle("custom-draft-card-search-group-expanded");
+        toggle.setAttribute("aria-expanded", String(expanded));
+        if (expanded && seeAnyPrinting?.checked) loadAllPrintings(groupElement);
       });
-
-      function toggleGroupExpanded(event) {
-        if (
-          event &&
-          event.target &&
-          event.target.closest(".custom-draft-card-zoomable")
-        ) {
-          return;
-        }
-
-        const isExpanded = groupElement.classList.contains(
-          "custom-draft-card-search-group-expanded",
-        );
-        const nextExpanded = !isExpanded;
-
-        groupElement.classList.toggle(
-          "custom-draft-card-search-group-expanded",
-          nextExpanded,
-        );
-        headerButton.setAttribute(
-          "aria-expanded",
-          nextExpanded ? "true" : "false",
-        );
-        expandIcon.textContent = nextExpanded ? "−" : "+";
+      header.append(imageWrap, main, addedPill, toggle);
+      if (!activeChangePrintingState) {
+        const add = document.createElement("button");
+        add.type = "button";
+        add.className = "action-button secondary-button card-search-group-add";
+        add.textContent = "Add";
+        add.addEventListener("click", async () => {
+          const row = groupElement.primarySearchRow;
+          const rowButton = row?.querySelector(".custom-draft-card-add-button");
+          if (!rowButton || rowButton.disabled) return;
+          add.disabled = true;
+          add.textContent = "Adding…";
+          await addCard(row.dataset.cardUuid, rowButton);
+          filterSearchResults();
+        });
+        header.appendChild(add);
       }
-
-      headerButton.addEventListener("click", toggleGroupExpanded);
-
-      headerButton.addEventListener("keydown", function (event) {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          toggleGroupExpanded(event);
-        }
-      });
-
-      groupElement.appendChild(headerButton);
-      groupElement.appendChild(printingsWrap);
-
+      groupElement.append(header, printings);
       return groupElement;
     }
 
@@ -1797,7 +1830,10 @@
         return;
       }
 
+      abortPrintingRequests();
       searchResults.innerHTML = "";
+      emptyState?.classList.add("hidden");
+      if (resultsSummary) resultsSummary.textContent = "0 results";
 
       if (!cards || !cards.length) {
         const emptyRow = document.createElement("div");
@@ -1820,9 +1856,6 @@
 
       bindModalZoomableImages();
 
-      if (typeof config.bindZoomableImages === "function") {
-        config.bindZoomableImages();
-      }
 
       searchResults.classList.remove("hidden");
       filterSearchResults();
@@ -1854,12 +1887,17 @@
       const groups = Array.from(
         searchResults.querySelectorAll(".custom-draft-card-search-group"),
       );
+      let visibleGroups = 0;
+      let visiblePrintings = 0;
 
       groups.forEach(function (groupElement) {
         const rows = Array.from(
           groupElement.querySelectorAll(".custom-draft-card-search-row"),
         );
         let visibleCount = 0;
+        let matchingVisibleCount = 0;
+        const showAllPrintings = seeAnyPrinting?.checked && groupElement.dataset.allPrintings === "1";
+        const matchingVisibleRows = [];
 
         rows.forEach(function (row) {
           const rowRarity = row.dataset.rarity || "";
@@ -1882,13 +1920,19 @@
             excludeAddedValue !== "exclude" ||
             !row.classList.contains("custom-draft-card-search-row-disabled");
 
-          const isVisible =
+          const matchesFilters =
             rarityMatches &&
             colorMatches &&
             manaMatches &&
             typeMatches &&
             digitalMatches &&
             excludeAddedMatches;
+
+          if (matchesFilters && groupElement.matchingCardUuids.has(row.dataset.cardUuid)) {
+            matchingVisibleCount += 1;
+            matchingVisibleRows.push(row);
+          }
+          const isVisible = showAllPrintings || matchesFilters;
 
           row.classList.toggle("hidden", !isVisible);
 
@@ -1897,22 +1941,36 @@
           }
         });
 
-        groupElement.classList.toggle("hidden", visibleCount === 0);
+        groupElement.classList.toggle("hidden", matchingVisibleCount === 0);
+        if (matchingVisibleCount) visibleGroups++;
+        visiblePrintings += matchingVisibleCount;
+        const primaryRow = matchingVisibleRows.find(row => row.dataset.cardUuid === groupElement.dataset.primaryCardUuid) || matchingVisibleRows[0];
+        groupElement.primarySearchRow = primaryRow;
+        const quickAdd = groupElement.querySelector(".card-search-group-add");
+        const primaryButton = primaryRow?.querySelector(".custom-draft-card-add-button");
+        if (quickAdd) {
+          quickAdd.disabled = !primaryButton || primaryButton.disabled;
+          quickAdd.textContent = primaryButton?.textContent || "Add";
+          quickAdd.title = primaryRow ? "Add " + primaryRow.dataset.displayCardName + " (" + primaryRow.dataset.setCode + ")" : "Add";
+        }
 
         const countBadge = groupElement.querySelector(
           ".custom-draft-card-search-group-count",
         );
         if (countBadge) {
           const totalCount = rows.length;
-          countBadge.textContent =
+          countBadge.textContent = seeAnyPrinting?.checked && !showAllPrintings ? "All printings" :
             visibleCount === totalCount
-              ? totalCount + " printing(s)"
-              : visibleCount + " of " + totalCount + " printing(s)";
+              ? totalCount + " printing" + (totalCount === 1 ? "" : "s")
+              : visibleCount + " of " + totalCount + " printings";
         }
       });
+      if (groups.length && resultsSummary) resultsSummary.textContent = visibleGroups + " card" + (visibleGroups === 1 ? "" : "s") + " · " + visiblePrintings + (seeAnyPrinting?.checked ? " matching printing" : " printing") + (visiblePrintings === 1 ? "" : "s") + " on this page";
+      updateAdvancedFilterCount();
     }
 
     async function runCardSearch(page) {
+      importedSearchCards = null;
       if (!searchButton) {
         return;
       }
@@ -1985,7 +2043,7 @@
           const end = Math.min(currentSearchPage * pageSize, totalCount);
           setSearchStatus(
             "Showing " +
-              start +
+              (totalCount ? start : 0) +
               "–" +
               end +
               " of " +
@@ -2172,6 +2230,10 @@
         }
 
         setSearchStatus(statusText, false);
+        importedSearchCards = modeResults;
+        hidePagination();
+        setBulkImportPanelOpen(false);
+        searchResults.querySelector(".card-search-printings-toggle")?.focus();
       } catch (error) {
         console.error(error);
         clearSearchResults();
@@ -2252,7 +2314,7 @@
       }
     }
 
-    async function addCard(cardUuid, button) {
+    async function addCard(cardUuid, button, customCardCreation = false, isFoil = false) {
       if (!cardUuid || !button || !config.addUrl) {
         return;
       }
@@ -2270,6 +2332,8 @@
           },
           body: JSON.stringify({
             card_uuid: cardUuid,
+            custom_card_creation: customCardCreation,
+            is_foil: isFoil,
           }),
         });
 
@@ -2277,6 +2341,16 @@
 
         if (!response.ok || !payload.ok) {
           throw new Error(payload.message || "Failed to add card.");
+        }
+
+        // Sets allow one printing per name. A rejected alternative must not
+        // appear as an added printing or enter the client-side added cache.
+        if (payload.inserted === false && !payload.card && config.addAllResultsUrl) {
+          button.classList.remove("action-button-loading");
+          button.disabled = false;
+          button.textContent = "Add";
+          setSearchStatus((payload.message || "This card is already in the set.") + " Use Change Printing in the set card list to replace it.", false);
+          return false;
         }
 
         button.classList.remove("action-button-loading");
@@ -2317,12 +2391,18 @@
           payload.message || "Card added. Search results remain open.",
           false,
         );
+        clientAddedCardUuidLookup.add(cardUuid);
+        if (payload.inserted !== false) recordAdded();
+        refreshSearchResultAddedStates();
+        filterSearchResults();
+        return true;
       } catch (error) {
         console.error(error);
         button.disabled = false;
         button.classList.remove("action-button-loading");
         button.textContent = "Add";
         showMessage(error.message || "Failed to add card.", true);
+        return false;
       }
     }
 
@@ -2407,6 +2487,14 @@
         "aria-expanded",
         isOpen ? "true" : "false",
       );
+      setMoreOptionsOpen(false);
+      const mainWindow = searchOverlay?.querySelector(".custom-draft-card-search-window");
+      if (mainWindow) mainWindow.inert = Boolean(isOpen);
+      if (isOpen) {
+        getElement("customDraftBulkImportStatus")?.classList.add("hidden");
+        bulkImportText?.focus();
+      }
+      else if (bulkImportPanel.contains(document.activeElement)) moreOptionsButton?.focus();
     }
 
     function resetModalResultsForModeChange() {
@@ -2441,9 +2529,12 @@
         return;
       }
 
+      searchOpener = document.activeElement;
+      restoreSearchWindowSize();
       searchOverlay.classList.remove("hidden");
       searchOverlay.setAttribute("aria-hidden", "false");
       document.body.classList.add("custom-draft-search-maximized-active");
+      updateAdvancedFilterCount();
 
       if (searchInput) {
         window.setTimeout(function () {
@@ -2457,10 +2548,13 @@
         return;
       }
 
+      abortPrintingRequests();
       setBulkImportPanelOpen(false);
+      setMoreOptionsOpen(false);
       searchOverlay.classList.add("hidden");
       searchOverlay.setAttribute("aria-hidden", "true");
       document.body.classList.remove("custom-draft-search-maximized-active");
+      if (searchOpener?.isConnected) searchOpener.focus({preventScroll: true});
 
       activeChangePrintingState = null;
 
@@ -2472,6 +2566,9 @@
 
     function openAddCards() {
       activeChangePrintingState = null;
+      addedThisSession = 0;
+      recordAdded(0);
+      addedCountLabel?.classList.remove("hidden");
 
       /*
        * Important:
@@ -2495,7 +2592,7 @@
 
       setModalTitle(
         "Add Cards",
-        "Search by card name, set, color identity, rarity, mana value, year, spell type, EDHREC rank, or saltiness.",
+        config.addAllResultsUrl ? "Choose cards for your custom set" : "Add cards to your deck’s sideboard",
       );
 
       open();
@@ -2510,6 +2607,7 @@
 
       currentSearchTotalCount = 0;
       updateAddAllResultsButtonState();
+      addedCountLabel?.classList.add("hidden");
 
       setModalTitle(
         "Change Printing",
@@ -2565,6 +2663,7 @@
     }
 
     function clearSearchFilters() {
+      if (seeAnyPrinting) seeAnyPrinting.checked = false;
       currentSearchTotalCount = 0;
       updateAddAllResultsButtonState();
 
@@ -2622,9 +2721,58 @@
       clearSearchResults();
       hidePagination();
       setSearchStatus("", false);
+      updateAdvancedFilterCount();
     }
 
     function bindEvents() {
+      document.addEventListener("deckadence:custom-card-deleted", function (event) {
+        const uuid = event.detail?.cardUuid;
+        if (!uuid) return;
+        clientAddedCardUuidLookup.delete(uuid);
+        if (importedSearchCards) {
+          importedSearchCards = importedSearchCards.filter(card => card.card_uuid !== uuid);
+          renderSearchResults(importedSearchCards);
+        } else if (searchResults?.querySelector('[data-card-uuid="' + CSS.escape(uuid) + '"]')) {
+          clearSearchResults();
+          hidePagination();
+        }
+      });
+      seeAnyPrinting?.addEventListener("change", () => {
+        searchResults.querySelectorAll(".custom-draft-card-search-group").forEach(group => {
+          if (!seeAnyPrinting.checked) {
+            if (group.dataset.allPrintings === "1") renderGroupPrintings(group, group.matchingCards, false);
+            group.querySelector(".card-search-printings-feedback").classList.add("hidden");
+          } else if (group.classList.contains("custom-draft-card-search-group-expanded")) {
+            loadAllPrintings(group);
+          }
+        });
+        filterSearchResults();
+      });
+      maximizeButton?.addEventListener("click", () => setSearchMaximized(!searchMaximized));
+      moreOptionsButton?.addEventListener("click", () => setMoreOptionsOpen(moreOptionsMenu.classList.contains("hidden")));
+      moreOptionsButton?.addEventListener("keydown", event => {
+        if (event.key !== "ArrowDown") return;
+        event.preventDefault();
+        setMoreOptionsOpen(true);
+        moreOptionsMenu.querySelector("button:not(.hidden)")?.focus();
+      });
+      moreOptionsMenu?.addEventListener("keydown", event => {
+        if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const items = [...moreOptionsMenu.querySelectorAll("button:not(.hidden)")];
+        const index = items.indexOf(document.activeElement);
+        const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (index + (event.key === "ArrowDown" ? 1 : items.length - 1)) % items.length;
+        items[next]?.focus();
+      });
+      moreFiltersButton?.addEventListener("click", () => {
+        const expanded = advancedFilters.classList.contains("hidden");
+        advancedFilters.classList.toggle("hidden", !expanded);
+        moreFiltersButton.setAttribute("aria-expanded", String(expanded));
+      });
+      advancedFilters?.addEventListener("input", updateAdvancedFilterCount);
+      advancedFilters?.addEventListener("change", updateAdvancedFilterCount);
+      doneButton?.addEventListener("click", close);
+      getElement("customDraftBulkImportCloseButton")?.addEventListener("click", () => setBulkImportPanelOpen(false));
       if (bulkImportToggleButton) {
         bulkImportToggleButton.addEventListener("click", function () {
           const isOpen = bulkImportPanel
@@ -2711,6 +2859,11 @@
         });
       }
 
+      searchSortSelect?.addEventListener("change", () => {
+        if (importedSearchCards) renderSearchResults(importedSearchCards);
+        else if (!searchResults?.classList.contains("hidden") && getAdvancedSearchHasAnyValue()) runCardSearch(1);
+      });
+
       if (searchPrevButton) {
         searchPrevButton.addEventListener("click", function () {
           if (currentSearchPage > 1) {
@@ -2771,6 +2924,7 @@
       }
 
       document.addEventListener("click", function (event) {
+        if (!event.target.closest(".card-search-more-wrap")) setMoreOptionsOpen(false);
         if (!event.target.closest(".custom-draft-multi-select")) {
           document
             .querySelectorAll(".custom-draft-multi-select")
@@ -2781,10 +2935,21 @@
       });
 
       document.addEventListener("keydown", function (event) {
-        if (event.key === "Escape") {
-          closeModalImageZoom();
+        const customCardOverlay = getElement("customCardOverlay");
+        if (event.key !== "Escape" || searchOverlay?.classList.contains("hidden") || (customCardOverlay && !customCardOverlay.classList.contains("hidden"))) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (modalZoomOverlay && !modalZoomOverlay.classList.contains("hidden")) closeModalImageZoom();
+        else if (bulkImportPanel?.classList.contains("custom-draft-bulk-import-panel-open")) setBulkImportPanelOpen(false);
+        else if (!moreOptionsMenu?.classList.contains("hidden")) setMoreOptionsOpen(false, true);
+        else {
+          const openFilter = searchOverlay.querySelector('.custom-draft-multi-select:has(.custom-draft-multi-select-menu:not(.hidden))');
+          if (openFilter) {
+            closeMultiSelect(openFilter);
+            openFilter.querySelector("button")?.focus();
+          } else close();
         }
-      });
+      }, true);
     }
 
     updateAddAllResultsButtonState();

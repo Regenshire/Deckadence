@@ -28,6 +28,7 @@ DECK_ART_GENERATED_DIR = os.path.join(DATA_ROOT_DIR, "deck_art_generated")
 DECK_ART_SOURCE_DIR = os.path.join(DATA_ROOT_DIR, "deck_art_sources")
 CAMPAIGN_PLAYER_PORTRAIT_DIR = os.path.join(DATA_ROOT_DIR, "campaign_player_portraits")
 ALTERNATE_SOURCE_DIR = os.path.join(DATA_ROOT_DIR, "alternate_sources")
+CUSTOM_CARD_DIR = os.path.join(DATA_ROOT_DIR, "custom_cards")
 UPSCALED_SCRYFALL_DIR = os.path.join(DATA_ROOT_DIR, "upscaled_scryfall")
 
 UPSCALING_DEV_FEEDBACK_DIR = os.path.join(

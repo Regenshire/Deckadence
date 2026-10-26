@@ -20,13 +20,14 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/print_export_modal.css', v='spot-layers-5') }}"
+  href="{{ url_for('static', filename='css/print_export_modal.css', v='inkjet-6') }}"
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/alternate_image_modal.css') }}"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='custom-delete-2') }}"
 />
 <link rel="stylesheet" href="{{ url_for('static', filename='css/custom_draft_set_theme.css') }}?v=7">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='modal-2') }}">
 {% endblock %} {% block content %}
 <div class="screen screen-wide">
   <div class="page-panel custom-set-heading">
@@ -35,7 +36,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
         <div class="custom-set-eyebrow">CARDS / CUSTOM DRAFT SET</div>
         <h1 class="page-title">{{ custom_set.set_name }}</h1>
         <p class="page-subtitle">
-          {{ custom_set.set_code }} · {{ custom_set.release_date[:4] if custom_set.release_date else "----" }} · {{ custom_set.card_count }} cards | {{ "Active" if custom_set.is_active else "Disabled" }}
+          {{ custom_set.set_code }} · {{ custom_set.release_date[:4] if custom_set.release_date else "----" }} · <span data-custom-set-card-count>{{ custom_set.card_count }}</span> cards | {{ "Active" if custom_set.is_active else "Disabled" }}
         </p>
       </div>
 
@@ -953,7 +954,6 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
         </div>
       </div>
 
-      {% if custom_set_cards %}
       <div class="custom-draft-current-selection-toolbar">
         <div class="custom-draft-current-selection-links">
           <button
@@ -1110,6 +1110,13 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
           id="customDraftCurrentPaginationStatus"
           class="custom-draft-card-search-status"
         ></div>
+      </div>
+
+      <div
+        id="customDraftCurrentCardEmpty"
+        class="card-placeholder custom-draft-set-empty{% if custom_set_cards %} hidden{% endif %}"
+      >
+        No cards have been added to this custom draft set yet.
       </div>
 
       <div
@@ -1313,7 +1320,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 
             <div class="custom-draft-current-card-meta">
               <span>{{ card.card_set_code }}</span>
-              <span>#{{ card.collector_number or "?" }}</span>
+              {% if card.collector_number %}<span>#{{ card.collector_number }}</span>{% endif %}
               <span>{{ card.rarity or "unknown rarity" }}</span>
               <span
                 >MV {{ "%.1f"|format(card.mana_value) if card.mana_value is not
@@ -1429,14 +1436,6 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
           class="custom-draft-card-search-status"
         ></div>
       </div>
-      {% else %}
-      <div
-        id="customDraftCurrentCardList"
-        class="card-placeholder custom-draft-set-empty"
-      >
-        No cards have been added to this custom draft set yet.
-      </div>
-      {% endif %}
     </div>
   </form>
 
@@ -1486,8 +1485,8 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
   "_print_export_modal.html" %}
   {% set stats_modal_title = "Set Card Stats" %} {% set stats_modal_subtitle =
   "Stats for the currently visible filtered cards." %} {% include
-  "_stats_modal.html" %} {% include "_alternate_image_modal.html" %}
-  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='dynamic-buttons-1') }}"></script>
+  "_stats_modal.html" %} {% include "_custom_card_modal.html" %} {% include "_alternate_image_modal.html" %}
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='custom-delete-2') }}"></script>
 
   <div
     id="customDraftCardZoomOverlay"
@@ -1507,12 +1506,13 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 </div>
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
-<script src="{{ url_for('static', filename='js/card_search_modal.js', v='shared-price-1') }}"></script>
-<script src="{{ url_for('static', filename='js/print_export_modal.js', v='pdf-version-5') }}"></script>
+<script src="{{ url_for('static', filename='js/custom_card_modal.js', v='2') }}"></script>
+<script src="{{ url_for('static', filename='js/card_search_modal.js', v='custom-delete-1') }}"></script>
+<script src="{{ url_for('static', filename='js/print_export_modal.js', v='inkjet-6') }}"></script>
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
-<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=foil-types-1"></script>
+<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=custom-delete-1"></script>
 {% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>

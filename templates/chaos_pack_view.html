@@ -12,7 +12,7 @@
 >
 <link
     rel="stylesheet"
-    href="{{ url_for('static', filename='css/alternate_image_modal.css') }}"
+    href="{{ url_for('static', filename='css/alternate_image_modal.css', v='custom-delete-2') }}"
 >
 {% endblock %}
 
@@ -24,7 +24,7 @@
             <div class="chaos-pack-view-header-copy">
                 <div class="pack-eyebrow">CHAOS DRAFT / PACK VIEW</div><h1 class="page-title">{{ pack_display_name }}</h1>
                 <p class="page-subtitle">
-                    {{ pack_total_cards }} cards{% if bonus_pack_opened %} • Bonus pack opened{% endif %}
+                    <span data-pack-card-count>{{ pack_total_cards }}</span> cards{% if bonus_pack_opened %} • Bonus pack opened{% endif %}
                 </p>
             </div>
 
@@ -95,7 +95,7 @@
         {% endfor %}
     </div>
     {% include "_alternate_image_modal.html" %}
-    <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='dynamic-buttons-1') }}"></script>
+    <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='custom-delete-2') }}"></script>
 
     <div id="chaosPackViewZoomOverlay" class="card-zoom-overlay hidden" aria-hidden="true">
         <div id="chaosPackViewZoomBackdrop" class="card-zoom-backdrop"></div>

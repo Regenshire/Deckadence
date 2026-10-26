@@ -56,7 +56,7 @@
   }
 
   function attach(surface, options = {}) {
-    if (!surface || !surface.querySelector("img")) return null;
+    if (!surface || surface.closest('[data-card-finishing="off"]') || !surface.querySelector("img")) return null;
     surface.setAttribute("data-card-effects", "");
     if (options.finish) surface.dataset.cardFinish = options.finish;
     if (options.isFoil !== undefined) surface.dataset.isFoil = isTrue(options.isFoil) ? "1" : "0";

@@ -64,3 +64,11 @@ generative packages download their models, artwork analyzer, adapters, and
 associated libraries through Studio Settings. A successful source build does
 not certify inference quality, GPU drivers, or runtime compatibility; those
 still need testing on the target machines.
+
+Studio setup automatically downloads a checksum-verified private Python 3.12
+runtime on Windows/Linux x86-64 and macOS Intel/Apple Silicon. Detection and
+generation use it to create their separate library environments; users do not
+need to install Python or change PATH. The runtime is retained across Studio
+reinstalls. Internet access is required for the first setup. Advanced users who
+set `DECKADENCE_PLUGIN_PYTHON` must provide working 64-bit Python 3.12 with SSL,
+ensurepip, and venv support.

@@ -4,8 +4,9 @@
   "plugin_id": "card-finishing-studio",
   "plugin_type": "card_finishing",
   "name": "Card Finishing Studio",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "capabilities": ["text", "subject", "frame"],
+  "persistent_commands": ["detect_text", "detect_subject", "detect_frame"],
   "entrypoint": "plugin.py",
   "requirements_file": "requirements.txt"
 }

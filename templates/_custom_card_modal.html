@@ -1,0 +1,94 @@
+{# Based on the Alternate Image Settings layout and image-source controls. #}
+<div id="customCardOverlay" class="card-zoom-overlay custom-card-overlay hidden" aria-hidden="true">
+  <div id="customCardBackdrop" class="card-zoom-backdrop"></div>
+  <div class="card-zoom-content alternate-image-modal-content" role="dialog" aria-modal="true" aria-labelledby="customCardTitle">
+    <div class="page-panel alternate-image-modal-panel">
+      <button type="button" id="customCardCloseButton" class="action-button secondary-button alternate-image-x-button" aria-label="Close Upload Custom Card">×</button>
+      <div class="alternate-image-header">
+        <h2 id="customCardTitle" class="page-title">Upload Custom Card</h2>
+        <p>Upload a custom card image. The card will also be available in future card searches.</p>
+      </div>
+      <div id="customCardMessage" class="flash-message alternate-image-message hidden" role="status" aria-live="polite"></div>
+      <div class="alternate-image-main-layout">
+        <aside class="alternate-image-preview-panel">
+          <div class="alternate-image-preview-heading">Image Preview</div>
+          <div class="alternate-image-preview-frame">
+            <img id="customCardPreview" class="alternate-image-preview-image hidden" alt="Custom card preview" />
+            <div id="customCardPreviewEmpty" class="alternate-image-preview-empty">Choose an image to preview.</div>
+          </div>
+          <div class="alternate-image-preview-caption">Your original card artwork</div>
+        </aside>
+        <div class="alternate-image-management-column">
+          <form id="customCardForm" class="alternate-image-form-panel" enctype="multipart/form-data" action="{{ url_for('custom_cards_create') }}" method="post">
+            <div class="custom-card-metadata-grid">
+              <label class="alternate-image-field custom-card-name-field" for="customCardName">
+                <span class="alternate-image-field-label">Custom Card Name</span>
+                <input id="customCardName" name="card_name" type="text" maxlength="256" required autocomplete="off" />
+              </label>
+              <label class="alternate-image-field" for="customCardSetCode">
+                <span class="alternate-image-field-label">Set Code</span>
+                <input id="customCardSetCode" name="set_code" type="text" value="CUSTOM" maxlength="20" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,19}" title="Letters, numbers, underscores, or hyphens" />
+              </label>
+              <label class="alternate-image-field" for="customCardNumber">
+                <span class="alternate-image-field-label">Card # <small>(optional)</small></span>
+                <input id="customCardNumber" name="collector_number" type="text" maxlength="64" />
+              </label>
+              <label class="alternate-image-field" for="customCardCreator">
+                <span class="alternate-image-field-label">Creator <small>(optional)</small></span>
+                <input id="customCardCreator" name="creator" type="text" maxlength="256" />
+              </label>
+              <label class="alternate-image-field" for="customCardArtist">
+                <span class="alternate-image-field-label">Artist <small>(optional)</small></span>
+                <input id="customCardArtist" name="artist" type="text" maxlength="256" />
+              </label>
+            </div>
+            <div class="alternate-image-source-composer">
+              <label class="alternate-image-field" for="customCardSourceType">
+                <span class="alternate-image-field-label">Source Type</span>
+                <select name="source_type" id="customCardSourceType">
+                  <option value="uploaded_file">Upload File</option>
+                  <option value="external_url">External URL</option>
+                  <option value="local_file">Local File Path</option>
+                </select>
+              </label>
+              <label class="alternate-image-field" data-custom-source="uploaded_file" for="customCardFile">
+                <span class="alternate-image-field-label">Image File</span>
+                <input id="customCardFile" name="alternate_image_file" type="file" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" required />
+              </label>
+              <label class="alternate-image-field hidden" data-custom-source="external_url" for="customCardExternalUrl">
+                <span class="alternate-image-field-label">Image URL</span>
+                <input id="customCardExternalUrl" name="external_image_url" type="url" placeholder="https://..." disabled />
+              </label>
+              <label class="alternate-image-field hidden" data-custom-source="local_file" for="customCardLocalPath">
+                <span class="alternate-image-field-label">Local Image Path</span>
+                <input id="customCardLocalPath" name="local_image_path" type="text" placeholder="Path on the computer running Deckadence" disabled />
+              </label>
+            </div>
+            <div class="alternate-image-settings-stack">
+              <label class="alternate-image-control-row" for="customCardExportFrameTemplate">
+                <span>Label Template</span>
+                <select name="export_frame_template" id="customCardExportFrameTemplate">
+                  {% for option in global_card_export_template_options %}
+                  <option value="{{ option.value }}">{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <label class="alternate-image-control-row alternate-image-check-row settings-field" for="customCardRemoveBleed">
+                <span>3mm Full-Bleed File (MPCFill Bleed)</span>
+                <input type="checkbox" id="customCardRemoveBleed" name="remove_bleed" />
+              </label>
+              <label class="alternate-image-control-row alternate-image-check-row settings-field" for="customCardFoil">
+                <span>Foil</span>
+                <input type="checkbox" id="customCardFoil" name="is_foil" />
+              </label>
+            </div>
+            <div class="alternate-image-actions">
+              <button type="submit" id="customCardSaveButton" class="action-button">Upload and Add Card</button>
+              <button type="button" id="customCardCancelButton" class="action-button secondary-button">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

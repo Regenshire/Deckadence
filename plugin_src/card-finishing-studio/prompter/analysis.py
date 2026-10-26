@@ -59,11 +59,11 @@ def infer(request):
     if local:
         mask=Image.open(request['context_mask']).getchannel('A').resize(image.size,Image.Resampling.NEAREST).convert('RGB')
         content.extend([{'type':'text','text':'Edit location guide (white marks selected pixels; black marks surrounding context):'},{'type':'image','image':mask}])
-    else:
+    elif not request.get('target_regions'):
         w,h=image.size;sw=max(16,round(w*.18));sh=max(16,round(h*.18))
         for side,box in [('left',(0,0,sw,h)),('right',(w-sw,0,w,h)),('top',(0,0,w,sh)),('bottom',(0,h-sh,w,h))]:
             content.extend([{'type':'text','text':side+' edge strip (background observation only):'},{'type':'image','image':image.crop(box)}])
-    content.append({'type':'text','text':'Describe the visual rendering and boundary backgrounds using the required JSON fields.'})
+    content.append({'type':'text','text':('Locate the visible faces and bodies in this complete artwork. Return regions first, with face and body bounding boxes using 0 to 1000 coordinates, then the required style observations. Return empty arrays only if no such subject is visible.' if request.get('target_regions') else 'Describe the visual rendering and boundary backgrounds using the required JSON fields.')})
     messages = [{'role': 'system', 'content': request['instruction']}, {'role':'user','content':content}]
     inputs = processor.apply_chat_template(messages, tokenize=True, add_generation_prompt=True,
                                             return_dict=True, return_tensors='pt').to(device)

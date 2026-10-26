@@ -122,23 +122,32 @@
     const spotOutput = getElement("printSpotFoilOutput"), spotTone = getElement("printSpotFoilTone");
     const spotHint = getElement("printSpotFoilWorkflowHint"), spotRetry = getElement("printSpotFoilRetry");
     const whiteInverse = getElement("printWhiteInverseLayer");
+    const inkjetOptions=getElement('printInkjetFoilOptions'), inkjetWhite=getElement('printInkjetWhiteFoil'), inkjetPercent=getElement('printInkjetPercentFoil');
     let spotData = null, spotLoading = false, spotLoadVersion = 0;
     function syncSpotFields() {
       const enabled = Boolean((spotFoilCheckbox?.checked || glossCheckbox?.checked) && spotData);
+      const inkjet=spotWorkflow?.value==='standard_inkjet';
+      if(inkjetOptions)inkjetOptions.hidden=!inkjet||!spotFoilCheckbox?.checked;
+      if(inkjetWhite)inkjetWhite.disabled=!enabled||!inkjet||!spotFoilCheckbox?.checked;
+      if(inkjetPercent)inkjetPercent.disabled=!enabled||!inkjet||!spotFoilCheckbox?.checked||!inkjetWhite?.checked;
+      const details=getElement('printSpotInkDetails');if(details)details.hidden=inkjet;
       for (const field of [spotWorkflow, spotOutput, spotTone, cmykProfile]) if (field) field.disabled = !enabled;
       if (spotOutput) {
-        const needsArtwork = Boolean(glossCheckbox?.checked || effectCheckboxes.some(field=>field.checked));
+        const needsArtwork = Boolean(inkjet || glossCheckbox?.checked || effectCheckboxes.some(field=>field.checked));
+        spotOutput.querySelector('option[value="spot_pdf"]').textContent=inkjet?'Artwork + editable white foil layer':'Artwork + named spot layers';
         spotOutput.querySelector('option[value="mask_pdf"]').disabled = needsArtwork;
         if (needsArtwork) spotOutput.value = "spot_pdf";
       }
-      if (spotLayer) spotLayer.disabled = !enabled || !spotFoilCheckbox?.checked;
-      if (spotName) spotName.disabled = !enabled || !spotFoilCheckbox?.checked || spotOutput.value !== "spot_pdf";
-      if (whiteInverse) whiteInverse.disabled = !enabled || !spotFoilCheckbox?.checked || spotOutput.value !== "spot_pdf";
+      if (spotLayer) spotLayer.disabled = !enabled || inkjet || !spotFoilCheckbox?.checked;
+      if (spotName) spotName.disabled = !enabled || inkjet || !spotFoilCheckbox?.checked || spotOutput.value !== "spot_pdf";
+      if (whiteInverse) whiteInverse.disabled = !enabled || inkjet || !spotFoilCheckbox?.checked || spotOutput.value !== "spot_pdf";
+      if(cmykProfile){const visible=!inkjet||glossCheckbox?.checked;cmykProfile.hidden=!visible;cmykProfile.disabled=!enabled||!visible;form.querySelector('label[for="printCmykProfile"]').hidden=!visible;}
     }
     function chooseSpotWorkflow() {
       if (!spotData) return;
       const preset = spotData.workflows.find(item => item.id === spotWorkflow.value);
       const profile = spotData.preferences.profiles[preset.id];
+      if(preset.id==='standard_inkjet'){inkjetWhite.checked=profile.add_white_foil_layer===true;inkjetPercent.value=profile.percent_foil??12;}
       spotLayer.replaceChildren(...preset.layer_types.map(value => new Option(spotData.layer_types[value], value)));
       spotLayer.value = profile.layer_type; spotName.value = profile.spot_name;
       spotOutput.value = ["spot_pdf", "mask_pdf"].includes(profile.output_format) ? profile.output_format : "spot_pdf";
@@ -184,6 +193,7 @@
     spotWorkflow?.addEventListener("change", chooseSpotWorkflow);
     spotOutput?.addEventListener("change", syncSpotFields);
     whiteInverse?.addEventListener("change", syncSpotFields);
+    inkjetWhite?.addEventListener('change',syncSpotFields);
     spotRetry?.addEventListener("click", loadSpotWorkflows);
     loadSpotWorkflows();
     form?.addEventListener("reset", () => {

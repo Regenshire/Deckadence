@@ -1,7 +1,66 @@
 """Mirror-scene stages using the same planner and executor as artwork edits."""
 from io import BytesIO
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageChops
 from .contracts import PlannerError, image_digest
+
+# A protected 480px view plus 50% extra artwork on every side. Even a full
+# 24-object batch stays below the scene collection's 24-megapixel limit.
+MICRO_CORE_SIZE = 480
+MICRO_MARGIN = 50
+
+
+def micro_geometry():
+    pad=MICRO_CORE_SIZE*MICRO_MARGIN//100
+    side=MICRO_CORE_SIZE+2*pad
+    return (side,side),[pad,pad]
+
+
+def extend_micro_scene(generate, *, artwork, seed, model, cancel, progress,
+                       maintain_style, custom_style='', analysis=None,
+                       on_plan=None, on_diagnostics=None):
+    """Generate surrounding pixels without changing the micro scene's framing.
+
+    The caller retains its model session across theme and outpaint stages and
+    the whole batch. No analyzer is loaded between successive image stages.
+    """
+    size,padding=micro_geometry()
+    core=artwork.convert('RGBA').resize((MICRO_CORE_SIZE,MICRO_CORE_SIZE),Image.Resampling.LANCZOS)
+    box=(padding[0],padding[1],size[0]-padding[0],size[1]-padding[1])
+    reference,mask=placed_reference(core,size,box)
+    # Give outpainting a narrow overlap at the viewport edge, then blend there.
+    # A hard rectangular paste makes the retained crop visibly float over it.
+    keep=Image.new('L',size);draw=ImageDraw.Draw(keep);overlap=32
+    for inset in range(overlap+1):
+        draw.rectangle((box[0]+inset,box[1]+inset,box[2]-1-inset,box[3]-1-inset),fill=round(255*inset/overlap))
+    mask.putalpha(ImageChops.invert(keep))
+    # Full-card colors/edge captions may describe clothes or scenery that the
+    # micro-scene prompt just replaced. Continue the newly generated core.
+    observed=dict(analysis) if analysis else None
+    if observed:
+        from .color_reference import measure_palette
+        for key in ('scene','left','right','top','bottom','background_summary','lighting','texture'):observed[key]=''
+        palette=measure_palette(core,Image.new('L',core.size))
+        observed['palette']=palette['description'] if palette else ''
+        observed['style_summary']='; '.join(observed[k] for k in ('medium','palette','brushwork','linework') if observed.get(k))
+    if cancel.is_set():raise PlannerError('Render cancelled.')
+    if on_diagnostics:
+        on_diagnostics('margin-reference.png',reference);on_diagnostics('margin-mask.png',mask)
+    progress('preparing','Extending surrounding artwork for repositioning and zoom.')
+    output=generate(image=png(reference),mask=png(mask),theme='custom',prompt='',user_prompt='',
+        seed=(seed+1)%2147483648,model=model,edit_mode='outpaint',cancel=cancel,progress=progress,
+        maintain_style=maintain_style and not custom_style,
+        planning=dict(style_mode='custom' if custom_style else 'match' if maintain_style else 'none',
+            custom_style=custom_style,analysis_image=png(core),analysis=observed,
+            geometry=dict(feature='mirror_layers',stage='micro_margin',canvas_size=list(size),
+                clean_art_box=list(box),source_hash=image_digest(core),directions=['left','right','top','bottom'])),
+        on_plan=on_plan,on_diagnostics=on_diagnostics)
+    if cancel.is_set():raise PlannerError('Render cancelled.')
+    with Image.open(BytesIO(output)) as result:
+        if result.size!=size:raise PlannerError('The micro scene extension returned the wrong image size.')
+        result=result.convert('RGBA')
+    # Preserve the central subject, feathering only the narrow edge overlap.
+    result=Image.composite(reference,result,keep)
+    return png(result),padding
 
 
 def png(image):

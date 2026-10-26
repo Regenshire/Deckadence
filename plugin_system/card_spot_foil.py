@@ -1,5 +1,6 @@
 """Painted spot masks share the alternate-image library's isolation namespace."""
 import base64
+import hashlib
 from contextlib import closing
 from io import BytesIO
 import json
@@ -7,24 +8,78 @@ import math
 import re
 import subprocess
 import threading
+import time
 from uuid import uuid4
 
 from flask import jsonify, request, send_file, url_for
 from PIL import Image, UnidentifiedImageError
 from .foil_workflows import WORKFLOWS, OUTPUTS, LAYER_TYPES, load_preferences, normalize_display_color
 from .manager import get_plugin_status, run_plugin_json
-from .finishing_effects import CONFETTI_GLITTER_TYPES, render_confetti_glitter, EFFECT_TYPES, validate_effect, parameters, render_overlay, cached_overlay, chocobo_selection, PARTICLE_PATH_EFFECTS, particle_selection
+from .finishing_effects import CONFETTI_GLITTER_TYPES, render_confetti_glitter, EFFECT_TYPES, validate_effect, parameters, render_overlay, chocobo_selection, PARTICLE_PATH_EFFECTS, particle_selection
+from .dragon_strike import TRAILS as DRAGON_TRAILS, COLOR_EFFECTS as DRAGON_COLOR_EFFECTS, selection as dragon_selection
 from .finishing_ukiyo import TYPES as UKIYO_TYPES, ukiyo_selection
 from .finishing_patterns import PATH_EFFECTS, pattern_selection
 from .mirror_shards import TEMPLATES as SHARD_TEMPLATES, THEMES as MIRROR_THEMES, shard_selection
+from .mirror_layers import SHAPES as MIRROR_SHAPES, LAYOUTS as MIRROR_LAYOUTS, layout_objects, mirror_selection, validate_mirrors, render_mirrors
 from .mirror_generation import register_mirror_generation_routes, generator_ready
-from .finishing_bakes import artwork_layers, cached_artwork
+from .finishing_bakes import artwork_layers, cached_artwork, prepare_effect_bakes, cached_saved_overlay, ensure_record_effect_bakes
 from .art_edit import validate_edit, register_art_edit_routes
 
 MASK_SIZE = (756, 1056)
 MAX_MASK_SIZE = (3024, 4224)
 _text_detection_lock = threading.Lock()
 _subject_detection_lock = threading.Lock()
+
+
+class PreviewBusy(RuntimeError):
+    pass
+
+
+class PreviewQueue:
+    """Bound raster work and retain only the newest waiting preview per editor."""
+    def __init__(self, capacity=2, pending_limit=4):
+        self.condition = threading.Condition()
+        self.capacity, self.pending_limit = capacity, pending_limit
+        self.running, self.pending, self.latest = set(), {}, {}
+
+    def run(self, key, sequence, render):
+        ticket = object()
+        with self.condition:
+            now = time.monotonic()
+            self.latest = {k: v for k, v in self.latest.items()
+                           if k in self.running or k in self.pending or now-v[1] < 30}
+            if sequence <= self.latest.get(key, (-1, 0))[0]:
+                return None
+            if key not in self.pending and len(self.pending) >= self.pending_limit:
+                raise PreviewBusy('Previews are busy. Please try again shortly.')
+            # Bound idle editor identities too, including rapid open/close cycles.
+            if len(self.latest) >= 128:
+                for old in list(self.latest):
+                    if old not in self.running and old not in self.pending:
+                        del self.latest[old]
+                        break
+            self.latest[key] = (sequence, now)
+            self.pending[key] = ticket
+            self.condition.notify_all()
+            while key in self.running or len(self.running) >= self.capacity:
+                if self.pending.get(key) is not ticket:
+                    return None
+                if time.monotonic()-now > 15:
+                    self.pending.pop(key, None)
+                    raise PreviewBusy('Previews are busy. Please try again shortly.')
+                self.condition.wait(.2)
+            if self.pending.get(key) is not ticket:
+                return None
+            del self.pending[key]
+            self.running.add(key)
+        try:
+            result = render()
+            with self.condition:
+                return result if self.latest[key][0] == sequence else None
+        finally:
+            with self.condition:
+                self.running.remove(key)
+                self.condition.notify_all()
 
 
 def text_detection_plugin(studio_status=None):
@@ -75,6 +130,19 @@ def ensure_schema(conn):
             conn.execute("RELEASE spot_foil_mask_upgrade")
     else:
         _ensure_scope_cleanup(conn)
+    # A disposable projection: image bytes remain in the canonical portable row.
+    conn.execute('''CREATE TABLE IF NOT EXISTS card_spot_foil_summary (
+        scope_token TEXT, card_uuid TEXT, face TEXT, revision TEXT, settings TEXT,
+        PRIMARY KEY(scope_token,card_uuid,face))''')
+    for event, alias in (('INSERT', 'NEW'), ('UPDATE', 'OLD'), ('DELETE', 'OLD')):
+        conn.execute(f'''CREATE TRIGGER IF NOT EXISTS card_spot_foil_summary_{event.lower()}
+            AFTER {event} ON card_spot_foil BEGIN
+            DELETE FROM card_spot_foil_summary WHERE scope_token={alias}.scope_token
+                AND card_uuid={alias}.card_uuid AND face={alias}.face; END''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS card_spot_foil_save_receipts (
+        scope_token TEXT, card_uuid TEXT, face TEXT, operation_id TEXT,
+        fingerprint TEXT NOT NULL, revision TEXT, created REAL NOT NULL,
+        PRIMARY KEY(scope_token,card_uuid,face,operation_id))''')
 
 
 def copy_spot_foil_scope(conn, source, destination, card_uuids=None):
@@ -105,6 +173,46 @@ def read_record(conn, key):
                         "WHERE scope_token=? AND card_uuid=? AND face=?", key).fetchone()
 
 
+def summary_settings(settings):
+    result = dict(settings)
+    if result.get('edit'):
+        result['edit'] = {'version': result['edit']['version']}
+    for name in ('gloss', 'effect1', 'effect2'):
+        if not result.get(name):
+            continue
+        layer = {k: v for k, v in result[name].items() if k not in ('mask_png_base64', 'baked_overlay')}
+        if layer.get('shards'):
+            layer['shards'] = {**layer['shards'], 'scene': '', 'scene_selection': ''}
+        if layer.get('mirrors'):
+            layer['mirrors'] = {**layer['mirrors'], 'scenes': {}}
+        result[name] = layer
+    return json.dumps(result, allow_nan=False)
+
+
+def read_summary(conn, key, pending=None):
+    row = conn.execute('''SELECT s.revision,s.settings FROM card_spot_foil_summary s
+        JOIN card_spot_foil f USING(scope_token,card_uuid,face)
+        WHERE s.scope_token=? AND s.card_uuid=? AND s.face=? AND s.revision=f.revision''', key).fetchone()
+    if row is not None:
+        return row
+    row = read_record(conn, key)
+    if row is None:
+        return None
+    summary = summary_settings(json.loads(row['settings']))
+    entry = (summary, *key, row['revision'])
+    if pending is not None:
+        pending.append(entry)
+    else:
+        store_summaries(conn, [entry])
+    return dict(revision=row['revision'], settings=summary)
+
+
+def store_summaries(conn, entries):
+    conn.executemany('''INSERT OR REPLACE INTO card_spot_foil_summary
+        SELECT scope_token,card_uuid,face,revision,? FROM card_spot_foil
+        WHERE scope_token=? AND card_uuid=? AND face=? AND revision=?''', entries)
+
+
 def record_json(row, key):
     if row is None:
         return None
@@ -122,10 +230,13 @@ def record_json(row, key):
             continue
         value = dict(settings[layer])
         value.pop("mask_png_base64", None)
+        value.pop('baked_overlay', None)  # Durable print pixels stay server-side.
         # Card lists only need the baked overlay URL. The editor detail request
         # receives the durable generated scene, which remains in portable data.
         if value.get('shards') and request.endpoint=='card_spot_foil_lookup':
             value['shards']={**value['shards'],'scene':'','scene_selection':''}
+        if value.get('mirrors') and request.endpoint=='card_spot_foil_lookup':
+            value['mirrors']={**value['mirrors'],'scenes':{}}
         value["mask_url"] = url_for("card_spot_foil_mask", card_uuid=key[1], face=key[2], layer=layer,
                                     expected_scope=key[0], revision=row["revision"], **owner)
         if layer.startswith("effect"):
@@ -258,7 +369,7 @@ def validate_settings(payload):
         value = payload[layer]
         if value is not None:
             keys = {"finish", "strength", "scale", "density", "seed", "overlay_color", "generation", "mask_data"}
-            if not isinstance(value, dict) or set(value)-{"color","translucence","shards","rotation","position_x","position_y","transparency","black_depth","silver_brightness","stacked","disabled","origin_x","origin_y","ukiyo_type","sparse","flip_horizontal","particle_type"} != keys:
+            if not isinstance(value, dict) or set(value)-{"color","translucence","shards","mirrors","rotation","position_x","position_y","transparency","black_depth","silver_brightness","stacked","disabled","origin_x","origin_y","ukiyo_type","sparse","flip_horizontal","particle_type","dragon_emblem","dragon_trail","dragon_alignment","dragon_color_effect"} != keys:
                 raise ValueError("Provide valid printable effect settings.")
             value = {**validate_effect(parameters(value)), "overlay_color": normalize_display_color(value["overlay_color"]),
                      "generation": validate_generation(value["generation"]),
@@ -268,6 +379,21 @@ def validate_settings(payload):
 
 
 def register_card_spot_foil_routes(app, get_connection, get_config, resolve_context, api_errors, isolation_operation, load_artwork=None):
+    previews = PreviewQueue()
+
+    def preview_work(kind, render):
+        client = request.headers.get('X-Studio-Preview-Session')
+        sequence = request.headers.get('X-Studio-Preview-Sequence', '0')
+        if client and (not re.fullmatch(r'[A-Za-z0-9_:-]{1,120}', client) or not sequence.isdecimal() or len(sequence) > 16):
+            raise ValueError('Provide a valid preview request.')
+        try:
+            result = previews.run((kind, client or uuid4().hex), int(sequence) if client else 0, render)
+        except PreviewBusy as error:
+            return jsonify(ok=False, message=str(error)), 429, {'Retry-After': '1'}
+        if result is None:
+            return '', 204
+        return result
+
     register_mirror_generation_routes(app,get_connection,resolve_context,api_errors,decode_mask,card_key)
     register_art_edit_routes(app,get_connection,resolve_context,api_errors,decode_mask,card_key)
     @app.get('/cards/spot-foil/<card_uuid>/<face>/edit-image/<kind>')
@@ -300,8 +426,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         with closing(get_connection()) as conn, conn:
             ensure_schema(conn)
             context = resolve_context(conn, False)
-            row = read_record(conn, (context.scope_id or "global", *card))
-            settings = json.loads(row["settings"]) if row else {}
+        settings = ensure_record_effect_bakes(get_connection, (context.scope_id or "global", *card))
         path = bake(card, context, settings)
         response = send_file(path, mimetype="image/png", etag=path.stem,
                              download_name=f"{card_uuid}-{face}-finished.png")
@@ -316,67 +441,115 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if not isinstance(targets, list) or len(targets) > 200:
             raise ValueError("Request up to 200 cards.")
         cards = [card_key(value) for value in targets]
+        pending = []
         with closing(get_connection()) as conn, conn:
             ensure_schema(conn)
             context = resolve_context(conn, False)
             token = context.scope_id or "global"
             records = [{"target": dict(card_uuid=card[0], face=card[1]),
-                        "record": record_json(read_record(conn, (token, *card)), (token, *card))}
+                        "record": record_json(read_summary(conn, (token, *card), pending), (token, *card))}
                        for card in cards]
+        if pending:
+            with closing(get_connection()) as conn, conn:
+                store_summaries(conn, pending)
         return jsonify(ok=True, records=records, preferences={"disable_gloss_on_view":load_preferences(get_config())["disable_gloss_on_view"]}, image_scope=dict(token=token, is_isolated=context.is_isolated))
+
+    conflict_message = "Spot foiling changed in another editor. Close and reopen this card to load the latest version."
+
+    def saved_request(conn, key, operation_id, fingerprint, revision):
+        if not operation_id:
+            return False
+        receipt = conn.execute('''SELECT fingerprint,revision FROM card_spot_foil_save_receipts
+            WHERE scope_token=? AND card_uuid=? AND face=? AND operation_id=?''', (*key, operation_id)).fetchone()
+        if receipt is None:
+            return False
+        if receipt['fingerprint'] != fingerprint:
+            raise ValueError('This save identifier was already used for different changes.')
+        if receipt['revision'] != revision:
+            raise RuntimeError(conflict_message)
+        return True
+
+    @isolation_operation
+    def commit_finish(key, payload, prepared, summary, operation_id, fingerprint):
+        # Only the scope/revision check and atomic commit hold either write lock.
+        with closing(get_connection()) as conn, conn:
+            ensure_schema(conn)
+            conn.execute('BEGIN IMMEDIATE')
+            context = resolve_context(conn, True)
+            if (context.scope_id or 'global') != key[0]:
+                raise RuntimeError('The image library changed while saving. Reopen this card.')
+            if not conn.execute('SELECT 1 FROM chaos_cards WHERE card_uuid=?', (key[1],)).fetchone():
+                raise LookupError('This card printing is no longer available.')
+            current = conn.execute('SELECT revision FROM card_spot_foil WHERE scope_token=? AND card_uuid=? AND face=?', key).fetchone()
+            revision = current['revision'] if current else None
+            if saved_request(conn, key, operation_id, fingerprint, revision):
+                return read_record(conn, key), context
+            if payload['revision'] != revision:
+                raise RuntimeError(conflict_message)
+            if prepared is None:
+                conn.execute('DELETE FROM card_spot_foil WHERE scope_token=? AND card_uuid=? AND face=?', key)
+            else:
+                conn.execute('INSERT OR REPLACE INTO card_spot_foil VALUES (?,?,?,?,?,?)',
+                    (*key, prepared['revision'], prepared['settings'], prepared['mask_png_base64']))
+                conn.execute('INSERT OR REPLACE INTO card_spot_foil_summary VALUES (?,?,?,?,?)',
+                    (*key, prepared['revision'], summary))
+            if operation_id:
+                conn.execute('INSERT INTO card_spot_foil_save_receipts VALUES (?,?,?,?,?,?,?)',
+                    (*key, operation_id, fingerprint, prepared['revision'] if prepared else None, time.time()))
+                conn.execute('DELETE FROM card_spot_foil_save_receipts WHERE created<? OR rowid NOT IN '
+                    '(SELECT rowid FROM card_spot_foil_save_receipts ORDER BY created DESC LIMIT 512)', (time.time()-86400,))
+        return prepared, context
 
     @app.route("/cards/spot-foil/<card_uuid>/<face>", methods=["GET", "PUT", "DELETE"])
     @api_errors
-    @isolation_operation
     def card_spot_foil(card_uuid, face):
         card = card_key(dict(card_uuid=card_uuid, face=face))
-        settings = mask = payload = None
-        writing = request.method != "GET"
+        settings = payload = None
+        writing = request.method != 'GET'
+        operation_id = request.headers.get('X-Studio-Save-ID', '') if writing else ''
+        if operation_id and not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', operation_id):
+            raise ValueError('Provide a valid save identifier.')
+        fingerprint = ''
         if writing:
             if request.content_length and request.content_length > 200_500_000:
                 return jsonify(ok=False, message="The card finish images are too large."), 413
             payload = request.get_json(silent=True)
-            if not isinstance(payload, dict) or "revision" not in payload:
-                raise ValueError("Reload the saved card before editing.")
-            if request.args.get("expected_scope") is None:
-                raise ValueError("Reload the image library before saving.")
-            if request.method == "PUT":
-                settings = validate_settings(payload)
-                mask = decode_mask(payload.get("mask_data"))
+            if not isinstance(payload, dict) or 'revision' not in payload:
+                raise ValueError('Reload the saved card before editing.')
+            if request.args.get('expected_scope') is None:
+                raise ValueError('Reload the image library before saving.')
+            if operation_id:
+                fingerprint = hashlib.sha256(request.method.encode()+request.get_data()).hexdigest()
         with closing(get_connection()) as conn, conn:
             ensure_schema(conn)
-            conn.execute("BEGIN IMMEDIATE" if writing else "BEGIN")
-            context = resolve_context(conn, writing)
-            token = context.scope_id or "global"
+            conn.execute('BEGIN')
+            context = resolve_context(conn, False)
+            token = context.scope_id or 'global'
             key = (token, *card)
-            if not conn.execute("SELECT 1 FROM chaos_cards WHERE card_uuid=?", (card_uuid,)).fetchone():
-                raise LookupError("This card printing is no longer available.")
+            if writing and request.args['expected_scope'] != token:
+                raise RuntimeError('The image library changed. Reopen this card before saving.')
+            if not conn.execute('SELECT 1 FROM chaos_cards WHERE card_uuid=?', (card_uuid,)).fetchone():
+                raise LookupError('This card printing is no longer available.')
             row = read_record(conn, key)
-            if writing:
-                if payload["revision"] != (row["revision"] if row else None):
-                    raise RuntimeError("Spot foiling changed in another editor. Close and reopen this card to load the latest version.")
-                if request.method == "DELETE":
-                    old = json.loads(row["settings"]) if row else {}
-                    if any(old.get(layer) for layer in ("edit", "gloss", "effect1", "effect2")) and not payload.get("all_layers"):
-                        old["foil_enabled"] = False
-                        conn.execute("UPDATE card_spot_foil SET settings=?, revision=? WHERE scope_token=? AND card_uuid=? AND face=?",
-                                     (json.dumps(old, allow_nan=False), uuid4().hex, *key))
-                        row = read_record(conn, key)
-                    else:
-                        conn.execute("DELETE FROM card_spot_foil WHERE scope_token=? AND card_uuid=? AND face=?", key)
-                        row = None
-                else:
-                    # Older clients must not erase layers they do not understand.
-                    previous = json.loads(row["settings"]) if row else {}
-                    for layer in ("edit", "gloss", "effect1", "effect2"):
-                        if layer not in payload and previous.get(layer):
-                            settings[layer] = previous[layer]
-                    conn.execute("INSERT OR REPLACE INTO card_spot_foil VALUES (?,?,?,?,?,?)",
-                                 (*key, uuid4().hex, json.dumps(settings, allow_nan=False),
-                                  base64.b64encode(mask).decode("ascii")))
-                    row = read_record(conn, key)
-            result = record_json(row, key)
-        if request.method == "PUT":
+            repeated = writing and saved_request(conn, key, operation_id, fingerprint, row['revision'] if row else None)
+        if writing and not repeated:
+            if payload['revision'] != (row['revision'] if row else None):
+                raise RuntimeError(conflict_message)
+            previous = json.loads(row['settings']) if row else {}
+            mask = row['mask_png_base64'] if row else ''
+            if request.method == 'PUT':
+                settings = validate_settings(payload)
+                mask = base64.b64encode(decode_mask(payload.get('mask_data'))).decode('ascii')
+                for layer in ('edit', 'gloss', 'effect1', 'effect2'):
+                    if layer not in payload and previous.get(layer):
+                        settings[layer] = previous[layer]
+                settings = prepare_effect_bakes(settings, previous)
+            elif any(previous.get(layer) for layer in ('edit', 'gloss', 'effect1', 'effect2')) and not payload.get('all_layers'):
+                settings = dict(previous, foil_enabled=False)
+            prepared = dict(revision=uuid4().hex, settings=json.dumps(settings, allow_nan=False), mask_png_base64=mask) if settings is not None else None
+            row, context = commit_finish(key, payload, prepared, summary_settings(settings) if settings is not None else None, operation_id, fingerprint)
+        result = record_json(row, key)
+        if request.method == 'PUT' and settings is not None:
             # Disposable view caches are optional: a cache error must never turn
             # a successful atomic save into a misleading save failure.
             if any(settings.get(layer) for layer in ("edit", "effect1", "effect2")):
@@ -387,8 +560,9 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
                     app.logger.warning("Could not bake finishing artwork; the next view will retry", exc_info=True)
         subject_detector = get_plugin_status("card-finishing-studio")
         return jsonify(ok=True, record=result, preferences=load_preferences(get_config()), workflows=WORKFLOWS,
-                       output_formats=OUTPUTS, layer_types=LAYER_TYPES, effect_types=EFFECT_TYPES, ukiyo_types=UKIYO_TYPES, confetti_glitter_types=CONFETTI_GLITTER_TYPES,
+                       output_formats=OUTPUTS, layer_types=LAYER_TYPES, effect_types=EFFECT_TYPES, ukiyo_types=UKIYO_TYPES, confetti_glitter_types=CONFETTI_GLITTER_TYPES, dragon_trails=DRAGON_TRAILS, dragon_color_effects=DRAGON_COLOR_EFFECTS,
                        shard_templates=SHARD_TEMPLATES, mirror_themes=MIRROR_THEMES,
+                       mirror_shapes=MIRROR_SHAPES, mirror_layouts=MIRROR_LAYOUTS,
                        mirror_generator_ready=generator_ready(app),
                        text_detector_ready=bool(text_detection_plugin(subject_detector)),
                        subject_detector_ready=subject_detector.get("ready", False),
@@ -523,16 +697,59 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
     @api_errors
     def card_finishing_preview(card_uuid, face):
         card_key(dict(card_uuid=card_uuid, face=face))
-        if request.content_length and request.content_length > 26_300_000:
+        if request.content_length and request.content_length > 71_000_000:
             return jsonify(ok=False, message="Preview mask is too large."), 413
         payload = request.get_json(silent=True)
         if not isinstance(payload, dict) or set(payload) != {"effect", "mask_data"}:
             raise ValueError("Provide an effect and its mask.")
-        effect = validate_effect(payload["effect"])
-        png = render_overlay(decode_mask(payload["mask_data"]), effect, width=756)
-        response = send_file(BytesIO(png), mimetype="image/png")
-        response.cache_control.no_store = True
-        return response
+        def render():
+            effect = validate_effect(payload['effect'])
+            png = render_overlay(decode_mask(payload['mask_data']), effect, width=756)
+            response = send_file(BytesIO(png), mimetype='image/png')
+            response.cache_control.no_store = True
+            return response
+        return preview_work('effect', render)
+
+    @app.route('/cards/spot-foil/<card_uuid>/<face>/mirror-layout',methods=['POST'])
+    @api_errors
+    def card_mirror_layout(card_uuid,face):
+        card_key(dict(card_uuid=card_uuid,face=face))
+        payload=request.get_json(silent=True)
+        if not isinstance(payload,dict) or set(payload)-{'seed','origin'}!={'shape','layout','count'}:raise ValueError('Choose a mirror shape, layout and count.')
+        return jsonify(ok=True,objects=list(layout_objects(**payload)))
+
+    @app.route('/cards/spot-foil/<card_uuid>/<face>/mirror-surfaces',methods=['POST'])
+    @api_errors
+    def card_mirror_surfaces(card_uuid,face):
+        card_key(dict(card_uuid=card_uuid,face=face))
+        if request.content_length and request.content_length > 71_000_000:
+            return jsonify(ok=False, message='Preview settings are too large.'), 413
+        payload=request.get_json(silent=True)
+        def render():
+            effect=validate_effect(payload)
+            if effect['finish']!='mirror_layers':raise ValueError('Choose Mirror Layers.')
+            surfaces={}
+            from .mirror_layers import has_strength_overrides
+            for key,image in render_mirrors(effect['mirrors'],effect['color'],756,1056,surfaces_only=True,
+                                           layer_strength=effect['strength'] if has_strength_overrides(effect['mirrors']) else None):
+                output=BytesIO();image.save(output,format='PNG')
+                surfaces[key]='data:image/png;base64,'+base64.b64encode(output.getvalue()).decode('ascii')
+            return jsonify(ok=True,surfaces=surfaces)
+        return preview_work('surfaces', render)
+
+    @app.route('/cards/spot-foil/<card_uuid>/<face>/mirror-path',methods=['POST'])
+    @api_errors
+    def card_mirror_path(card_uuid,face):
+        card_key(dict(card_uuid=card_uuid,face=face))
+        if request.content_length and request.content_length>100_000:raise ValueError('Mirror path settings are too large.')
+        payload=request.get_json(silent=True)
+        if not isinstance(payload,dict) or set(payload)!={'mirrors','width'}:raise ValueError('Provide mirror objects and mask width.')
+        width=payload['width']
+        if type(width) is not int or not 756<=width<=3024:raise ValueError('Choose a mask width from 756 to 3024 pixels.')
+        settings=validate_mirrors(payload['mirrors'])
+        image=Image.new('RGBA',(width,round(width*1056/756)),'white');image.putalpha(mirror_selection(settings,*image.size))
+        output=BytesIO();image.save(output,format='PNG');output.seek(0)
+        return send_file(output,mimetype='image/png')
 
     @app.route("/cards/spot-foil/<card_uuid>/<face>/effect-path", methods=["POST"])
     @api_errors
@@ -554,19 +771,28 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
             keys |= {'density','seed','particle_type','flip_horizontal','x','y'}
         elif finish == 'ukiyo_e':
             keys |= {'density','seed','ukiyo_type','sparse','flip_horizontal','x','y'}
+        elif finish == 'dragon_strike':
+            keys |= {'dragon_emblem','dragon_trail','x','y'}
         elif finish in PATH_EFFECTS or finish in PARTICLE_PATH_EFFECTS:
             keys |= {'density','seed'}
         elif finish != 'chocobo_tracks':
             raise ValueError('This effect does not have a copyable template path.')
         # Older clients omit the new track offsets; their default is centered.
         optional = {'x','y'} if finish == 'chocobo_tracks' or finish in PATH_EFFECTS else set()
+        if finish == 'dragon_strike':
+            optional.add('dragon_alignment')
         if set(payload)-optional != keys:
             raise ValueError('Provide valid template settings.')
         width = payload['width']
         if type(width) is not int or not MASK_SIZE[0] <= width <= MAX_MASK_SIZE[0]:
             raise ValueError('Choose a mask width from 756 to 3024 pixels.')
         height = round(width * MASK_SIZE[1] / MASK_SIZE[0])
-        if finish == 'confetti_glitter':
+        if finish == 'dragon_strike':
+            effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=100,seed=0,
+                rotation=payload['rotation'],position_x=payload['x'],position_y=payload['y'],
+                dragon_emblem=payload['dragon_emblem'],dragon_trail=payload['dragon_trail'],dragon_alignment=payload.get('dragon_alignment','dragon')))
+            alpha=dragon_selection(width,height,effect['scale'],effect['rotation'],effect['position_x'],effect['position_y'],effect['dragon_emblem'],effect['dragon_trail'],effect['dragon_alignment'])
+        elif finish == 'confetti_glitter':
             effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=payload['density'],seed=payload['seed'],rotation=payload['rotation'],position_x=payload['x'],position_y=payload['y'],particle_type=payload['particle_type'],flip_horizontal=payload['flip_horizontal']))
             alpha=render_confetti_glitter(effect,width,height,selection=True)
         elif finish == 'ukiyo_e':
@@ -607,11 +833,10 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         with closing(get_connection()) as conn, conn:
             ensure_schema(conn)
             context = resolve_context(conn, False)
-            row = read_record(conn, (context.scope_id or "global", *card))
-            value = json.loads(row["settings"]).get(layer) if row else None
-            if not value:
-                raise LookupError("No effect saved for this layer.")
-            path = cached_overlay(base64.b64decode(value["mask_png_base64"]), value)
+        value = ensure_record_effect_bakes(get_connection, (context.scope_id or "global", *card)).get(layer)
+        if not value:
+            raise LookupError("No effect saved for this layer.")
+        path = cached_saved_overlay(value)
         response = send_file(path, mimetype="image/png", etag=path.stem)
         response.cache_control.no_cache = True
         return response

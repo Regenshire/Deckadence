@@ -469,6 +469,13 @@
             <select id="printSpotFoilWorkflow" name="spot_foil_workflow_id" required disabled><option value="">Loading workflows…</option></select>
             <p id="printSpotFoilWorkflowHint" role="status"></p>
             <button id="printSpotFoilRetry" type="button" hidden>Retry loading workflows</button>
+            <div id="printInkjetFoilOptions" class="print-spot-foil-details" hidden>
+              <label class="print-spot-foil-checkbox"><input id="printInkjetWhiteFoil" type="checkbox" name="inkjet_add_white_foil" value="1" disabled><span>Add White Foil Layer</span></label>
+              <label for="printInkjetPercentFoil">Percent Foil</label>
+              <input id="printInkjetPercentFoil" name="inkjet_percent_foil" type="number" min="0" max="100" step="1" value="12" required disabled>
+              <p>Lightens selected Foil Mask areas. Each card gets its own editable white overlay in RDG_WHITE. 0% leaves the colors unchanged; 100% clears the selected color. This is opacity, not a measured ink percentage.</p>
+              <a href="{{ url_for('spot_foil_help') }}#inkjet" target="_blank" rel="noopener">Adjust each card in Illustrator ↗</a>
+            </div>
             <label for="printCmykProfile">CMYK ICC profile</label>
             <select id="printCmykProfile" name="cmyk_profile" disabled><option value="">None</option></select>
             <label for="printSpotFoilOutput">PDF contents</label>
@@ -481,7 +488,7 @@
               <option value="grayscale">Preserve tool percentages</option>
               <option value="binary">Solid areas only · 50% cutoff</option>
             </select>
-            <div class="print-spot-foil-details">
+            <div id="printSpotInkDetails" class="print-spot-foil-details">
               <label for="printSpotFoilLayer">Layer purpose</label>
               <select id="printSpotFoilLayer" name="spot_foil_layer_type" disabled></select>
               <label for="printSpotFoilName">Spot channel name</label>

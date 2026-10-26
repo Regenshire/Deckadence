@@ -156,7 +156,7 @@ def generate(request, runtime=None):
                            EulerAncestralDiscreteScheduler)
     device=hardware_device(request['hardware']);model=request['model']
     plan=request.get('generation_plan')
-    checkpoint=CATALOG[model].get('edit_checkpoint') if plan and plan['operation']!='mirror' else None
+    checkpoint=CATALOG[model].get('edit_checkpoint') if plan and plan['operation'] not in ('mirror','micro_scene') else None
     model_spec=checkpoint or CATALOG[model]
     if request.get('edit_mode') and not plan:
         raise RuntimeError('Edit generation requires a compiled generation plan.')
@@ -241,8 +241,8 @@ def generate(request, runtime=None):
             edit_mask=supplied_mask.getchannel('A').resize(size,Image.Resampling.LANCZOS)
         if model == 'flux_klein':
             if native_flux:arguments.update(image=reference,mask_image=edit_mask)
-            elif request['edit_mode']!='mirror':arguments['image'] = conditioning_images(plan, reference, edit_mask)
-        if model in ('sd15','sdxl','sd_turbo') and request['edit_mode']!='mirror':
+            elif request['edit_mode'] not in ('mirror','micro_scene'):arguments['image'] = conditioning_images(plan, reference, edit_mask)
+        if model in ('sd15','sdxl','sd_turbo') and request['edit_mode'] not in ('mirror','micro_scene'):
             from diffusers import StableDiffusionInpaintPipeline,StableDiffusionXLInpaintPipeline
             if not isinstance(pipe,(StableDiffusionInpaintPipeline,StableDiffusionXLInpaintPipeline)):
                 pipe.remove_all_hooks()
@@ -368,6 +368,8 @@ def execute_request(command, payload, runtime=None):
         plan=finalize_plan(payload['plan'],tokenizers)
         Path(payload['output']).write_text(json.dumps(plan),encoding='utf-8')
     elif command=='analyze':
+        if runtime is not None:
+            runtime.clear()
         from prompter.analysis import infer
         infer(payload)
     elif command=='generate':

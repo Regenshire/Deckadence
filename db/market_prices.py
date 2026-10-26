@@ -56,6 +56,14 @@ def _uuid(value):
         return ""
 
 
+def normalize_card_uuid(value):
+    value = str(value or "")
+    if value.startswith("custom-"):
+        identifier = _uuid(value[7:])
+        return "custom-" + identifier if identifier else ""
+    return _uuid(value)
+
+
 def normalize_finish(value):
     finish = str(value or "normal").strip().lower()
     if finish in {"etched", "etched foil", "foil etched"}:
@@ -390,7 +398,19 @@ engine = PriceEngine()
 
 
 def lookup_card_prices(cards, refresh=True):
-    return engine.lookup(cards, refresh=refresh)
+    cards = [{"card_uuid": card} if isinstance(card, str) else card for card in cards]
+    official = [card for card in cards if not str(card.get("card_uuid") or "").startswith("custom-")]
+    results = iter(engine.lookup(official, refresh=refresh) if official else [])
+    # Custom originals have no market printing. Keep their identity in mixed
+    # batches without submitting them to either price provider.
+    return [
+        {"card_uuid": card["card_uuid"], "finish": normalize_finish(card.get("finish", card.get("finish_type"))),
+         "prices": {provider: {"source": provider, "price": None, "currency": "USD",
+                                "status": "unmapped", "stale": False, "refreshing": False}
+                    for provider in VENDORS}}
+        if str(card.get("card_uuid") or "").startswith("custom-") else next(results)
+        for card in cards
+    ]
 
 
 def lookup_card_price(card_uuid, finish="normal", refresh=True):

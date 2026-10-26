@@ -75,7 +75,7 @@ class Capture:
         paths=[*Path(__file__).parent.glob('*.py'),Path(__file__).parents[1]/'generation_worker.py',
                Path(__file__).parents[1]/'generation_runtime.py',
                root/'plugin_system/art_edit.py',root/'plugin_system/local_mirror.py',root/'static/js/card_art_edit.js',
-               root/'plugin_system/mirror_generation.py',root/'static/js/card_spot_foil.js']
+               root/'plugin_system/mirror_generation.py',root/'static/js/card_spot_foil.js',root/'static/js/mirror_layers.js']
         self.metadata['implementation_hashes']={}
         for path in paths:
             try:self.metadata['implementation_hashes'][str(path.relative_to(root)).replace('\\','/')]=sha256(path.read_bytes()).hexdigest()
@@ -160,6 +160,13 @@ Stage files use mirror-artwork-, fill-canvas- and extend-margin- prefixes.
 Each stage includes its own compiled plan, prepared reference and actual model
 outputs. The mirror transformation intentionally changes content; its color
 differences are not a calibration target. Margin stages retain completed art.
+
+For Mirror Layers micro scenes, micro-scenes.json contains each mirror's original
+prompt, style, theme and Focus selection. micro-targets.json maps each mirror to
+its source crop. Files are prefixed with that mirror's object ID: target-reference,
+plan, model-output-raw, themed-core and result. The separate margin-plan and margin
+outputs explain the extra artwork generated for repositioning. Compare the raw
+prompt with the compiled plan, then themed-core with result to locate lost edits.
 
 source-edited.png: the exact full card submitted, including enabled painted edits.
 Editable text objects, finish effects, foil and gloss are not AI image inputs.

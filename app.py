@@ -1154,6 +1154,16 @@ def set_request_print_export_overrides_from_form(form_data, default_label_text="
             ("layer_type", "spot_foil_layer_type"), ("spot_name", "spot_foil_spot_name")]
         if form_data.get(field)
     }
+    if g.print_export_spot_foil_workflow == 'standard_inkjet':
+        try:
+            percent = float(form_data.get('inkjet_percent_foil', 12))
+        except (TypeError, ValueError):
+            raise ValueError('Percent Foil must be between 0 and 100.')
+        if not 0 <= percent <= 100:
+            raise ValueError('Percent Foil must be between 0 and 100.')
+        g.print_export_spot_foil_overrides.update(
+            add_white_foil_layer=bool(parse_print_export_override_bool(get_form_values('inkjet_add_white_foil'))),
+            percent_foil=percent)
     g.pop("_pdf_print_settings_cache", None)
 
     if "include_foil_overlay" in form_data:
@@ -2457,6 +2467,7 @@ def inject_global_template_state():
     return {
         "global_deck_art_upload_max_mb": DECK_ART_UPLOAD_MAX_BYTES / (1024 * 1024),
         "global_card_size_percentages": CARD_SIZE_PERCENTAGES,
+        "global_card_export_template_options": get_card_export_template_options(),
         "global_alternate_image_default_max_mb": ALTERNATE_IMAGE_DEFAULT_MAX_MB,
         "nav_momir_mode": resolve_momir_mode_value(config),
         "nav_chaos_draft_mode": resolve_chaos_draft_mode_value(config),
@@ -3243,7 +3254,8 @@ def import_chaos_cards_from_all_printings():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("DELETE FROM chaos_cards")
+    # User-created printings are not part of the imported card database.
+    cursor.execute("DELETE FROM chaos_cards WHERE card_uuid NOT IN (SELECT card_uuid FROM custom_cards)")
 
     uuid_lookup = {}
 
@@ -10403,7 +10415,7 @@ def get_card_upscale_source_identity(
             UPSCALE_SOURCE_SCRYFALL
         ),
         "source_label": (
-            "Scryfall Source"
+            "Custom Card" if str(dict(card_row).get("card_uuid") or "").startswith("custom-") else "Scryfall Source"
         ),
         "alternate_source_id": None,
         "source_image_scope_id": "",
@@ -10504,6 +10516,8 @@ def load_card_upscale_source(
             ]
         )
 
+    elif custom_source := get_custom_card_image_source(card_row, face_context["page_kind"]):
+        source_path = custom_source["absolute_path"]
     else:
         image_url = str(
             face_context.get(
@@ -10711,6 +10725,30 @@ def get_alternate_image_isolation_service():
 
 
 
+def get_custom_card_image_source(card_row, page_kind="single", *, image_context=None):
+    from db.custom_cards import get_custom_card
+    custom = get_custom_card(dict(card_row or {}).get("card_uuid"))
+    if custom is None or page_kind == "back":
+        return None
+    path = os.path.abspath(os.path.join(RUNTIME_BASE_DIR, custom["local_image_path"]))
+    if not os.path.isfile(path):
+        raise FileNotFoundError("The original custom card image is missing.")
+    fullbleed = custom["fullbleed_image_path"]
+    fullbleed = os.path.abspath(os.path.join(RUNTIME_BASE_DIR, fullbleed)) if fullbleed else ""
+    if fullbleed and not os.path.isfile(fullbleed):
+        raise FileNotFoundError("The custom card's full-bleed image is missing.")
+    return {
+        "source_type": "custom", "source_label": "Custom Card", "source_level": 0,
+        "image_scope_id": image_context.scope_id if image_context else None,
+        "absolute_path": path, "fullbleed_absolute_path": fullbleed,
+        "print_master_absolute_path": fullbleed or path,
+        "source_has_real_bleed": bool(fullbleed),
+        "source_bleed_mm": custom["bleed_size_mm"] or 0.0,
+        "image_url": "", "alternate_source_id": None, "upscaled_image_id": None,
+        "export_frame_template": custom["export_frame_template"],
+    }
+
+
 def resolve_card_image_source_for_page(
     card_row,
     page_kind,
@@ -10718,6 +10756,8 @@ def resolve_card_image_source_for_page(
     *,
     image_context=None,
 ):
+    from db.custom_cards import get_custom_card
+
     if image_context is None:
         image_context = AlternateImageContext(
             dict(card_row or {}).get("image_scope_id")
@@ -11060,9 +11100,13 @@ def resolve_card_image_source_for_page(
                         and "export_frame_template"
                         in alternate_source.keys()
                     )
-                    else "auto"
+                    else (get_custom_card(card_row["card_uuid"]) or {}).get("export_frame_template", "auto")
                 ),
             }
+
+    custom_source = get_custom_card_image_source(card_row, normalized_page_kind, image_context=image_context)
+    if custom_source:
+        return custom_source
 
     return {
         "source_type": "scryfall",
@@ -11100,6 +11144,7 @@ def get_local_card_image_result_from_source(
 
     if source_type not in {
         "alternate_source",
+        "custom",
         "upscaled",
     }:
         return None
@@ -12915,6 +12960,7 @@ class AlternateImageEditor:
             return self.repository(conn).context
 
     def _payload(self, card_uuid, repository):
+        from db.custom_cards import get_custom_card
         card = repository.connection.execute(
             "SELECT * FROM chaos_cards WHERE card_uuid = ?", (card_uuid,)
         ).fetchone()
@@ -12925,6 +12971,23 @@ class AlternateImageEditor:
         active = repository.find_enabled(card, "front")
         if active is None:
             active = repository.find_enabled(card, "back")
+        custom = get_custom_card(card_uuid)
+        serialized_sources = [serialize_alternate_source_row(row) for row in sources]
+        serialized_active = serialize_alternate_source_row(active)
+        if custom and active is None:
+            # The permanent original is the custom card's baseline in every
+            # library. Expose it in the same editor without writing on GET.
+            serialized_active = {
+                **custom,
+                "alternate_source_id": None,
+                "is_custom_original": True,
+                "source_name": "Original custom image",
+                "face_kind": "single",
+                "is_enabled": True,
+                "remove_bleed": bool(custom["remove_bleed"]),
+                "updated_at_utc": custom["created_at_utc"],
+            }
+            serialized_sources.insert(0, serialized_active)
         context = repository.context
         url_parameters = {"card_uuid": card_uuid}
         if self.owner_kind:
@@ -12934,6 +12997,7 @@ class AlternateImageEditor:
         return {
             "ok": True,
             "card": {
+                "custom_card": custom,
                 "card_uuid": card["card_uuid"],
                 "card_name": card["card_name"],
                 "set_code": card["set_code"],
@@ -12952,8 +13016,8 @@ class AlternateImageEditor:
             },
             "image_url": url_for("chaos_card_image", **url_parameters),
             "frame_template_options": get_card_export_template_options(),
-            "active_source": serialize_alternate_source_row(active),
-            "alternate_sources": [serialize_alternate_source_row(row) for row in sources],
+            "active_source": serialized_active,
+            "alternate_sources": serialized_sources,
         }
 
     def payload(self, card_uuid):
@@ -12961,6 +13025,123 @@ class AlternateImageEditor:
             # Keep the selected source and source list in one read snapshot.
             conn.execute("BEGIN")
             return self._payload(card_uuid, self.repository(conn))
+
+    @isolation_operation
+    def save_custom_image_settings(self, card_uuid, settings):
+        """Edit the current artwork using the alternate library and bleed engine.
+
+        Keep the universal original intact. A changed image gets a new source
+        identity so an upscale of the previous crop cannot mask the correction.
+        """
+        from db.custom_cards import get_custom_card
+
+        custom = get_custom_card(card_uuid)
+        if custom is None:
+            raise LookupError("Custom card was not found.")
+        if not isinstance(settings, dict):
+            raise ValueError("Image settings must be an object.")
+        remove_bleed = settings.get("remove_bleed")
+        if not isinstance(remove_bleed, bool):
+            raise ValueError("remove_bleed must be true or false.")
+        template = settings.get("export_frame_template")
+        if not isinstance(template, str) or template not in {option["value"] for option in get_card_export_template_options()}:
+            raise ValueError("Choose a valid label template.")
+        with closing(get_db_connection()) as conn:
+            conn.execute("BEGIN")
+            repository = self.repository(conn, writing=True)
+            context = repository.context
+            card = conn.execute("SELECT * FROM chaos_cards WHERE card_uuid = ?", (card_uuid,)).fetchone()
+            active = repository.find_enabled(card, "single")
+            active = dict(active) if active else None
+        source_id = active["alternate_source_id"] if active else None
+        source = active or custom
+        version = source["updated_at_utc"] if active else custom["created_at_utc"]
+        if ("expected_source_id" not in settings
+                or settings["expected_source_id"] != source_id
+                or settings.get("expected_source_version") != version):
+            raise RuntimeError("The image changed. Close and reopen Alternate Image Settings before saving.")
+
+        changed_bleed = remove_bleed != bool(source["remove_bleed"])
+        generated_directory = None
+        deleted_paths = []
+        committed = False
+        try:
+            with ExitStack() as stack:
+                files = None
+                values = None
+                if changed_bleed or active is None:
+                    local_path = source["local_image_path"]
+                    fullbleed_path = source["fullbleed_image_path"] or ""
+                    if not local_path and active:
+                        download_directory = stack.enter_context(TemporaryDirectory(
+                            prefix="alternate-edit-url-", dir=ALTERNATE_SOURCE_DIR,
+                        ))
+                        local_path = os.path.join(download_directory, "source_image")
+                        download_alternate_source_url_to_file(active["external_image_url"], local_path)
+                    if changed_bleed:
+                        # Never recrop a thumbnail: recover the preserved upload.
+                        master_path = os.path.join(RUNTIME_BASE_DIR, fullbleed_path or local_path)
+                        if not os.path.isfile(master_path):
+                            raise FileNotFoundError("The saved original image is missing.")
+                        if bool(source["remove_bleed"]) and not fullbleed_path:
+                            raise ValueError("This source has no preserved full-bleed file. Replace the image with its original upload.")
+                        if remove_bleed:
+                            if context.is_isolated:
+                                destination = stack.enter_context(TemporaryDirectory(
+                                    prefix="alternate-edit-", dir=ALTERNATE_SOURCE_DIR,
+                                ))
+                            else:
+                                generated_directory = os.path.join(ALTERNATE_SOURCE_DIR, uuid4().hex)
+                                os.makedirs(generated_directory)
+                                destination = generated_directory
+                            processed = save_alternate_source_fullbleed_file(
+                                master_path, card_uuid, "single",
+                                bleed_size_mm=ALTERNATE_UPLOAD_BLEED_MM,
+                                destination_dir=destination,
+                            )
+                            local_path = processed["local_image_path"]
+                            fullbleed_path = processed["fullbleed_image_path"]
+                        else:
+                            local_path, fullbleed_path = fullbleed_path, ""
+                    values = prepare_alternate_source_for_card(
+                        card_uuid, source.get("source_name") or "Custom card image",
+                        source["source_type"], "single",
+                        external_image_url=source["external_image_url"],
+                        local_image_path=local_path, fullbleed_image_path=fullbleed_path,
+                        remove_bleed=remove_bleed,
+                        bleed_size_mm=ALTERNATE_UPLOAD_BLEED_MM if remove_bleed else None,
+                        export_frame_template=template,
+                        priority=source.get("priority", 100), notes=source.get("notes", ""),
+                    )
+                    if context.is_isolated:
+                        files = stack.enter_context(AlternateImageFileSnapshot(
+                            context.scope_id, file_group_id=uuid4().hex,
+                        ))
+                        values.update(files.prepare_source(values))
+                with closing(get_db_connection()) as conn:
+                    conn.execute("BEGIN IMMEDIATE")
+                    repository = self.repository(conn, writing=True)
+                    latest = repository.find_enabled(card, "single")
+                    if repository.context != context or (dict(latest) if latest else None) != active:
+                        raise RuntimeError("The image library changed while saving. Reopen the dialog and retry.")
+                    if values is None:
+                        repository.change(source_id, updates={"export_frame_template": template})
+                    else:
+                        if files:
+                            files.validate_inputs()
+                        repository.insert(values)
+                        if active:
+                            repository.change(source_id, delete=True)
+                            deleted_paths = [active["local_image_path"], active["fullbleed_image_path"]]
+                    conn.commit()
+                    committed = True
+                    if files:
+                        files.keep()
+        finally:
+            if generated_directory and not committed:
+                shutil.rmtree(generated_directory)
+        if deleted_paths:
+            self.remove_unreferenced_files(deleted_paths)
 
     @isolation_operation
     def change(self, source_id, *, updates=None, delete=False):
@@ -12977,6 +13158,11 @@ class AlternateImageEditor:
                 for row in repository.list_for_card(card_uuid)
             ):
                 raise LookupError("Alternate source does not belong to this printing.")
+            if updates and updates.get("is_enabled") and str(card_uuid).startswith("custom-"):
+                # Choosing an older custom image must actually make it active.
+                for previous in repository.list_for_card(card_uuid):
+                    if previous["alternate_source_id"] != int(source_id) and previous["is_enabled"]:
+                        repository.change(previous["alternate_source_id"], updates={"is_enabled": 0})
             repository.change(source_id, updates=updates, delete=delete)
             if delete:
                 deleted_paths = [source["local_image_path"], source["fullbleed_image_path"]]
@@ -13217,6 +13403,20 @@ class AlternateImageEditor:
                         raise LookupError("Card UUID was not found.")
                     if files is not None:
                         files.validate_inputs()
+                    if request.form.get("replace_current") == "1":
+                        from db.custom_cards import get_custom_card
+                        custom = get_custom_card(card_uuid)
+                        if custom is None:
+                            raise ValueError("Only custom cards support image replacement here.")
+                        current = repository.find_enabled(dict(card_uuid=card_uuid), "single")
+                        expected_id = str(current["alternate_source_id"]) if current else ""
+                        expected_version = current["updated_at_utc"] if current else custom["created_at_utc"]
+                        if (request.form.get("expected_source_id") != expected_id
+                                or request.form.get("expected_source_version") != expected_version):
+                            raise RuntimeError("The image changed. Reopen Alternate Image Settings before replacing it.")
+                        for previous in repository.list_for_card(card_uuid):
+                            if previous["is_enabled"]:
+                                repository.change(previous["alternate_source_id"], updates={"is_enabled": 0})
                     source_id = repository.insert(values)
                     conn.commit()
                     committed = True
@@ -13226,6 +13426,111 @@ class AlternateImageEditor:
         finally:
             if upload_paths and not committed and not context.is_isolated:
                 self.remove_unreferenced_files(upload_paths)
+
+
+@app.route("/custom-cards/<card_uuid>/delete", methods=["POST"])
+@alternate_image_api
+def custom_cards_delete(card_uuid):
+    from db.custom_cards import delete_custom_card
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or str(payload.get("delete_confirmation") or "").strip().upper() != "DELETE":
+        raise ValueError("Type DELETE to confirm deleting this custom card.")
+    result = delete_custom_card(card_uuid)
+    return jsonify(ok=True, message="Custom card deleted.", **result)
+
+
+@app.route("/custom-cards", methods=["POST"])
+@alternate_image_api
+def custom_cards_create():
+    from uuid import UUID
+    from paths import CUSTOM_CARD_DIR
+    from db.custom_cards import get_custom_card, insert_custom_card, normalize_custom_card_fields
+
+    fields = normalize_custom_card_fields(request.form)
+    try:
+        card_uuid = "custom-" + str(UUID(request.form.get("request_id") or ""))
+    except ValueError:
+        raise ValueError("A valid custom card request ID is required.")
+    def created_payload():
+        card = dict(get_chaos_card_by_uuid(card_uuid))
+        card.update(release_date="", sort_price=None, already_in_set=0)
+        return jsonify(ok=True, card_uuid=card_uuid, card_name=card["card_name"],
+                       card=serialize_custom_draft_card_search_result(card))
+
+    existing = get_custom_card(card_uuid)
+    if existing:
+        if any(existing[key] != value for key, value in fields.items()):
+            raise ValueError("This upload already added a different card. Reopen Upload Custom Card to add another.")
+        return created_payload()
+
+    source_type = request.form.get("source_type") or "uploaded_file"
+    if source_type not in {"uploaded_file", "external_url", "local_file"}:
+        raise ValueError("Choose an image source type.")
+    template = request.form.get("export_frame_template") or "auto"
+    if template not in {option["value"] for option in get_card_export_template_options()}:
+        raise ValueError("Choose a valid label template.")
+    remove_bleed = request.form.get("remove_bleed") == "on"
+    os.makedirs(CUSTOM_CARD_DIR, exist_ok=True)
+    # This directory is owned exclusively by this request, including on failure.
+    directory = os.path.join(CUSTOM_CARD_DIR, uuid4().hex)
+    os.mkdir(directory)
+    committed = False
+    try:
+        source_path = os.path.join(directory, "input")
+        external_url = ""
+        if source_type == "external_url":
+            external_url = (request.form.get("external_image_url") or "").strip()
+            download_alternate_source_url_to_file(external_url, source_path)
+        else:
+            with ExitStack() as stack:
+                if source_type == "uploaded_file":
+                    uploaded = request.files.get("alternate_image_file")
+                    if not uploaded or not uploaded.filename:
+                        raise ValueError("Choose an image file.")
+                    source = uploaded.stream
+                else:
+                    path = (request.form.get("local_image_path") or "").strip()
+                    if not path:
+                        raise ValueError("Enter a local image path.")
+                    source = stack.enter_context(open(os.path.join(RUNTIME_BASE_DIR, path), "rb"))
+                with open(source_path, "wb") as output:
+                    total = 0
+                    while chunk := source.read(1024 * 1024):
+                        total += len(chunk)
+                        if total > 256 * 1024 * 1024:
+                            raise ValueError("Custom card images must be 256 MB or smaller.")
+                        output.write(chunk)
+        try:
+            with Image.open(source_path) as image:
+                extension = {"PNG": ".png", "JPEG": ".jpg", "WEBP": ".webp"}.get(image.format)
+                if not extension:
+                    raise ValueError("Custom card images must be PNG, JPG, or WEBP files.")
+                image.verify()
+        except (OSError, Image.DecompressionBombError) as exc:
+            raise ValueError("The image could not be read. Choose a valid PNG, JPG, or WEBP file.") from exc
+        if remove_bleed:
+            image_values = save_alternate_source_fullbleed_file(
+                source_path, card_uuid, "single", destination_dir=directory,
+                bleed_size_mm=ALTERNATE_UPLOAD_BLEED_MM,
+            )
+            os.unlink(source_path)
+        else:
+            image_path = os.path.join(directory, "original" + extension)
+            os.replace(source_path, image_path)
+            image_values = {"local_image_path": os.path.relpath(image_path, RUNTIME_BASE_DIR).replace("\\", "/")}
+        image_values.update(source_type=source_type, external_image_url=external_url, export_frame_template=template)
+        try:
+            insert_custom_card(card_uuid, fields, image_values)
+            committed = True
+        except sqlite3.IntegrityError:
+            # A retry can finish concurrently with the first request.
+            existing = get_custom_card(card_uuid)
+            if not existing or any(existing[key] != value for key, value in fields.items()):
+                raise
+        return created_payload()
+    finally:
+        if not committed:
+            shutil.rmtree(directory)
 
 
 # *** PACK PRINT IMAGES - Prepare Card Fronts and Backs ***
@@ -13469,6 +13774,7 @@ def prefetch_chaos_pdf_remote_images(
 
             if image_source.get("source_type") in {
                 "alternate_source",
+                "custom",
                 "upscaled",
             }:
                 continue
@@ -13519,6 +13825,7 @@ def prefetch_chaos_pdf_remote_images(
                     "source_type"
                 ) in {
                     "alternate_source",
+                    "custom",
                     "upscaled",
                 }:
                     continue
@@ -13960,7 +14267,7 @@ def build_chaos_print_pages_for_card(card_row):
             })
             return pages
 
-    if image_url:
+    if image_url or card_uuid.startswith("custom-"):
         write_debug_log(
             f"CHAOS PDF EXPAND | single-page fallback | card_name={card_row['card_name']} | image_url_present=yes"
         )
@@ -19674,7 +19981,7 @@ def load_finishing_original_artwork(card_uuid, face, context):
     if not info:
         raise LookupError("The card artwork is no longer available.")
     source = resolve_card_image_source_for_page(card, info["page_kind"], info["image_url"], image_context=context)
-    if source.get("source_type") in ("alternate_source", "upscaled"):
+    if source.get("source_type") in ("alternate_source", "custom", "upscaled"):
         path = source.get("absolute_path")
         if path and os.path.isfile(path):
             return path
@@ -29554,6 +29861,9 @@ def deckbuilder_cards_search(deck_id):
             "results": [],
         }), 404
 
+    if request.args.get("printing_card_uuid"):
+        return card_printings_search_response("__DECKBUILDER__", request.args["printing_card_uuid"])
+
     search_text = (request.args.get("q") or "").strip()
 
     try:
@@ -29825,6 +30135,8 @@ def deckbuilder_cards_add(deck_id):
     result = add_card_to_deckbuilder_sideboard(
         deck_id=deck_id,
         card_uuid=card_uuid,
+        if_absent=payload.get("custom_card_creation") is True and card_uuid.startswith("custom-"),
+        is_foil=payload.get("is_foil") is True,
     )
 
     if not result.get("ok"):
@@ -29833,7 +30145,7 @@ def deckbuilder_cards_add(deck_id):
     return jsonify({
         "ok": True,
         "response_mode": "delta",
-        "inserted": True,
+        "inserted": result.get("inserted", True),
         "message": result.get("message") or "Card added to sideboard.",
         "add_card_result": result,
     })
@@ -31281,6 +31593,16 @@ def campaign_chaos_card_alternate_sources_add(card_uuid):
     payload.update(message="Alternate image source added.", alternate_source_id=source_id)
     return jsonify(payload)
 
+@app.route("/chaos/cards/<card_uuid>/alternate-sources/settings", methods=["POST"])
+@app.route("/campaign-chaos/cards/<card_uuid>/alternate-sources/settings", methods=["POST"])
+@alternate_image_api
+def custom_card_alternate_image_settings(card_uuid):
+    editor = AlternateImageEditor.from_request()
+    editor.save_custom_image_settings(card_uuid, request.get_json(silent=True) or {})
+    payload = editor.payload(card_uuid)
+    payload["message"] = "Custom card image settings saved."
+    return jsonify(payload)
+
 @app.route("/chaos/alternate-sources/<int:alternate_source_id>/frame-template", methods=["POST"])
 @app.route("/campaign-chaos/alternate-sources/<int:alternate_source_id>/frame-template", methods=["POST"])
 @alternate_image_api
@@ -31779,6 +32101,7 @@ def chaos_card_image(card_uuid):
 
     if image_source.get("source_type") in {
         "alternate_source",
+        "custom",
         "upscaled",
     }:
         local_image_path = os.path.abspath(
@@ -31850,6 +32173,7 @@ def chaos_card_image_preview(card_uuid):
 
     if image_source.get("source_type") in {
         "alternate_source",
+        "custom",
         "upscaled",
     }:
         local_image_path = os.path.abspath(
@@ -31973,6 +32297,10 @@ def chaos_card_image_source(card_uuid):
             )
 
         return ("Not found", 404)
+
+    custom_source = get_custom_card_image_source(card_row, face_context["page_kind"])
+    if custom_source:
+        return send_file(custom_source["absolute_path"], conditional=True, max_age=0)
 
     image_url = (
         face_context["image_url"]
@@ -32192,7 +32520,7 @@ def chaos_card_image_compare(card_uuid):
         ),
 
         "source": {
-            "label": "Scryfall Source",
+            "label": "Custom Card" if card_uuid.startswith("custom-") else "Scryfall Source",
             "src": source_url,
         },
 
@@ -38286,6 +38614,7 @@ def serialize_custom_draft_card_search_result(row):
         "set_code": row["set_code"],
         "release_date": row["release_date"] or "",
         "release_year": (row["release_date"] or "")[:4],
+        "set_name": (row["set_name"] or "") if "set_name" in row_keys else "",
         "collector_number": row["collector_number"] or "",
         "rarity": row["rarity"] or "",
         "type_line": row["type_line"] or "",
@@ -38308,7 +38637,7 @@ def serialize_custom_draft_card_search_result(row):
             else (
                 "Upscaled"
                 if has_upscaled_image
-                else "Scryfall"
+                else "Custom Card" if str(row["card_uuid"]).startswith("custom-") else "Scryfall"
             )
         ),
 
@@ -38317,6 +38646,27 @@ def serialize_custom_draft_card_search_result(row):
             card_uuid=row["card_uuid"],
         ),
     }
+
+def card_printings_search_response(set_code, card_uuid):
+    """Load one selected card's printings without the discovery filters."""
+    card = get_chaos_card_by_uuid(str(card_uuid or "").strip())
+    if not card or not str(card["card_name"] or "").strip():
+        return jsonify({"ok": False, "message": "Card was not found.", "results": []}), 404
+    try:
+        page = max(1, int(request.args.get("page") or 1))
+        page_size = max(10, min(1000, int(request.args.get("page_size") or 1000)))
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "message": "Invalid printing page.", "results": []}), 400
+    rows, total_count = search_chaos_cards_for_custom_draft_set(
+        set_code, exact_card_name=card["card_name"], sort_option="year_newest",
+        page=page, page_size=page_size,
+    )
+    return jsonify({
+        "ok": True, "results": [serialize_custom_draft_card_search_result(row) for row in rows],
+        "total_count": total_count, "page": page, "page_size": page_size,
+        "total_pages": max(1, (total_count + page_size - 1) // page_size),
+    })
+
 
 def serialize_custom_draft_current_card_result(row):
     return {
@@ -38334,6 +38684,7 @@ def serialize_custom_draft_current_card_result(row):
         "edhrec_saltiness": row["edhrec_saltiness"],
         "sort_price": row["sort_price"],
         "special_category_index": int(row["special_category_index"] or 0),
+        "sheet_is_foil": int(row["sheet_is_foil"] or 0),
         "has_alternate_source": int(row["has_alternate_source"] or 0) == 1,
         "alternate_remove_bleed": int(row["alternate_remove_bleed"] or 0) == 1,
         "has_upscaled_image": int(row["has_upscaled_image"] or 0) == 1,
@@ -38517,6 +38868,9 @@ def custom_draft_set_cards_search(set_code):
             "results": [],
         }), 404
 
+    if request.args.get("printing_card_uuid"):
+        return card_printings_search_response(clean_set_code, request.args["printing_card_uuid"])
+
     rows, total_count = search_chaos_cards_for_custom_draft_set(
         clean_set_code,
         search_text,
@@ -38632,7 +38986,7 @@ def custom_draft_set_cards_add(set_code):
     card_uuid = (payload.get("card_uuid") or "").strip()
 
     try:
-        result = add_card_to_custom_draft_set(clean_set_code, card_uuid)
+        result = add_card_to_custom_draft_set(clean_set_code, card_uuid, is_foil=payload.get("is_foil") is True)
     except Exception as exc:
         return jsonify({
             "ok": False,

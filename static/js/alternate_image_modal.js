@@ -146,6 +146,19 @@ for (const button of document.querySelectorAll(
     "alternateImageSaveFrameButton",
   );
   const alternateAddButton = document.getElementById("alternateImageAddButton");
+  const alternateReplaceButton = document.getElementById("alternateImageReplaceButton");
+  const alternateCancelReplaceButton = document.getElementById("alternateImageCancelReplaceButton");
+  const alternateDeleteCustomRow = document.getElementById("alternateImageDeleteCustomRow");
+  const alternateDeleteCustomButton = document.getElementById("alternateImageDeleteCustomButton");
+  const customCardDeleteModal = document.getElementById("customCardDeleteModal");
+  const customCardDeleteInput = document.getElementById("customCardDeleteConfirmInput");
+  const customCardDeleteConfirm = document.getElementById("customCardDeleteConfirmButton");
+  const customCardDeleteCancel = document.getElementById("customCardDeleteCancelButton");
+  const customCardDeleteClose = document.getElementById("customCardDeleteCloseButton");
+  const customCardDeleteError = document.getElementById("customCardDeleteError");
+  let customCardDeleteInProgress = false;
+  let currentAlternatePayload = null;
+  let replacingCustomImage = false;
   const alternateFaceKind = document.getElementById("alternateImageFaceKind");
   const alternateFaceKindRow = document.getElementById(
     "alternateImageFaceKindRow",
@@ -382,9 +395,19 @@ for (const button of document.querySelectorAll(
 
       emptyTitle.className = "alternate-active-source-title";
 
-      emptyTitle.textContent = "Scryfall / Default Image";
+      emptyTitle.textContent = card?.custom_card ? "Custom Card / Original Image" : "Scryfall / Default Image";
 
       alternateActiveSource.appendChild(emptyTitle);
+
+      if (card?.custom_card) {
+        const meta = document.createElement("div");
+        meta.className = "alternate-active-source-meta";
+        meta.textContent = [
+          card.custom_card.creator ? "Creator: " + card.custom_card.creator : "",
+          card.custom_card.artist ? "Artist: " + card.custom_card.artist : "",
+        ].filter(Boolean).join(" • ");
+        alternateActiveSource.appendChild(meta);
+      }
 
       return;
     }
@@ -908,6 +931,11 @@ for (const button of document.querySelectorAll(
     if (alternateMutationPending) return;
     alternateModalVersion += 1;
     currentImageScopeToken = null;
+    currentAlternatePayload = null;
+    replacingCustomImage = false;
+    alternateReplaceButton?.classList.add("hidden");
+    alternateCancelReplaceButton?.classList.add("hidden");
+    alternateDeleteCustomRow?.classList.add("hidden");
     currentImagePreviewUrl = "";
     currentImagePreviewVersion = "";
     currentAlternateCardUuid = cardUuid || "";
@@ -987,6 +1015,8 @@ for (const button of document.querySelectorAll(
   }
 
   function renderAlternateSources(payload) {
+    currentAlternatePayload = payload;
+    replacingCustomImage = false;
     currentImageScopeToken = payload.image_scope.token;
     currentImagePreviewUrl = payload.image_url;
     currentImagePreviewVersion = String(Date.now());
@@ -1001,6 +1031,9 @@ for (const button of document.querySelectorAll(
     const sources = payload.alternate_sources || [];
     const activeSource = payload.active_source;
     const card = payload.card || {};
+    const isCustomCard = Boolean(card.custom_card);
+    alternateDeleteCustomRow?.classList.toggle("hidden", !isCustomCard);
+    alternateOverlay.classList.toggle("alternate-image-custom-editor", isCustomCard);
     const isDualFaced = Boolean(card.is_dual_faced);
 
     configureAlternateImageFaceKindOptions(card);
@@ -1021,6 +1054,20 @@ for (const button of document.querySelectorAll(
     }
 
     setAlternateInputLocked(Boolean(activeSource) && !isDualFaced);
+    if (alternateRemoveBleedInput && activeSource) {
+      alternateRemoveBleedInput.checked = Boolean(activeSource.remove_bleed);
+      alternateRemoveBleedInput.disabled = !isCustomCard && !isDualFaced;
+      alternateRemoveBleedInput.readOnly = false;
+    }
+    if (alternateSaveFrameButton) {
+      alternateSaveFrameButton.textContent = isCustomCard ? "Save Changes" : "Update";
+      alternateSaveFrameButton.classList.toggle("secondary-button", !isCustomCard);
+    }
+    if (alternateAddButton) {
+      alternateAddButton.textContent = isCustomCard ? "Save Image" : "Add Alternate Source";
+    }
+    alternateReplaceButton?.classList.toggle("hidden", !isCustomCard);
+    alternateCancelReplaceButton?.classList.add("hidden");
 
     if (alternateAddButton && hideSourceComposer) {
       alternateAddButton.classList.add("hidden");
@@ -1045,7 +1092,9 @@ for (const button of document.querySelectorAll(
 
       const emptyText = document.createElement("span");
       emptyText.textContent =
-        "Deckadence is currently using a Scryfall base or upscaled image.";
+        payload.card?.custom_card
+          ? "Deckadence is currently using the original custom card artwork or its upscaled image."
+          : "Deckadence is currently using a Scryfall base or upscaled image.";
 
       emptyRow.appendChild(emptyTitle);
       emptyRow.appendChild(emptyText);
@@ -1068,10 +1117,9 @@ for (const button of document.querySelectorAll(
       const title = document.createElement("div");
       title.className = "alternate-source-title";
 
-      title.textContent = getAlternateFaceTitle(
-        source.face_kind,
-        payload.card || {},
-      );
+      title.textContent = source.is_custom_original
+        ? "Original custom image"
+        : getAlternateFaceTitle(source.face_kind, payload.card || {});
 
       const meta = document.createElement("div");
       meta.className = "alternate-source-meta";
@@ -1135,8 +1183,10 @@ for (const button of document.querySelectorAll(
         deleteAlternateSource(source.alternate_source_id);
       });
 
-      actions.appendChild(enabledButton);
-      actions.appendChild(deleteButton);
+      if (!source.is_custom_original) {
+        actions.appendChild(enabledButton);
+        actions.appendChild(deleteButton);
+      }
 
       row.appendChild(copy);
       row.appendChild(actions);
@@ -1216,6 +1266,23 @@ for (const button of document.querySelectorAll(
   }
 
   async function saveAlternateFrameTemplate() {
+    if (currentAlternatePayload?.card?.custom_card) {
+      const active = currentAlternatePayload.active_source;
+      const payload = await saveAlternateChange(
+        "/chaos/cards/" + encodeURIComponent(currentAlternateCardUuid) + "/alternate-sources/settings",
+        {
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            expected_source_id: active?.alternate_source_id ?? null,
+            expected_source_version: active?.updated_at_utc,
+            remove_bleed: Boolean(alternateRemoveBleedInput?.checked),
+            export_frame_template: alternateExportFrameTemplate?.value || "auto",
+          }),
+        },
+      );
+      if (payload) closeAlternateModal();
+      return;
+    }
     if (!currentActiveAlternateSourceId || !alternateExportFrameTemplate)
       return;
     const payload = await saveAlternateChange(
@@ -1242,6 +1309,163 @@ for (const button of document.querySelectorAll(
       saveAlternateFrameTemplate,
     );
   }
+
+  alternateReplaceButton?.addEventListener("click", function () {
+    if (alternateMutationPending || !currentAlternatePayload?.card?.custom_card) return;
+    replacingCustomImage = true;
+    alternateSourceComposer?.classList.remove("hidden");
+    setAlternateInputLocked(false);
+    alternateReplaceButton.classList.add("hidden");
+    alternateCancelReplaceButton?.classList.remove("hidden");
+    alternateFileInput?.focus();
+  });
+
+  alternateCancelReplaceButton?.addEventListener("click", function () {
+    if (alternateMutationPending || !currentAlternatePayload) return;
+    const isFoil = alternateFoilInput?.checked;
+    alternateForm.reset();
+    if (alternateFoilInput) alternateFoilInput.checked = isFoil;
+    updateAlternateSourceFieldVisibility();
+    renderAlternateSources(currentAlternatePayload);
+  });
+
+  let customCardChanges = null;
+  try {
+    if (typeof BroadcastChannel === "function") {
+      customCardChanges = new BroadcastChannel("deckadence-custom-cards");
+    }
+  } catch (_) {
+    // Embedded browsers may expose the API without allowing channels.
+  }
+
+  function notifyCustomCardDeleted(cardUuid) {
+    const packCards = document.querySelectorAll('.chaos-pack-view-card[data-card-uuid="' + CSS.escape(cardUuid) + '"]');
+    packCards.forEach(card => card.remove());
+    if (packCards.length) {
+      document.querySelectorAll('[data-pack-card-count]').forEach(count => {
+        count.textContent = String(document.querySelectorAll('.chaos-pack-view-card').length);
+      });
+    }
+    document.dispatchEvent(new CustomEvent("deckadence:custom-card-deleted", {
+      detail: { cardUuid },
+    }));
+  }
+
+  function receiveCustomCardDeletion(cardUuid) {
+    if (typeof cardUuid !== "string" || !cardUuid.startsWith("custom-")) return;
+    notifyCustomCardDeleted(cardUuid);
+    if (cardUuid === currentAlternateCardUuid && !alternateMutationPending) {
+      closeAlternateModal();
+    }
+  }
+
+  if (customCardChanges) customCardChanges.onmessage = event => receiveCustomCardDeletion(event.data?.cardUuid);
+  window.addEventListener("storage", function (event) {
+    if (event.key !== "deckadence.customCardDeleted" || !event.newValue) return;
+    try { receiveCustomCardDeletion(JSON.parse(event.newValue).cardUuid); } catch (_) {}
+  });
+
+  function updateCustomCardDeleteState() {
+    customCardDeleteConfirm.disabled = customCardDeleteInProgress ||
+      customCardDeleteInput.value.trim().toUpperCase() !== "DELETE";
+    customCardDeleteConfirm.textContent = customCardDeleteInProgress ? "Deleting..." : "Delete Custom Card";
+    customCardDeleteInput.disabled = customCardDeleteInProgress;
+    customCardDeleteCancel.disabled = customCardDeleteInProgress;
+    customCardDeleteClose.disabled = customCardDeleteInProgress;
+    customCardDeleteModal.setAttribute("aria-busy", String(customCardDeleteInProgress));
+  }
+
+  function closeCustomCardDeleteModal() {
+    if (customCardDeleteInProgress) return;
+    customCardDeleteModal.classList.add("hidden");
+    customCardDeleteModal.setAttribute("aria-hidden", "true");
+    customCardDeleteInput.value = "";
+    alternateOverlay.inert = false;
+    alternateMutationPending = false;
+    alternateDeleteCustomButton.disabled = false;
+    alternateDeleteCustomButton.focus();
+  }
+
+  alternateDeleteCustomButton?.addEventListener("click", function () {
+    if (alternateMutationPending || !currentAlternatePayload?.card?.custom_card) return;
+    alternateMutationPending = true;
+    alternateDeleteCustomButton.disabled = true;
+    alternateOverlay.inert = true;
+    document.getElementById("customCardDeleteName").textContent = currentAlternateCardName;
+    customCardDeleteInput.value = "";
+    customCardDeleteError.textContent = "";
+    customCardDeleteError.classList.add("hidden");
+    updateCustomCardDeleteState();
+    customCardDeleteModal.classList.remove("hidden");
+    customCardDeleteModal.setAttribute("aria-hidden", "false");
+    customCardDeleteInput.focus();
+  });
+
+  customCardDeleteCancel?.addEventListener("click", closeCustomCardDeleteModal);
+  customCardDeleteClose?.addEventListener("click", closeCustomCardDeleteModal);
+  document.getElementById("customCardDeleteBackdrop")?.addEventListener("click", closeCustomCardDeleteModal);
+  customCardDeleteInput?.addEventListener("input", updateCustomCardDeleteState);
+  customCardDeleteInput?.addEventListener("keydown", function (event) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (!event.isComposing) customCardDeleteConfirm.click();
+    }
+  });
+  document.addEventListener("keydown", function (event) {
+    if (!customCardDeleteModal || customCardDeleteModal.classList.contains("hidden")) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeCustomCardDeleteModal();
+    } else if (event.key === "Tab") {
+      const controls = Array.from(customCardDeleteModal.querySelectorAll("button:not(:disabled), input:not(:disabled)"));
+      const index = controls.indexOf(document.activeElement);
+      if (!controls.length || index < 0 || (event.shiftKey ? index === 0 : index === controls.length - 1)) {
+        event.preventDefault();
+        controls[event.shiftKey ? controls.length - 1 : 0]?.focus();
+      }
+    }
+  }, true);
+
+  customCardDeleteConfirm?.addEventListener("click", async function () {
+    const confirmation = customCardDeleteInput.value.trim().toUpperCase();
+    if (customCardDeleteInProgress || confirmation !== "DELETE" ||
+        customCardDeleteModal.classList.contains("hidden") || !currentAlternatePayload?.card?.custom_card) return;
+    const cardUuid = currentAlternateCardUuid;
+    let deleted = false;
+    customCardDeleteInProgress = true;
+    updateCustomCardDeleteState();
+    customCardDeleteError.classList.add("hidden");
+    try {
+      const response = await fetch("/custom-cards/" + encodeURIComponent(cardUuid) + "/delete", {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ delete_confirmation: confirmation }),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || "Could not delete the custom card.");
+      deleted = true;
+      notifyCustomCardDeleted(cardUuid);
+      try {
+        if (customCardChanges) customCardChanges.postMessage({ cardUuid });
+        else {
+          localStorage.setItem("deckadence.customCardDeleted", JSON.stringify({ cardUuid, at: Date.now() }));
+          localStorage.removeItem("deckadence.customCardDeleted");
+        }
+      } catch (_) { /* Other tabs can refresh if messaging/storage is blocked. */ }
+      window.iMomirToast?.success("Custom card deleted.");
+    } catch (error) {
+      customCardDeleteError.textContent = error.message || String(error);
+      customCardDeleteError.classList.remove("hidden");
+    } finally {
+      customCardDeleteInProgress = false;
+      updateCustomCardDeleteState();
+      if (deleted) {
+        closeCustomCardDeleteModal();
+        closeAlternateModal();
+      } else customCardDeleteInput.focus();
+    }
+  });
 
   // Add Cards inserts rows after this script runs. Grid and context-menu
   // controls also forward clicks to those rows, so handle current buttons.
@@ -1277,12 +1501,22 @@ for (const button of document.querySelectorAll(
     alternateForm.addEventListener("submit", async function (event) {
       event.preventDefault();
       if (!currentAlternateCardUuid || alternateMutationPending) return;
+      if (currentAlternatePayload?.card?.custom_card && !replacingCustomImage) {
+        await saveAlternateFrameTemplate();
+        return;
+      }
       applyDefaultAlternateSourceNameIfBlank();
+      const formData = new FormData(alternateForm);
+      if (replacingCustomImage) {
+        formData.set("replace_current", "1");
+        formData.set("expected_source_id", currentAlternatePayload.active_source?.alternate_source_id ?? "");
+        formData.set("expected_source_version", currentAlternatePayload.active_source?.updated_at_utc || "");
+      }
       const payload = await saveAlternateChange(
         "/chaos/cards/" +
           encodeURIComponent(currentAlternateCardUuid) +
           "/alternate-sources/add",
-        { body: new FormData(alternateForm) },
+        { body: formData },
       );
       if (!payload) return;
       alternateForm.reset();

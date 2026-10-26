@@ -30,7 +30,7 @@ REQUIRED = {
     "prompter/__init__.py", "prompter/analysis.py", "prompter/contracts.py",
     "prompter/compiler.py", "prompter/dictionary.py", "prompter/preparation.py",
     "prompter/diagnostics.py", "prompter/mirror.py", "prompter/color_reference.py",
-    "prompter/color_continuity.py",
+    "prompter/color_continuity.py", "prompter/targets.py",
 }
 EXCLUDED = {"__pycache__", "models", "runtime", "runtimes", "venv", "tests"}
 
