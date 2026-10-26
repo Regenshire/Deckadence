@@ -111,9 +111,12 @@ def build(root, output_dir, check_only=False):
     print("[1/4] Validating plugin sources, prompt recipes, and package definitions...", flush=True)
     manifest, files = validate_package(source)
     version = manifest["version"]
+    release_tag = f"plugin-card-finishing-studio-v{version}"
+    release_title = f"Deckadence {manifest['name']} v{version}"
     print(f"      {manifest['name']} v{version}: {len(files)} release source files", flush=True)
     if check_only:
         print("Validation passed. No archive created and no dependencies downloaded.")
+        print(f"\nGitHub tag:\n  {release_tag}\n\nGitHub release title:\n  {release_title}", flush=True)
         return
     output_dir = output_dir.resolve()
     # Never allow publishing into source or user/runtime data by mistake.
@@ -174,10 +177,10 @@ def build(root, output_dir, check_only=False):
     print(f"Plugin: {manifest['name']}\nVersion: {version}\nPlatforms: Windows / Linux / macOS Apple Silicon (same source ZIP)")
     print(f"Release ZIP: {result}\nZIP size: {result.stat().st_size / 1048576:.2f} MB")
     print(f"SHA-256: {digest}\nChecksum file: {result}.sha256")
-    print(f"Suggested release tag: plugin-card-finishing-studio-v{version}")
-    print(f"Release title: Card Finishing Studio v{version}\nAsset name: {ASSET_NAME}")
-    print("Model weights and Python dependencies are installed through Deckadence Settings.")
-    print("The app currently bundles this source; its install catalog is unchanged.")
+    print("\n========================================\n       GITHUB RELEASE DETAILS\n========================================")
+    print(f"\nGitHub tag:\n  {release_tag}")
+    print(f"\nGitHub release title:\n  {release_title}")
+    print(f"\nRelease assets:\n  {ASSET_NAME}\n  {ASSET_NAME}.sha256\n", flush=True)
 
 
 def main():
