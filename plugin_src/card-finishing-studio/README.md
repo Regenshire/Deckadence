@@ -78,6 +78,11 @@ new Studio code to users with the current installer, rebuild the Deckadence
 application from the same source revision. The ZIP is the separate plugin
 source distribution, not an application installer or an offline AI bundle.
 
+After updating Deckadence, use **Update / Reinstall** for Studio in **Settings →
+Plugins** when a bundled update is available. If publishing the separate source
+ZIP, include its `.sha256` file and leave **Set as the latest release** off.
+The main Deckadence application release must remain **Latest** for the app updater.
+
 Detection libraries are installed into an isolated Python environment. Optional
 generative packages download their models, artwork analyzer, adapters, and
 associated libraries through Studio Settings. A successful source build does

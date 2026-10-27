@@ -60,3 +60,54 @@ The plugin runs inside Deckadence using its existing Python runtime, Requests,
 and Pillow. Installation enables the bundled plugin without downloading Python
 or installing additional libraries. No GPU is required. Updating an older
 installation removes its redundant plugin environment and keeps the image cache.
+
+## Building the distribution
+
+From the repository root on Windows, run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .dev_prompts/build_Deckadence_mpcfill.ps1
+```
+
+This follows the Card Finishing Studio builder's workflow. Use `-CheckOnly` to
+validate without creating files, `-OutputDirectory` for a different destination,
+or `-Python` to choose Python 3.10+. PowerShell 7 also works on Linux and macOS;
+`-Linux -Distribution Ubuntu-22.04` runs it through WSL from Windows. Python's
+standard library is the only build dependency. Without PowerShell:
+
+```sh
+python3 -B plugin_src/build_mpcfill_plugin.py
+```
+
+The builder produces `dist/deckadence-mpcfill-browser.zip` and
+`dist/deckadence-mpcfill-browser.zip.sha256`, and prints the GitHub release tag
+and title derived from the manifest version. The ZIP has the manifest at its
+root, plus this guide, the MIT license, and `BUILD_INFO.json`. Build information
+records the plugin and companion app versions and file checksums. Validation
+checks the companion app's required MPCFill modules and assets before packaging.
+Local caches, downloaded artwork, favorites, environments, and user data are
+never included. Temporary build files stay under `.dev_prompts/ai_work/`.
+
+## Installation and release scope
+
+Release the matching Deckadence application from the same saved source revision.
+MPCFill's Python handler, browser, batch interface, and application integration
+are bundled in Deckadence. This ZIP contains the plugin installation metadata
+and documentation; it is not a standalone application or a separate code update.
+Plugin Manager currently installs the files bundled with Deckadence rather than
+downloading this ZIP, and does not provide manual ZIP import.
+
+After updating Deckadence, new users choose **Install** and existing users choose
+**Update / Reinstall** for MPCFill Browser in **Settings → Plugins**. No external
+Python installation, libraries, or models are needed. Existing favorites,
+cached images, and applied alternate sources are retained.
+
+Before publishing, verify the packaged app on each supported target: install
+and update the plugin, open the browser, search and select artwork, run a small
+batch review/apply, and confirm artwork remains after restarting. Package
+validation does not test live MPCFill/Google Drive availability. The package
+contains no third-party card artwork.
+
+If publishing a separate plugin release, upload the ZIP and its checksum under
+the tag printed by the builder. Leave **Set as the latest release** off: the
+main Deckadence application release must remain **Latest** for the app updater.

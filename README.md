@@ -295,6 +295,33 @@ Run this from your usual Deckadence PowerShell environment:
 
 The builder automatically downloads the small private Python copy needed for addon packages on the first build and reuses it afterwards. No extra setup or environment variables are needed. Use `-SkipAddons` to build only the application. Addon ZIPs remain separate from the application ZIP; this command builds packages but does not publish them.
 
+### MPCFill Browser and Card Finishing Studio distributions
+
+Both plugins are bundled with the application and installed through **Settings →
+Plugins**. The application build validates their shipped files. A new Deckadence
+build is required to deliver their implementation changes; separate plugin ZIPs
+do not update an older application. After updating Deckadence, choose **Update /
+Reinstall** for installed plugins when Plugin Manager shows an update.
+
+Build their separate distribution ZIPs and SHA-256 checksums from the repository
+root (these commands do not download models or publish releases):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .dev_prompts/build_Deckadence_mpcfill.ps1
+python -B plugin_src/build_card_finishing_plugin.py
+```
+
+Each builder supports validation without packaging (`-CheckOnly` in PowerShell,
+`--check-only` in Python) and prints the release tag/title from its plugin
+manifest. Use the same saved revision for the app and plugin builds. See the
+[MPCFill distribution guide](plugin_src/mpcfill-browser/README.md#building-the-distribution)
+and [Studio distribution guide](plugin_src/card-finishing-studio/README.md).
+
+When publishing separate plugin releases, leave **Set as the latest release**
+off. Keep the main Deckadence app release marked **Latest**, since the app's
+update check reads the repository's latest release. Include each plugin ZIP's
+matching `.sha256` file and explain that users must update Deckadence first.
+
 ## Building Linux Upscaler Packages
 
 Inside x86-64 Linux or Ubuntu WSL, run `python3 -B plugin_src/build_linux_plugins.py`

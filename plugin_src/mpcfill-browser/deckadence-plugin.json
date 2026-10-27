@@ -4,6 +4,6 @@
   "plugin_id": "mpcfill-browser",
   "plugin_type": "image_browser",
   "name": "MPCFill Browser",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "runtime": "application"
 }

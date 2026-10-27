@@ -435,9 +435,14 @@ def get_plugin_status(
         manifest = runtime_context[
             "manifest"
         ]
+        bundled_update = False
+        if catalog_entry.get("bundled_source") and runtime_context["runtime_source"] == "installed":
+            bundled = _load_plugin_manifest_from_directory(plugin_id, get_plugin_development_dir(plugin_id))
+            bundled_update = bool(bundled and bundled.get("version")
+                                  and manifest.get("version") != bundled["version"])
         update_available = runtime_context.get("update_available", False) or not set(catalog_entry.get("required_capabilities", [])).issubset(
             manifest.get("capabilities", [])
-        )
+        ) or bundled_update
 
         return {
             **catalog_entry,
@@ -471,9 +476,11 @@ def get_plugin_status(
             "manifest": manifest,
 
             "message": (
-                ("Update the installation to use Deckadence's runtime and remove the old plugin environment."
+                ("Update this plugin to the version bundled with Deckadence. Older private environments are removed automatically."
                  if update_available else "Plugin is ready using Deckadence's existing runtime.")
                 if runtime_context.get("runtime") == "application" else
+                "Update this plugin to the version bundled with Deckadence."
+                if bundled_update else
                 "Update to include text, subject, and frame detection in one plugin."
                 if update_available else
                 "Development plugin is ready."

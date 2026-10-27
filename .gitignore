@@ -50,6 +50,7 @@ Thumbs.db
 .dev_prompts/*
 !.dev_prompts/Start_Deckadence.bat
 !.dev_prompts/build_Deckadence_release.ps1
+!.dev_prompts/build_Deckadence_mpcfill.ps1
 
 # Runtime-installed plugins
 plugins/*

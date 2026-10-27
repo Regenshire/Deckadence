@@ -187,6 +187,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 & $PythonCommand.Source -B (Join-Path $RepoRoot "plugin_src/build_card_finishing_plugin.py") --check-only
 if ($LASTEXITCODE -ne 0) { throw "Card Finishing Studio source validation failed." }
+& $PythonCommand.Source -B (Join-Path $RepoRoot "plugin_src/build_mpcfill_plugin.py") --check-only
+if ($LASTEXITCODE -ne 0) { throw "MPCFill Browser source validation failed." }
 if (-not (Test-Path -LiteralPath (Join-Path $RepoRoot "plugin_system/python_runtime.py") -PathType Leaf)) {
     throw "Studio's private Python installer is missing from the application source."
 }

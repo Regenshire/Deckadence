@@ -27,8 +27,10 @@ studio_builder = runpy.run_path(str(ROOT / 'plugin_src/build_card_finishing_plug
 studio_manifest, studio_files = studio_builder['validate_package'](ROOT / 'plugin_src/card-finishing-studio')
 studio_datas = [(str(path), str(Path('plugin_src/card-finishing-studio') / Path(name).parent))
                 for name, path in studio_files.items()]
-mpcfill_datas = [(str(ROOT / 'plugin_src/mpcfill-browser' / name), 'plugin_src/mpcfill-browser')
-                for name in ('deckadence-plugin.json', 'README.md')]
+mpcfill_builder = runpy.run_path(str(ROOT / 'plugin_src/build_mpcfill_plugin.py'))
+mpcfill_manifest, mpcfill_files = mpcfill_builder['validate_package'](ROOT / 'plugin_src/mpcfill-browser')
+mpcfill_builder['validate_application'](ROOT)
+mpcfill_datas = [(str(path), 'plugin_src/mpcfill-browser') for path in mpcfill_files.values()]
 compile((ROOT / 'plugin_system/python_runtime.py').read_bytes(), 'plugin_system/python_runtime.py', 'exec')
 PREFIXES = ("print/templates/", "static/sil/", "static/img/card_backs/", "static/img/pack_art/")
 listing = subprocess.check_output(["git", "ls-tree", "-r", "-z", "--name-only", "HEAD"], cwd=ROOT).decode().split("\0")
