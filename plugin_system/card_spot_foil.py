@@ -17,6 +17,7 @@ from .foil_workflows import WORKFLOWS, OUTPUTS, LAYER_TYPES, load_preferences, n
 from .manager import get_plugin_status, run_plugin_json
 from .finishing_effects import CONFETTI_GLITTER_TYPES, render_confetti_glitter, EFFECT_TYPES, validate_effect, parameters, render_overlay, chocobo_selection, PARTICLE_PATH_EFFECTS, particle_selection
 from .dragon_strike import TRAILS as DRAGON_TRAILS, COLOR_EFFECTS as DRAGON_COLOR_EFFECTS, selection as dragon_selection
+from .federation_transporter import STYLES as TRANSPORTER_STYLES, render_transporter
 from .finishing_ukiyo import TYPES as UKIYO_TYPES, ukiyo_selection
 from .finishing_patterns import PATH_EFFECTS, pattern_selection
 from .mirror_shards import TEMPLATES as SHARD_TEMPLATES, THEMES as MIRROR_THEMES, shard_selection
@@ -369,7 +370,7 @@ def validate_settings(payload):
         value = payload[layer]
         if value is not None:
             keys = {"finish", "strength", "scale", "density", "seed", "overlay_color", "generation", "mask_data"}
-            if not isinstance(value, dict) or set(value)-{"color","translucence","shards","mirrors","rotation","position_x","position_y","transparency","black_depth","silver_brightness","stacked","disabled","origin_x","origin_y","ukiyo_type","sparse","flip_horizontal","particle_type","dragon_emblem","dragon_trail","dragon_alignment","dragon_color_effect"} != keys:
+            if not isinstance(value, dict) or set(value)-{"color","translucence","shards","mirrors","rotation","position_x","position_y","transparency","black_depth","silver_brightness","stacked","disabled","origin_x","origin_y","ukiyo_type","sparse","flip_horizontal","particle_type","dragon_emblem","dragon_trail","dragon_alignment","dragon_color_effect","transporter_emblem","transporter_style","transporter_alignment","transporter_layout"} != keys:
                 raise ValueError("Provide valid printable effect settings.")
             value = {**validate_effect(parameters(value)), "overlay_color": normalize_display_color(value["overlay_color"]),
                      "generation": validate_generation(value["generation"]),
@@ -562,6 +563,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         return jsonify(ok=True, record=result, preferences=load_preferences(get_config()), workflows=WORKFLOWS,
                        output_formats=OUTPUTS, layer_types=LAYER_TYPES, effect_types=EFFECT_TYPES, ukiyo_types=UKIYO_TYPES, confetti_glitter_types=CONFETTI_GLITTER_TYPES, dragon_trails=DRAGON_TRAILS, dragon_color_effects=DRAGON_COLOR_EFFECTS,
                        shard_templates=SHARD_TEMPLATES, mirror_themes=MIRROR_THEMES,
+                       transporter_styles=TRANSPORTER_STYLES,
                        mirror_shapes=MIRROR_SHAPES, mirror_layouts=MIRROR_LAYOUTS,
                        mirror_generator_ready=generator_ready(app),
                        text_detector_ready=bool(text_detection_plugin(subject_detector)),
@@ -771,6 +773,8 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
             keys |= {'density','seed','particle_type','flip_horizontal','x','y'}
         elif finish == 'ukiyo_e':
             keys |= {'density','seed','ukiyo_type','sparse','flip_horizontal','x','y'}
+        elif finish == 'federation_transporter':
+            keys |= {'transporter_emblem','transporter_style','transporter_alignment','density','seed','x','y'}
         elif finish == 'dragon_strike':
             keys |= {'dragon_emblem','dragon_trail','x','y'}
         elif finish in PATH_EFFECTS or finish in PARTICLE_PATH_EFFECTS:
@@ -781,13 +785,21 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         optional = {'x','y'} if finish == 'chocobo_tracks' or finish in PATH_EFFECTS else set()
         if finish == 'dragon_strike':
             optional.add('dragon_alignment')
+        if finish == 'federation_transporter':
+            optional.add('transporter_layout')
         if set(payload)-optional != keys:
             raise ValueError('Provide valid template settings.')
         width = payload['width']
         if type(width) is not int or not MASK_SIZE[0] <= width <= MAX_MASK_SIZE[0]:
             raise ValueError('Choose a mask width from 756 to 3024 pixels.')
         height = round(width * MASK_SIZE[1] / MASK_SIZE[0])
-        if finish == 'dragon_strike':
+        if finish == 'federation_transporter':
+            effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=payload['density'],seed=payload['seed'],
+                rotation=payload['rotation'],position_x=payload['x'],position_y=payload['y'],
+                **{key:payload[key] for key in ('transporter_emblem','transporter_style','transporter_alignment')},
+                **({'transporter_layout':payload['transporter_layout']} if 'transporter_layout' in payload else {})))
+            alpha=render_transporter(effect,width,height,selection=True)
+        elif finish == 'dragon_strike':
             effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=100,seed=0,
                 rotation=payload['rotation'],position_x=payload['x'],position_y=payload['y'],
                 dragon_emblem=payload['dragon_emblem'],dragon_trail=payload['dragon_trail'],dragon_alignment=payload.get('dragon_alignment','dragon')))

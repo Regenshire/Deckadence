@@ -1130,6 +1130,10 @@
     });
   });
 
+  document.getElementById("campaignPackMpcFillBestButton")?.addEventListener("click",()=>{
+    window.DeckadenceMpcFillBatch?.open(getCampaignPackBatchUpscaleCardUuids(), {sourceLabel:"Pack contents"});
+  });
+
   if (batchUpscaleButton) {
     batchUpscaleButton.addEventListener("click", function () {
       const cardUuids = getCampaignPackBatchUpscaleCardUuids();

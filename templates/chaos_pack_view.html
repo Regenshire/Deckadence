@@ -29,6 +29,7 @@
             </div>
 
             <div class="chaos-pack-view-header-actions">
+                {% if global_mpcfill_ready and cards %}<button type="button" class="action-button secondary-button mpcf-batch-launch" data-mpcfill-pack-best title="Auto Select MPCFill Best" aria-label="Auto Select MPCFill Best"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></button>{% endif %}
                 <a
                     class="action-button secondary-button chaos-pack-view-back-button"
                     href="{{ ui_navigation.back_fallback_url }}"
@@ -41,7 +42,8 @@
         </div>
     </div>
 
-    <div class="chaos-pack-view-grid">
+    <div data-tag-filter="pack"></div>
+<div class="chaos-pack-view-grid">
         {% for card in cards %}
         <div
             class="chaos-pack-view-card"
@@ -95,7 +97,7 @@
         {% endfor %}
     </div>
     {% include "_alternate_image_modal.html" %}
-    <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='mpcfill-1') }}"></script>
+    <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='mpcfill-2') }}"></script>
 
     <div id="chaosPackViewZoomOverlay" class="card-zoom-overlay hidden" aria-hidden="true">
         <div id="chaosPackViewZoomBackdrop" class="card-zoom-backdrop"></div>

@@ -104,8 +104,8 @@ PRINT_EDGE_BORDER_PIXELS = 1
 PDF_CUTTING_GUIDE_CARD_WIDTH_MM = STANDARD_CARD_WIDTH_MM
 PDF_CUTTING_GUIDE_CARD_HEIGHT_MM = STANDARD_CARD_HEIGHT_MM
 PDF_CUTTING_GUIDE_SIZE_MM = 2.0
-PDF_CUTTING_GUIDE_THICKNESS_MM = 0.20
-PDF_CUTTING_GUIDE_COLOR_RGB = (0, 255, 0)
+PDF_CUTTING_GUIDE_THICKNESS_MM = 0.25
+PDF_CUTTING_GUIDE_COLOR_RGB = (0, 115, 255)
 
 PDF_OUTER_SLOT_REGION_BAND_DEFAULT_SIZE_MM = 0.40
 PDF_OUTER_SLOT_REGION_BAND_DEFAULT_COLOR_HEX = "#000000"
@@ -188,6 +188,9 @@ SCOPED_PRINT_SETTING_KEYS = (
     "print_bleed_size_mm",
     "pdf_crop_border",
     "pdf_cutting_guides",
+    "pdf_cutting_guide_color_hex",
+    "pdf_cutting_guide_thickness_mm",
+    "pdf_cutting_guide_sides",
     "pdf_render_resolution",
 
     # Legacy on/off key retained so existing scoped settings can be migrated.
@@ -281,6 +284,9 @@ DEFAULT_CONFIG = {
     "print_bleed_size_mm": "3.0",
     "pdf_crop_border": "1",
     "pdf_cutting_guides": "1",
+    "pdf_cutting_guide_color_hex": "#0073FF",
+    "pdf_cutting_guide_thickness_mm": "0.25",
+    "pdf_cutting_guide_sides": "front",
     "pdf_render_resolution": "standard",
 
     # Legacy safety-band checkbox value.
@@ -305,6 +311,9 @@ DEFAULT_CONFIG = {
     "momir_print_bleed_size_mm": "",
     "momir_pdf_crop_border": "",
     "momir_pdf_cutting_guides": "",
+    "momir_pdf_cutting_guide_color_hex": "",
+    "momir_pdf_cutting_guide_thickness_mm": "",
+    "momir_pdf_cutting_guide_sides": "",
     "momir_pdf_render_resolution": "",
 
     # Legacy safety-band checkbox value.
@@ -329,6 +338,9 @@ DEFAULT_CONFIG = {
     "chaos_print_bleed_size_mm": "",
     "chaos_pdf_crop_border": "",
     "chaos_pdf_cutting_guides": "1",
+    "chaos_pdf_cutting_guide_color_hex": "",
+    "chaos_pdf_cutting_guide_thickness_mm": "",
+    "chaos_pdf_cutting_guide_sides": "",
     "chaos_pdf_render_resolution": "standard",
     "chaos_silhouette_registration_marks": "1",
     "chaos_no_wasted_space_enabled": "0",

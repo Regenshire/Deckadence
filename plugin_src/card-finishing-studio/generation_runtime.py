@@ -39,12 +39,43 @@ class GenerationRuntime:
         # The preceding analyzer can leave allocator cache without a pipeline.
         empty_device_cache(torch, device)
         started = time.monotonic()
+        loading = self.loading_options(cls, model_path, dtype, options, progress)
         self.pipe = cls.from_pretrained(model_path, torch_dtype=dtype,
-                                       local_files_only=True, use_safetensors=True, **options)
+                                       local_files_only=True, use_safetensors=True, **loading)
         self.key = key
         self.loads += 1
         print(f'IMAGE_MODEL_LOAD seconds={time.monotonic()-started:.3f} count={self.loads}', flush=True)
         return self.pipe
+
+    @staticmethod
+    def loading_options(cls, model_path, dtype, options, progress):
+        """Avoid scattered disk reads when RAM can hold the complete checkpoint."""
+        folder = Path(model_path)
+        weight_bytes = sum(path.stat().st_size for path in folder.rglob('*.safetensors')
+                           if '.cache' not in path.relative_to(folder).parts)
+        loading = dict(options)
+        if not weight_bytes:
+            return loading
+        import psutil
+        # Eager loading temporarily holds serialized bytes and decoded tensors.
+        # Leave room for dtype conversion and other apps; low-RAM PCs keep mmap.
+        if psutil.virtual_memory().available < 3 * weight_bytes + 4 * 1024**3:
+            return loading
+        progress('loading', 'Reading model weights into system memory.')
+        loading['disable_mmap'] = True
+        # Diffusers forwards disable_mmap to its models, but not to Transformers.
+        # Supply eager text encoders explicitly so both loaders read sequentially,
+        # and the pipeline uses these instances rather than loading them again.
+        import transformers
+        for name, component in cls.load_config(model_path).items():
+            if (name.startswith('text_encoder') and name not in loading
+                    and isinstance(component, (list, tuple)) and len(component) == 2
+                    and component[0] == 'transformers' and component[1]):
+                encoder = getattr(transformers, component[1])
+                loading[name] = encoder.from_pretrained(folder / name, dtype=dtype,
+                    local_files_only=True, use_safetensors=True, disable_mmap=True)
+        print(f'IMAGE_MODEL_READ mode=sequential bytes={weight_bytes}', flush=True)
+        return loading
 
     def configure(self, device, progress):
         """Use available VRAM instead of always offloading a high-memory GPU."""

@@ -22,6 +22,9 @@ from .mirror_layers import validate_mirrors, render_mirrors, has_strength_overri
 from .dragon_strike import EMBLEMS as DRAGON_EMBLEMS, TRAILS as DRAGON_TRAILS, LEGACY_TRAILS as LEGACY_DRAGON_TRAILS, selection as dragon_selection
 from .dragon_strike import RENDER_VERSION as DRAGON_RENDER_VERSION, ALIGNMENTS as DRAGON_ALIGNMENTS
 from .dragon_strike import COLOR_EFFECTS as DRAGON_COLOR_EFFECTS, color_overlay as dragon_color_overlay
+from .federation_transporter import (EMBLEMS as TRANSPORTER_EMBLEMS, STYLES as TRANSPORTER_STYLES,
+    ALIGNMENTS as TRANSPORTER_ALIGNMENTS, RENDER_VERSION as TRANSPORTER_RENDER_VERSION, render_transporter,
+    layout_settings as transporter_layout_settings)
 
 CACHE_ROOT = Path(IMAGE_CACHE_DIR) / "finishing_effects"
 RENDER_VERSION = 36
@@ -31,6 +34,7 @@ COLOR_DEFAULTS = {'stars':'#FFF4C3','halftone':'#121930','neon':'#46F5FF','mirro
 COLOR_DEFAULTS['ukiyo_e']='#FFFFFF'
 COLOR_DEFAULTS['confetti_glitter']='#FFFFFF'
 COLOR_DEFAULTS['dragon_strike']='#FFFFFF'
+COLOR_DEFAULTS['federation_transporter']='#FFFFFF'
 COLOR_DEFAULTS.update(PATTERN_COLORS)
 COLOR_DEFAULTS.update(dict.fromkeys(WIND_WAVE_EFFECTS, "#FFFFFF"))
 MATERIAL_PATH = Path(__file__).resolve().parents[1] / 'static/img/card-effects/fracture-foil-material-v1.png'
@@ -40,6 +44,7 @@ EFFECT_TYPES = {
     "galaxy": "Galaxy Foil Effect", "fracture": "Fracture Foil Effect",
     "chocobo_tracks": "Chocobo Track",
     "dragon_strike": "Dragon Strike Foil",
+    "federation_transporter": "Trek Transport Foil",
     "pearl": "Pearlescent Wash", "etched": "Etched Metal", "watercolor": "Watercolor Texture",
     "halftone": "Halftone Dots", "neon": "Neon Edge Glow",
     **{key:label for key,label in MATERIAL_EFFECTS.items() if key not in CONFETTI_GLITTER_TYPES},
@@ -51,13 +56,24 @@ EFFECT_TYPES = {
 
 
 def validate_effect(value):
-    if not isinstance(value, dict) or set(value)-{'color','translucence','shards','mirrors','rotation','position_x','position_y','transparency','black_depth','silver_brightness','stacked','disabled','origin_x','origin_y','ukiyo_type','sparse','flip_horizontal','particle_type','dragon_emblem','dragon_trail','dragon_alignment','dragon_color_effect'} != {"finish", "strength", "scale", "density", "seed"}:
+    if not isinstance(value, dict) or set(value)-{'color','translucence','shards','mirrors','rotation','position_x','position_y','transparency','black_depth','silver_brightness','stacked','disabled','origin_x','origin_y','ukiyo_type','sparse','flip_horizontal','particle_type','dragon_emblem','dragon_trail','dragon_alignment','dragon_color_effect','transporter_emblem','transporter_style','transporter_alignment','transporter_layout'} != {"finish", "strength", "scale", "density", "seed"}:
         raise ValueError("Choose valid finishing effect settings.")
     if not isinstance(value["finish"],str) or (value["finish"] not in EFFECT_TYPES and value["finish"] not in RETIRED_EFFECTS and value["finish"] not in WIND_WAVE_EFFECTS and value["finish"] not in CONFETTI_GLITTER_TYPES):
         raise ValueError("Choose a supported finishing effect.")
     for key, low, high in (("strength", 1, 100), ("scale", 25, 1000), ("density", 1, 200), ("seed", 0, 2147483647)):
         if type(value[key]) is not int or not low <= value[key] <= high:
             raise ValueError("Choose valid effect strength, size, density, and pattern.")
+    if value['finish']=='federation_transporter':
+        value=dict(value)
+        for key, choices in (('transporter_emblem',TRANSPORTER_EMBLEMS),('transporter_style',TRANSPORTER_STYLES),('transporter_alignment',TRANSPORTER_ALIGNMENTS)):
+            chosen=value.get(key,next(iter(choices)))
+            if not isinstance(chosen,str) or chosen not in choices:
+                raise ValueError('Choose a valid transporter emblem, effect and path alignment.')
+            value[key]=chosen
+        if 'transporter_layout' in value:
+            value['transporter_layout'] = transporter_layout_settings(value)
+    elif {'transporter_emblem','transporter_style','transporter_alignment','transporter_layout'} & set(value):
+        raise ValueError('Transporter settings only apply to Trek Transport Foil.')
     if value['finish']=='dragon_strike':
         value=dict(value)
         for key, choices in (('dragon_emblem',DRAGON_EMBLEMS),('dragon_trail',DRAGON_TRAILS),('dragon_alignment',DRAGON_ALIGNMENTS),('dragon_color_effect',DRAGON_COLOR_EFFECTS)):
@@ -121,7 +137,7 @@ def validate_effect(value):
     elif 'mirrors' in value:
         raise ValueError('Mirror object settings only apply to Mirror Layers.')
     track_keys={'position_x','position_y','transparency'}
-    if value['finish'] in ('chocobo_tracks','dragon_strike','ukiyo_e','confetti_glitter') or value['finish'] in PATH_EFFECTS:
+    if value['finish'] in ('chocobo_tracks','dragon_strike','federation_transporter','ukiyo_e','confetti_glitter') or value['finish'] in PATH_EFFECTS:
         value=dict(value)
         for key,low,high in (('position_x',-100,100),('position_y',-100,100),('transparency',0,100)):
             number=value.get(key,0)
@@ -148,6 +164,8 @@ def parameters(value):
             'translucence':value.get('translucence',0),
             'rotation':value.get('rotation',0),
             'disabled':value.get('disabled',False),
+            **({'transporter_emblem':value.get('transporter_emblem','tos_badge'),'transporter_style':value.get('transporter_style','multicolor'),'transporter_alignment':value.get('transporter_alignment','emblem')} if value['finish']=='federation_transporter' else {}),
+            **({'transporter_layout':value['transporter_layout']} if value['finish']=='federation_transporter' and 'transporter_layout' in value else {}),
             **({'dragon_emblem':value.get('dragon_emblem','bolas_command'),'dragon_trail':value.get('dragon_trail','winding_magic')} if value['finish']=='dragon_strike' else {}),
             # Preserve the hash of saved bakes from before alignment was selectable.
             **({'dragon_alignment':value['dragon_alignment']} if value['finish']=='dragon_strike' and 'dragon_alignment' in value else {}),
@@ -157,7 +175,7 @@ def parameters(value):
             **({'origin_x':value.get('origin_x',20),'origin_y':value.get('origin_y',72)} if value['finish']=='ripple' else {}),
             **({'stacked':value.get('stacked',False)} if value['finish'] in ('flame_1','flame_2') else {}),
             **({'black_depth':value.get('black_depth',0),'silver_brightness':value.get('silver_brightness',90)} if value['finish']=='silver_black' else {}),
-            **({key:value.get(key,0) for key in ('position_x','position_y','transparency')} if value['finish'] in ('chocobo_tracks','dragon_strike','ukiyo_e','confetti_glitter') or value['finish'] in PATH_EFFECTS else {}),
+            **({key:value.get(key,0) for key in ('position_x','position_y','transparency')} if value['finish'] in ('chocobo_tracks','dragon_strike','federation_transporter','ukiyo_e','confetti_glitter') or value['finish'] in PATH_EFFECTS else {}),
             **({'shards':value.get('shards',{})} if value['finish']=='mirror_shards' else {}),
             **({'mirrors':value.get('mirrors',{})} if value['finish']=='mirror_layers' else {})}
 
@@ -416,7 +434,7 @@ def render_overlay(mask_png, effect, width=None):
         width=min(3024,width or source.width)
         size=(width,round(width*source.height/source.width))
         alpha=source.getchannel("A").resize(size,Image.Resampling.LANCZOS)
-    if effect['finish']=='mirror_layers' and not alpha.getbbox():
+    if (effect['finish']=='mirror_layers' or effect['finish']=='federation_transporter' and 'transporter_layout' in effect) and not alpha.getbbox():
         # No mask means unrestricted placement. A nonempty mask still clips
         # every glass/image pixel, identically in preview and PDF export.
         alpha=Image.new('L',size,255)
@@ -443,6 +461,8 @@ def render_overlay(mask_png, effect, width=None):
                             scene_x=options['scene_x'],scene_y=options['scene_y'],scene_padding=options['scene_padding'],
                             template_x=options['template_x'],template_y=options['template_y'],
                             scene_flip_horizontal=options['scene_flip_horizontal'],scene_flip_vertical=options['scene_flip_vertical'])
+    elif effect['finish']=='federation_transporter':
+        image=render_transporter(effect,*size)
     elif effect['finish'] in ('chocobo_tracks','dragon_strike'):
         image=_chocobo_overlay(*size,effect)
     elif effect["finish"]=="neon":
@@ -459,12 +479,12 @@ def render_overlay(mask_png, effect, width=None):
         image=Image.new("RGBA",size,rgb);image.putalpha(glow)
     else:
         image=_texture(effect["finish"],effect["scale"],effect["density"],effect["seed"],*size,effect["color"],effect.get("stacked",False)).copy()
-    if effect['finish'] not in ('mirror_layers','mirror_shards','chocobo_tracks','dragon_strike','silver_black','neon_ink','ripple','ukiyo_e','confetti_glitter') and effect['finish'] not in PATH_EFFECTS:
+    if effect['finish'] not in ('mirror_layers','mirror_shards','chocobo_tracks','dragon_strike','federation_transporter','silver_black','neon_ink','ripple','ukiyo_e','confetti_glitter') and effect['finish'] not in PATH_EFFECTS:
         image=transform_image(image,effect['rotation'],cover_rotation=False)
     image.putalpha(ImageChops.multiply(image.getchannel('A'),alpha))
     if effect['finish']!='mirror_layers' or not has_strength_overrides(effect['mirrors']):
         image.putalpha(image.getchannel("A").point(lambda v:round(v*effect["strength"]/100)))
-    if effect['finish'] in ('chocobo_tracks','dragon_strike','ukiyo_e','confetti_glitter') or effect['finish'] in PATH_EFFECTS:
+    if effect['finish'] in ('chocobo_tracks','dragon_strike','federation_transporter','ukiyo_e','confetti_glitter') or effect['finish'] in PATH_EFFECTS:
         image.putalpha(image.getchannel('A').point(lambda v:round(v*(1-effect['transparency']/100))))
     if effect['finish'] in ('mirror_shards','mirror_layers'):
         # Generated scenes are detailed even behind transparent gaps. Drop only
@@ -474,6 +494,8 @@ def render_overlay(mask_png, effect, width=None):
 
 
 def renderer_version(effect):
+    if effect['finish']=='federation_transporter':
+        return RENDER_VERSION*1000+TRANSPORTER_RENDER_VERSION
     # A Dragon Strike geometry fix must not force unrelated effects to rebake.
     return RENDER_VERSION*1000+DRAGON_RENDER_VERSION if effect['finish']=='dragon_strike' else RENDER_VERSION
 

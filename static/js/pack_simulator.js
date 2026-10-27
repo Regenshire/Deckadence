@@ -665,6 +665,11 @@
   }
   function cardTile(card, shown, inPool = false) {
     const tile = node("article", undefined, "chaos-pack-inline-card");
+    if (shown) {
+      tile.dataset.trackingCard = "1";
+      tile.dataset.cardUuid = card.card_uuid;
+      tile.dataset.cardName = card.card_name;
+    }
     tile.dataset.cardIndex = card.index ?? "";
     const wrap = node("div", undefined, "chaos-pack-inline-image-wrap"),
       b = node(

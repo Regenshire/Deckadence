@@ -3546,6 +3546,13 @@
 
   function updateCurrentSelectionState() {
     const selectedCount = selectedCurrentCardRows.size;
+    const mpcFillButton = document.getElementById("customDraftMpcFillBestButton");
+    if (mpcFillButton) {
+      mpcFillButton.disabled = selectedCount === 0;
+      mpcFillButton.title = selectedCount
+        ? "Auto Select MPCFill Best for " + selectedCount + " selected card(s)"
+        : "Auto Select MPCFill Best — select cards first";
+    }
 
     if (selectedCardCountLabel) {
       selectedCardCountLabel.textContent = selectedCount + " selected";
@@ -3670,7 +3677,10 @@
     });
   }
 
-  function filterCurrentCards() {
+  document.addEventListener("deckadence:card-tags-changed", () => filterCurrentCards({preservePage: true}));
+  document.addEventListener("deckadence:tag-filters-changed", event => {if (event.detail.scope === "custom-set") filterCurrentCards();});
+
+  function filterCurrentCards(options = {}) {
     cancelPendingCurrentCardFilter();
 
     if (!currentCardList) {
@@ -3766,6 +3776,7 @@
       const digitalMatches = rowMatchesDigitalFilter(row, digitalValue);
 
       const isFilterVisible =
+        (!window.DeckadenceCardTags || window.DeckadenceCardTags.matches(row, "custom-set")) &&
         textMatches &&
         rarityMatches &&
         colorMatches &&
@@ -3785,7 +3796,7 @@
     });
 
     currentFilteredCardRowsCache = filteredRows;
-    currentCardPage = 1;
+    if (options.preservePage !== true) currentCardPage = 1;
 
     applyCurrentCardPagination();
     updateSetStatsRollout();
@@ -4140,6 +4151,10 @@
     );
   }
 
+  document.getElementById("customDraftMpcFillBestButton")?.addEventListener("click",()=>{
+    window.DeckadenceMpcFillBatch?.open(getSelectedCustomSetCardUuids(), {sourceLabel:"Set selection"});
+  });
+
   if (batchUpscaleSelectedButton) {
     batchUpscaleSelectedButton.addEventListener("click", function () {
       const cardUuids = getSelectedCustomSetCardUuids();
@@ -4227,6 +4242,7 @@
 
   if (clearFiltersButton) {
     clearFiltersButton.addEventListener("click", function () {
+      window.DeckadenceCardTags?.reset("custom-set");
       if (currentFilterInput) {
         currentFilterInput.value = "";
       }
@@ -4641,6 +4657,7 @@
       menu: "customDraftCardContextMenu",
       targetSelector:
         ".custom-draft-current-card-row, .custom-draft-current-grid-card",
+      getSelectedCards: () => Array.from(selectedCurrentCardRows.values()),
       prepare: prepareCustomDraftCardContextMenu,
       onAction: handleCustomDraftCardContextAction,
       onError: function (error) {

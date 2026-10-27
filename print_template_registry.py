@@ -1347,6 +1347,8 @@ def _read_rendering_settings(
             "fill_unused_slots_with_white": False,
             "corner_radius_mm": 0.0,
             "round_the_corners": False,
+            "draw_row_cut_lines": False,
+            "draw_side_guide_lines": False,
             "uses_fixed_inner_margin": False,
         }
 
@@ -1378,6 +1380,12 @@ def _read_rendering_settings(
         ),
         "round_the_corners": _get_bool(
             parser, "Rendering", "Round_The_Corners", fallback=False,
+        ),
+        "draw_row_cut_lines": _get_bool(
+            parser, "Rendering", "Draw_Row_Cut_Lines", fallback=False,
+        ),
+        "draw_side_guide_lines": _get_bool(
+            parser, "Rendering", "Draw_Side_Guide_Lines", fallback=False,
         ),
         "uses_fixed_inner_margin": (
             _get_bool(

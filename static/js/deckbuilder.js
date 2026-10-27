@@ -709,6 +709,7 @@
   }
 
   function hasActiveSideboardFilters() {
+    if (window.DeckadenceCardTags?.active("sideboard")) return true;
     const filters = getSideboardFilterValues();
 
     return Boolean(
@@ -839,6 +840,7 @@
   }
 
   function deckbuilderCardMatchesSideboardFilters(cardElement) {
+    if (window.DeckadenceCardTags && !window.DeckadenceCardTags.matches(cardElement, "sideboard")) return false;
     const filters = getSideboardFilterValues();
 
     if (cardElement.dataset.isLandPalette === "1") {
@@ -1120,6 +1122,7 @@
   }
 
   function clearSideboardFilters() {
+    window.DeckadenceCardTags?.reset("sideboard");
     if (sideboardFilterText) {
       sideboardFilterText.value = "";
     }
@@ -1180,6 +1183,7 @@
   }
 
   function hasActiveDeckFilters() {
+    if (window.DeckadenceCardTags?.active("deck")) return true;
     const filters = getDeckFilterValues();
 
     return Boolean(
@@ -1194,6 +1198,7 @@
   }
 
   function deckbuilderCardMatchesDeckFilters(cardElement) {
+    if (window.DeckadenceCardTags && !window.DeckadenceCardTags.matches(cardElement, "deck")) return false;
     const filters = getDeckFilterValues();
 
     if (
@@ -1247,6 +1252,12 @@
 
     return true;
   }
+
+  document.addEventListener("deckadence:card-tags-changed", () => {applyDeckFilters(); applySideboardFilters();});
+  document.addEventListener("deckadence:tag-filters-changed", event => {
+    if (event.detail.scope === "deck") applyDeckFilters();
+    if (event.detail.scope === "sideboard") applySideboardFilters();
+  });
 
   function applyDeckFilters() {
     if (!deckList) {
@@ -1306,6 +1317,7 @@
   }
 
   function clearDeckFilters() {
+    window.DeckadenceCardTags?.reset("deck");
     if (deckFilterText) {
       deckFilterText.value = "";
     }
@@ -4936,6 +4948,7 @@
     hideHoverPreview();
     setDeckbuilderCopyMenuOpen(false);
     setDeckbuilderContextMenuOpen(false);
+    window.DeckadenceCardTags?.attachMenu(landPaletteContextMenu, landElement);
     setLandPaletteContextMenuOpen(true, event.clientX, event.clientY);
   }
 
@@ -5132,6 +5145,7 @@
 
     activeContextCard = cardElement;
     updateCardContextMenuLabels(cardElement);
+    window.DeckadenceCardTags?.attachMenu(cardContextMenu, cardElement, getDeckbuilderSelectedCards(cardZone));
     hideHoverPreview();
     setDeckbuilderCopyMenuOpen(false);
     setLandPaletteContextMenuOpen(false);
@@ -5608,6 +5622,10 @@
       clearDeckbuilderSelection();
     });
   }
+
+  document.getElementById("deckbuilderMpcFillBestButton")?.addEventListener("click",()=>{
+    window.DeckadenceMpcFillBatch?.open(getDeckbuilderBatchUpscaleCardUuids(), {sourceLabel:"Deck selection"});
+  });
 
   if (batchUpscaleButton) {
     batchUpscaleButton.addEventListener("click", openDeckbuilderBatchUpscale);

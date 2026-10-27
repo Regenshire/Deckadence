@@ -32,7 +32,7 @@
   const layerOrder={effect1:5,effect2:6,mask:7,gloss:8};
   const printedLayer=()=>editingLayer.startsWith("effect");
   const effectPreviews=new Map();
-  let mirrorGeneration=null,mirrorLayers=null;
+  let mirrorGeneration=null,mirrorLayers=null,trekTransporter=null;
   let mirrorDiagnostics=null;
   let mirrorJobState=null,mirrorClock=null;
   const mirrorExport=dialog.querySelector('[data-spot-export-mirror]');
@@ -142,7 +142,8 @@
   const effectColors={confetti_glitter:"#FFFFFF",ukiyo_e:"#FFFFFF",stars:"#FFF4C3",halftone:"#121930",neon:"#46F5FF",mirror_shards:"#B8EFFF",mirror_layers:"#B8EFFF",chocobo_tracks:"#FFFFFF",phyrexian:"#FFFFFF",mana_foil:"#FFFFFF",dragonscale:"#FFFFFF",gilded:"#F4CA70",halo:"#FFFFFF",ripple:"#FFFFFF",invisible_ink:"#B7A1FF",neon_ink:"#FF298A"};
   for(const family of ["wind_ribbons","wind_curls","wind_storm","wind_painted","waves_swells","waves_crests","waves_field"])for(const suffix of ["","_sparse"])effectColors[family+suffix]="#FFFFFF";
   effectColors.dragon_strike="#FFFFFF";
-  const pathEffects=new Set(["confetti_glitter","ukiyo_e","chocobo_tracks","dragon_strike","phyrexian","mana_foil","dragonscale","gilded","invisible_ink"]);
+  effectColors.federation_transporter="#FFFFFF";
+  const pathEffects=new Set(["confetti_glitter","ukiyo_e","chocobo_tracks","dragon_strike","federation_transporter","phyrexian","mana_foil","dragonscale","gilded","invisible_ink"]);
   const copyPathEffects=new Set([...pathEffects,"galaxy","confetti","glitter_1","glitter_2","glitter_3","halftone","stars","water_beads"]);
   const effectBlend=value=>value.finish==="oil_slick"?100:value.finish==="neon_ink"?85:value.finish==="fracture"?Number(value.translucence)||0:0;
   const effectHelp={silver_black:"Converts selected artwork to deep black shadows and silver highlights. For Oil Slick, use this in Effect 1 and Oil Slick Rainbow in Effect 2 with the same mask.",oil_slick:"A subtle rainbow that follows the light and dark detail underneath. Use above Silver & Black Art for the oil slick look; strength controls the color intensity.",phyrexian:"Repeating Phyrexian symbols inspired by Step-and-Compleat foil. Copy Path reuses the symbols as a foil or gloss mask.",mana_foil:"Staggered rows of the five mana symbols. Copy Path keeps the symbol shapes at full coverage.",dragonscale:"Overlapping pointed scales with fine reflective edges and clear centers.",gilded:"Gold Art Deco corner fans, stepped rails and ornaments. Copy Path can add foil or raised gloss to the filigree.",halo:"Flowing, irregular iridescent rings inspired by Halo foil.",ripple:"Fine, curved interference bands inspired by Ripple foil.",invisible_ink:"This effect has been removed. Choose another effect or remove this layer.",neon_ink:"Colored ink across the selected area, preserving artwork detail. Choose a color below."};
@@ -150,8 +151,8 @@
   function updateEffectColor(resetDefault=false) {
     if(resetDefault && fields.effect_color.value.toUpperCase()===(effectColors[previousEffectFinish]||"#FFE7A0"))fields.effect_color.value=effectColors[fields.finish.value]||"#FFE7A0";
     previousEffectFinish=fields.finish.value;
-    dialog.querySelector("[data-spot-effect-color-controls]").hidden=!printedLayer()||!effectColors[fields.finish.value];
-    dialog.querySelector("[data-spot-effect-color-label]").textContent=(["ukiyo_e","confetti_glitter","dragon_strike"].includes(fields.finish.value)||windWaveEffect(fields.finish.value))?"Tint color":{stars:"Star color",halftone:"Dot color",neon:"Glow color",mirror_shards:"Tint color",mirror_layers:"Tint color",chocobo_tracks:"Track tint"}[fields.finish.value]||"Effect color";
+    dialog.querySelector("[data-spot-effect-color-controls]").hidden=!printedLayer()||!effectColors[fields.finish.value]||fields.finish.value==='federation_transporter';
+    dialog.querySelector("[data-spot-effect-color-label]").textContent=(["ukiyo_e","confetti_glitter","dragon_strike","federation_transporter"].includes(fields.finish.value)||windWaveEffect(fields.finish.value))?"Tint color":{stars:"Star color",halftone:"Dot color",neon:"Glow color",mirror_shards:"Tint color",mirror_layers:"Tint color",chocobo_tracks:"Track tint"}[fields.finish.value]||"Effect color";
     dialog.querySelector("[data-spot-wind-wave-tint-help]").hidden=!["ukiyo_e","confetti_glitter"].includes(fields.finish.value)&&!windWaveEffect(fields.finish.value);
     dialog.querySelector("[data-spot-effect-color]").textContent=fields.effect_color.value.toUpperCase();
     dialog.querySelector("[data-spot-fracture-controls]").hidden=!printedLayer()||fields.finish.value!=="fracture";
@@ -168,6 +169,8 @@
   }
   function updateShardControls() {
     disableEffect.hidden=!printedLayer();
+    dialog.querySelector('[data-spot-transporter-controls]').hidden=!printedLayer()||fields.finish.value!=='federation_transporter';
+    dialog.querySelectorAll('[data-spot-transporter-emblem]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.spotTransporterEmblem===fields.effect_transporter_emblem.value)));
     dialog.querySelector('[data-spot-dragon-controls]').hidden=!printedLayer()||fields.finish.value!=='dragon_strike';
     dialog.querySelectorAll('[data-spot-dragon-emblem]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.spotDragonEmblem===fields.effect_dragon_emblem.value)));
     dialog.querySelector("[data-spot-particle-controls]").hidden=!printedLayer()||fields.finish.value!=="confetti_glitter";
@@ -175,6 +178,8 @@
     dialog.querySelector("[data-spot-ripple-origin]").hidden=!printedLayer()||fields.finish.value!=="ripple";
     dialog.querySelector("[data-spot-flame-controls]").hidden=!printedLayer()||!["flame_1","flame_2"].includes(fields.finish.value);
     const layers=printedLayer()&&fields.finish.value==="mirror_layers";
+    const trek=printedLayer()&&fields.finish.value==='federation_transporter';
+    fields.strength.closest('label').hidden=trek;
     const shards=printedLayer()&&fields.finish.value==="mirror_shards";
     const tracks=printedLayer()&&["chocobo_tracks","dragon_strike"].includes(fields.finish.value);
     const pattern=printedLayer()&&pathEffects.has(fields.finish.value);
@@ -184,7 +189,7 @@
     const pathSlot=dialog.querySelector(`[data-spot-${shards?"shard":"pattern"}-path-slot]`);
     if(copyPath.parentElement!==pathSlot)pathSlot.appendChild(copyPath);
     dialog.querySelector("[data-spot-pattern-path-slot]").hidden=!printedLayer()||!copyPathEffects.has(fields.finish.value);
-    dialog.querySelector("[data-spot-track-controls]").hidden=!pattern;
+    dialog.querySelector("[data-spot-track-controls]").hidden=!pattern||trek;
     fields.effect_track_x.setAttribute("aria-label",`${tracks?"Track":"Pattern"} horizontal position`);
     fields.effect_track_y.setAttribute("aria-label",`${tracks?"Track":"Pattern"} vertical position`);
     for(const name of ["x","y","transparency"])dialog.querySelector(`[data-spot-track-${name}-value]`).value=fields[`effect_track_${name}`].value+"%";
@@ -197,9 +202,9 @@
       dialog.querySelector(`[data-spot-pattern-${slot}-slot]`).hidden=shards || (slot==="color"&&element.hidden);
     }
     dialog.querySelector("[data-spot-shard-controls]").hidden=!shards;
-    dialog.querySelector("[data-spot-pattern-size]").hidden=shards||layers||flat;
-    dialog.querySelector("[data-spot-pattern-rotation-slot]").hidden=shards||layers||flat;
-    dialog.querySelector("[data-spot-pattern-density]").hidden=shards||layers||tracks||fields.finish.value==="neon_ink"||["oil_slick","halo","ripple","gilded"].includes(fields.finish.value);
+    dialog.querySelector("[data-spot-pattern-size]").hidden=shards||layers||flat||trek;
+    dialog.querySelector("[data-spot-pattern-rotation-slot]").hidden=shards||layers||flat||trek;
+    dialog.querySelector("[data-spot-pattern-density]").hidden=shards||layers||tracks||trek||fields.finish.value==="neon_ink"||["oil_slick","halo","ripple","gilded"].includes(fields.finish.value);
     dialog.querySelector("[data-spot-density-label]").textContent=fields.finish.value==="silver_black"?"Contrast (%)":"Density (%)";
     dialog.querySelector("[data-spot-silver-controls]").hidden=!printedLayer()||fields.finish.value!=="silver_black";
     dialog.querySelector("[data-spot-new-pattern]").hidden=shards||layers||tracks||flat||fields.finish.value==="gilded";
@@ -216,7 +221,7 @@
     dialog.querySelector("[data-spot-view-art]").disabled=!fields.effect_scene.value;
     if(mirrorExport)mirrorExport.disabled=busy||!mirrorDiagnostics||mirrorDiagnostics.session!==session||mirrorDiagnostics.layer!==editingLayer;
     renderMirrorJob();
-    updateMirrorStatus();mirrorLayers?.update();
+    updateMirrorStatus();mirrorLayers?.update();trekTransporter?.update();
   }
   async function generateMirrorScene() {
     if(!ready||busy||!metadata?.mirror_generator_ready||!printedLayer())return;
@@ -332,11 +337,33 @@
   let history = [], historyIndex = -1, hasInk = false, maskReviewed = false, removal = false, activeStroke = null;
   let tool = "paint", view = "effect", artworkUrl = "", maskUrl = "", scopeToken = null;
   let maskVersion=0,encodedMaskVersion=-1,coverageVersion=-1,effectRenderTimer=null,artworkRevision=0;
+  const maskPreviewUrls=new Map();
   const requestId=()=>crypto.randomUUID?.()||Array.from(crypto.getRandomValues(new Uint32Array(4)),n=>n.toString(16)).join('');
   const previewClient=requestId(),previewSequences=new Map();
   function previewHeaders(kind){const key=previewClient+':'+session+':'+kind,n=(previewSequences.get(key)||0)+1;previewSequences.set(key,n);return {'X-Studio-Preview-Session':key,'X-Studio-Preview-Sequence':String(n)};}
   function maskChanged(){maskVersion++;}
   function encodedMask(){if(encodedMaskVersion!==maskVersion){maskUrl=mask.toDataURL('image/png');encodedMaskVersion=maskVersion;}return maskUrl;}
+  function maskPreviewUrl(layer,png) {
+    const previous=maskPreviewUrls.get(layer);
+    if(previous?.png===png)return previous.url;
+    const prefix='data:image/png;base64,';
+    let url=png;
+    if(png.startsWith(prefix)) {
+      // Detailed paths can exceed the browser's CSS value limit. Keep the
+      // original PNG for save/undo, but reference its bytes by a short URL in
+      // foil, gloss and overlay styles. No mask resolution is lost.
+      const binary=atob(png.slice(prefix.length)),bytes=new Uint8Array(binary.length);
+      for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+      url=URL.createObjectURL(new Blob([bytes],{type:'image/png'}));
+    }
+    if(previous?.url.startsWith('blob:'))URL.revokeObjectURL(previous.url);
+    maskPreviewUrls.set(layer,{png,url});
+    return url;
+  }
+  function clearMaskPreviews() {
+    for(const {url} of maskPreviewUrls.values())if(url.startsWith('blob:'))URL.revokeObjectURL(url);
+    maskPreviewUrls.clear();
+  }
   function scheduleEffectRender(){clearTimeout(effectRenderTimer);effectRenderTimer=setTimeout(()=>{effectRenderTimer=null;scheduleRender();},180);}
   function invalidateDetections(){
     artworkRevision++;subjectMasks.clear();frameMasks.clear();textRegions=[];textSymbols=[];showingText=showingFrame=false;
@@ -370,7 +397,7 @@
     dialog.querySelectorAll("[data-spot-layer]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.spotLayer===editingLayer)));
     const foilChoices=[["foil","Rainbow foil"],["surge","Surge foil"]];
     if(current?.record?.finish==="chocobo"||layerDrafts.mask?.values.finish==="chocobo")foilChoices.push(["chocobo","Chocobo foil (legacy)"]);
-    fields.finish.replaceChildren(...(printedLayer() ? Object.entries(metadata?.effect_types||{}) : editingLayer==="gloss" ? [["gloss","Gloss"],["polished","Polished gloss"]] : foilChoices).map(([value,label])=>new Option(label,value)));
+    fields.finish.replaceChildren(...(printedLayer() ? Object.entries(metadata?.effect_types||{}).sort((a,b)=>a[1].localeCompare(b[1])) : editingLayer==="gloss" ? [["gloss","Gloss"],["polished","Polished gloss"]] : foilChoices).map(([value,label])=>new Option(label,value)));
     const selectedParticle=fields.effect_particle_type.value;
     fields.effect_particle_type.replaceChildren(...Object.entries(metadata?.confetti_glitter_types||{glitter_1:"Glitter - Type 1"}).map(([value,label])=>new Option(label,value)));
     if([...fields.effect_particle_type.options].some(option=>option.value===selectedParticle))fields.effect_particle_type.value=selectedParticle;
@@ -411,10 +438,11 @@
   });
   function captureLayer() {
     mirrorLayers?.flush();
+    trekTransporter?.flush();
     const values={};
     for(const field of fields)if(field.name && !["mask_file","zoom"].includes(field.name))values[field.name]=field.type==="checkbox"?field.checked:field.value;
     return {values,generation:generationOptions(),png:encodedMask(),width:mask.width,
-      history:[...history],historyIndex,maskReviewed,removal,enabled:!removal&&(hasInk||maskReviewed||activeSaved()||printedLayer()&&fields.finish.value==='mirror_layers'),recentColors:[...recentColors],textRegions,textSymbols};
+      history:[...history],historyIndex,maskReviewed,removal,enabled:!removal&&(hasInk||maskReviewed||activeSaved()||printedLayer()&&['mirror_layers','federation_transporter'].includes(fields.finish.value)),recentColors:[...recentColors],textRegions,textSymbols};
   }
   function glossDraft(record, base) {
     const values={...base.values,finish:record?.finish||"gloss",strength:record?.strength||100,overlay_color:record?.overlay_color||"#00BFFF",
@@ -435,6 +463,8 @@
   function effectDraft(record,base,layer) {
     const draft=glossDraft(record,base);
     Object.assign(draft.values,{finish:windWaveEffect(record?.finish||"")?"ukiyo_e":legacyGlitter(record?.finish)?"confetti_glitter":record?.finish||"confetti_glitter",
+      effect_transporter_emblem:record?.transporter_emblem||'tos_badge',effect_transporter_style:record?.transporter_style||'multicolor',effect_transporter_alignment:record?.transporter_alignment||'emblem',
+      effect_transporter_layout:JSON.stringify(window.DeckadenceTrekTransporter.fromRecord(record)),
       effect_dragon_emblem:record?.dragon_emblem||'bolas_command',effect_dragon_trail:record?.dragon_trail||'winding_magic',effect_dragon_alignment:record?.dragon_alignment||'dragon',effect_dragon_color_effect:record?.dragon_color_effect||'normal',
       effect_particle_type:record?.particle_type||(legacyGlitter(record?.finish)?record.finish:"glitter_1"),effect_particle_flip:Boolean(record?.flip_horizontal),
       effect_ukiyo_type:record?.ukiyo_type||(windWaveEffect(record?.finish||"")?record.finish.replace(/_sparse$/u,""):"wind_ribbons"),effect_ukiyo_sparse:record?.sparse??Boolean(record?.finish?.endsWith("_sparse")),effect_ukiyo_flip:Boolean(record?.flip_horizontal),strength:String(record?.strength||65),
@@ -472,20 +502,24 @@
     return {finish:values.finish,disabled:Boolean(values.effect_disabled),strength:Number(values.strength),scale:Number(values.effect_scale),density:Number(values.effect_density),seed:Number(values.effect_seed),color:values.effect_color||effectColors[values.finish]||"#FFE7A0",translucence:Number(values.effect_translucence||0),rotation:Number(values.effect_rotation||0),
       ...(values.finish==="mirror_layers"?{mirrors:JSON.parse(values.effect_mirrors||JSON.stringify(window.DeckadenceMirrorLayers.defaults()))}:{}),
       ...(values.finish==="dragon_strike"?{dragon_emblem:values.effect_dragon_emblem||'bolas_command',dragon_trail:values.effect_dragon_trail||'winding_magic',dragon_alignment:values.effect_dragon_alignment||'dragon',dragon_color_effect:values.effect_dragon_color_effect||'normal'}:{}),
+      ...(values.finish==="federation_transporter"?{transporter_emblem:values.effect_transporter_emblem||'tos_badge',transporter_style:values.effect_transporter_style||'multicolor',transporter_alignment:values.effect_transporter_alignment||'emblem',transporter_layout:JSON.parse(values.effect_transporter_layout||JSON.stringify(window.DeckadenceTrekTransporter.defaults())),strength:100,scale:100,density:100,color:'#FFFFFF',rotation:0}:{}),
       ...(values.finish==="confetti_glitter"?{particle_type:values.effect_particle_type||"glitter_1",flip_horizontal:Boolean(values.effect_particle_flip)}:{}),
       ...(values.finish==="ukiyo_e"?{ukiyo_type:values.effect_ukiyo_type||"wind_ribbons",sparse:Boolean(values.effect_ukiyo_sparse),flip_horizontal:Boolean(values.effect_ukiyo_flip)}:{}),
       ...(values.finish==="ripple"?{origin_x:Number(values.effect_origin_x??20),origin_y:Number(values.effect_origin_y??72)}:{}),
       ...(["flame_1","flame_2"].includes(values.finish)?{stacked:Boolean(values.effect_stacked)}:{}),
       ...(values.finish==="silver_black"?{black_depth:Number(values.effect_black_depth??0),silver_brightness:Number(values.effect_silver_brightness??90)}:{}),
-      ...(pathEffects.has(values.finish)?{position_x:Number(values.effect_track_x||0),position_y:Number(values.effect_track_y||0),transparency:Number(values.effect_track_transparency||0)}:{}),
+      ...(pathEffects.has(values.finish)?{position_x:values.finish==='federation_transporter'?0:Number(values.effect_track_x||0),position_y:values.finish==='federation_transporter'?0:Number(values.effect_track_y||0),transparency:values.finish==='federation_transporter'?0:Number(values.effect_track_transparency||0)}:{}),
       ...(values.finish==="mirror_shards"?{shards:{template:values.effect_shard_template||"falling",template_scale:Number(values.effect_shard_size??100),template_x:Number(values.effect_shard_x||0),template_y:Number(values.effect_shard_y||0),theme:values.effect_shard_theme||"dark",mirror:Boolean(values.effect_mirror),tint:Number(values.effect_tint??18),scene:values.effect_scene||"",scene_theme:values.effect_scene_theme||"dark",scene_source:values.effect_scene_source||"",scene_selection:values.effect_scene_selection||"",scene_rotation:Number(values.effect_scene_rotation||0),scene_zoom:Number(values.effect_scene_zoom||100),scene_skew:Number(values.effect_scene_skew||0),scene_x:Number(values.effect_scene_x||0),scene_y:Number(values.effect_scene_y||0),scene_flip_horizontal:Boolean(values.effect_scene_flip_horizontal),scene_flip_vertical:Boolean(values.effect_scene_flip_vertical),custom_prompt:(values.effect_custom_prompt||"").trim(),scene_custom_prompt:values.effect_scene_custom_prompt||"",prompt_details:(values.effect_prompt_details||"").trim(),scene_prompt_details:values.effect_scene_prompt_details||"",maintain_style:Boolean(values.effect_maintain_style),scene_maintain_style:values.effect_scene_maintain_style==="true",outpaint_margin:Number(values.effect_outpaint_margin??30),scene_margin:Number(values.effect_scene_margin??0),scene_padding:[Number(values.effect_scene_padding_x||0),Number(values.effect_scene_padding_y||0)]}}:{})};
   }
   function effectControlValues() {
     mirrorLayers?.flush();
+    trekTransporter?.flush();
     const names=["finish","strength","effect_scale","effect_density","effect_seed","effect_color","effect_translucence","effect_rotation","effect_scene_rotation","effect_scene_zoom","effect_scene_skew","effect_scene_x","effect_scene_y","effect_shard_template","effect_shard_size","effect_shard_x","effect_shard_y","effect_shard_theme","effect_mirror","effect_tint","effect_scene","effect_scene_theme","effect_scene_source","effect_scene_selection","effect_custom_prompt","effect_scene_custom_prompt","effect_maintain_style","effect_scene_maintain_style","effect_outpaint_margin","effect_scene_margin","effect_scene_padding_x","effect_scene_padding_y"];
     names.push("effect_particle_type","effect_particle_flip","effect_ukiyo_type","effect_ukiyo_sparse","effect_ukiyo_flip","effect_origin_x","effect_origin_y","effect_disabled","effect_stacked","effect_track_x","effect_track_y","effect_track_transparency","effect_black_depth","effect_silver_brightness");
     names.push('effect_mirrors');
     names.push('effect_dragon_emblem','effect_dragon_trail','effect_dragon_alignment','effect_dragon_color_effect');
+    names.push('effect_transporter_emblem','effect_transporter_style','effect_transporter_alignment');
+    names.push('effect_transporter_layout');
     names.push('effect_prompt_details','effect_scene_prompt_details','effect_scene_flip_horizontal','effect_scene_flip_vertical');
     return Object.fromEntries(names.map(name=>[name,fields[name].type==="checkbox"?fields[name].checked:fields[name].value]));
   }
@@ -613,6 +647,12 @@
   window.DeckadenceArtAutoSelect?.create({dialog,editor:artEditor,
     request:(route,body)=>api(apiUrl(endpoint(current.target)+'/'+route),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
     setBusy:value=>{busy=value;controls();},message});
+  trekTransporter=window.DeckadenceTrekTransporter.create({dialog,stage,
+    active:()=>printedLayer()&&!artEditor.active&&!removal&&fields.finish.value==='federation_transporter',
+    busy:()=>busy||!ready||Boolean(activeStroke),scope:()=>session+':'+editingLayer,
+    canMove:()=>tool==='pan'&&view==='effect'&&!showingText&&!showingFrame&&!fields.effect_disabled.checked,
+    changed:()=>{scheduleEffectRender();markChanged();},
+    moveTool:()=>{setTool('pan');setView('effect');syncPreviewInteraction();}});
   dialog.querySelector('[data-spot-edit-tab]').addEventListener('click',()=>{
     if(!ready||busy||activeStroke)return;
     artEditor.setActive(true);showingText=false;showingFrame=false;setView('art');renderMask();dialog.querySelectorAll('[data-spot-layer]').forEach(b=>b.setAttribute('aria-pressed','false'));controls();message('Editing artwork. Paint, select an area, or add text.');
@@ -820,7 +860,7 @@
     dialog.querySelector("[data-spot-apply]").disabled = fields.selection_mode.value === "none";
     artEditor.setDisabled(!ready||busy||painting);
     dialog.querySelector('[data-spot-edit-tab]').disabled=!ready||busy||painting;
-    save.disabled = !ready || busy || painting || artEditor.pending || (!artEditor.dirty && !hasInk && !maskReviewed && !current?.record && !removal && !(printedLayer()&&fields.finish.value==='mirror_layers') && !Object.values(layerDrafts).some(draft=>draft.enabled||draft.removal));
+    save.disabled = !ready || busy || painting || artEditor.pending || (!artEditor.dirty && !hasInk && !maskReviewed && !current?.record && !removal && !(printedLayer()&&['mirror_layers','federation_transporter'].includes(fields.finish.value)) && !Object.values(layerDrafts).some(draft=>draft.enabled||draft.removal));
     dialog.querySelectorAll("[data-spot-layer]").forEach(button=>button.disabled=!ready||busy||Boolean(activeStroke)||artEditor.pending);
     dialog.querySelectorAll('[data-spot-view]').forEach(button=>{button.disabled=!ready||busy||painting||artEditor.pending;button.title=artEditor.pending?'Apply or discard the AI preview before changing views.':'';});
     dialog.querySelector("[data-spot-invert]").disabled = !ready || busy || painting;
@@ -848,8 +888,8 @@
     return maskArea;
   }
   function markChanged() {
-    const area=coverage(),whole=printedLayer()&&fields.finish.value==='mirror_layers'&&!hasInk;
-    message(removal ? "Removal pending · save to restore the regular card finish." : whole?'Unsaved changes · no mask: mirrors use the whole card.':`Unsaved changes · ${area}% of the card selected`);
+    const area=coverage(),whole=printedLayer()&&['mirror_layers','federation_transporter'].includes(fields.finish.value)&&!hasInk;
+    message(removal ? "Removal pending · save to restore the regular card finish." : whole?'Unsaved changes · no mask: free placement across the card.':`Unsaved changes · ${area}% of the card selected`);
     updateMirrorStatus();
     controls();
   }
@@ -891,7 +931,7 @@
     otherOverlays.forEach((element,index)=>{
       const layer=inactive[index],draft=layerDrafts[layer];element.hidden=!allOverlays||!draft;
       element.style.removeProperty("--spot-other-mask");
-      if(!element.hidden){element.style.setProperty("--spot-other-mask",`url("${draft.png}")`);element.style.backgroundColor=draft.values.overlay_color;element.style.zIndex=String(layerOrder[layer]);}
+      if(!element.hidden){element.style.setProperty("--spot-other-mask",`url("${maskPreviewUrl(layer,draft.png)}")`);element.style.backgroundColor=draft.values.overlay_color;element.style.zIndex=String(layerOrder[layer]);}
     });
     for(const layer of Object.keys(layerOrder)) {
       dialog.querySelector(`[data-spot-legend-color="${layer}"]`).style.backgroundColor=layer===editingLayer?fields.overlay_color.value:layerDrafts[layer]?.values.overlay_color||"#00BFFF";
@@ -906,9 +946,9 @@
       overlay.fillRect(0, 0, canvas.width, canvas.height); overlay.globalCompositeOperation = "source-over";
     }
     if (!painting || view === "effect") {
-      const draftFor=layer=>layer===editingLayer?{enabled:!removal&&(hasInk||maskReviewed||activeSaved()||printedLayer()&&fields.finish.value==='mirror_layers'),png:effectUrl,
+      const draftFor=layer=>layer===editingLayer?{enabled:!removal&&(hasInk||maskReviewed||activeSaved()||printedLayer()&&['mirror_layers','federation_transporter'].includes(fields.finish.value)),png:effectUrl,
         values:effectControlValues()}:layerDrafts[layer];
-      const preview=layer=>{const draft=draftFor(layer);return draft?.enabled&&draft.png?{maskUrl:draft.png,finish:draft.values.finish,strength:Number(draft.values.strength)}:null;};
+      const preview=layer=>{const draft=draftFor(layer);return draft?.enabled&&draft.png?{maskUrl:maskPreviewUrl(layer,draft.png),finish:draft.values.finish,strength:Number(draft.values.strength)}:null;};
       effects.setSpotFoil(stage,preview("mask"));effects.setGloss(stage,preview("gloss"));
       for(const layer of ["effect1","effect2"])queuePrintedPreview(layer,draftFor(layer));
     }
@@ -924,6 +964,7 @@
       : view === "art" ? "Original artwork + Edit layer. Effect, Foil and Gloss layers are hidden."
       : artEditor.active ? "Full card preview · Edit, Effect 1, Effect 2, Foil and Gloss."
       : printedLayer()&&fields.finish.value==='mirror_layers' ? "Use Hand to select and drag mirrors. Drag the corner handle to resize."
+      : printedLayer()&&fields.finish.value==='federation_transporter' ? "Use Hand to drag beams around figures. Drag a corner to resize; the emblem moves independently."
       : "Hover with Pan to tilt and catch the light.";
     const help=dialog.querySelector("[data-spot-preview-help]");if(!artEditor.active)help.textContent=layerWording(help.textContent);
   }
@@ -932,13 +973,17 @@
     maskChanged();coverage();
     showingFrame = false;
     maskReviewed = true;
-    renderMask();
-    if (history[historyIndex] !== maskUrl) {
-      history = history.slice(0, historyIndex + 1); history.push(maskUrl);
+    // Commit the edited pixels and re-enable the layer before previewing it.
+    // A paste after Remove must immediately restore foil/gloss, and a preview
+    // failure must never leave saving or undo pointing at the previous mask.
+    removal = false;
+    const committed = encodedMask();
+    if (history[historyIndex] !== committed) {
+      history = history.slice(0, historyIndex + 1); history.push(committed);
       if (history.length > 40) history.shift();
       historyIndex = history.length - 1;
     }
-    removal = false; markChanged();
+    markChanged();renderMask();
   }
   function sizeMask(width) {
     maskChanged();
@@ -1037,6 +1082,7 @@
     // Snapshot unsaved mask edits before requesting geometry. Copy only the
     // portion visible through this layer, retaining feathered mask edges.
     const visibleMask=document.createElement('canvas');visibleMask.width=mask.width;visibleMask.height=mask.height;
+    if(fields.finish.value==='federation_transporter'&&!hasInk&&!fields.effect_disabled.checked)visibleMask.getContext('2d').fillRect(0,0,mask.width,mask.height);
     if(!fields.effect_disabled.checked && !(pathEffects.has(fields.finish.value)&&Number(fields.effect_track_transparency.value)===100))
       visibleMask.getContext('2d').drawImage(mask,0,0);
     const tracks=copyPathEffects.has(fields.finish.value);
@@ -1046,6 +1092,7 @@
       x:Number(fields.effect_shard_x.value),y:Number(fields.effect_shard_y.value),width:mask.width};
     if(tracks&&!["chocobo_tracks","dragon_strike"].includes(fields.finish.value))Object.assign(settings,{density:Number(fields.effect_density.value),seed:Number(fields.effect_seed.value)});
     if(fields.finish.value==='dragon_strike')Object.assign(settings,{dragon_emblem:fields.effect_dragon_emblem.value,dragon_trail:fields.effect_dragon_trail.value,dragon_alignment:fields.effect_dragon_alignment.value});
+    if(fields.finish.value==='federation_transporter')Object.assign(settings,{transporter_emblem:fields.effect_transporter_emblem.value,transporter_style:fields.effect_transporter_style.value,transporter_alignment:fields.effect_transporter_alignment.value,transporter_layout:JSON.parse(fields.effect_transporter_layout.value),scale:100,rotation:0});
     if(fields.finish.value==="confetti_glitter")Object.assign(settings,{particle_type:fields.effect_particle_type.value,flip_horizontal:fields.effect_particle_flip.checked});
     if(fields.finish.value==="ukiyo_e")Object.assign(settings,{ukiyo_type:fields.effect_ukiyo_type.value,sparse:fields.effect_ukiyo_sparse.checked,flip_horizontal:fields.effect_ukiyo_flip.checked});
     if(pathEffects.has(fields.finish.value))Object.assign(settings,{x:Number(fields.effect_track_x.value),y:Number(fields.effect_track_y.value)});
@@ -1140,11 +1187,11 @@
     syncPreviewInteraction();
   }
   function syncPreviewInteraction() {
-    const enabled = ready && !busy && !mirrorLayers?.moving && !artEditor.active && !showingText && !showingFrame && tool === "pan" && view === "effect" && !activeStroke;
+    const enabled = ready && !busy && !mirrorLayers?.moving && !trekTransporter?.moving && !artEditor.active && !showingText && !showingFrame && tool === "pan" && view === "effect" && !activeStroke;
     stage.dataset.tilt = String(enabled);
     effects.setInteractive(stage, enabled);
     const pan=dialog.querySelector('[data-spot-pan]');pan.disabled=!ready||busy||Boolean(activeStroke)||artEditor.pending;pan.setAttribute('aria-pressed',String(artEditor.active?artEditor.panning:tool==='pan'));
-    mirrorLayers?.update();
+    mirrorLayers?.update();trekTransporter?.update();
   }
   function setTool(value) {
     if (activeStroke) return;
@@ -1314,7 +1361,8 @@
     maskClipboard=null;maskClipboardRegion=null;marquee=null;updateMarquee();
     ++session; ready = false; activeStroke = null;
     subjectMasks.clear(); frameMasks.clear(); showingFrame = false;
-    layerDrafts={};clearPrintedPreviews();effects.setGloss(stage,null);for(const element of otherOverlays){element.hidden=true;element.style.removeProperty("--spot-other-mask");}
+    layerDrafts={};clearPrintedPreviews();effects.setSpotFoil(stage,null);effects.setGloss(stage,null);for(const element of otherOverlays){element.hidden=true;element.style.removeProperty("--spot-other-mask");}
+    clearMaskPreviews();
     if (renderFrame) cancelAnimationFrame(renderFrame); renderFrame = null;
     clearTimeout(effectRenderTimer);effectRenderTimer=null;previewSequences.clear();
     if (artworkUrl) URL.revokeObjectURL(artworkUrl); artworkUrl = "";
@@ -1713,7 +1761,7 @@
     message("Mask inverted. Undo is available.");
   });
   dialog.querySelector("[data-spot-remove]").addEventListener("click", () => {
-    if (selectArea("none",true)) {removal = true; markChanged();}
+    if (selectArea("none",true)) {removal = true; markChanged();renderMask();}
   });
   for (const field of [fields.effect_particle_type,fields.effect_particle_flip,fields.effect_ukiyo_type,fields.effect_ukiyo_sparse,fields.effect_ukiyo_flip,fields.finish, fields.strength, fields.effect_origin_x,fields.effect_origin_y,fields.effect_disabled, fields.effect_stacked, fields.effect_scale, fields.effect_density,fields.effect_black_depth,fields.effect_silver_brightness, fields.effect_color, fields.effect_translucence,fields.effect_track_x,fields.effect_track_y,fields.effect_track_transparency,fields.effect_rotation,fields.effect_scene_rotation,fields.effect_scene_zoom,fields.effect_scene_skew,fields.effect_scene_x,fields.effect_scene_y,fields.effect_scene_flip_horizontal,fields.effect_scene_flip_vertical, fields.effect_shard_template,fields.effect_shard_size,fields.effect_shard_x,fields.effect_shard_y,fields.effect_shard_theme,fields.effect_mirror,fields.effect_tint,fields.effect_custom_prompt,fields.effect_prompt_details,fields.effect_maintain_style,fields.effect_outpaint_margin]) field.addEventListener("input", () => {
     if(field===fields.effect_custom_prompt||field===fields.effect_prompt_details){
@@ -1723,7 +1771,7 @@
       dialog.querySelector(field===fields.effect_rotation?'[data-spot-rotation-value]':'[data-spot-scene-rotation-value]').value=field.value+'°';return;
     }
     updateEffectColor(field===fields.finish);
-    if(field===fields.finish&&fields.finish.value==='mirror_layers'){setTool('pan');setView('effect');}
+    if(field===fields.finish&&['mirror_layers','federation_transporter'].includes(fields.finish.value)){setTool('pan');setView('effect');}
     dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%";
     scheduleEffectRender(); markChanged();
   });
@@ -1732,6 +1780,12 @@
     fields.effect_dragon_emblem.value=button.dataset.spotDragonEmblem;
     updateShardControls();scheduleRender();markChanged();
   });
+  for(const button of dialog.querySelectorAll('[data-spot-transporter-emblem]'))button.addEventListener('click',()=>{
+    if(!ready||busy||fields.effect_transporter_emblem.value===button.dataset.spotTransporterEmblem)return;
+    fields.effect_transporter_emblem.value=button.dataset.spotTransporterEmblem;
+    updateShardControls();scheduleRender();markChanged();
+  });
+  for(const field of [fields.effect_transporter_style,fields.effect_transporter_alignment])field.addEventListener('change',()=>{scheduleRender();markChanged();});
   fields.effect_dragon_trail.addEventListener('change',()=>{scheduleRender();markChanged();});
   fields.effect_dragon_alignment.addEventListener('change',()=>{scheduleRender();markChanged();});
   fields.effect_dragon_color_effect.addEventListener('change',()=>{scheduleRender();markChanged();});

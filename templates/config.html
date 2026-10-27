@@ -14,7 +14,7 @@
 >
 <link
     rel="stylesheet"
-    href="{{ url_for('static', filename='css/config.css', v='campaign-backup-1') }}"
+    href="{{ url_for('static', filename='css/config.css', v='tracking-tags-controls-3') }}"
 >
 
 {% endblock %}
@@ -522,6 +522,23 @@
         </div>
 
         <div class="config-section-divider"></div>
+
+        <div id="section_card_tracking_tags" class="page-panel collapsible-panel" data-section="card_tracking_tags">
+            <button type="button" class="collapsible-header"><span>Card Tracking Tags</span><span class="collapsible-chevron">▾</span></button>
+            <div class="collapsible-body">
+                <p>Track cards across all printings, decks, and sets. Right-click a card and choose Tags.</p>
+                <p class="tracking-tag-hint">Custom tags save immediately. Own and Don't Own are mutually exclusive.</p>
+                <div id="cardTrackingTagList" class="tracking-tag-config-list"></div>
+                <div class="tracking-tag-add">
+                    <label class="toggle-row settings-field" for="cardTrackingTagName">
+                        <span>Custom tag</span>
+                        <input type="text" class="custom-draft-filter-input" id="cardTrackingTagName" maxlength="40" placeholder="e.g. Trade Binder" autocomplete="off">
+                    </label>
+                    <button id="cardTrackingTagAdd" type="button" class="action-button">Add tag</button>
+                </div>
+                <p id="cardTrackingTagStatus" role="status" aria-live="polite"></p>
+            </div>
+        </div>
 
         <div id="section_print_settings" class="page-panel collapsible-panel {% if section_defaults.get('print_settings') == '1' %}is-open{% endif %}" data-section="print_settings">
             <button type="button" class="collapsible-header">
@@ -2601,7 +2618,7 @@
 {% endblock %}
 
 {% block page_scripts_before_app %}
-<script src="{{ url_for('static', filename='js/config.js', v='refresh-progress-9') }}"></script>
+<script src="{{ url_for('static', filename='js/config.js', v='tracking-tags-controls-3') }}"></script>
 {% endblock %}
 
 {% block page_scripts_after_app %}

@@ -4,12 +4,46 @@ Install from Deckadence Settings → Plugins, then open **Browse MPCFill** in a
 card's Alternate Image picker. Search the MPCFill catalogue, filter by creator,
 resolution, language or tags, save a shortlist, and choose an image.
 
+**Exclude AI art** filters artwork tagged by MPCFill as AI Art (including its
+aliases), AI Remaster or AI Frame. Untagged AI artwork cannot be identified by
+this filter. Star a creator in the browser or batch selector to save them as a
+**Favorite Creator**; the browser also has a favorites-only filter.
+
+**Auto Select MPCFill Best** is available beside the batch actions for selected
+deck and custom-set cards, and for all cards in pack views. The modal uses the
+application's fonts, theme and controls. Choose **Find best matches** to review
+artwork, enlarge previews, deselect individual matches and see fallback reasons.
+Only **Download & apply** downloads originals and adds alternate sources.
+
+Batch criteria include:
+
+- Target DPI (default **Highest**), language, and front/back/both faces.
+- AI-art exclusion, favorite creator priority, one specific favorite, and
+  multiple preferred tags.
+- **Only download from specified creators**, with a separate creator list.
+- **Only download matches meeting all criteria**, which requires every selected
+  tag, enabled creator preferences, and at least a numeric target DPI. If the
+  target is Highest, it selects the highest resolution within those constraints.
+- An opt-in to update cards that already have alternate artwork. Existing
+  artwork is skipped by default; prior alternate sources are retained.
+
+Ranking order is specific favorite, other favorites, number of preferred tags,
+then DPI. Numeric DPI targets prefer the nearest resolution at or above the
+target, then the highest below it when fallback is allowed. AI exclusion,
+language and allowed creators are always required. Strict matching skips cards
+that do not meet all requirements. Review pages contain 24 matches and selection
+applies across pages. A batch can be stopped after its current card; completed
+changes remain saved. Failed downloads can be retried without duplicating a
+successfully applied source. Changing a collection's image library or a card's
+active artwork after review requires finding matches again. Review choices
+expire after 24 hours or an application restart.
+
 Choosing **Use this image** downloads the original and adds an enabled Alternate
 Source with **3mm Full-Bleed File (MPCFill Bleed)** checked automatically. The
 original bleed file is retained for printing. The current deck/set's image
 isolation and the selected front/back face are respected.
 
-Previews, originals, catalogue responses and saved selections persist under
+Previews, originals, catalogue responses, favorites and saved selections persist under
 `data/cache/mpcfill/` on the computer running Deckadence. Images are served from
 that local cache, including after an application restart. Only images viewed or
 selected are downloaded. Catalogue/search metadata refreshes after 24 hours;

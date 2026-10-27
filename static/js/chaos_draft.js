@@ -808,6 +808,8 @@ function initializeChaosDraftPage() {
       const cardElement = document.createElement("div");
       cardElement.className = "chaos-pack-inline-card";
       cardElement.dataset.cardUuid = cardData.card_uuid || "";
+      cardElement.dataset.trackingCard = "1";
+      cardElement.dataset.cardName = cardData.card_name || "";
       cardElement.dataset.cardName = cardData.card_name || "";
 
       const badgesMarkup = buildPackBadgeMarkup(cardData);

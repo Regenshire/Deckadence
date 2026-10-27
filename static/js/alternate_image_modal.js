@@ -796,10 +796,10 @@ for (const button of document.querySelectorAll(
     };
   }
 
-  function refreshCardImages(cardUuid, alternateState) {
+  function refreshCardImages(cardUuid, alternateState, imageUrl) {
     if (!cardUuid) return;
     const url = new URL(
-      currentImagePreviewUrl ||
+      imageUrl || currentImagePreviewUrl ||
         "/chaos-card-image/" + encodeURIComponent(cardUuid),
       window.location.href,
     );
@@ -1484,6 +1484,11 @@ for (const button of document.querySelectorAll(
   });
 
   window.iMomirAlternateImage = window.iMomirAlternateImage || {};
+  window.iMomirAlternateImage.refreshFromPayload = function (cardUuid, payload) {
+    const state = getAlternateStateFromPayload(payload);
+    updateAlternateIndicators(cardUuid, state);
+    refreshCardImages(cardUuid, state, payload.image_url);
+  };
 
   window.iMomirAlternateImage.open = function (cardUuid, cardName, options) {
     openAlternateModal(cardUuid || "", cardName || "", options || {});

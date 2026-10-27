@@ -213,6 +213,7 @@ from ui.ui import (
 
 from plugin_system.catalog import PLUGIN_CATALOG
 from plugin_system.mpcfill import register_mpcfill_routes
+from plugin_system.mpcfill_batch import register_mpcfill_batch_routes
 from plugin_system.foil_workflows import register_foil_workflow_routes, resolve_export_workflow, load_preferences as load_studio_preferences, validate_pdf_version
 from plugin_system.card_spot_foil import register_card_spot_foil_routes
 from plugin_system.spot_foil_pdf import SpotFoilPdfJob, place_spot_foil, draw_print_artwork
@@ -1633,6 +1634,41 @@ def normalize_hex_color_value(
     return f"#{fallback_clean.upper()}"
 
 
+def resolve_pdf_cutting_guide_settings(config, fallback=None):
+    """Validate saved or submitted guide appearance and physical page sides."""
+    defaults = fallback or {
+        "color_hex": "#%02X%02X%02X" % PDF_CUTTING_GUIDE_COLOR_RGB,
+        "thickness_mm": PDF_CUTTING_GUIDE_THICKNESS_MM,
+        "sides": "front",
+    }
+    color_hex = normalize_hex_color_value(
+        config.get("pdf_cutting_guide_color_hex"), defaults["color_hex"],
+    )
+    try:
+        thickness_mm = float(config.get("pdf_cutting_guide_thickness_mm"))
+        if not math.isfinite(thickness_mm) or not 0.05 <= thickness_mm <= 1.0:
+            raise ValueError()
+    except (TypeError, ValueError):
+        thickness_mm = defaults["thickness_mm"]
+    sides = str(config.get("pdf_cutting_guide_sides") or "").strip().lower()
+    if sides not in {"front", "back", "both"}:
+        sides = defaults["sides"]
+    return {"color_hex": color_hex, "thickness_mm": thickness_mm, "sides": sides}
+
+
+def read_pdf_cutting_guide_form_settings(form_data, scope, existing_config):
+    settings = resolve_pdf_cutting_guide_settings({
+        key: form_data.get(f"{scope}_{key}")
+        for key in ("pdf_cutting_guide_color_hex", "pdf_cutting_guide_thickness_mm",
+                    "pdf_cutting_guide_sides")
+    }, fallback=resolve_pdf_cutting_guide_settings(existing_config))
+    return {
+        f"{scope}_pdf_cutting_guide_color_hex": settings["color_hex"],
+        f"{scope}_pdf_cutting_guide_thickness_mm": f"{settings['thickness_mm']:g}",
+        f"{scope}_pdf_cutting_guide_sides": settings["sides"],
+    }
+
+
 def resolve_pdf_outer_slot_region_band_settings(
     config,
 ):
@@ -1912,6 +1948,8 @@ def _build_pdf_template_layout(
             or 0.0
         ),
         "round_the_corners": bool(template_layout.get("round_the_corners", False)),
+        "draw_row_cut_lines": bool(template_layout.get("draw_row_cut_lines", False)),
+        "draw_side_guide_lines": bool(template_layout.get("draw_side_guide_lines", False)),
         "registration_background_path": (
             template_layout.get(
                 "registration_background_path"
@@ -2911,6 +2949,9 @@ def update_config_from_form(form_data):
             current_config,
             print_scope,
         )
+        updated_config.update(read_pdf_cutting_guide_form_settings(
+            form_data, print_scope, existing_print_config,
+        ))
 
         valid_print_templates = {
             value
@@ -3969,6 +4010,8 @@ def build_registry_template_layout(
             or 0.0
         ),
         "round_the_corners": bool(rendering.get("round_the_corners", False)),
+        "draw_row_cut_lines": bool(rendering.get("draw_row_cut_lines", False)),
+        "draw_side_guide_lines": bool(rendering.get("draw_side_guide_lines", False)),
 
         "registration_background_path": (
             silhouette.get(
@@ -4245,6 +4288,24 @@ def is_silhouette_template(print_template):
         template
         and template.is_silhouette_layout
     )
+
+
+def pdf_template_supports_source_bleed(template_layout):
+    """Use source bleed for physical bleed slots without requiring a cutter."""
+    if template_layout.get("is_silhouette_layout", False):
+        return True
+
+    for slot in template_layout.get("slot_defs") or []:
+        width = float(slot["width_mm"])
+        height = float(slot["height_mm"])
+        finished_width = float(slot.get("finished_card_width_mm", width))
+        finished_height = float(slot.get("finished_card_height_mm", height))
+        if int(slot.get("rotation_degrees", 0) or 0) % 360 in {90, 270}:
+            finished_width, finished_height = finished_height, finished_width
+        if width > finished_width + 0.001 or height > finished_height + 0.001:
+            return True
+    return False
+
 
 def resolve_pdf_template_layout():
     return get_request_pdf_template_layout()
@@ -6282,38 +6343,27 @@ def get_print_template_registration_background_path(
     path = cutter_registration_path(registry, paper, selected)
     return str(path) if path else None
 
-def is_pdf_cutting_guides_enabled():
-    if has_request_context() and hasattr(g, "print_export_pdf_cutting_guides_override"):
-        return bool(g.print_export_pdf_cutting_guides_override)
+def get_pdf_cutting_guide_settings():
+    config = get_request_config() if has_request_context() else get_config()
+    return resolve_pdf_cutting_guide_settings(get_effective_print_config(config))
 
-    try:
+
+def is_pdf_cutting_guides_enabled(page_side="front"):
+    if has_request_context() and hasattr(g, "print_export_pdf_cutting_guides_override"):
+        enabled = bool(g.print_export_pdf_cutting_guides_override)
+    else:
         config = get_request_config() if has_request_context() else get_config()
         config = get_effective_print_config(config)
-    except Exception:
-        config = {}
-
-    return (config.get("pdf_cutting_guides") or "1").strip() == "1"
+        enabled = str(config.get("pdf_cutting_guides") or "1").strip() == "1"
+    if not enabled:
+        return False
+    sides = get_pdf_cutting_guide_settings()["sides"]
+    return sides == "both" or sides == page_side
 
 
 def get_pdf_cutting_guide_rgb_normalized():
-    try:
-        red, green, blue = PDF_CUTTING_GUIDE_COLOR_RGB
-    except Exception:
-        red, green, blue = (0, 255, 0)
-
-    def normalize_channel(value):
-        try:
-            parsed_value = int(value)
-        except (TypeError, ValueError):
-            parsed_value = 0
-
-        return max(0, min(255, parsed_value)) / 255.0
-
-    return (
-        normalize_channel(red),
-        normalize_channel(green),
-        normalize_channel(blue),
-    )
+    color_hex = get_pdf_cutting_guide_settings()["color_hex"]
+    return tuple(int(color_hex[index:index + 2], 16) / 255.0 for index in (1, 3, 5))
 
 
 def get_pdf_cut_rect_for_slot(slot_def):
@@ -6365,10 +6415,7 @@ def draw_pdf_cutting_guide_corner_marks(pdf_canvas, cut_rect):
     except (TypeError, ValueError):
         mark_size_mm = 2.0
 
-    try:
-        line_thickness_mm = float(PDF_CUTTING_GUIDE_THICKNESS_MM)
-    except (TypeError, ValueError):
-        line_thickness_mm = 0.20
+    line_thickness_mm = get_pdf_cutting_guide_settings()["thickness_mm"]
 
     if mark_size_mm <= 0 or line_thickness_mm <= 0:
         return
@@ -6404,8 +6451,102 @@ def draw_pdf_cutting_guide_corner_marks(pdf_canvas, cut_rect):
 
     pdf_canvas.restoreState()
 
-def draw_pdf_cutting_guides_for_page(pdf_canvas, page_entries, slot_defs):
-    if not is_pdf_cutting_guides_enabled():
+def get_pdf_row_cut_positions_mm(slot_defs):
+    """Center strip cuts in the clear gaps between printed row bands."""
+    bands = sorted({
+        (float(slot["y_mm"]), float(slot["y_mm"]) + float(slot["height_mm"]))
+        for slot in (slot_defs or [])
+    })
+    cuts = []
+    previous_top = None
+    for bottom, top in bands:
+        if previous_top is not None and bottom > previous_top + 0.001:
+            cuts.append((previous_top + bottom) / 2.0)
+        previous_top = max(previous_top if previous_top is not None else top, top)
+    return cuts
+
+
+def get_pdf_side_guide_segments_mm(slot_defs, page_width_mm, page_height_mm, line_thickness_mm=0.25):
+    """Short horizontal ticks at finished top/bottom edges, outside card art."""
+    shapes = [get_print_card_shape(slot, 0.0) for slot in (slot_defs or [])]
+    edge_positions = sorted({
+        round(edge, 6)
+        for shape in shapes
+        for edge in (shape["y_mm"], shape["y_mm"] + shape["height_mm"])
+    })
+    segments = []
+    for y_mm in edge_positions:
+        if not 0 < y_mm < page_height_mm:
+            continue
+        # Include every card crossing this height so staggered/explicit slots
+        # cannot put another card's alignment mark inside finished artwork.
+        occupied = sorted(
+            (max(0.0, shape["x_mm"]),
+             min(page_width_mm, shape["x_mm"] + shape["width_mm"]))
+            for shape in shapes
+            if shape["y_mm"] - line_thickness_mm / 2 <= y_mm <= shape["y_mm"] + shape["height_mm"] + line_thickness_mm / 2
+        )
+        gaps = []
+        previous_right = 0.0
+        for left, right in occupied:
+            if left > previous_right:
+                gaps.append((previous_right, left))
+            previous_right = max(previous_right, right)
+        if previous_right < page_width_mm:
+            gaps.append((previous_right, page_width_mm))
+
+        for left, right in gaps:
+            # Leave 0.5 mm clearance at both ends. Cap short gaps instead of
+            # entering a card, and omit marks shorter than 1 mm.
+            length = min(3.0, right - left - 1.0)
+            if length < 1.0:
+                continue
+            if left == 0.0:
+                start = right - 0.5 - length
+            elif right == page_width_mm:
+                start = left + 0.5
+            else:
+                start = (left + right - length) / 2.0
+            segments.append((start, y_mm, start + length, y_mm))
+    return segments
+
+
+def draw_pdf_template_cutting_guides(pdf_canvas, template_layout, slot_defs, page_side="front"):
+    """Return True when template guides replace the normal card-corner guides."""
+    template_layout = template_layout or {}
+    draw_rows = template_layout.get("draw_row_cut_lines", False)
+    draw_sides = template_layout.get("draw_side_guide_lines", False)
+    if not (draw_rows or draw_sides):
+        return False
+    if not is_pdf_cutting_guides_enabled(page_side):
+        return True
+
+    page_width_mm = float(template_layout["page_width_mm"])
+    page_height_mm = float(template_layout["page_height_mm"])
+    inset_mm = min(5.0, page_width_mm / 4.0)
+    thickness_mm = get_pdf_cutting_guide_settings()["thickness_mm"]
+    pdf_canvas.saveState()
+    pdf_canvas.setStrokeColorRGB(*get_pdf_cutting_guide_rgb_normalized())
+    pdf_canvas.setLineWidth(thickness_mm * mm)
+    pdf_canvas.setLineCap(0)
+    if draw_rows:
+        pdf_canvas.setDash(10.0 * mm, 3.0 * mm)
+        for y_mm in get_pdf_row_cut_positions_mm(slot_defs):
+            if 0 < y_mm < page_height_mm:
+                pdf_canvas.line(inset_mm * mm, y_mm * mm,
+                                (page_width_mm - inset_mm) * mm, y_mm * mm)
+    if draw_sides:
+        pdf_canvas.setDash()
+        for x1, y1, x2, y2 in get_pdf_side_guide_segments_mm(slot_defs, page_width_mm, page_height_mm, thickness_mm):
+            pdf_canvas.line(x1 * mm, y1 * mm, x2 * mm, y2 * mm)
+    pdf_canvas.restoreState()
+    return True
+
+
+def draw_pdf_cutting_guides_for_page(pdf_canvas, page_entries, slot_defs, template_layout=None, page_side="front"):
+    if draw_pdf_template_cutting_guides(pdf_canvas, template_layout, slot_defs, page_side):
+        return
+    if not is_pdf_cutting_guides_enabled(page_side):
         return
 
     for slot_index, rendered_entry in enumerate(page_entries or []):
@@ -7102,7 +7243,10 @@ def build_single_image_pdf_buffer(image_path):
                 round_the_corners=bool(pdf_template_layout.get("round_the_corners", False)),
             )
 
-        if is_pdf_cutting_guides_enabled():
+        if (
+            not draw_pdf_template_cutting_guides(pdf_canvas, pdf_template_layout, slot_defs)
+            and is_pdf_cutting_guides_enabled()
+        ):
             for slot_def in slot_defs:
                 cut_rect = (
                     get_pdf_cut_rect_for_slot(
@@ -7243,11 +7387,7 @@ def build_default_card_back_sheet_pdf():
     ).strip()
 
     use_real_source_bleed = bool(
-        is_silhouette_template(
-            pdf_template_layout[
-                "print_template"
-            ]
-        )
+        pdf_template_supports_source_bleed(pdf_template_layout)
         and default_back_option.get(
             "source_has_real_bleed"
         )
@@ -7305,6 +7445,7 @@ def build_default_card_back_sheet_pdf():
         draw_y_mm,
         draw_width_mm,
         draw_height_mm,
+        page_side="back",
     )
 
     if pages_rendered == 0:
@@ -7800,6 +7941,11 @@ def build_inline_pdf_response(pdf_buffer, filename):
 
     response.headers["Cache-Control"] = "no-store"
 
+    printed_cards = getattr(g, "tracking_printed_cards", set())
+    if request.form.get("mark_as_printed") == "1" and printed_cards:
+        from db.database import mark_tracking_cards_printed
+        mark_tracking_cards_printed(printed_cards)
+        response.headers["X-Card-Tags-Updated"] = "1"
     return response
 
 def build_html_print_slots(template_layout):
@@ -9139,10 +9285,7 @@ def draw_chaos_card_back_entries_into_pdf_layout(
                 ).strip()
 
                 use_real_source_bleed = bool(
-                    pdf_template_layout.get(
-                        "is_silhouette_layout",
-                        False,
-                    )
+                    pdf_template_supports_source_bleed(pdf_template_layout)
                     and rendered_entry.get(
                         "source_has_real_bleed"
                     )
@@ -9218,11 +9361,8 @@ def draw_chaos_card_back_entries_into_pdf_layout(
                     )
 
             if (
-                pdf_template_layout.get(
-                    "is_silhouette_layout",
-                    False,
-                )
-                and is_pdf_cutting_guides_enabled()
+                not draw_pdf_template_cutting_guides(pdf_canvas, pdf_template_layout, slot_defs, "back")
+                and is_pdf_cutting_guides_enabled("back")
             ):
                 for (
                     front_slot_index,
@@ -9568,6 +9708,7 @@ def draw_chaos_rendered_entries_into_pdf_layout(
     draw_y_mm,
     draw_width_mm,
     draw_height_mm,
+    page_side="front",
 ):
     if not rendered_image_entries:
         return 0
@@ -9776,6 +9917,8 @@ def draw_chaos_rendered_entries_into_pdf_layout(
                 pdf_canvas,
                 page_entries,
                 slot_defs,
+                pdf_template_layout,
+                page_side=page_side,
             )
 
             pdf_canvas.showPage()
@@ -13217,19 +13360,20 @@ class AlternateImageEditor:
             write_error_log("ALTERNATE IMAGE FILE CLEANUP FAILED", exc=exc)
 
     @isolation_operation
-    def add_from_form(self, card_uuid):
+    def add_from_form(self, card_uuid, form=None):
+        form = request.form if form is None else form
         context = self.context()
-        source_type = str(request.form.get("source_type") or "external_url").strip().lower()
-        source_name = str(request.form.get("source_name") or "").strip()
-        face_kind = normalize_alternate_face_kind(request.form.get("face_kind") or "single")
-        external_url = str(request.form.get("external_image_url") or "").strip()
-        local_path = str(request.form.get("local_image_path") or "").strip()
-        remove_bleed = request.form.get("remove_bleed") == "on"
+        source_type = str(form.get("source_type") or "external_url").strip().lower()
+        source_name = str(form.get("source_name") or "").strip()
+        face_kind = normalize_alternate_face_kind(form.get("face_kind") or "single")
+        external_url = str(form.get("external_image_url") or "").strip()
+        local_path = str(form.get("local_image_path") or "").strip()
+        remove_bleed = form.get("remove_bleed") == "on"
         bleed_mm = ALTERNATE_UPLOAD_BLEED_MM if remove_bleed else None
         uploaded_file = request.files.get("alternate_image_file")
         uploaded = bool(uploaded_file and uploaded_file.filename)
-        mpcfill_key = request.form.get("mpcfill_key")
-        notes = request.form.get("notes") or ""
+        mpcfill_key = form.get("mpcfill_key")
+        notes = form.get("notes") or ""
         if mpcfill_key:
             from plugin_system.mpcfill import require_ready, record_for, image_path
             require_ready()
@@ -13243,6 +13387,8 @@ class AlternateImageEditor:
             uploaded_file, uploaded = None, False
             remove_bleed, bleed_mm = True, ALTERNATE_UPLOAD_BLEED_MM
             notes = "MPCFill: {}\nGoogle Drive file: {}".format(record.get("name") or "", record["identifier"])
+            if form.get("mpcfill_batch_id"):
+                notes += "\nMPCFill batch: " + form["mpcfill_batch_id"]
         if not source_name:
             source_name = (
                 "Upload File" if uploaded else "Local File" if source_type == "local_file"
@@ -13406,7 +13552,7 @@ class AlternateImageEditor:
                     external_image_url=external_url, local_image_path=local_path,
                     fullbleed_image_path=fullbleed_path, remove_bleed=remove_bleed,
                     bleed_size_mm=bleed_mm,
-                    export_frame_template=request.form.get("export_frame_template") or "auto",
+                    export_frame_template=form.get("export_frame_template") or "auto",
                     notes=notes,
                 )
                 if files is not None:
@@ -13420,7 +13566,7 @@ class AlternateImageEditor:
                         raise LookupError("Card UUID was not found.")
                     if files is not None:
                         files.validate_inputs()
-                    if request.form.get("replace_current") == "1":
+                    if form.get("replace_current") == "1":
                         from db.custom_cards import get_custom_card
                         custom = get_custom_card(card_uuid)
                         if custom is None:
@@ -13428,8 +13574,8 @@ class AlternateImageEditor:
                         current = repository.find_enabled(dict(card_uuid=card_uuid), "single")
                         expected_id = str(current["alternate_source_id"]) if current else ""
                         expected_version = current["updated_at_utc"] if current else custom["created_at_utc"]
-                        if (request.form.get("expected_source_id") != expected_id
-                                or request.form.get("expected_source_version") != expected_version):
+                        if (form.get("expected_source_id") != expected_id
+                                or form.get("expected_source_version") != expected_version):
                             raise RuntimeError("The image changed. Reopen Alternate Image Settings before replacing it.")
                         for previous in repository.list_for_card(card_uuid):
                             if previous["is_enabled"]:
@@ -15318,11 +15464,7 @@ def build_chaos_pack_pdf(
                         image_source.get(
                             "source_has_real_bleed"
                         )
-                        and is_silhouette_template(
-                            pdf_template_layout.get(
-                                "print_template"
-                            )
-                        )
+                        and pdf_template_supports_source_bleed(pdf_template_layout)
                     )
 
                     cached_result = (
@@ -15694,7 +15836,15 @@ def build_chaos_pack_pdf(
         c.save()
         buffer.seek(0)
 
-        return c.spot_foil_job.finish(buffer, allow_empty=allow_empty_spot_foil or title_card_only) if getattr(c, "spot_foil_job", None) else buffer
+        result = c.spot_foil_job.finish(buffer, allow_empty=allow_empty_spot_foil or title_card_only) if getattr(c, "spot_foil_job", None) else buffer
+        # Combined jobs may render several packs. Commit tags only after the
+        # complete PDF succeeds and reaches build_inline_pdf_response.
+        if has_request_context() and request.form.get("mark_as_printed") == "1":
+            printed_cards = getattr(g, "tracking_printed_cards", set())
+            printed_cards.update(entry.get("card_uuid") for entry in rendered_image_entries
+                                 if entry.get("card_row") is not None and entry.get("card_uuid"))
+            g.tracking_printed_cards = printed_cards
+        return result
 
     finally:
         for rendered_entry in rendered_image_entries + card_back_rendered_entries + pack_label_rendered_entries:
@@ -19989,6 +20139,61 @@ def result():
     )
 
 # *** PRINT ACTIONS - Print Cards and Game Tokens ***
+@app.route("/api/card-tracking-tags", methods=["GET", "POST"])
+def card_tracking_tags():
+    from db.database import get_card_tracking_state, create_card_tracking_tag
+    if request.method == "POST":
+        payload = request.get_json(silent=True)
+        try:
+            create_card_tracking_tag(payload.get("name") if isinstance(payload, dict) else None)
+        except ValueError as exc:
+            return jsonify(ok=False, message=str(exc)), 400
+    response = jsonify(ok=True, **get_card_tracking_state())
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def get_tracking_tag_query_values(key):
+    from db.database import normalize_tracking_tag_ids
+    from werkzeug.exceptions import BadRequest
+    try:
+        return normalize_tracking_tag_ids(request.args.getlist(key))
+    except ValueError as exc:
+        raise BadRequest(str(exc)) from exc
+
+
+@app.delete("/api/card-tracking-tags/<tag_id>")
+def card_tracking_tag_delete(tag_id):
+    from db.database import delete_card_tracking_tag, get_card_tracking_state
+    try:
+        delete_card_tracking_tag(tag_id)
+    except ValueError as exc:
+        return jsonify(ok=False, message=str(exc)), 400
+    return jsonify(ok=True, **get_card_tracking_state())
+
+
+@app.post("/api/card-tracking-tags/assign")
+def card_tracking_tag_assign():
+    from db.database import set_card_tracking_tag, get_card_tracking_state
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or not isinstance(payload.get("tag_id"), str):
+        return jsonify(ok=False, message="Choose a card and a tracking tag."), 400
+    try:
+        set_card_tracking_tag(payload.get("card_uuids"), payload["tag_id"], payload.get("enabled"))
+    except ValueError as exc:
+        return jsonify(ok=False, message=str(exc)), 400
+    return jsonify(ok=True, **get_card_tracking_state())
+
+
+@app.post("/api/card-tracking-tags/clear-printed")
+def card_tracking_clear_printed():
+    from db.database import clear_printed_tracking_tag, get_card_tracking_state
+    if not isinstance(request.get_json(silent=True), dict):
+        return jsonify(ok=False, message="Send a JSON request to clear Printed tags."), 400
+    count = clear_printed_tracking_tag()
+    return jsonify(ok=True, cleared_count=count, **get_card_tracking_state())
+
+
 register_cutter_routes(app, get_request_config, update_config_values)
 register_foil_workflow_routes(app, get_request_config, update_config_values)
 def load_finishing_original_artwork(card_uuid, face, context):
@@ -20017,6 +20222,8 @@ register_card_spot_foil_routes(
     load_artwork=load_finishing_original_artwork,
 )
 register_mpcfill_routes(app)
+register_mpcfill_batch_routes(app, AlternateImageEditor, get_db_connection,
+                             isolation_guard, get_isolation_epoch, alternate_image_api)
 
 @app.route(
     "/print-template-registration-background/"
@@ -20269,7 +20476,10 @@ def print_tower_of_power_batch_pdf():
                     round_the_corners=bool(pdf_template_layout.get("round_the_corners", False)),
                 )
 
-            if is_pdf_cutting_guides_enabled():
+            if (
+                not draw_pdf_template_cutting_guides(c, pdf_template_layout, slot_defs)
+                and is_pdf_cutting_guides_enabled()
+            ):
                 for slot_index in range(
                     len(page_card_paths)
                 ):
@@ -29914,6 +30124,8 @@ def deckbuilder_cards_search(deck_id):
         sort_option=request.args.get("sort") or "name_asc",
         digital_filter=request.args.get("digital") or "exclude",
         exclude_added_filter=request.args.get("exclude_added") or "",
+        include_tags=get_tracking_tag_query_values("include_tag"),
+        exclude_tags=get_tracking_tag_query_values("exclude_tag"),
         exclude_deck_id=deck_id,
         page=page,
         page_size=page_size,
@@ -38903,6 +39115,8 @@ def custom_draft_set_cards_search(set_code):
         sort_option=request.args.get("sort") or "name_asc",
         digital_filter=request.args.get("digital") or "",
         exclude_added_filter=request.args.get("exclude_added") or "",
+        include_tags=get_tracking_tag_query_values("include_tag"),
+        exclude_tags=get_tracking_tag_query_values("exclude_tag"),
         page=page,
         page_size=page_size,
     )
@@ -38955,6 +39169,8 @@ def custom_draft_set_cards_add_all_results(set_code):
                 sort_option=request.args.get("sort") or "name_asc",
                 digital_filter=request.args.get("digital") or "",
                 exclude_added_filter=request.args.get("exclude_added") or "",
+                include_tags=get_tracking_tag_query_values("include_tag"),
+                exclude_tags=get_tracking_tag_query_values("exclude_tag"),
                 page=search_page,
                 page_size=search_page_size,
             )

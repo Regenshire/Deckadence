@@ -46,6 +46,10 @@
       <input type="hidden" name="pack_ids" value="{{ pack_id }}" />
       {% endfor %}
 
+      <div class="tracking-tag-print-controls">
+        <label class="toggle-row" title="Apply Printed to the cards included in a successfully created PDF."><span>Mark as Printed</span><input type="checkbox" id="printExportMarkPrinted" name="mark_as_printed" value="1"></label>
+        <button type="button" id="printExportClearPrinted" class="tracking-tag-link" title="Remove Printed from every card in the app">Clear Printed Tag (all cards)</button>
+      </div>
       <div class="print-export-main-actions">
         <button
           type="button"

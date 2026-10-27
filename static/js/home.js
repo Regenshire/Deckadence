@@ -162,7 +162,8 @@
     setup.hidden = !confirmed || next.database_ready !== false;
     setup.style.display = setup.hidden ? 'none' : '';
     root.hidden = !ready;
-    statusPanel.hidden = dismissed && !running || (!running && !failed && next.stage !== "Complete");
+    // Completed updates belong in Config; keep Home clear after installation.
+    statusPanel.hidden = !running && (dismissed || !failed);
     install.disabled = starting || running;
     install.textContent = running ? "Installingâ€¦" : failed ? "Retry download" : "Download card database";
     retry.hidden = !failed || !ready;

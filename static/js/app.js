@@ -1,4 +1,385 @@
 // *** APP CONTROLS - Setup Shared Page Actions ***
+// Personal tracking tags are independent of deck membership and artwork.
+(() => {
+  let state = {tags: [], assignments: {}};
+  let loaded = false;
+  let pending = Promise.resolve();
+  const filters = new Map();
+  const menus = new Set();
+  let openFilter = null;
+  let filterSequence = 0;
+  const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("deckadence-card-tags") : null;
+  const cardSelector = ".deckbuilder-card, .deckbuilder-land-palette-card, .custom-draft-current-card-row, .custom-draft-current-grid-card, .chaos-pack-view-card, .custom-draft-card-search-row, [data-tracking-card]";
+
+  function identity(card) {
+    const uuid = card?.dataset.cardUuid || "";
+    return uuid.startsWith("custom-") ? "custom:" + uuid :
+      "name:" + String(card?.dataset.cardName || "").trim().toLowerCase();
+  }
+  function values(scope) {
+    const selected = filters.get(scope) || new Map();
+    return {include: [...selected].filter(([, value]) => value === "include").map(([id]) => id),
+      exclude: [...selected].filter(([, value]) => value === "exclude").map(([id]) => id)};
+  }
+  function active(scope) {
+    const selected = values(scope);
+    return selected.include.length + selected.exclude.length > 0;
+  }
+  function matches(card, scope) {
+    if (!active(scope)) return true;
+    if (!loaded) return false;
+    const assigned = state.assignments[identity(card)] || [];
+    const selected = values(scope);
+    return selected.include.every(id => assigned.includes(id)) && selected.exclude.every(id => !assigned.includes(id));
+  }
+  function announce(scope) {
+    document.dispatchEvent(new CustomEvent("deckadence:tag-filters-changed", {detail: {scope}}));
+  }
+  function reset(scope) {
+    filters.delete(scope);
+    document.querySelectorAll("[data-tag-filter]").forEach(host => {
+      if (host.dataset.tagFilter === scope) renderFilter(host);
+    });
+  }
+  function element(tag, text, className) {
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+  function clampMenu(menu) {
+    const box = menu.getBoundingClientRect();
+    if (!box.width) return;
+    menu.style.top = Math.max(10, Math.min(box.top, innerHeight - box.height - 10)) + "px";
+    menu.style.left = Math.max(10, Math.min(box.left, innerWidth - box.width - 10)) + "px";
+  }
+  function accept(payload) {
+    state = payload;
+    loaded = true;
+    const valid = new Set(state.tags.map(tag => tag.tag_id));
+    const changedScopes = new Set();
+    filters.forEach((selected, scope) => selected.forEach((value, id) => {
+      if (!valid.has(id)) {selected.delete(id); changedScopes.add(scope);}
+    }));
+    document.querySelectorAll("[data-tag-filter]").forEach(renderFilter);
+    menus.forEach(menu => {if (menu.isConnected) renderMenu(menu); else menus.delete(menu);});
+    renderConfig();
+    document.dispatchEvent(new CustomEvent("deckadence:card-tags-changed"));
+    changedScopes.forEach(announce);
+  }
+  function api(path = "", body, method) {
+    // Keep local reads and writes in order so an earlier response cannot undo
+    // the displayed state of a later click.
+    const operation = pending.catch(() => {}).then(async () => {
+      const response = await fetch("/api/card-tracking-tags" + path, {
+        method: method || (body === undefined ? "GET" : "POST"), cache: "no-store",
+        headers: {"Content-Type": "application/json", Accept: "application/json"},
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || "Could not save card tags.");
+      accept(payload);
+      if (body !== undefined || method === "DELETE") channel?.postMessage("changed");
+      return payload;
+    });
+    pending = operation;
+    return operation;
+  }
+  function closeTagFilter(restoreFocus = false) {
+    if (!openFilter) return;
+    const {button, panel} = openFilter;
+    if (typeof panel.hidePopover === "function" && panel.matches(":popover-open")) panel.hidePopover();
+    panel.hidden = true;
+    button.setAttribute("aria-expanded", "false");
+    openFilter = null;
+    if (restoreFocus) button.focus();
+  }
+  function positionTagFilter() {
+    if (!openFilter) return;
+    const {button, panel} = openFilter;
+    const box = button.getBoundingClientRect();
+    const below = innerHeight - box.bottom - 14;
+    const above = box.top - 14;
+    const upward = below < Math.min(panel.scrollHeight, 340) && above > below;
+    panel.style.maxHeight = Math.max(100, upward ? above : below) + "px";
+    const size = panel.getBoundingClientRect();
+    panel.style.left = Math.max(8, Math.min(box.right - size.width, innerWidth - size.width - 8)) + "px";
+    panel.style.top = Math.max(8, upward ? box.top - size.height - 6 : box.bottom + 6) + "px";
+  }
+  function showTagFilter(host, button, panel) {
+    closeTagFilter();
+    panel.hidden = false;
+    if (typeof panel.showPopover === "function") panel.showPopover();
+    button.setAttribute("aria-expanded", "true");
+    openFilter = {host, button, panel};
+    positionTagFilter();
+  }
+  function renderFilter(host) {
+    const scope = host.dataset.tagFilter;
+    const wasOpen = openFilter?.host === host;
+    if (wasOpen) closeTagFilter();
+    host.classList.add("custom-draft-filter-field", "tracking-tag-field");
+    const inline = host.dataset.tagFilterLabel === "inline";
+    const deck = scope === "deck" || scope === "sideboard";
+    const controlClass = deck ? "campaign-test-draft-picked-sort-select" : "custom-draft-filter-input custom-draft-multi-select-button";
+    const button = element("button", undefined, controlClass + " tracking-tag-filter-toggle");
+    button.type = "button";
+    button.setAttribute("aria-expanded", "false");
+    button.setAttribute("aria-haspopup", "dialog");
+    const label = element("span", "Tags", "tracking-tag-field-label");
+    const value = element("span", undefined, "tracking-tag-filter-value");
+    if (inline) button.append(label);
+    button.append(value);
+    const arrow = element("span", "▾", "custom-draft-multi-select-chevron");
+    arrow.setAttribute("aria-hidden", "true");
+    button.append(arrow);
+    const updateValue = () => {
+      const selected = values(scope);
+      const count = selected.include.length + selected.exclude.length;
+      value.textContent = count ? count + " selected" : "Any";
+      button.setAttribute("aria-label", "Tags: " + value.textContent);
+    };
+    updateValue();
+    const panel = element("div", undefined, "tracking-tag-filter-panel");
+    panel.id = "trackingTagFilter" + (++filterSequence);
+    panel.hidden = true;
+    if (typeof panel.showPopover === "function") panel.setAttribute("popover", "manual");
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", "Tag filters");
+    button.setAttribute("aria-controls", panel.id);
+    panel.append(element("p", "Match all included tags; hide any excluded tags.", "tracking-tag-hint"));
+    const list = element("div", undefined, "tracking-tag-filter-list");
+    state.tags.forEach(tag => {
+      const label = element("label", undefined, "tracking-tag-filter-row");
+      label.append(element("span", tag.name));
+      const select = element("select", undefined, deck ? "campaign-test-draft-picked-sort-select" : "custom-draft-filter-input");
+      select.setAttribute("aria-label", tag.name + " tag filter");
+      [["", "Any"], ["include", "Include"], ["exclude", "Exclude"]].forEach(([value, text]) => {
+        const option = element("option", text); option.value = value; select.append(option);
+      });
+      select.value = filters.get(scope)?.get(tag.tag_id) || "";
+      select.addEventListener("change", () => {
+        if (!filters.has(scope)) filters.set(scope, new Map());
+        if (select.value) filters.get(scope).set(tag.tag_id, select.value);
+        else filters.get(scope).delete(tag.tag_id);
+        updateValue();
+        announce(scope);
+      });
+      label.append(select); list.append(label);
+    });
+    if (!loaded) list.append(element("p", "Loading tags…", "tracking-tag-hint"));
+    panel.append(list);
+    const clear = element("button", "Clear tag filters", "tracking-tag-link"); clear.type = "button";
+    clear.addEventListener("click", () => {
+      filters.delete(scope);
+      list.querySelectorAll("select").forEach(select => {select.value = "";});
+      updateValue();
+      announce(scope);
+    });
+    panel.append(clear);
+    button.addEventListener("click", () => {
+      if (openFilter?.host === host) closeTagFilter();
+      else showTagFilter(host, button, panel);
+    });
+    button.addEventListener("keydown", event => {
+      if (event.key !== "ArrowDown") return;
+      event.preventDefault();
+      showTagFilter(host, button, panel);
+      panel.querySelector("select, button")?.focus();
+    });
+    host.replaceChildren(...(inline ? [] : [label]), button, panel);
+    if (wasOpen) showTagFilter(host, button, panel);
+  }
+  document.addEventListener("click", event => {
+    if (openFilter && !openFilter.host.contains(event.target)) closeTagFilter();
+  });
+  document.addEventListener("focusin", event => {
+    if (openFilter && !openFilter.host.contains(event.target)) closeTagFilter();
+  });
+  window.addEventListener("keydown", event => {
+    if (event.key === "Escape" && openFilter) {
+      event.preventDefault(); event.stopImmediatePropagation(); closeTagFilter(true);
+    }
+  }, true);
+  window.addEventListener("resize", positionTagFilter);
+  document.addEventListener("scroll", event => {
+    if (openFilter && !openFilter.panel.contains(event.target)) closeTagFilter();
+  }, true);
+  function renderMenu(menu) {
+    if (!menu.trackingCard) return;
+    menu.querySelectorAll(".tracking-tag-submenu").forEach(details => {
+      const cards = details.dataset.tagTarget === "all" ? menu.trackingSelectedCards : [menu.trackingCard];
+      renderMenuTags(menu, details, cards);
+    });
+    requestAnimationFrame(() => clampMenu(menu));
+  }
+  function renderMenuTags(menu, details, cards) {
+    const list = details.querySelector(".tracking-tag-options");
+    list.replaceChildren();
+    const bulk = details.dataset.tagTarget === "all";
+    state.tags.forEach(tag => {
+      const button = element("button", undefined, trackingMenuItemClass(menu) + " tracking-tag-option"); button.type = "button";
+      const assignedCount = cards.filter(card => (state.assignments[identity(card)] || []).includes(tag.tag_id)).length;
+      const checked = assignedCount === cards.length;
+      const mixed = assignedCount > 0 && !checked;
+      button.setAttribute("role", "menuitemcheckbox");
+      button.setAttribute("aria-checked", mixed ? "mixed" : String(checked));
+      if (bulk) button.title = (checked ? "Remove " : "Apply ") + tag.name +
+        (checked ? " from all " : " to all ") + cards.length + " selected cards";
+      const check = element("span", checked ? "✓" : mixed ? "−" : "", "tracking-tag-check");
+      check.setAttribute("aria-hidden", "true");
+      button.append(check, element("span", tag.name));
+      button.addEventListener("click", async event => {
+        event.stopPropagation();
+        menu.querySelectorAll(".tracking-tag-option").forEach(item => {item.disabled = true;});
+        try {
+          await api("/assign", {card_uuids: [...new Set(cards.map(card => card.dataset.cardUuid))], tag_id: tag.tag_id, enabled: !checked});
+        } catch (error) {
+          renderMenu(menu);
+          details.querySelector(".tracking-tag-error").textContent = error.message;
+        }
+      });
+      list.append(button);
+    });
+    if (!loaded) list.append(element("span", "Loading tags…"));
+    details.querySelector(".tracking-tag-error").textContent = "";
+  }
+  function trackingMenuItemClass(menu) {
+    if (menu.classList.contains("deckbuilder-card-context-menu")) return "deckbuilder-card-context-menu-item";
+    if (menu.classList.contains("imomir-card-context-menu")) return "imomir-card-context-menu-item";
+    return "tracking-tag-menu-item";
+  }
+  function buildTagSubmenu(menu, label, target) {
+    const details = element("details", undefined, "tracking-tag-submenu");
+    details.dataset.tagTarget = target;
+    const summary = element("summary", label, trackingMenuItemClass(menu) + " tracking-tag-menu-toggle");
+    const arrow = element("span", undefined, "tracking-tag-menu-arrow");
+    arrow.setAttribute("aria-hidden", "true");
+    summary.append(arrow);
+    details.append(summary);
+    const options = element("div", undefined, "tracking-tag-options"); options.setAttribute("role", "menu");
+    options.setAttribute("aria-label", label);
+    details.append(options);
+    const error = element("p", "", "tracking-tag-error"); error.setAttribute("role", "status"); details.append(error);
+    details.addEventListener("toggle", () => {
+      if (details.open) menu.querySelectorAll(".tracking-tag-submenu").forEach(other => {
+        if (other !== details) other.open = false;
+      });
+      clampMenu(menu);
+    });
+    return details;
+  }
+  function attachMenu(menu, card, selectedCards = []) {
+    if (!menu || !card?.dataset.cardUuid) return;
+    menu.trackingCard = card;
+    menu.trackingSelectedCards = Array.from(selectedCards).filter(selected => selected?.dataset.cardUuid);
+    menus.add(menu);
+    menu.classList.add("tracking-tag-context-host");
+    // Keep an expanded menu above navigation and out of workspace stacking
+    // contexts. Its existing direct event handlers continue to work here.
+    if (menu.parentElement !== document.body) document.body.append(menu);
+    let details = menu.querySelector('.tracking-tag-submenu[data-tag-target="single"]');
+    if (!details) {
+      details = buildTagSubmenu(menu, "Tags", "single");
+      menu.prepend(details);
+    }
+    details.open = false;
+    let bulk = menu.querySelector('.tracking-tag-submenu[data-tag-target="all"]');
+    if (menu.trackingSelectedCards.length > 1) {
+      if (!bulk) {
+        bulk = buildTagSubmenu(menu, "Tags (all)", "all");
+        details.after(bulk);
+      }
+      bulk.querySelector("summary").title = menu.trackingSelectedCards.length + " selected cards";
+      bulk.open = false;
+    } else {
+      bulk?.remove();
+    }
+    renderMenu(menu);
+    if (!loaded) api().catch(error => {details.querySelector(".tracking-tag-error").textContent = error.message;});
+  }
+  function renderConfig() {
+    const list = document.getElementById("cardTrackingTagList");
+    if (!list) return;
+    list.replaceChildren();
+    state.tags.forEach(tag => {
+      const row = element("div", undefined, "toggle-row tracking-tag-config-row");
+      row.append(element("span", tag.name));
+      if (tag.builtin) row.append(element("small", "Built in"));
+      else {
+        const remove = element("button", "Delete", "tracking-tag-link"); remove.type = "button";
+        remove.setAttribute("aria-label", "Delete " + tag.name + " tag");
+        remove.addEventListener("click", async () => {
+          if (!confirm('Delete “' + tag.name + '” and remove it from every card?')) return;
+          remove.disabled = true;
+          try {await api("/" + encodeURIComponent(tag.tag_id), undefined, "DELETE"); configStatus("Tag deleted.");}
+          catch (error) {configStatus(error.message); remove.disabled = false;}
+        });
+        row.append(remove);
+      }
+      list.append(row);
+    });
+  }
+  function configStatus(message) {
+    const status = document.getElementById("cardTrackingTagStatus");
+    if (status) status.textContent = message;
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    const hosts = document.querySelectorAll("[data-tag-filter]");
+    hosts.forEach(renderFilter);
+    if (hosts.length || document.querySelector("#cardTrackingTagList")) {
+      api().catch(error => {
+        configStatus(error.message);
+        hosts.forEach(host => {
+          const notice = element("p", error.message, "tracking-tag-error"); notice.setAttribute("role", "status"); host.append(notice);
+        });
+      });
+    }
+    const add = document.getElementById("cardTrackingTagAdd");
+    const input = document.getElementById("cardTrackingTagName");
+    add?.addEventListener("click", async () => {
+      add.disabled = true;
+      try {await api("", {name: input.value}); input.value = ""; configStatus("Tag saved. Available on all cards.");}
+      catch (error) {configStatus(error.message);}
+      finally {add.disabled = false;}
+    });
+    input?.addEventListener("keydown", event => {if (event.key === "Enter") {event.preventDefault(); add.click();}});
+    const packFilter = () => document.querySelectorAll(".chaos-pack-view-card").forEach(card => {
+      card.classList.toggle("tracking-tag-filtered-out", !matches(card, "pack"));
+    });
+    document.addEventListener("deckadence:card-tags-changed", packFilter);
+    document.addEventListener("deckadence:tag-filters-changed", event => {if (event.detail.scope === "pack") packFilter();});
+  });
+  // Surfaces without an existing context menu (search results and pack previews).
+  let fallback;
+  function openFallback(event) {
+    if (event.defaultPrevented) return;
+    const card = event.target.closest(cardSelector);
+    if (!card?.dataset.cardUuid) return;
+    if (card.matches(".deckbuilder-card, .deckbuilder-land-palette-card") && document.getElementById("deckbuilderCardContextMenu")) return;
+    if (card.matches(".custom-draft-current-card-row, .custom-draft-current-grid-card") && document.getElementById("customDraftCardContextMenu")) return;
+    if (card.matches(".chaos-pack-view-card") && document.getElementById("campaignPackCardContextMenu")) return;
+    event.preventDefault();
+    if (!fallback) {fallback = element("div", undefined, "tracking-tag-fallback"); document.body.append(fallback);}
+    attachMenu(fallback, card);
+    fallback.hidden = false;
+    const box = card.getBoundingClientRect();
+    fallback.style.left = (event.clientX || box.left) + "px";
+    fallback.style.top = (event.clientY || box.top) + "px";
+    clampMenu(fallback);
+  }
+  document.addEventListener("contextmenu", openFallback);
+  document.addEventListener("keydown", event => {
+    if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) openFallback(event);
+    if (event.key === "Escape" && fallback) fallback.hidden = true;
+  });
+  document.addEventListener("click", event => {if (fallback && !fallback.contains(event.target)) fallback.hidden = true;});
+  window.addEventListener("resize", () => {if (fallback) fallback.hidden = true;});
+  channel?.addEventListener("message", () => {if (loaded) api().catch(() => {});});
+  document.addEventListener("visibilitychange", () => {if (!document.hidden && loaded) api().catch(() => {});});
+  window.DeckadenceCardTags = {attachMenu, matches, active, values, reset, refresh: () => api(),
+    clearPrinted: () => api("/clear-printed", {})};
+})();
 /* ==========================================
    Deckadence Client Refresh Tracker
    ------------------------------------------
@@ -254,6 +635,8 @@
       }
 
       activeTarget = target;
+      window.DeckadenceCardTags?.attachMenu(menu, target,
+        typeof contextOptions.getSelectedCards === "function" ? contextOptions.getSelectedCards(target) : []);
 
       if (typeof contextOptions.prepare === "function") {
         contextOptions.prepare(target, menu);
@@ -412,7 +795,9 @@
     });
 
     window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("scroll", event => {
+      if (!(event.target instanceof Node) || !menu.contains(event.target)) close();
+    }, true);
 
     return {
       close: close,

@@ -26,8 +26,8 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
   rel="stylesheet"
   href="{{ url_for('static', filename='css/alternate_image_modal.css', v='mpcfill-2') }}"
 />
-<link rel="stylesheet" href="{{ url_for('static', filename='css/custom_draft_set_theme.css') }}?v=7">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='modal-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/custom_draft_set_theme.css') }}?v=filter-checkboxes-8">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='filter-checkboxes-3') }}">
 {% endblock %} {% block content %}
 <div class="screen screen-wide">
   <div class="page-panel custom-set-heading">
@@ -685,6 +685,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
           id="customDraftCurrentFilterBody"
           class="custom-draft-current-filter-body"
         >
+          <div class="custom-draft-current-search-row">
           <input
             type="text"
             id="customDraftCurrentCardFilterInput"
@@ -692,6 +693,8 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
             placeholder="Filter current set cards..."
             autocomplete="off"
           />
+          <div data-tag-filter="custom-set" data-tag-filter-label="inline"></div>
+          </div>
 
           <div class="custom-draft-filter-grid">
             <div
@@ -1049,6 +1052,25 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
                 stroke-linecap="round"
                 stroke-linejoin="round"
               ></path>
+            </svg>
+          </button>
+          {% endif %}
+
+          {% if global_mpcfill_ready %}
+          <button
+            type="button"
+            id="customDraftMpcFillBestButton"
+            class="action-button secondary-button imomir-batch-upscale-icon-button"
+            title="Auto Select MPCFill Best — select cards first"
+            aria-label="Auto Select MPCFill Best"
+            disabled
+          >
+            <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+              <path d="M5 25H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h18a2 2 0 0 1 2 2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+              <rect x="7" y="6" width="23" height="24" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/>
+              <circle cx="24" cy="11" r="1.6" fill="currentColor"/>
+              <path d="m10 18 5-6 5 5 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="18.5" y="27" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="9" font-weight="800" fill="currentColor">MPC</text>
             </svg>
           </button>
           {% endif %}
@@ -1486,7 +1508,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
   {% set stats_modal_title = "Set Card Stats" %} {% set stats_modal_subtitle =
   "Stats for the currently visible filtered cards." %} {% include
   "_stats_modal.html" %} {% include "_custom_card_modal.html" %} {% include "_alternate_image_modal.html" %}
-  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='mpcfill-1') }}"></script>
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='mpcfill-2') }}"></script>
 
   <div
     id="customDraftCardZoomOverlay"
@@ -1507,12 +1529,12 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
 <script src="{{ url_for('static', filename='js/custom_card_modal.js', v='2') }}"></script>
-<script src="{{ url_for('static', filename='js/card_search_modal.js', v='custom-delete-1') }}"></script>
-<script src="{{ url_for('static', filename='js/print_export_modal.js', v='inkjet-6') }}"></script>
+<script src="{{ url_for('static', filename='js/card_search_modal.js', v='tracking-tags-controls-3') }}"></script>
+<script src="{{ url_for('static', filename='js/print_export_modal.js', v='tracking-tags-1') }}"></script>
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
-<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=custom-delete-1"></script>
+<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=tracking-tags-bulk-1"></script>
 {% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>

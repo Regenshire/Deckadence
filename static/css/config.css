@@ -9,6 +9,57 @@
    Config Reminder / Section Details
    ========================================== */
 
+.cutting-guide-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.cutting-guide-settings legend {
+  padding: 0 6px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.cutting-guide-settings-help {
+  margin: 0 0 4px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.cutting-guide-settings input[type="color"] {
+  width: 72px;
+  min-width: 72px;
+  height: 38px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  cursor: pointer;
+}
+
+.cutting-guide-settings input[type="number"],
+.cutting-guide-settings select {
+  width: 100px;
+  min-width: 100px;
+}
+
+.cutting-guide-settings input[type="number"] {
+  min-height: 38px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--button);
+  color: var(--text);
+  font: inherit;
+}
+
 .config-section-divider {
   height: 1px;
   margin: 10px 4px 16px 4px;
@@ -536,6 +587,11 @@
 .settings-category-system {
   --settings-category-accent: #a7b2c8;
   --settings-category-accent-soft: rgba(167, 178, 200, 0.1);
+}
+
+.settings-category-cards {
+  --settings-category-accent: #7fa8a0;
+  --settings-category-accent-soft: rgba(127, 168, 160, 0.1);
 }
 
 .settings-category-print {

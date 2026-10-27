@@ -19,6 +19,128 @@ from settings import (
     DEFAULT_CONFIG,
 )
 
+# *** CARD TRACKING - Personal Tags Shared Across Printings ***
+# MTGJSON's canonical English card_name is shared by printings and both faces.
+# Keep user-created cards separate, even when their names match official cards.
+CARD_TRACKING_IDENTITY_SQL = "tracking_identity(cc.card_uuid, cc.card_name)"
+BUILTIN_TRACKING_TAGS = (
+    ("own", "Own"), ("dont-own", "Don't Own"), ("wish-list", "Wish List"),
+    ("printed", "Printed"), ("favorite", "Favorite"),
+)
+
+
+def initialize_card_tracking_tags(cursor):
+    cursor.execute("""CREATE TABLE IF NOT EXISTS card_tracking_tags (
+        tag_id TEXT PRIMARY KEY, name TEXT NOT NULL,
+        name_key TEXT NOT NULL UNIQUE, builtin INTEGER NOT NULL DEFAULT 0
+    )""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS card_tracking_assignments (
+        card_identity TEXT NOT NULL, tag_id TEXT NOT NULL,
+        PRIMARY KEY (card_identity, tag_id)
+    )""")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_card_tracking_tag ON card_tracking_assignments (tag_id)")
+    cursor.executemany(
+        "INSERT OR IGNORE INTO card_tracking_tags (tag_id, name, name_key, builtin) VALUES (?, ?, ?, 1)",
+        [(key, name, name.casefold()) for key, name in BUILTIN_TRACKING_TAGS],
+    )
+
+
+def normalize_tracking_tag_ids(values):
+    if values is None:
+        return []
+    if not isinstance(values, (list, tuple)) or len(values) > 100:
+        raise ValueError("Choose at most 100 tracking tags.")
+    if any(not isinstance(value, str) or not value or len(value) > 64 for value in values):
+        raise ValueError("Invalid tracking tag.")
+    return list(dict.fromkeys(values))
+
+
+def get_card_tracking_state():
+    with closing(get_db_connection()) as conn:
+        tags = [dict(row) for row in conn.execute(
+            "SELECT tag_id, name, builtin FROM card_tracking_tags ORDER BY rowid"
+        )]
+        assignments = {}
+        for row in conn.execute("SELECT card_identity, tag_id FROM card_tracking_assignments"):
+            assignments.setdefault(row["card_identity"], []).append(row["tag_id"])
+        return {"tags": tags, "assignments": assignments}
+
+
+def create_card_tracking_tag(name):
+    if not isinstance(name, str):
+        raise ValueError("Enter a tag name.")
+    name = " ".join(name.split())
+    if not name or len(name) > 40 or any(ord(char) < 32 for char in name):
+        raise ValueError("Tag names must be between 1 and 40 characters.")
+    with closing(get_db_connection()) as conn, conn:
+        # Serialize the limit and duplicate check with the insert.
+        conn.execute("BEGIN IMMEDIATE")
+        if conn.execute("SELECT COUNT(*) FROM card_tracking_tags").fetchone()[0] >= 100:
+            raise ValueError("You can have up to 100 tracking tags.")
+        if conn.execute("SELECT 1 FROM card_tracking_tags WHERE name_key = ?", (name.casefold(),)).fetchone():
+            raise ValueError("A tag with that name already exists.")
+        tag_id = "tag-" + uuid4().hex
+        conn.execute("INSERT INTO card_tracking_tags (tag_id, name, name_key) VALUES (?, ?, ?)",
+                     (tag_id, name, name.casefold()))
+    return tag_id
+
+
+def delete_card_tracking_tag(tag_id):
+    with closing(get_db_connection()) as conn, conn:
+        conn.execute("BEGIN IMMEDIATE")
+        tag = conn.execute("SELECT builtin FROM card_tracking_tags WHERE tag_id = ?", (tag_id,)).fetchone()
+        if not tag or tag["builtin"]:
+            raise ValueError("Only custom tags can be deleted.")
+        conn.execute("DELETE FROM card_tracking_assignments WHERE tag_id = ?", (tag_id,))
+        conn.execute("DELETE FROM card_tracking_tags WHERE tag_id = ?", (tag_id,))
+
+
+def set_card_tracking_tag(card_uuids, tag_id, enabled):
+    if not isinstance(card_uuids, list) or not 1 <= len(card_uuids) <= 100000:
+        raise ValueError("Choose between 1 and 100000 cards.")
+    if any(not isinstance(value, str) or not value or len(value) > 100 for value in card_uuids):
+        raise ValueError("Invalid card identifier.")
+    if not isinstance(enabled, bool):
+        raise ValueError("Specify whether the tag is enabled.")
+    with closing(get_db_connection()) as conn, conn:
+        conn.execute("BEGIN IMMEDIATE")
+        if not conn.execute("SELECT 1 FROM card_tracking_tags WHERE tag_id = ?", (tag_id,)).fetchone():
+            raise ValueError("That tracking tag no longer exists.")
+        identities = set()
+        for card_uuid in set(card_uuids):
+            row = conn.execute("SELECT " + CARD_TRACKING_IDENTITY_SQL +
+                               " FROM chaos_cards cc WHERE cc.card_uuid = ?", (card_uuid,)).fetchone()
+            if not row:
+                raise ValueError("A selected card no longer exists.")
+            identities.add(row[0])
+        for identity in identities:
+            if enabled:
+                opposite = {"own": "dont-own", "dont-own": "own"}.get(tag_id)
+                if opposite:
+                    conn.execute("DELETE FROM card_tracking_assignments WHERE card_identity = ? AND tag_id = ?",
+                                 (identity, opposite))
+                conn.execute("INSERT OR IGNORE INTO card_tracking_assignments VALUES (?, ?)", (identity, tag_id))
+            else:
+                conn.execute("DELETE FROM card_tracking_assignments WHERE card_identity = ? AND tag_id = ?",
+                             (identity, tag_id))
+
+
+def mark_tracking_cards_printed(card_uuids):
+    """Record the successfully rendered cards together, including large print jobs."""
+    with closing(get_db_connection()) as conn, conn:
+        conn.executemany(
+            "INSERT OR IGNORE INTO card_tracking_assignments (card_identity, tag_id) "
+            "SELECT " + CARD_TRACKING_IDENTITY_SQL + ", 'printed' FROM chaos_cards cc WHERE cc.card_uuid = ?",
+            [(value,) for value in set(card_uuids) if value],
+        )
+
+
+def clear_printed_tracking_tag():
+    with closing(get_db_connection()) as conn, conn:
+        result = conn.execute("DELETE FROM card_tracking_assignments WHERE tag_id = 'printed'")
+        return result.rowcount
+
+
 # *** DATABASE CONNECTION - Open the Card Database ***
 def get_db_connection():
     db_parent = os.path.dirname(DATABASE_PATH)
@@ -30,6 +152,11 @@ def get_db_connection():
         timeout=float(DATABASE_BUSY_TIMEOUT_SECONDS),
     )
     conn.row_factory = sqlite3.Row
+    # Python/JavaScript lowercase agree on Unicode card names (SQLite LOWER
+    # only folds ASCII, which would split names such as Æther Vial).
+    conn.create_function("tracking_identity", 2, lambda card_uuid, name:
+                         "custom:" + card_uuid if str(card_uuid or "").startswith("custom-")
+                         else "name:" + str(name or "").strip().lower(), deterministic=True)
     return conn
 
 
@@ -1111,6 +1238,8 @@ def repair_legacy_isolated_packs(*, apply=False):
 def initialize_database():
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    initialize_card_tracking_tags(cursor)
 
     cursor.execute(
         """
@@ -3805,10 +3934,14 @@ def search_chaos_cards_for_custom_draft_set(
     page=1,
     page_size=50,
     exact_card_name=None,
+    include_tags=None,
+    exclude_tags=None,
 ):
     clean_set_code = normalize_custom_draft_set_code(set_code)
     clean_search_text = str(search_text or "").strip().lower()
     clean_exact_card_name = str(exact_card_name or "").strip()
+    include_tags = normalize_tracking_tag_ids(include_tags)
+    exclude_tags = normalize_tracking_tag_ids(exclude_tags)
 
     valid_rarity_values = {"common", "uncommon", "rare", "mythic"}
 
@@ -3919,6 +4052,8 @@ def search_chaos_cards_for_custom_draft_set(
             parsed_year_end = None
 
     has_any_filter = any([
+        include_tags,
+        exclude_tags,
         clean_search_text,
         clean_exact_card_name,
         clean_rarity_filter,
@@ -3940,6 +4075,16 @@ def search_chaos_cards_for_custom_draft_set(
 
     where_clauses = []
     params = [clean_set_code]
+
+    for tag_ids, excluded in ((include_tags, False), (exclude_tags, True)):
+        for tag_id in tag_ids:
+            where_clauses.append(
+                ("NOT " if excluded else "") +
+                "EXISTS (SELECT 1 FROM card_tracking_assignments cta "
+                "WHERE cta.card_identity = " + CARD_TRACKING_IDENTITY_SQL +
+                " AND cta.tag_id = ?)"
+            )
+            params.append(tag_id)
 
     if clean_exact_card_name:
         # Use the canonical name from a selected card and the existing name

@@ -245,6 +245,17 @@
           </div>
           <p class="spot-card-caption" data-spot-preview-only>Screen preview only.</p>
           <div data-spot-pattern-controls hidden>
+            <div data-spot-transporter-controls hidden class="spot-transporter-controls">
+              <h3>Transporter emblem</h3>
+              <input type="hidden" name="effect_transporter_emblem" value="tos_badge">
+              <div class="spot-shard-templates spot-transporter-emblems" role="group" aria-label="Transporter emblem">
+                {% for key, label in [('tos_badge','TOS Badge'),('tng_badge','TNG Communicator Badge'),('generations_badge','Generations Communicator Badge'),('federation','Federation of Planets'),('starfleet','Starfleet Command'),('borg','Borg Emblem'),('klingon','Klingon Emblem'),('romulan','Romulan Emblem')] %}
+                <button type="button" data-spot-transporter-emblem="{{ key }}" aria-pressed="{{ 'true' if loop.first else 'false' }}"><img src="{{ url_for('static',filename='img/card-effects/federation-transporter/' ~ key ~ '-single.svg',v='3') }}" data-vector-base="{{ url_for('static',filename='img/card-effects/federation-transporter/' ~ key) }}" alt="" loading="lazy" decoding="async"><span>{{ label }}</span></button>
+                {% endfor %}
+              </div>
+              <input type="hidden" name="effect_transporter_style" value="multicolor">
+              <input type="hidden" name="effect_transporter_alignment" value="emblem">
+            </div>
             <div data-spot-dragon-controls hidden style="grid-column:1 / -1">
               <h3>Dragon emblem</h3>
               <input type="hidden" name="effect_dragon_emblem" value="bolas_command">

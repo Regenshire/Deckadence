@@ -167,9 +167,11 @@ function initializePackDownloader() {
     modal.showModal();
     revision += 1;
     refresh();
-    document.dispatchEvent(new CustomEvent("deckadence:help-event", {
-      detail: { name: "pack_downloader_opened" },
-    }));
+    document.dispatchEvent(
+      new CustomEvent("deckadence:help-event", {
+        detail: { name: "pack_downloader_opened" },
+      }),
+    );
   });
   get("closePackDownloader").addEventListener("click", () => modal.close());
   modal.addEventListener("close", () => {
@@ -340,15 +342,25 @@ function initializeRefreshCards() {
       else if (status.stage === "Complete") progress.value = 1;
       else progress.removeAttribute("value");
     }
-    if (summary) summary.textContent = total
-      ? `${current.toLocaleString()} of ${total.toLocaleString()} ${status.progress_unit || "items"} (${Math.floor(current / total * 100)}%)`
-      : status.is_running ? "Working — this stage has no measurable total yet." : "";
+    if (summary)
+      summary.textContent = total
+        ? `${current.toLocaleString()} of ${total.toLocaleString()} ${status.progress_unit || "items"} (${Math.floor((current / total) * 100)}%)`
+        : status.is_running
+          ? "Processing..."
+          : "";
     if (timing) {
       const now = Date.now() / 1000;
       const age = Math.max(0, Math.floor(now - (status.updated_epoch || now)));
-      const elapsed = Math.max(0, Math.floor((status.is_running ? now : status.updated_epoch) - status.started_epoch));
+      const elapsed = Math.max(
+        0,
+        Math.floor(
+          (status.is_running ? now : status.updated_epoch) -
+            status.started_epoch,
+        ),
+      );
       timing.textContent = status.started_epoch
-        ? `Elapsed: ${Math.floor(elapsed / 60)}m ${elapsed % 60}s · ${status.is_running ? `Server responding · Last progress update ${age}s ago` : status.stage}` : "";
+        ? `Elapsed: ${Math.floor(elapsed / 60)}m ${elapsed % 60}s · ${status.is_running ? `Server responding · Last progress update ${age}s ago` : status.stage}`
+        : "";
     }
     if (refreshStage) {
       refreshStage.textContent = status.stage || "Idle";
@@ -451,7 +463,9 @@ function initializeRefreshCards() {
       }
     } catch (error) {
       const timing = document.getElementById("refreshTiming");
-      if (timing) timing.textContent = "Status unavailable — reconnecting. The download may still be running.";
+      if (timing)
+        timing.textContent =
+          "Status unavailable — reconnecting. The download may still be running.";
       if (refreshError) {
         refreshError.textContent = error.message;
         refreshError.classList.remove("hidden");
@@ -507,7 +521,6 @@ function initializeRefreshCards() {
       }
 
       await pollRefreshStatus();
-
     } catch (error) {
       setRefreshRunningUi(false);
 
@@ -590,6 +603,10 @@ function initializeSettingsConsole() {
   screen.classList.add("settings-console-screen");
 
   const sectionMetadata = {
+    card_tracking_tags: {
+      description: "Create personal tags for cards and use them across decks, sets, and searches.",
+      showSave: false,
+    },
     theme: {
       description:
         "Change your theme settings here.  Set your prefered colors and background.",
@@ -604,7 +621,8 @@ function initializeSettingsConsole() {
         "Shared print templates, PDF output, card backs, labels, and print defaults used outside Momir.",
     },
     cutter_templates: {
-      description: "Create a template in your cutter software, then add its registration marks to Deckadence.",
+      description:
+        "Create a template in your cutter software, then add its registration marks to Deckadence.",
       showSave: false,
     },
     card_database: {
@@ -673,6 +691,15 @@ function initializeSettingsConsole() {
         "Application-wide reminders, release information, and notification preferences.",
       iconClass: "fa-solid fa-sliders",
       sections: ["reminders", "theme"],
+      parent: "form",
+    },
+    {
+      key: "cards",
+      eyebrow: "COLLECTION",
+      title: "Card Settings",
+      description: "Manage personal card tags across all printings, decks, and sets.",
+      iconClass: "fa-solid fa-tags",
+      sections: ["card_tracking_tags"],
       parent: "form",
     },
     {

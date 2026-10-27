@@ -5,7 +5,8 @@
 #cardSize,
 #chaosCardSizeSelect,
 #packDetailCardSizeSelect,
-#packDetailSortSelect {
+#packDetailSortSelect,
+[data-tag-filter="pack"] :is(.tracking-tag-filter-toggle, select) {
   min-height: 40px;
   height: 40px;
   width: auto;
@@ -51,3 +52,4 @@ html[data-theme] .card-size-auto .campaign-test-draft-virtual-cards-grid .campai
 
 .chaos-card-size-control{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font:400 12px/1.4 Arial,sans-serif;flex:0 0 auto;}
 .chaos-card-size-control[hidden]{display:none!important;}
+[data-tag-filter="pack"] > .tracking-tag-field-label { color:var(--muted); font:400 12px/1.4 Arial,sans-serif; }

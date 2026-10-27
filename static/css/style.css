@@ -1,4 +1,115 @@
 /* *** APP STYLES - Shared Page Layout and Controls *** */
+.tracking-tag-field { min-width: 0; }
+html[data-theme-scheme="light"] .tracking-tag-field { --tracking-tag-input-background: var(--panel-2); }
+html[data-theme-scheme="light"] .tracking-tag-filter-toggle { background-color: var(--panel-2); }
+.tracking-tag-filter-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; cursor: pointer; }
+.tracking-tag-filter-toggle > .tracking-tag-filter-value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; font: inherit; }
+.tracking-tag-filter-toggle:focus-visible, .tracking-tag-filter-panel select:focus-visible, .tracking-tag-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tracking-tag-filter-panel {
+  position: fixed; inset: auto; z-index: 30010; box-sizing: border-box;
+  width: min(340px, calc(100vw - 16px)); margin: 0; padding: 14px;
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--panel); color: var(--text); box-shadow: 0 14px 32px #0006;
+  overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border) var(--panel);
+}
+.tracking-tag-filter-panel[hidden] { display: none; }
+.tracking-tag-filter-panel .tracking-tag-hint { margin: 0 0 12px; line-height: 1.5; }
+.tracking-tag-filter-list { display: grid; gap: 8px; margin: 0 0 12px; }
+.tracking-tag-filter-list .tracking-tag-filter-row { display: grid; grid-template-columns: minmax(0, 1fr) 112px; align-items: center; gap: 12px; margin: 0; }
+.tracking-tag-filter-row > span { overflow-wrap: anywhere; }
+[data-tag-filter="deck"] > .tracking-tag-field-label, [data-tag-filter="sideboard"] > .tracking-tag-field-label { color: var(--muted); font-size: 0.72rem; font-weight: 900; line-height: 1; text-transform: uppercase; letter-spacing: 0.04em; }
+.custom-draft-current-search-row { display: flex; align-items: stretch; gap: 12px; }
+.custom-draft-current-search-row > input { flex: 1 1 0; min-width: 0; }
+.custom-draft-current-search-row > [data-tag-filter] { flex: 0 0 230px; }
+html[data-theme] #customDraftCurrentCardTools .custom-draft-current-search-row .tracking-tag-filter-toggle { height: 44px; min-height: 44px; padding: 10px 12px; border-radius: 12px; background: var(--tracking-tag-input-background, var(--panel)); font: 400 15px/1.4 Arial, sans-serif; }
+html[data-theme] #customDraftCurrentCardTools .tracking-tag-filter-panel > .tracking-tag-link { width: auto; height: auto; min-height: 24px; padding: 2px 0; }
+.tracking-tag-filter-toggle > .tracking-tag-field-label { color: inherit; font: inherit; white-space: nowrap; }
+.custom-draft-current-search-row .tracking-tag-filter-value { color: var(--muted); }
+@media (max-width: 600px) {
+  .custom-draft-current-search-row { gap: 8px; }
+  .custom-draft-current-search-row > [data-tag-filter] { flex-basis: 155px; }
+  .custom-draft-current-search-row .tracking-tag-filter-value { display: none; }
+  .custom-draft-current-search-row .tracking-tag-filter-toggle[aria-label$="selected"] .tracking-tag-field-label::after { content: " •"; color: var(--accent); }
+}
+.tracking-tag-hint { color: var(--muted); font-size: 12px; margin: 8px 0; }
+.tracking-tag-link { padding: 2px 0; border: 0; background: none; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; font: inherit; font-size: 12px; cursor: pointer; }
+.tracking-tag-link:hover { color: var(--text); }
+.tracking-tag-context-host { max-height: calc(100vh - 20px); overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--border) var(--panel); }
+.tracking-tag-context-host > * { flex-shrink: 0; }
+/* Expanded tags can make this menu scroll. Keep its existing foil options
+   inside that scroll area so they remain reachable instead of being clipped. */
+.tracking-tag-context-host .deckbuilder-card-context-submenu-wrap::after { display: none; }
+.tracking-tag-context-host .deckbuilder-card-context-submenu {
+  position: static; width: auto; margin: 4px 0 6px 12px; padding: 0 0 0 8px;
+  border: 0; border-left: 2px solid var(--border); border-radius: 0; box-shadow: none;
+}
+body > .tracking-tag-context-host { z-index: 30000; }
+.tracking-tag-submenu { min-width: 0; }
+/* The shared/deck menu classes supply the same typography and spacing as
+   their neighboring actions. This base is for standalone search menus. */
+.tracking-tag-menu-item {
+  width: 100%; min-height: 40px; padding: 9px 11px;
+  border: 1px solid transparent; border-radius: 10px;
+  background: transparent; color: var(--text); text-align: left;
+  font-family: inherit; font-size: 0.88rem; font-weight: 800; cursor: pointer;
+}
+.tracking-tag-submenu > .tracking-tag-menu-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; list-style: none;
+}
+.tracking-tag-menu-toggle::-webkit-details-marker { display: none; }
+.tracking-tag-menu-toggle::marker { content: ""; }
+.tracking-tag-menu-arrow {
+  width: 7px; height: 7px; margin-right: 3px; flex-shrink: 0;
+  border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted);
+  transform: rotate(-45deg);
+}
+.tracking-tag-submenu[open] > summary .tracking-tag-menu-arrow { transform: rotate(45deg); }
+.tracking-tag-options {
+  display: flex; flex-direction: column; gap: 4px;
+  margin: 4px 0 6px 12px; padding-left: 8px;
+  border-left: 2px solid var(--border);
+  max-height: 250px; overflow-y: auto; overflow-x: hidden;
+}
+.tracking-tag-options .tracking-tag-option {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  min-width: 0; padding: 8px 10px; border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.tracking-tag-submenu :is(summary, .tracking-tag-option):hover,
+.tracking-tag-menu-item:hover { background: var(--button); border-color: var(--border); }
+.tracking-tag-submenu :is(summary, .tracking-tag-option):focus-visible {
+  background: var(--button); outline: 2px solid var(--accent); outline-offset: -2px;
+}
+.tracking-tag-option[aria-checked="true"] { background: var(--panel-2); }
+.tracking-tag-check {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; flex: 0 0 16px;
+  border: 1px solid var(--muted); border-radius: 4px;
+  font-size: 12px; line-height: 1; color: var(--text);
+}
+.tracking-tag-option:is([aria-checked="true"], [aria-checked="mixed"]) .tracking-tag-check {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+.tracking-tag-option:disabled { opacity: 0.6; cursor: wait; }
+@media (max-width: 760px), (max-height: 600px) and (pointer: coarse) {
+  .tracking-tag-menu-item { min-height: 46px; padding: 10px 12px; font-size: 0.95rem; }
+}
+.tracking-tag-error { color: #ef8585; font-size: 12px; padding: 0 10px; }
+.tracking-tag-error:empty { display: none; }
+.tracking-tag-fallback { position: fixed; z-index: 30000; width: 230px; padding: 8px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); box-shadow: 0 16px 34px #0006; }
+.tracking-tag-filtered-out { display: none !important; }
+.tracking-tag-config-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 9px; margin: 14px 0; }
+.tracking-tag-config-row { display: flex; justify-content: space-between; align-items: center; min-width: 0; padding: 12px 14px; gap: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+.tracking-tag-config-row > span { overflow-wrap: anywhere; font-weight: 600; }
+.tracking-tag-config-row small { color: var(--muted); }
+.tracking-tag-add { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.tracking-tag-add > label { flex: 1 1 300px; min-width: 0; }
+.tracking-tag-add input { width: min(100%, 320px); min-width: 0; font: inherit; }
+.tracking-tag-add > button { flex: 0 0 auto; width: auto; min-height: 44px; }
+.tracking-tag-print-controls { display: flex; flex-direction: column; gap: 8px; }
+.tracking-tag-print-controls > .tracking-tag-link { align-self: flex-end; }
+[data-tag-filter="pack"] { margin: 12px 0; width: min(100%, 230px); }
 :root {
   --bg: #101114;
   --panel: #1a1c21;
@@ -11050,6 +11161,11 @@ body.modal-open {
   z-index: 3200;
   width: 100%;
   min-width: 190px;
+  max-height: min(440px, 50dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--panel);
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--panel);
@@ -11065,6 +11181,7 @@ body.modal-open {
 }
 
 .custom-draft-multi-select-menu label {
+  flex-shrink: 0;
   min-height: 38px;
   border: 1px solid transparent;
   border-radius: 10px;
@@ -11085,9 +11202,14 @@ body.modal-open {
 }
 
 .custom-draft-multi-select-menu input[type="checkbox"] {
+  flex: 0 0 18px;
   width: 18px;
   height: 18px;
+  min-width: 18px;
+  min-height: 18px;
   margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
   cursor: pointer;
 }
 

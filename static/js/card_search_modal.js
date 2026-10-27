@@ -421,9 +421,11 @@
     }
 
     function updateAdvancedFilterCount() {
+      const tags = window.DeckadenceCardTags?.values("search");
       const count = [searchManaOperatorFilter, searchManaValueFilter,
         searchYearStartFilter, searchYearEndFilter, searchExcludeAddedFilter]
-        .filter(field => field?.value).length + (searchDigitalFilter?.value !== "exclude" ? 1 : 0);
+        .filter(field => field?.value).length + (searchDigitalFilter?.value !== "exclude" ? 1 : 0)
+        + (tags?.include.length || 0) + (tags?.exclude.length || 0);
       const label = getElement("customDraftAdvancedFilterCount");
       if (label) label.textContent = count ? " (" + count + ")" : "";
     }
@@ -1175,6 +1177,7 @@
     }
 
     function getAdvancedSearchHasAnyValue() {
+      if (window.DeckadenceCardTags?.active("search")) return true;
       return Boolean(
         (searchInput && (searchInput.value || "").trim()) ||
         getSelectedMultiSelectValues(searchRarityFilter).length > 0 ||
@@ -1193,6 +1196,9 @@
 
     function buildAdvancedCardSearchUrl(page, baseUrl) {
       const params = new URLSearchParams();
+      const tags = window.DeckadenceCardTags?.values("search");
+      tags?.include.forEach(id => params.append("include_tag", id));
+      tags?.exclude.forEach(id => params.append("exclude_tag", id));
       const requestedPage = page || 1;
 
       if (searchInput && (searchInput.value || "").trim()) {
@@ -1744,6 +1750,9 @@
       const groupElement = document.createElement("div");
       groupElement.className = "custom-draft-card-search-group";
       groupElement.dataset.primaryCardUuid = representative.card_uuid || "";
+      groupElement.dataset.trackingCard = "1";
+      groupElement.dataset.cardUuid = representative.card_uuid || "";
+      groupElement.dataset.cardName = group.card_name || "";
       groupElement.matchingCards = group.cards;
       groupElement.matchingCardUuids = new Set(group.cards.map(card => card.card_uuid));
       const header = document.createElement("div");
@@ -1921,6 +1930,7 @@
             !row.classList.contains("custom-draft-card-search-row-disabled");
 
           const matchesFilters =
+            (!window.DeckadenceCardTags || window.DeckadenceCardTags.matches(row, "search")) &&
             rarityMatches &&
             colorMatches &&
             manaMatches &&
@@ -1932,7 +1942,7 @@
             matchingVisibleCount += 1;
             matchingVisibleRows.push(row);
           }
-          const isVisible = showAllPrintings || matchesFilters;
+          const isVisible = (showAllPrintings || matchesFilters) && (!window.DeckadenceCardTags || window.DeckadenceCardTags.matches(row, "search"));
 
           row.classList.toggle("hidden", !isVisible);
 
@@ -1969,7 +1979,23 @@
       updateAdvancedFilterCount();
     }
 
+    document.addEventListener("deckadence:tag-filters-changed", event => {
+      if (event.detail.scope !== "search") return;
+      updateAdvancedFilterCount();
+      if (importedSearchCards) filterSearchResults();
+      else runCardSearch(1);
+    });
+    document.addEventListener("deckadence:card-tags-changed", () => {
+      if (!importedSearchCards && window.DeckadenceCardTags?.active("search") &&
+          searchOverlay && !searchOverlay.classList.contains("hidden")) runCardSearch(1);
+      else filterSearchResults();
+    });
+
+    let cardSearchRevision = 0;
+    let cardSearchController = null;
     async function runCardSearch(page) {
+      const revision = ++cardSearchRevision;
+      cardSearchController?.abort();
       importedSearchCards = null;
       if (!searchButton) {
         return;
@@ -1981,6 +2007,9 @@
       }
 
       if (!getAdvancedSearchHasAnyValue()) {
+        searchButton.disabled = false;
+        searchButton.classList.remove("action-button-loading");
+        searchButton.textContent = "Search";
         setSearchStatus(
           "Enter a text search or choose at least one search option.",
           true,
@@ -1991,6 +2020,7 @@
       }
 
       const requestedPage = page || 1;
+      cardSearchController = new AbortController();
 
       searchButton.disabled = true;
       searchButton.classList.add("action-button-loading");
@@ -2003,6 +2033,7 @@
           buildAdvancedCardSearchUrl(requestedPage),
           {
             method: "GET",
+            signal: cardSearchController.signal,
             headers: {
               Accept: "application/json",
             },
@@ -2015,6 +2046,7 @@
           throw new Error(payload.message || "Card search failed.");
         }
 
+        if (revision !== cardSearchRevision) return;
         currentSearchPage = payload.page || 1;
         currentSearchTotalPages = payload.total_pages || 1;
 
@@ -2055,6 +2087,7 @@
 
         updatePaginationBar(currentSearchPage, currentSearchTotalPages);
       } catch (error) {
+        if (revision !== cardSearchRevision || error.name === "AbortError") return;
         console.error(error);
         currentSearchTotalCount = 0;
         updateAddAllResultsButtonState();
@@ -2062,9 +2095,11 @@
         hidePagination();
         setSearchStatus(error.message || "Card search failed.", true);
       } finally {
-        searchButton.disabled = false;
-        searchButton.classList.remove("action-button-loading");
-        searchButton.textContent = "Search";
+        if (revision === cardSearchRevision) {
+          searchButton.disabled = false;
+          searchButton.classList.remove("action-button-loading");
+          searchButton.textContent = "Search";
+        }
       }
     }
 
@@ -2663,6 +2698,14 @@
     }
 
     function clearSearchFilters() {
+      ++cardSearchRevision;
+      cardSearchController?.abort();
+      if (searchButton) {
+        searchButton.disabled = false;
+        searchButton.classList.remove("action-button-loading");
+        searchButton.textContent = "Search";
+      }
+      window.DeckadenceCardTags?.reset("search");
       if (seeAnyPrinting) seeAnyPrinting.checked = false;
       currentSearchTotalCount = 0;
       updateAddAllResultsButtonState();

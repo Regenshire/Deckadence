@@ -65,7 +65,7 @@ html #customDraftCardSearchOverlay .custom-draft-filter-field { min-width:0; mar
 html #customDraftCardSearchOverlay .custom-draft-search-text-field { flex:1; }
 html #customDraftCardSearchOverlay .custom-draft-search-text-input-wrap { position:relative; display:block; }
 html #customDraftCardSearchOverlay .card-search-search-icon { position:absolute; top:50%; left:14px; transform:translateY(-50%); color:var(--muted); pointer-events:none; }
-html #customDraftCardSearchOverlay :is(input,select,textarea,.custom-draft-multi-select-button) {
+html #customDraftCardSearchOverlay :is(input:not([type="checkbox"]):not([type="radio"]),select,textarea,.custom-draft-multi-select-button) {
   box-sizing:border-box; color:var(--text); background:var(--panel-2); border:1px solid var(--border); border-radius:7px;
   min-height:34px; font-family:inherit; font-size:13px; font-weight:400; line-height:1.4;
 }

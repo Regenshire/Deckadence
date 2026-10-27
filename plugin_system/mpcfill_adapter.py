@@ -175,10 +175,12 @@ def download(client, payload):
 
 def execute(command, payload, *, timeout=300):
     if command == "health":
-        return {"ok": True, "commands": ["catalogue", "search", "download"]}
+        return {"ok": True, "commands": ["catalogue", "tags", "search", "download"]}
     with session(timeout) as client:
         if command == "catalogue":
             return catalogue(client)
+        if command == "tags":
+            return api(client, "2/tags/")
         if command == "search":
             return search(client, payload)
         if command == "download":

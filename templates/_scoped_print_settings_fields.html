@@ -43,14 +43,48 @@
     </label>
     {% endif %}
 
-    <label class="toggle-row settings-field">
-        <span>PDF Cutting Guides</span>
-        <input
-            type="checkbox"
-            name="{{ scope }}_pdf_cutting_guides"
-            {% if values.get("pdf_cutting_guides", "1") == "1" %}checked{% endif %}
-        >
-    </label>
+    <fieldset class="cutting-guide-settings">
+        <legend>Cutting Guides</legend>
+        <p class="cutting-guide-settings-help">Applies to card corner marks, row cut lines, and side alignment guides. Save All remembers these choices.</p>
+        <label class="toggle-row settings-field">
+            <span>PDF Cutting Guides</span>
+            <input
+                type="checkbox"
+                name="{{ scope }}_pdf_cutting_guides"
+                {% if values.get("pdf_cutting_guides", "1") == "1" %}checked{% endif %}
+            >
+        </label>
+        <label class="toggle-row settings-field" for="{{ scope }}_pdf_cutting_guide_color_hex">
+            <span>Guide Color</span>
+            <input
+                type="color"
+                id="{{ scope }}_pdf_cutting_guide_color_hex"
+                name="{{ scope }}_pdf_cutting_guide_color_hex"
+                value="{{ values.get('pdf_cutting_guide_color_hex') or '#0073FF' }}"
+            >
+        </label>
+        <label class="toggle-row settings-field" for="{{ scope }}_pdf_cutting_guide_thickness_mm">
+            <span>Line Thickness (mm)</span>
+            <input
+                type="number"
+                id="{{ scope }}_pdf_cutting_guide_thickness_mm"
+                name="{{ scope }}_pdf_cutting_guide_thickness_mm"
+                min="0.05"
+                max="1.00"
+                step="0.01"
+                value="{{ values.get('pdf_cutting_guide_thickness_mm') or '0.25' }}"
+                required
+            >
+        </label>
+        <label class="toggle-row settings-field" for="{{ scope }}_pdf_cutting_guide_sides">
+            <span>Print Guides On</span>
+            <select id="{{ scope }}_pdf_cutting_guide_sides" name="{{ scope }}_pdf_cutting_guide_sides">
+                {% for value, label in [('front', 'Front'), ('back', 'Back'), ('both', 'Both')] %}
+                <option value="{{ value }}" {% if (values.get('pdf_cutting_guide_sides') or 'front') == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </fieldset>
 
     {% if include_chaos_options %}
     {% set selected_no_waste_set_rule = (values.get("no_wasted_space_set_rules") or "current_set").split(",")[0] %}

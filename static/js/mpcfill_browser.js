@@ -7,6 +7,7 @@
   let context = null;
   let cards = [];
   let saved = new Set();
+  let favorites = new Set();
   let selected = null;
   let selectedCreators = new Set();
   let tab = "all";
@@ -25,6 +26,81 @@
   const megabytes = value => ((Number(value) || 0) / 1048576).toFixed(1) + " MB";
   const dateValue = value => Date.parse(String(value || "").replace(/(\d+)(st|nd|rd|th)/g, "$1")) || 0;
   const tagsFor = card => Array.isArray(card.tags) ? card.tags : [];
+
+  const filterWidthKey = "deckadence.mpcfill.filterWidth.v1";
+  const filterResize = byId("FilterResize");
+  const workspace = root.querySelector(".mpcf-workspace");
+  const stackedFilters = window.matchMedia("(max-width:850px)");
+  const defaultFilterWidth = 280;
+  const minFilterWidth = 240;
+  const maxFilterWidth = 440;
+  let filterWidth = defaultFilterWidth;
+  let filterDrag = null;
+  try {
+    const stored = Number(localStorage.getItem(filterWidthKey));
+    if (Number.isFinite(stored) && stored > 0) filterWidth = Math.max(minFilterWidth, Math.min(maxFilterWidth, stored));
+  } catch (_) { /* Layout remains usable when browser storage is unavailable. */ }
+
+  function saveFilterWidth() {
+    try { localStorage.setItem(filterWidthKey, String(filterWidth)); } catch (_) {}
+  }
+
+  function arrangeFilters() {
+    if (root.hidden || stackedFilters.matches) return;
+    const previewWidth = byId("Preview").hidden ? 0 : byId("Preview").getBoundingClientRect().width;
+    const max = Math.max(minFilterWidth, Math.min(maxFilterWidth, Math.floor(workspace.clientWidth - previewWidth - 328)));
+    // Constrain the visible panel without overwriting the user's preferred width.
+    const width = Math.min(filterWidth, max);
+    workspace.style.setProperty("--mpcf-filter-width", width + "px");
+    filterResize.setAttribute("aria-valuemax", String(max));
+    filterResize.setAttribute("aria-valuenow", String(width));
+    filterResize.setAttribute("aria-valuetext", width + " pixels");
+  }
+
+  function resizeFilters(width) {
+    filterWidth = Math.max(minFilterWidth, Math.min(Number(filterResize.getAttribute("aria-valuemax")), Math.round(width)));
+    arrangeFilters();
+  }
+
+  function finishFilterResize(cancel = false) {
+    if (!filterDrag) return;
+    const drag = filterDrag;
+    filterDrag = null;
+    if (cancel) { filterWidth = drag.previous; arrangeFilters(); }
+    else saveFilterWidth();
+    workspace.classList.remove("is-resizing-filters");
+    if (filterResize.hasPointerCapture(drag.id)) filterResize.releasePointerCapture(drag.id);
+  }
+
+  filterResize.addEventListener("pointerdown", event => {
+    if (event.button !== 0 || !event.isPrimary || stackedFilters.matches || busy) return;
+    event.preventDefault();
+    filterDrag = {id:event.pointerId, x:event.clientX, width:byId("Filters").getBoundingClientRect().width, previous:filterWidth};
+    filterResize.focus({preventScroll:true});
+    filterResize.setPointerCapture(event.pointerId);
+    workspace.classList.add("is-resizing-filters");
+  });
+  filterResize.addEventListener("pointermove", event => {
+    if (filterDrag?.id === event.pointerId) resizeFilters(filterDrag.width + event.clientX - filterDrag.x);
+  });
+  filterResize.addEventListener("pointerup", () => finishFilterResize());
+  filterResize.addEventListener("pointercancel", () => finishFilterResize(true));
+  filterResize.addEventListener("lostpointercapture", () => finishFilterResize());
+  filterResize.addEventListener("keydown", event => {
+    if (busy || !["ArrowLeft","ArrowRight","Home","End"].includes(event.key)) return;
+    event.preventDefault();
+    const current = Number(filterResize.getAttribute("aria-valuenow"));
+    resizeFilters(event.key === "Home" ? minFilterWidth : event.key === "End" ? maxFilterWidth : current + (event.key === "ArrowRight" ? 1 : -1) * (event.shiftKey ? 40 : 10));
+    saveFilterWidth();
+  });
+  filterResize.addEventListener("dblclick", () => {
+    if (busy) return;
+    filterWidth = defaultFilterWidth; arrangeFilters(); saveFilterWidth();
+  });
+  const filterLayoutObserver = new ResizeObserver(arrangeFilters);
+  filterLayoutObserver.observe(workspace);
+  filterLayoutObserver.observe(byId("Preview"));
+  window.addEventListener("resize", () => { finishFilterResize(true); arrangeFilters(); });
 
   function artworkName(card) {
     const name = String(card.name || "");
@@ -69,6 +145,8 @@
     const language = byId("Language").value;
     const tag = byId("Tag").value;
     const result = cards.filter(card => (!selectedCreators.size || selectedCreators.has(String(card.sourceId))) &&
+      (!byId("ExcludeAi").checked || !card.isAiArt) &&
+      (!byId("FavoritesOnly").checked || favorites.has(String(card.sourceId))) &&
       Number(card.dpi) >= dpi && (!language || card.language === language) &&
       (!tag || tagsFor(card).includes(tag)) && (tab !== "saved" || saved.has(card.key)) &&
       (!text || [card.name, card.sourceName, ...tagsFor(card)].join(" ").toLocaleLowerCase().includes(text)));
@@ -123,7 +201,7 @@
     const find = byId("CreatorSearch").value.toLocaleLowerCase();
     byId("Creators").innerHTML = [...creators.entries()].sort((a,b)=>a[1].name.localeCompare(b[1].name))
       .filter(([,item])=>item.name.toLocaleLowerCase().includes(find))
-      .map(([key,item])=>`<label class="mpcf-check"><input type="checkbox" data-mpcf-creator="${escape(key)}" ${selectedCreators.has(key)?"checked":""}><span>${escape(item.name)}</span><small>${item.count}</small></label>`).join("");
+      .map(([key,item])=>`<div class="mpcf-creator-row"><label class="mpcf-check"><input type="checkbox" data-mpcf-creator="${escape(key)}" ${selectedCreators.has(key)?"checked":""}><span>${escape(item.name)}</span><small>${item.count}</small></label><button type="button" class="mpcf-icon mpcf-favorite" data-mpcf-favorite="${escape(key)}" aria-pressed="${favorites.has(key)}" aria-label="${favorites.has(key)?'Unfavorite':'Favorite'} ${escape(item.name)}" title="${favorites.has(key)?'Remove favorite':'Favorite creator'}"><i class="fa-${favorites.has(key)?'solid':'regular'} fa-star" aria-hidden="true"></i></button></div>`).join("");
   }
 
   function renderMetadata() {
@@ -159,6 +237,7 @@
       cards = result.cards;
       resultQuery = query;
       saved = new Set(result.saved || []);
+      favorites = new Set((result.favorites || []).map(item=>String(item.id)));
       languageNames = new Map((result.languages||[]).map(item=>[item.code,item.name]));
       selectedCreators.clear();
       page = 1;
@@ -194,6 +273,7 @@
 
   function close() {
     if (busy) return;
+    finishFilterResize();
     searchVersion++;
     searchAbort?.abort();
     byId("Zoom").hidden = true;
@@ -207,6 +287,7 @@
     selectedCreators.clear();
     ["CreatorSearch","ArtworkFilter"].forEach(id=>byId(id).value="");
     byId("Dpi").value="0";byId("Language").value="";byId("Tag").value="";
+    byId("ExcludeAi").checked=false;byId("FavoritesOnly").checked=false;
     tab="all";page=1;renderCreators();render();
   }
 
@@ -238,6 +319,7 @@
       previousBodyOverflow=document.body.style.overflow;
       document.body.style.overflow="hidden";
       root.hidden=false;options.parent.inert=true;
+      arrangeFilters();
       updateCardSize();resetFilters();byId("Query").focus();search();
     },
   };
@@ -252,7 +334,10 @@
     render();byId("GalleryScroll").scrollTop=0;
   });
   byId("ArtworkFilter").addEventListener("input",()=>{page=1;render();});
-  ["Dpi","Language","Tag","Sort"].forEach(id=>byId(id).addEventListener("change",()=>{page=1;render();byId("GalleryScroll").scrollTop=0;}));
+  ["Dpi","Language","Tag","Sort","ExcludeAi","FavoritesOnly"].forEach(id=>byId(id).addEventListener("change",()=>{page=1;render();byId("GalleryScroll").scrollTop=0;}));
+  document.addEventListener("deckadence:mpcfill-favorites",event=>{
+    favorites=new Set(event.detail.map(item=>String(item.id)));renderCreators();render();
+  });
   byId("Face").addEventListener("change",()=>{
     const faces=context.cardName.split(" // ");
     if(faces.length>1){byId("Query").value=faces[byId("Face").value==="back"?1:0];search();}
@@ -267,6 +352,13 @@
   root.addEventListener("click",async event=>{
     const button=event.target.closest("button,[data-mpcf-action]");
     if(!button||button.disabled||busy)return;
+    if(button.dataset.mpcfFavorite){
+      const id=button.dataset.mpcfFavorite;button.disabled=true;
+      try{const result=await api("/favorites",{method:"POST",body:JSON.stringify({id,favorite:!favorites.has(id)})});
+        document.dispatchEvent(new CustomEvent("deckadence:mpcfill-favorites",{detail:result.favorites}));}
+      catch(error){message(error.message,true);}finally{button.disabled=false;}
+      return;
+    }
     if(button.dataset.mpcfSelect){
       const card=cards.find(card=>card.key===button.dataset.mpcfSelect);
       if(!card)return;
@@ -289,12 +381,12 @@
     if(action==="close")close();
     if(action==="maximize"){
       const maximized=root.classList.toggle("is-maximized");
-      button.classList.toggle("custom-draft-header-icon-button-active",maximized);
+      byId("MaximizeLabel").textContent=maximized?"Restore":"Maximize";
       button.setAttribute("aria-pressed",String(maximized));
       button.setAttribute("aria-label",(maximized?"Restore":"Maximize")+" MPCFill browser");
       button.title=maximized?"Restore":"Maximize";
     }
-    if(action==="filters"){byId("Filters").hidden=!byId("Filters").hidden;button.setAttribute("aria-expanded",String(!byId("Filters").hidden));}
+    if(action==="filters"){finishFilterResize();byId("Filters").hidden=!byId("Filters").hidden;button.setAttribute("aria-expanded",String(!byId("Filters").hidden));arrangeFilters();}
     if(action==="reset")resetFilters();
     if(action==="refresh")search(true);
     if(action==="hide-preview")byId("Preview").hidden=true;
@@ -322,6 +414,7 @@
   document.addEventListener("keydown",event=>{
     if(root.hidden||event.key!=="Escape")return;
     event.stopImmediatePropagation();event.preventDefault();
+    if(filterDrag){finishFilterResize(true);return;}
     if(busy)return;
     if(!byId("Zoom").hidden){byId("Zoom").hidden=true;root.querySelector('[data-mpcf-action="zoom"]').focus();}
     else if(!byId("Preview").hidden)byId("Preview").hidden=true;

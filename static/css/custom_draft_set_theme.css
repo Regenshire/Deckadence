@@ -44,7 +44,8 @@ html[data-theme] #customDraftCurrentCardFilterInput{height:44px;min-height:44px;
 html[data-theme] #customDraftCurrentCardTools .custom-draft-filter-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin-top:16px}
 html[data-theme] #customDraftCurrentCardTools .custom-draft-filter-field{min-width:0;gap:6px}
 html[data-theme] #customDraftCurrentCardTools .custom-draft-filter-field>span{font:700 12px/1.4 Arial,sans-serif}
-html[data-theme] #customDraftCurrentCardTools .custom-draft-filter-field :is(input,select,button){min-width:0;width:100%;height:44px;min-height:44px;font:400 13px/1.4 Arial,sans-serif;padding:8px 10px}
+/* Field sizing must not reach the checkboxes nested inside filter menus. */
+html[data-theme] #customDraftCurrentCardTools .custom-draft-filter-field :is(.custom-draft-filter-input,.custom-draft-multi-select-button){min-width:0;width:100%;height:44px;min-height:44px;font:400 13px/1.4 Arial,sans-serif;padding:8px 10px}
 @media(min-width:1024px){html[data-theme] #customDraftSetCardListPanel{--custom-set-panel-inset:26px}}
 @media(max-width:850px){html[data-theme] .custom-set-settings>.custom-draft-set-form-grid{grid-template-columns:1fr 1fr}html[data-theme] #customDraftCurrentCardTools .custom-draft-filter-grid{grid-template-columns:repeat(3,minmax(0,1fr))}html[data-theme] .custom-set-packs .custom-draft-pack-layout-list{grid-template-columns:1fr}}
 html[data-theme] #customDraftSetCardListPanel>.custom-draft-current-selection-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:0 calc(-1 * var(--custom-set-panel-inset));padding:12px 24px;background:var(--panel-2);border:0;border-top:1px solid var(--insert-frame);border-bottom:1px solid var(--insert-frame);border-radius:0;box-shadow:none}

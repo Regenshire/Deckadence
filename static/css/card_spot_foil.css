@@ -217,6 +217,26 @@ html[data-theme-scheme="dark"] .spot-card-footer [data-state="error"] { color: #
 .spot-shard-templates button[aria-pressed="true"] { border-color: var(--theme-highlight, var(--accent)); color: var(--theme-highlight, var(--accent)); }
 .spot-dragon-emblems { grid-template-columns: repeat(5,minmax(0,1fr)); margin-bottom: 12px; }
 .spot-dragon-emblems button img { width: 64px; height: 64px; object-fit: contain; background: #20282e; }
+.spot-transporter-controls { grid-column: 1 / -1; }
+.spot-transporter-emblems { grid-template-columns: repeat(2,minmax(0,1fr)); margin-bottom: 12px; }
+.spot-transporter-emblems button { flex-direction: row; justify-content: flex-start; gap: 9px; padding: 8px; min-height: 76px; text-align: left; }
+.spot-transporter-emblems button img { width: 52px; height: 52px; flex: 0 0 52px; object-fit: contain; background: #29313a; padding: 5px; }
+.spot-transporter-emblems button span { overflow-wrap: normal; word-break: normal; }
+.spot-transporter-controls > label { display: grid; gap: 5px; margin-bottom: 10px; }
+.spot-transporter-controls .spot-finish-group > label { display: grid; gap: 5px; margin: 12px 0; }
+.spot-transporter-controls .spot-finish-pair { margin-top: 12px; }
+.spot-transporter-controls .spot-card-caption { margin-top: 12px; }
+.spot-transporter-controls .mirror-selected-heading { margin-top: 20px; }
+.spot-transporter-controls .mirror-selected-heading h3 { white-space: nowrap; }
+.spot-transporter-controls .mirror-selected-heading select { width: auto; min-width: 130px; max-width: 55%; }
+.trek-object-guides { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 41; pointer-events: none; touch-action: none; }
+.trek-object-guides rect { pointer-events: all; cursor: grab; stroke: var(--theme-highlight, var(--accent)); stroke-opacity: .35; stroke-width: 1; vector-effect: non-scaling-stroke; }
+.trek-object-guides rect.is-selected, .trek-object-guides rect:focus { stroke-opacity: 1; stroke-width: 2; outline: none; }
+.trek-object-guides circle { pointer-events: all; cursor: nwse-resize; fill: var(--theme-highlight, var(--accent)); stroke: var(--text); stroke-width: 1; }
+.trek-object-guides text { fill: var(--text); stroke: var(--panel, #20252c); stroke-width: 4; paint-order: stroke; font-size: 17px; }
+@container printable-finish (max-width: 380px) {
+  .spot-transporter-emblems { grid-template-columns: minmax(0,1fr); }
+}
 .spot-finish-controls.is-printable { container: printable-finish / inline-size; }
 .spot-finish-controls.is-printable label { margin-top: 0; }
 .spot-finish-controls.is-printable .spot-finish-effect-row,

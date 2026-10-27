@@ -226,6 +226,8 @@ CPU upscaling does not require a dedicated GPU. NVIDIA and AMD upscalers require
 
 Install **MPCFill Browser** from **Settings → Plugins → Plugin Manager**. Then open a card's **Alternate Image Settings** and choose **Browse MPCFill** to search artwork, filter by creator, language, tags, or resolution, and save favorites.
 
+Star creators to save **Favorite Creators**, or enable **Exclude AI art** to hide MPCFill-tagged AI art, remasters and frames. Untagged AI images may remain. **Auto Select MPCFill Best** is available in deck/custom-set selection controls and pack views. It reviews batch matches using favorite creators, a specific favorite, multiple preferred tags and target DPI (default **Highest**). Allowed-creator restrictions and strict matching are available; originals download only when you choose **Download & apply**. Existing alternate artwork is skipped unless you opt in to updating it. See the [MPCFill plugin guide](plugin_src/mpcfill-browser/README.md) for ranking and matching rules.
+
 MPCFill Browser uses Deckadence's existing runtime and libraries. Installing it requires no separate Python environment or dependency downloads; the plugin remains optional.
 
 Choose **Use this image** to add the selected artwork to the current image library. The **3mm Full-Bleed File (MPCFill Bleed)** option is enabled automatically, and Deckadence retains the original full-bleed file. Double-faced cards let you select the face to update.

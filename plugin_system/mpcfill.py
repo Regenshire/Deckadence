@@ -16,6 +16,7 @@ from PIL import Image
 
 from paths import DATA_ROOT_DIR
 from .manager import get_plugin_status, run_plugin_json
+from .mpcfill_selection import is_ai_art
 
 PLUGIN_ID = "mpcfill-browser"
 CACHE_ROOT = Path(DATA_ROOT_DIR) / "cache" / "mpcfill"
@@ -118,9 +119,9 @@ def search(query, card_type="CARD", fuzzy=False, refresh=False):
     cards, cached, stale = cached_metadata(name, fetch, refresh)
     catalog, _, catalogue_stale = catalogue()
     # The browser never gets third-party thumbnail or download URLs.
-    return {"ok": True, "cards": cards, "languages": catalog["languages"],
+    return {"ok": True, "cards": [dict(card, isAiArt=is_ai_art(card)) for card in cards], "languages": catalog["languages"],
             "cached": cached, "stale": stale or catalogue_stale,
-            "saved": saved_keys()}
+            "saved": saved_keys(), "favorites": favorite_creators()}
 
 
 def image_path(key, variant, *, download=True):
@@ -147,6 +148,7 @@ def saved_connection():
     CACHE_ROOT.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(CACHE_ROOT / "saved.sqlite3", timeout=15)
     conn.execute("CREATE TABLE IF NOT EXISTS saved (key TEXT PRIMARY KEY, saved_at REAL NOT NULL)")
+    conn.execute("CREATE TABLE IF NOT EXISTS favorite_creators (source_id TEXT PRIMARY KEY, name TEXT NOT NULL)")
     conn.commit()
     return conn
 
@@ -154,6 +156,32 @@ def saved_connection():
 def saved_keys():
     with closing(saved_connection()) as conn:
         return [row[0] for row in conn.execute("SELECT key FROM saved ORDER BY saved_at DESC")]
+
+
+def favorite_creators():
+    with closing(saved_connection()) as conn:
+        return [dict(id=row[0], name=row[1]) for row in conn.execute(
+            "SELECT source_id, name FROM favorite_creators ORDER BY name COLLATE NOCASE")]
+
+
+def creator_options():
+    catalog, _, stale = catalogue()
+    creators = sorted([dict(id=str(source["pk"]), name=source["name"]) for source in catalog["sources"].values()],
+                      key=lambda source: source["name"].casefold())
+    return catalog, creators, stale
+
+
+def selection_options():
+    catalog, creators, stale = creator_options()
+    tree, _, tags_stale = cached_metadata("tags", lambda: run_plugin_json(PLUGIN_ID, "tags", {}, timeout=100))
+    tags = []
+    def flatten(nodes):
+        for node in nodes:
+            tags.append(node["name"])
+            flatten(node.get("children", []))
+    flatten(tree.get("tags", []))
+    return dict(ok=True, creators=creators, languages=catalog["languages"], tags=sorted(set(tags)),
+                favorites=favorite_creators(), stale=stale or tags_stale)
 
 
 def register_mpcfill_routes(app):
@@ -180,6 +208,35 @@ def register_mpcfill_routes(app):
             raise ValueError("Expected search options.")
         return jsonify(search(data.get("query", ""), data.get("card_type", "CARD"),
                               data.get("fuzzy") is True, data.get("refresh") is True))
+
+    @app.get("/plugins/mpcfill-browser/options")
+    @api_route
+    def mpcfill_options():
+        return jsonify(selection_options())
+
+    @app.route("/plugins/mpcfill-browser/favorites", methods=["GET", "POST"])
+    @api_route
+    def mpcfill_favorites():
+        if request.method == "POST":
+            data = request.get_json(silent=True)
+            if not isinstance(data, dict) or not isinstance(data.get("favorite"), bool):
+                raise ValueError("Choose whether to favorite this creator.")
+            source_id = str(data.get("id") or "")
+            if not source_id or len(source_id) > 200:
+                raise ValueError("Choose a creator.")
+            source = None
+            if data["favorite"]:
+                _, creators, _ = creator_options()
+                source = next((item for item in creators if item["id"] == source_id), None)
+                if source is None:
+                    raise ValueError("This creator is no longer in MPCFill's catalogue. Refresh the search.")
+            with closing(saved_connection()) as conn:
+                if source:
+                    conn.execute("INSERT OR REPLACE INTO favorite_creators VALUES (?, ?)", (source_id, source["name"]))
+                else:
+                    conn.execute("DELETE FROM favorite_creators WHERE source_id = ?", (source_id,))
+                conn.commit()
+        return jsonify(ok=True, favorites=favorite_creators())
 
     @app.get("/plugins/mpcfill-browser/images/<key>/<variant>")
     @api_route

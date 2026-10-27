@@ -1,0 +1,52 @@
+<link rel="stylesheet" href="{{ url_for('static', filename='css/mpcfill_batch.css', v='1') }}">
+<div id="mpcfillBatch" class="mpcf-overlay" hidden>
+  <div class="mpcf-backdrop" data-mpcb-close></div>
+  <section class="mpcf-window mpcb-window" role="dialog" aria-modal="true" aria-labelledby="mpcbTitle" tabindex="-1">
+    <header class="mpcf-header"><div><h2 id="mpcbTitle"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Auto Select MPCFill Best</h2><p id="mpcbSubtitle"></p></div><button type="button" class="mpcf-icon" data-mpcb-close aria-label="Close batch selection"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header>
+    <div class="mpcb-intro">Choose criteria <span aria-hidden="true">→</span> Review matches <span aria-hidden="true">→</span> Download &amp; apply</div>
+    <div class="mpcb-layout">
+      <form id="mpcbForm" class="mpcb-settings">
+        <fieldset id="mpcbFields">
+          <section class="mpcb-group"><h3>Artwork &amp; resolution</h3>
+            <label class="mpcf-check"><input type="checkbox" id="mpcbExcludeAi">Exclude AI art</label>
+            <p class="mpcb-help">Uses MPCFill's AI tags, including remasters and frames. Untagged AI images may remain.</p>
+            <div class="mpcb-field-grid"><label>Target DPI<select id="mpcbDpi"><option value="highest">Highest</option><option value="300">300 DPI</option><option value="600">600 DPI</option><option value="800">800 DPI</option><option value="1200">1200 DPI</option></select></label><label>Language<select id="mpcbLanguage"><option value="">All languages</option></select></label></div>
+            <label>Card faces<select id="mpcbFaces"><option value="both">Both faces, when available</option><option value="front">Front only</option><option value="back">Back only</option></select></label>
+          </section>
+          <section class="mpcb-group"><h3>Favorite creators</h3>
+            <label class="mpcf-check"><input type="checkbox" id="mpcbPrioritizeFavorites">Prioritize favorite creators</label>
+            <label>Prioritize a specific favorite<select id="mpcbPreferredCreator"><option value="">No specific creator</option></select></label>
+            <p class="mpcb-help">Star creators below or in the browser. Favorites are saved on this computer.</p>
+            <label class="mpcf-check"><input type="checkbox" id="mpcbOnlyCreators">Only download from specified creators</label>
+            <input type="search" id="mpcbCreatorSearch" placeholder="Find a creator…" aria-label="Find a creator">
+            <div id="mpcbCreators" class="mpcb-options" role="group" aria-label="Allowed creators and favorites"></div>
+            <p class="mpcb-help" id="mpcbCreatorCount"></p>
+          </section>
+          <section class="mpcb-group"><h3>Prioritize tags <span id="mpcbTagCount"></span></h3>
+            <input type="search" id="mpcbTagSearch" placeholder="Find a tag…" aria-label="Find a tag">
+            <div id="mpcbTags" class="mpcb-options" role="group" aria-label="Preferred tags"></div>
+          </section>
+          <section class="mpcb-group"><h3>Match requirements</h3>
+            <label class="mpcf-check"><input type="checkbox" id="mpcbStrict">Only download matches meeting all criteria</label>
+            <p class="mpcb-help">Requires every selected tag, your creator preferences and at least the target DPI. Highest uses the best resolution among eligible matches. Cards without a match are skipped.</p>
+            <label class="mpcf-check"><input type="checkbox" id="mpcbReplace">Update cards that already have alternate art</label>
+            <p class="mpcb-help">Adds a new active alternate; previous images stay in the library.</p>
+          </section>
+        </fieldset>
+      </form>
+      <section class="mpcb-review" aria-label="Batch review">
+        <div class="mpcb-review-heading"><h3>Review matches</h3><span id="mpcbCounts"></span></div>
+        <div id="mpcbCriteriaSummary" class="mpcf-tags mpcb-summary" aria-label="Selected criteria"></div>
+        <details class="mpcb-ranking"><summary>How matches are ranked</summary><p>Specific favorite → favorite creators → most preferred tags → DPI. A numeric DPI target prefers the nearest resolution at or above it, then the highest below it.</p><p>AI exclusion, language and allowed creators are always required. Other preferences may fall back unless “Only download matches meeting all criteria” is enabled.</p></details>
+        <div id="mpcbProgress" class="mpcb-progress" role="status" aria-live="polite">Choose your criteria, then find matches.</div>
+        <progress id="mpcbProgressBar" value="0" max="1" hidden></progress>
+        <label id="mpcbSelectAllLabel" class="mpcf-check" hidden><input type="checkbox" id="mpcbSelectAll" checked>Select all matches</label>
+        <div id="mpcbResults" class="mpcb-results"><div class="mpcb-empty"><i class="fa-regular fa-images" aria-hidden="true"></i><strong>Your best matches will appear here</strong><span>Review the artwork and any fallback choices before downloading originals.</span></div></div>
+        <div id="mpcbPages" class="mpcb-pages" hidden><button type="button" class="mpcf-button" id="mpcbPreviousPage" aria-label="Previous review page">Previous</button><span id="mpcbPageSummary"></span><button type="button" class="mpcf-button" id="mpcbNextPage" aria-label="Next review page">Next</button></div>
+      </section>
+    </div>
+    <footer class="mpcf-footer"><div><span class="mpcf-scope" id="mpcbScope"></span><span class="mpcf-bleed-note">Originals are cached locally · MPC bleed is enabled automatically</span></div><div class="mpcf-footer-actions"><button type="button" class="mpcf-button" id="mpcbStop" hidden>Stop after current card</button><button type="button" class="mpcf-button" data-mpcb-close>Close</button><button type="button" class="mpcf-button" id="mpcbFind" disabled>Find best matches</button><button type="button" class="mpcf-button mpcf-primary" id="mpcbApply" disabled>Download &amp; apply</button></div></footer>
+    <div id="mpcbZoom" class="mpcf-zoom" role="dialog" aria-modal="true" aria-label="Artwork preview" hidden><button type="button" class="mpcf-icon" id="mpcbUnzoom" aria-label="Close artwork preview"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button><img id="mpcbZoomImage" alt="Selected artwork"><p id="mpcbZoomCaption"></p></div>
+  </section>
+</div>
+<script src="{{ url_for('static', filename='js/mpcfill_batch.js', v='1') }}"></script>

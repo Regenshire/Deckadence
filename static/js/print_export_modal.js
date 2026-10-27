@@ -504,6 +504,8 @@
     }
 
     function setButtonsWorking(isWorking) {
+      const clearPrinted = document.getElementById("printExportClearPrinted");
+      if (clearPrinted) clearPrinted.disabled = Boolean(isWorking);
       [printButton, exportZipButton, openButton].forEach(function (button) {
         if (!button) {
           return;
@@ -830,6 +832,9 @@
         );
 
         const blob = await response.blob();
+        if (response.headers.get("X-Card-Tags-Updated") === "1") {
+          window.DeckadenceCardTags?.refresh().catch(() => {});
+        }
 
         const contentDisposition =
           response.headers.get("Content-Disposition") || "";
@@ -872,6 +877,16 @@
     }
 
     function bindEvents() {
+      const clearPrinted = document.getElementById("printExportClearPrinted");
+      clearPrinted?.addEventListener("click", async () => {
+        if (!confirm("Clear the Printed tag from every card in the app? Other tags will stay in place.")) return;
+        clearPrinted.disabled = true;
+        try {
+          const result = await window.DeckadenceCardTags.clearPrinted();
+          showMessage("Cleared Printed from " + result.cleared_count + " card(s) across the app.", false);
+        } catch (error) {showMessage(error.message, true);}
+        finally {clearPrinted.disabled = false;}
+      });
       if (openButton) {
         openButton.addEventListener("click", function (event) {
           event.preventDefault();

@@ -36,7 +36,7 @@
   rel="stylesheet"
   href="{{ url_for('static', filename='css/alternate_image_modal.css', v='mpcfill-2') }}"
 />
-<link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='modal-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='filter-checkboxes-3') }}">
 {% endblock %} {% block content %} {% set player = deckbuilder.human_player %}
 
 <div
@@ -430,6 +430,10 @@
             <i class="fa-solid fa-square-xmark"></i>
           </button>
 
+        {% if global_mpcfill_ready %}
+        <button type="button" id="deckbuilderMpcFillBestButton" class="campaign-test-draft-zone-view-button" title="Auto Select MPCFill Best" aria-label="Auto Select MPCFill Best"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></button>
+        {% endif %}
+
           {% if global_card_upscaling_control_enabled %}
           <button
             type="button"
@@ -681,6 +685,7 @@
             </select>
           </label>
 
+          <div data-tag-filter="sideboard"></div>
           <div class="deckbuilder-sideboard-filter-actions">
             <button
               type="button"
@@ -1009,6 +1014,7 @@
             </select>
           </label>
 
+          <div data-tag-filter="deck"></div>
           <div class="deckbuilder-sideboard-filter-actions">
             <button
               type="button"
@@ -1331,7 +1337,7 @@
 
   {% include "_custom_card_modal.html" %}
   {% include "_alternate_image_modal.html" %}
-  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='mpcfill-1') }}"></script>
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='mpcfill-2') }}"></script>
   {% include "_deck_image_generator.html" %} {% include
   "_moxfield_sync_modal.html" %}
 
@@ -1520,13 +1526,13 @@
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
 <script src="{{ url_for('static', filename='js/custom_card_modal.js', v='2') }}"></script>
-<script src="{{ url_for('static', filename='js/card_search_modal.js', v='custom-delete-1') }}"></script>
-<script src="{{ url_for('static', filename='js/print_export_modal.js', v='inkjet-6') }}"></script>
+<script src="{{ url_for('static', filename='js/card_search_modal.js', v='tracking-tags-controls-3') }}"></script>
+<script src="{{ url_for('static', filename='js/print_export_modal.js', v='tracking-tags-1') }}"></script>
 <script src="{{ url_for('static', filename='js/moxfield_sync.js') }}"></script>
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
-<script src="{{ url_for('static', filename='js/deckbuilder.js', v='custom-delete-1') }}"></script>
+<script src="{{ url_for('static', filename='js/deckbuilder.js', v='tracking-tags-bulk-1') }}"></script>
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}
