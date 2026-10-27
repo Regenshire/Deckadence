@@ -1187,6 +1187,16 @@
       Alternate Image Settings
     </button>
 
+    {% if global_card_finishing_installed %}
+    <button
+      type="button"
+      class="deckbuilder-card-context-menu-item"
+      data-context-action="card-finishing"
+    >
+      Card Finishing Studio
+    </button>
+    {% endif %}
+
     <div class="deckbuilder-card-context-menu-divider"></div>
 
     <button
@@ -1309,6 +1319,16 @@
     >
       Alternate Image Settings
     </button>
+
+    {% if global_card_finishing_installed %}
+    <button
+      type="button"
+      class="deckbuilder-card-context-menu-item"
+      data-land-context-action="card-finishing"
+    >
+      Card Finishing Studio
+    </button>
+    {% endif %}
   </div>
 
   {% set stats_modal_title = "Deck Stats" %} {% set stats_modal_subtitle =
@@ -1532,7 +1552,7 @@
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
-<script src="{{ url_for('static', filename='js/deckbuilder.js', v='tracking-tags-bulk-1') }}"></script>
+<script src="{{ url_for('static', filename='js/deckbuilder.js', v='card-finishing-menu-1') }}"></script>
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}

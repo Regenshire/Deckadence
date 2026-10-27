@@ -2505,6 +2505,7 @@ def inject_global_template_state():
 
     return {
         "global_mpcfill_ready": get_plugin_status("mpcfill-browser").get("ready", False),
+        "global_card_finishing_installed": get_plugin_status("card-finishing-studio").get("installed", False),
         "global_deck_art_upload_max_mb": DECK_ART_UPLOAD_MAX_BYTES / (1024 * 1024),
         "global_card_size_percentages": CARD_SIZE_PERCENTAGES,
         "global_card_export_template_options": get_card_export_template_options(),

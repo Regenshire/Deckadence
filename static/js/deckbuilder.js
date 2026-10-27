@@ -4818,6 +4818,22 @@
   }
 
   // *** CARD EDITING - Change Artwork and Printings ***
+  async function openDeckbuilderCardFinishing(cardElement) {
+    const studio = window.DeckadenceCardFinishing;
+    if (!studio?.canOpen(cardElement)) {
+      showDeckbuilderError(
+        new Error("Card Finishing Studio is not available for this card."),
+      );
+      return;
+    }
+
+    try {
+      await studio.open(cardElement);
+    } catch (error) {
+      showDeckbuilderError(error);
+    }
+  }
+
   function openDeckbuilderAlternateImageModal(cardUuid, cardName) {
     const cleanCardUuid = String(cardUuid || "").trim();
     const cleanCardName = String(cardName || "").trim();
@@ -4949,6 +4965,9 @@
     setDeckbuilderCopyMenuOpen(false);
     setDeckbuilderContextMenuOpen(false);
     window.DeckadenceCardTags?.attachMenu(landPaletteContextMenu, landElement);
+    landPaletteContextMenu
+      ?.querySelector('[data-land-context-action="card-finishing"]')
+      ?.classList.toggle("hidden", !window.DeckadenceCardFinishing?.canOpen(landElement));
     setLandPaletteContextMenuOpen(true, event.clientX, event.clientY);
   }
 
@@ -5084,6 +5103,10 @@
     setDeckbuilderContextActionVisible("duplicate", !isMultiSelection);
     setDeckbuilderContextActionVisible("change-printing", !isMultiSelection);
     setDeckbuilderContextActionVisible("alternate-image", !isMultiSelection);
+    setDeckbuilderContextActionVisible(
+      "card-finishing",
+      !isMultiSelection && Boolean(window.DeckadenceCardFinishing?.canOpen(cardElement)),
+    );
 
     setDeckbuilderContextActionVisible(
       "upscale-image",
@@ -5372,6 +5395,11 @@
         cardPayload.cardUuid || "",
         cardPayload.cardName || "",
       );
+      return;
+    }
+
+    if (actionName === "card-finishing") {
+      if (!isMultiSelection) await openDeckbuilderCardFinishing(contextCard);
       return;
     }
 
@@ -5987,6 +6015,13 @@
         event.stopPropagation();
 
         const actionName = menuItem.dataset.landContextAction || "";
+
+        if (actionName === "card-finishing") {
+          const contextCard = activeLandPaletteCard;
+          setLandPaletteContextMenuOpen(false);
+          openDeckbuilderCardFinishing(contextCard);
+          return;
+        }
 
         if (actionName === "change-printing") {
           const landName = activeLandPaletteCard

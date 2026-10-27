@@ -1221,7 +1221,11 @@
     syncPreviewInteraction();
     dialog.querySelectorAll("[data-spot-view]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.spotView === view)));
   }
-  async function openEditor(host, trigger) {
+  window.DeckadenceCardFinishing = {
+    canOpen: host => Boolean(host && describe(host)),
+    open: openEditor,
+  };
+  async function openEditor(host, trigger = host) {
     if (dialog.open) return;
     // The native close event is queued. Release the old session now if another
     // card is opened before that event arrives.
