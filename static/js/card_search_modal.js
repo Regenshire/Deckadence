@@ -547,6 +547,7 @@
     let filterDrag = null;
     let layoutFrame = 0;
     let closing = false;
+    let printingScrollAnchor = null;
 
     function readLayoutSetting(key, fallback) {
       try { return localStorage.getItem("deckadence.cardSearch." + key) || fallback; }
@@ -555,6 +556,27 @@
     function saveLayoutSetting(key, value) {
       try { localStorage.setItem("deckadence.cardSearch." + key, String(value)); }
       catch (_) { /* Layout still works without storage. */ }
+    }
+    function rememberPrintingPosition(group) {
+      // Keep the clicked control in place while the previous family shrinks.
+      // A cached printing response can render again before that layout runs.
+      if (printingScrollAnchor?.group === group) return;
+      const toggle = group.querySelector(".card-search-printings-toggle");
+      const viewport = searchResults.getBoundingClientRect();
+      const bounds = toggle?.getBoundingClientRect();
+      if (!bounds || !bounds.height || bounds.bottom <= viewport.top || bounds.top >= viewport.bottom) return;
+      printingScrollAnchor = {
+        group, toggle, offset: bounds.top - viewport.top, gallery: galleryView,
+        focused: document.activeElement === toggle,
+      };
+    }
+    function restorePrintingPosition() {
+      const anchor = printingScrollAnchor;
+      printingScrollAnchor = null;
+      if (!anchor || !anchor.group.isConnected || anchor.group.classList.contains("hidden") || anchor.gallery !== galleryView) return;
+      const offset = anchor.toggle.getBoundingClientRect().top - searchResults.getBoundingClientRect().top;
+      searchResults.scrollTop += offset - anchor.offset;
+      if (anchor.focused) anchor.toggle.focus({preventScroll:true});
     }
     function scheduleGalleryLayout() {
       if (layoutFrame || closing || searchOverlay.classList.contains("hidden")) return;
@@ -655,6 +677,7 @@
           "V", radius + 0.5, "Q", left, 0.5, left + radius, 0.5, "Z",
         ].join(" "));
       });
+      restorePrintingPosition();
     }
     function setGalleryView(value, remember = true) {
       galleryView = value;
@@ -1474,6 +1497,7 @@
     }
 
     function clearSearchResults() {
+      printingScrollAnchor = null;
       importedSearchCards = null;
       abortPrintingRequests();
       if (!searchResults) {
@@ -2107,6 +2131,9 @@
     }
 
     function renderGroupPrintings(groupElement, cards, allPrintings) {
+      // Capture the current position at response time, not at request time:
+      // browsing elsewhere while printings load must not scroll the user back.
+      if (groupElement.classList.contains("custom-draft-card-search-group-expanded")) rememberPrintingPosition(groupElement);
       const printings = groupElement.querySelector(".custom-draft-card-search-group-printings");
       // The gallery toggle lives over the first image; retain it when rows reload.
       const toggle = groupElement.querySelector(".card-search-printings-toggle");
@@ -2236,6 +2263,7 @@
       printings.appendChild(feedback);
       group.cards.forEach(card => printings.appendChild(createSearchResultPrintingRow(card, existingLookup)));
       toggle.addEventListener("click", () => {
+        rememberPrintingPosition(groupElement);
         const expanded = !groupElement.classList.contains("custom-draft-card-search-group-expanded");
         searchResults.querySelectorAll(".custom-draft-card-search-group-expanded").forEach(collapseSearchResultGroup);
         groupElement.classList.toggle("custom-draft-card-search-group-expanded", expanded);
@@ -3060,6 +3088,7 @@
     function close() {
       if (selectionBusy) return;
       if (!searchOverlay) return;
+      printingScrollAnchor = null;
       // Closing does not change saved cards. Hide first and leave result
       // controls to be synchronized if the same results are opened again.
       searchOverlay.classList.add("hidden");
