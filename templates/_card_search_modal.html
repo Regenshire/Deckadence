@@ -2,7 +2,7 @@
 <div id="customDraftCardSearchOverlay" class="custom-draft-card-search-overlay hidden" aria-hidden="true" data-card-finishing="off">
   <div class="custom-draft-card-search-window" role="dialog" aria-modal="true" aria-labelledby="customDraftSearchTitle">
     <div class="custom-draft-card-search-window-header">
-      <div class="card-search-heading-copy"><h2 id="customDraftSearchTitle">Add Cards</h2><p class="page-subtitle">Choose cards to add to your collection.</p></div>
+      <div class="card-search-heading-copy"><div class="card-search-eyebrow">CARD LIBRARY</div><h2 id="customDraftSearchTitle">Add Cards</h2><p class="page-subtitle">Choose cards to add to your collection.</p></div>
       <div class="card-search-header-actions">
         <div class="card-search-more-wrap">
           <button type="button" id="customDraftMoreOptionsButton" class="card-search-quiet-button" aria-haspopup="menu" aria-expanded="false" aria-controls="customDraftMoreOptionsMenu">More options <span aria-hidden="true">⋯</span></button>
@@ -14,6 +14,7 @@
         <button type="button" id="customDraftCardSearchMaximizeButton" class="card-search-icon-button card-search-window-size-button" aria-label="Maximize card search" aria-pressed="false" title="Maximize">
           <svg class="card-search-maximize-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></svg>
           <svg class="card-search-restore-icon hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h12v12h-4M9 7V3"/><rect x="3" y="7" width="14" height="14" rx="1"/></svg>
+          <span class="card-search-window-size-label">Maximize</span>
         </button>
         <button type="button" id="customDraftCardSearchCloseButton" class="custom-draft-card-search-close-button" aria-label="Close card search" title="Close">×</button>
       </div>
@@ -23,7 +24,12 @@
         <div class="custom-draft-card-search-text-row">
           <label class="custom-draft-filter-field custom-draft-search-text-field"><span class="card-search-sr-only">Search cards</span><div class="custom-draft-search-text-input-wrap"><svg class="card-search-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.7" cy="10.7" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input type="text" id="customDraftCardSearchInput" class="campaign-add-pack-custom-input custom-draft-search-text-input" placeholder="Search by card name, type, or collector number…" autocomplete="off" /></div></label>
           <button type="button" id="customDraftCardSearchButton" class="action-button">Search</button>
+          <button type="button" id="customDraftFiltersToggle" class="action-button secondary-button" aria-expanded="true" aria-controls="customDraftSearchFilters"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m4 0h5M4 17h3m4 0h9"/><circle cx="13" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Filters</button>
         </div>
+      </div>
+      <div class="card-search-workspace">
+        <aside id="customDraftSearchFilters" class="card-search-sidebar" aria-label="Refine results">
+          <strong class="card-search-sidebar-title">Refine results</strong>
         <div class="card-search-common-filters">
           <label class="custom-draft-filter-field">
 <span>Set</span>
@@ -160,8 +166,11 @@
 <option value="exclude">Exclude</option>
 </select>
 </label><div data-tag-filter="search"></div></div>
-      </div>
-      <div class="card-search-results-toolbar"><div id="customDraftSearchSummary">Your card library</div><div class="card-search-result-settings"><label class="custom-draft-filter-field custom-draft-search-sort-field">
+
+        </aside>
+        <div id="customDraftFilterResize" class="card-search-filter-resize" role="separator" tabindex="0" aria-label="Resize filters" aria-orientation="vertical" aria-controls="customDraftSearchFilters" aria-valuemin="240" aria-valuemax="440" aria-valuenow="280" title="Drag to resize filters. Double-click to reset."></div>
+        <section class="card-search-main" aria-label="Card results">
+      <div class="card-search-results-toolbar"><div class="card-search-view-switch" role="group" aria-label="Card view"><button type="button" class="action-button secondary-button" id="customDraftGalleryView" aria-pressed="true">▦ Gallery</button><button type="button" class="action-button secondary-button" id="customDraftListView" aria-pressed="false">☷ List</button></div><div class="card-search-result-settings"><label class="custom-draft-filter-field custom-draft-search-sort-field">
 <span>Sort</span>
 <select class="custom-draft-filter-input" id="customDraftSearchSortSelect">
 <option value="name_asc">Name A-Z</option>
@@ -191,12 +200,13 @@
 <option value="1000">1000</option>
 </select>
 </label></div></div>
+
+          <div class="card-search-results-info"><div id="customDraftSearchSummary" role="status">Your card library</div><label id="customDraftCardSizeLabel">Card Size <select id="customDraftCardSize" aria-label="Card Size">{% include "_card_size_options.html" %}</select></label></div>
       <div id="customDraftSearchEmpty" class="card-search-start-state"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.7" cy="10.7" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><h3>Find cards to add</h3><p>Search your library, or combine filters to find the right cards.</p></div>
       <div id="customDraftCardSearchResults" class="custom-draft-card-search-results hidden"></div>
-      <div class="card-search-footer">
-        <div class="card-search-feedback"><span id="customDraftSearchAddedCount">0 cards added</span><div id="customDraftCardSearchStatus" class="custom-draft-card-search-status hidden" role="status" aria-live="polite"></div></div>
-        <button type="button" id="customDraftAddAllResultsButton" class="card-search-quiet-button hidden" disabled>Add All Results to Set</button>
-        <div class="custom-draft-search-pagination custom-draft-search-pagination-hidden" id="customDraftCardSearchPagination">
+
+          <div class="card-search-paging">
+            <div class="custom-draft-search-pagination custom-draft-search-pagination-hidden" id="customDraftCardSearchPagination">
 <button aria-label="Previous page" class="custom-draft-page-arrow" disabled="" id="customDraftSearchPrevButton" type="button">
             ‹
           </button>
@@ -206,8 +216,32 @@
 <button aria-label="Next page" class="custom-draft-page-arrow" disabled="" id="customDraftSearchNextButton" type="button">
             ›
           </button>
-</div>
-        <button type="button" id="customDraftCardSearchDoneButton" class="action-button">Done</button>
+            </div>
+          </div>
+        </section>
+        <aside id="customDraftCardPreview" class="card-search-preview hidden" aria-label="Card details">
+          <div class="card-search-preview-heading"><strong>Card details</strong><button type="button" id="customDraftPreviewClose" class="card-search-icon-button" aria-label="Close card details">×</button></div>
+          <div class="card-search-preview-body">
+            <button type="button" id="customDraftPreviewEnlarge" class="card-search-preview-art" aria-label="Enlarge card image"><img id="customDraftPreviewImage" alt=""/><span>Enlarge</span></button>
+            <div class="card-search-preview-details">
+              <div class="card-search-preview-title-block"><h3 id="customDraftPreviewTitle"></h3><p id="customDraftPreviewType"></p></div>
+              <p id="customDraftPreviewMeta" class="card-search-preview-set"></p>
+              <dl id="customDraftPreviewFacts" class="card-search-preview-facts"></dl>
+            </div>
+          </div>
+          <div class="card-search-preview-actions">
+            <p id="customDraftPreviewExistingPrinting" class="card-search-preview-existing hidden"></p>
+            <button type="button" id="customDraftPreviewSelect" class="action-button secondary-button">Select printing</button>
+            <button type="button" id="customDraftPreviewSwitch" class="action-button hidden">Switch Printing</button>
+          </div>
+        </aside>
+      </div>
+      <div class="card-search-footer">
+        <div class="card-search-feedback"><span id="customDraftSearchAddedCount">0 cards added</span><div id="customDraftCardSearchStatus" class="custom-draft-card-search-status hidden" role="status" aria-live="polite"></div></div>
+        <button type="button" id="customDraftAddAllResultsButton" class="card-search-quiet-button hidden" disabled>Add All Results to Set</button>
+        <button type="button" id="customDraftClearSelectionButton" class="card-search-quiet-button hidden">Clear selection</button>
+        <button type="button" id="customDraftAddSelectedButton" class="action-button" disabled>Add selected</button>
+        <button type="button" id="customDraftCardSearchDoneButton" class="action-button secondary-button">Done</button>
       </div>
     </div>
   </div>

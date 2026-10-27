@@ -7,6 +7,15 @@ class DialogFocusController {
     this.lastOutsideFocus = document.activeElement;
     this.pendingOpeners = new WeakMap();
     this.selector = 'dialog, [role="dialog"][aria-modal="true"], .custom-draft-card-search-window';
+    this.navigationOverlaySelector = [
+      '.campaign-add-pack-modal', '.card-zoom-overlay',
+      '.custom-draft-card-search-overlay', '.custom-draft-card-search-panel-maximized',
+      '.custom-draft-set-card-list-panel-maximized', '.app-qr-modal-backdrop',
+      '.reminder-modal-backdrop', '.card-back-selector-modal',
+      '.print-template-selector-backdrop', '.silhouette-template-library-modal',
+      '.imomir-image-compare-overlay', '.imomir-zoom-comparison-overlay',
+      '.imomir-batch-upscale-overlay', '.chaos-draft-busy-overlay', '#imomirConfirmOverlay',
+    ].join(',');
     this.observer = new MutationObserver(() => this.sync());
   }
 
@@ -57,6 +66,11 @@ class DialogFocusController {
   }
 
   sync() {
+    // Check the small set of overlay roots, including hidden ancestors, rather
+    // than a body :has(...:not(.hidden *)) rule invalidated by every result row.
+    const navigationCovered = Array.from(this.root.querySelectorAll(this.navigationOverlaySelector))
+      .some(overlay => this.visible(overlay));
+    document.body.classList.toggle('app-has-blocking-overlay', navigationCovered);
     const previous = this.stack.at(-1);
     this.stack = this.stack.filter(entry => this.visible(entry.dialog));
     const additions = Array.from(this.root.querySelectorAll(this.selector))

@@ -1272,26 +1272,9 @@ input {
  * dialogs inside fixed workspaces. Preserve its layout and saved state.
  * Ordinary dropdowns and non-blocking notifications do not belong here.
  */
-body:has(
-    :is(
-      .campaign-add-pack-modal,
-      .card-zoom-overlay,
-      .custom-draft-card-search-overlay,
-      .custom-draft-card-search-panel-maximized,
-      .custom-draft-set-card-list-panel-maximized,
-      .app-qr-modal-backdrop,
-      .reminder-modal-backdrop,
-      .card-back-selector-modal,
-      .print-template-selector-backdrop,
-      .silhouette-template-library-modal,
-      .imomir-image-compare-overlay,
-      .imomir-zoom-comparison-overlay,
-      .imomir-batch-upscale-overlay,
-      .chaos-draft-busy-overlay,
-      #imomirConfirmOverlay
-    ):not(.hidden, .hidden *)
-  )
-  .app-tabs {
+/* dialog_focus.js checks only overlay elements. A body :has() selector with
+ * `.hidden *` makes Firefox invalidate the entire large gallery on close. */
+body.app-has-blocking-overlay .app-tabs {
   z-index: 0;
 }
 

@@ -3990,6 +3990,26 @@
 
     getExistingCardLookup: getCurrentSetCardLookup,
 
+    getExistingPrintingTarget: function (card) {
+      const name = String(card.card_name || "").trim().toLowerCase();
+      if (!name || !currentCardList) return null;
+      const matches = Array.from(currentCardList.querySelectorAll(".custom-draft-current-card-row"))
+        .filter(row => String(row.dataset.displayCardName || row.dataset.cardName || "").trim().toLowerCase() === name);
+      // A direct replacement needs one unambiguous set entry, including rows
+      // hidden by the current set's filters or virtualized card grid.
+      if (matches.length !== 1 || matches[0].dataset.cardUuid === card.card_uuid) return null;
+      const row = matches[0];
+      const updateUrl = row.querySelector(".custom-draft-change-printing-button")?.dataset.updateUrl;
+      if (!updateUrl) return null;
+      return {
+        cardName: row.dataset.displayCardName || card.card_name,
+        currentCardUuid: row.dataset.cardUuid,
+        updateUrl: updateUrl,
+        printingKey: buildCurrentSetPrintingKey(card.card_name, row.dataset.setCode, row.dataset.collectorNumber),
+        printingLabel: [row.dataset.setCode, row.dataset.collectorNumber ? "#" + row.dataset.collectorNumber : ""].filter(Boolean).join(" · "),
+      };
+    },
+
     onAddSuccess: function (payload, context) {
       if (payload.card) {
         addCurrentCardRowFromAddPayload(payload.card);
@@ -4021,15 +4041,15 @@
         return;
       }
 
-      if (context.resultRow) {
+      if (context.resultRow && !context.keepOpen) {
         context.updateSearchResultGroupFromAddedRow(context.resultRow);
       }
 
       context.setStatus(payload.message || "Printing updated.", false);
 
-      context.close();
+      if (!context.keepOpen) context.close();
       filterCurrentCards();
-      showUiMessage(payload.message || "Printing updated.", false);
+      if (!context.keepOpen) showUiMessage(payload.message || "Printing updated.", false);
     },
   });
 

@@ -760,11 +760,22 @@
     });
   });
   function publish(target, record) {
-    versions.set(keyFor(target), (versions.get(keyFor(target)) || 0) + 1);
-    cache.set(keyFor(target), record);
+    publishBatch([{target, record}]);
+  }
+  function publishBatch(records) {
+    if (!records.length) return;
+    const updates = new Map();
+    records.forEach(({target, record}) => {
+      const key = keyFor(target);
+      versions.set(key, (versions.get(key) || 0) + 1);
+      cache.set(key, record);
+      updates.set(key, record);
+    });
+    // Lookup responses contain up to 200 finishes. Scan the page once for the
+    // whole batch, rather than blocking every click with 200 full-page scans.
     document.querySelectorAll(hostSelector+','+viewImageSelector).forEach(host => {
       const info = describe(host);
-      if (info && keyFor(info.target) === keyFor(target)) applyRecord(host, record);
+      if (info && updates.has(keyFor(info.target))) applyRecord(host, updates.get(keyFor(info.target)));
     });
   }
   async function lookup() {
@@ -776,9 +787,8 @@
       try {
         const result = await api(apiUrl(dialog.dataset.lookupUrl), {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({targets: batch})});
         scopeToken = result.image_scope.token;
-        result.records.forEach(item => {
-          if (before.get(keyFor(item.target)) === versions.get(keyFor(item.target))) publish(item.target, item.record);
-        });
+        publishBatch(result.records.filter(item =>
+          before.get(keyFor(item.target)) === versions.get(keyFor(item.target))));
       } catch (error) {
         // Opening an editor retries through a fresh GET; a failed lookup never writes defaults.
         console.warn("Spot foiling:", error.message);
