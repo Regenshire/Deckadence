@@ -14,7 +14,7 @@
 >
 <link
     rel="stylesheet"
-    href="{{ url_for('static', filename='css/config.css', v='tracking-tags-controls-3') }}"
+    href="{{ url_for('static', filename='css/config.css', v='release-section-2') }}"
 >
 
 {% endblock %}
@@ -41,170 +41,8 @@
 
 
     <form id="configForm" method="post" class="config-form">
-        <div id="section_reminders" class="page-panel collapsible-panel {% if global_reminder_state and global_reminder_state['has_reminders'] %}is-open{% endif %}" data-section="reminders">
-            {% set release_update_state = global_reminder_state.release_update_state if global_reminder_state else {} %}
-            {% set release_has_update = release_update_state.update_available %}
-            {% set release_card_class = 'reminder-card-warning' if release_has_update else ('reminder-card-danger' if release_update_state.error else 'reminder-card-info') %}
-
-            <button type="button" class="collapsible-header reminder-collapsible-header">
-                <span>
-                    Reminders
-                    {% if global_reminder_state and global_reminder_state["has_reminders"] %}
-                    <span class="config-reminder-inline-badge">{{ global_reminder_state["count"] }}</span>
-                    {% endif %}
-                </span>
-
-                <span class="reminder-header-actions">
-                    <span
-                        id="openReminderSettingsButton"
-                        class="reminder-settings-inline-icon"
-                        role="button"
-                        tabindex="0"
-                        aria-label="Open reminder settings"
-                        title="Reminder Settings"
-                    >
-                        ⚙
-                    </span>
-                    <span class="collapsible-chevron">▾</span>
-                </span>
-            </button>
-
-            <div class="collapsible-body">
-                <div class="reminder-card-list">
-            {% set non_release_reminders = namespace(count=0) %}
-
-            {% if global_reminder_state and global_reminder_state["items"] %}
-                {% for reminder in global_reminder_state["items"] %}
-                    {% if reminder.title != "Deckadence Update Available" %}
-                        {% set non_release_reminders.count = non_release_reminders.count + 1 %}
-                        <div class="reminder-card reminder-card-{{ reminder.severity }}">
-                            <div class="reminder-card-header">
-                                <div class="reminder-card-title-wrap">
-                                    <div class="reminder-card-title">{{ reminder.title }}</div>
-                                </div>
-                            </div>
-
-                            <div class="reminder-card-body">
-                                <div class="reminder-card-message">
-                                    {{ reminder.message }}
-                                </div>
-
-                                {% if reminder.action_url %}
-                                <div class="reminder-card-actions">
-                                    <a
-                                        href="{{ reminder.action_url }}"
-                                        class="action-button secondary-button"
-                                        {% if reminder.action_url.startswith('http') %}
-                                            target="_blank" rel="noopener noreferrer"
-                                        {% endif %}
-                                    >
-                                        {{ reminder.action_label or "Open" }}
-                                    </a>
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            {% endif %}
-
-            {% if non_release_reminders.count == 0 %}
-            <div class="reminder-card reminder-card-neutral">
-                <div class="reminder-card-header">
-                    <div class="reminder-card-title-wrap">
-                        <div class="reminder-card-title">General Reminders</div>
-                    </div>
-                </div>
-
-                <div class="reminder-card-body">
-                    <div class="reminder-card-message">
-                        No additional reminders right now.
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-
-                    <div class="reminder-card {{ release_card_class }}">
-                        <div class="reminder-card-header">
-                            <div class="reminder-card-title-wrap">
-                                <div class="reminder-card-title">Release Status</div>
-                                <div class="reminder-card-subtitle">
-                                    {% if release_has_update %}
-                                        A newer version of Deckadence is available.
-                                    {% elif release_update_state.error %}
-                                        Deckadence could not complete the last release check.
-                                    {% elif release_update_state.latest_version %}
-                                        Deckadence release tracking is working normally.
-                                    {% else %}
-                                        Deckadence has not checked GitHub releases yet.
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="reminder-card-body">
-                            <div class="reminder-card-message">
-                                {% if release_has_update %}
-                                    Version {{ release_update_state.latest_version }} is available. You are currently running {{ release_update_state.current_version }}.
-                                {% elif release_update_state.error %}
-                                    {{ release_update_state.error }}
-                                {% elif release_update_state.latest_version %}
-                                    You are currently running {{ release_update_state.current_version }}. The latest GitHub release is {{ release_update_state.latest_version }}.
-                                {% else %}
-                                    Release information has not been loaded yet.
-                                {% endif %}
-                            </div>
-
-                            <div class="reminder-card-meta">
-                                <div class="reminder-card-meta-row">
-                                    <span>Installed Version</span>
-                                    <strong>{{ release_update_state.current_version or "Unknown" }}</strong>
-                                </div>
-                                <div class="reminder-card-meta-row">
-                                    <span>Latest GitHub Release</span>
-                                    <strong>
-                                        {% if release_update_state.latest_version %}
-                                            {{ release_update_state.latest_version }}
-                                        {% elif release_update_state.error %}
-                                            Unknown
-                                        {% else %}
-                                            Not checked yet
-                                        {% endif %}
-                                    </strong>
-                                </div>
-                                <div class="reminder-card-meta-row">
-                                    <span>Last Release Check</span>
-                                    <strong>{{ release_update_state.last_checked_utc or "Never" }}</strong>
-                                </div>
-                            </div>
-
-                            <div class="reminder-card-actions">
-                                <button
-                                    type="submit"
-                                    form="configForm"
-                                    formaction="{{ url_for('config_check_new_releases') }}"
-                                    formmethod="post"
-                                    class="action-button secondary-button"
-                                >
-                                    Check for Releases Now
-                                </button>
-
-                                {% if release_update_state.release_url %}
-                                <a
-                                    class="action-button"
-                                    href="{{ release_update_state.release_url }}"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    View Latest Release
-                                </a>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        {% include "_settings_reminders.html" %}
+        {% include "_release_updates.html" %}
 
         <div id="reminderSettingsModal" class="reminder-modal-backdrop hidden" aria-hidden="true">
             <div class="reminder-modal">
@@ -2618,10 +2456,11 @@
 {% endblock %}
 
 {% block page_scripts_before_app %}
-<script src="{{ url_for('static', filename='js/config.js', v='tracking-tags-controls-3') }}"></script>
+<script src="{{ url_for('static', filename='js/config.js', v='database-order-5') }}"></script>
 {% endblock %}
 
 {% block page_scripts_after_app %}
+<script src="{{ url_for('static', filename='js/application_updates.js', v='2') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
 <script src="{{ url_for('static', filename='js/application_backups.js', v='campaign-1') }}"></script>
 <script src="{{ url_for('static', filename='js/local_mirror_settings.js', v='macos-1') }}"></script>

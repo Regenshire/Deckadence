@@ -399,134 +399,10 @@ Write-Host ""
 Write-Host "      Compressing..."
 Write-Host ""
 
-$ZipHelperPath = Join-Path `
-    $RepoRoot `
-    ".dev_prompts\ai_work\windows-release\zip_Deckadence_release.py"
-New-Item -ItemType Directory -Path (Split-Path -Parent $ZipHelperPath) -Force | Out-Null
-
-$ZipHelperCode = @'
-import os
-import sys
-import zipfile
-
-
-source_dir = os.path.abspath(sys.argv[1])
-output_zip = os.path.abspath(sys.argv[2])
-
-archive_root = os.path.basename(
-    source_dir.rstrip("\\/")
-)
-
-
-def windows_extended_path(path):
-    path = os.path.abspath(path)
-
-    if (
-        os.name == "nt"
-        and not path.startswith("\\\\?\\")
-    ):
-        return "\\\\?\\" + path
-
-    return path
-
-
-files = []
-
-for directory, _, filenames in os.walk(source_dir):
-    for filename in filenames:
-        files.append(
-            os.path.join(
-                directory,
-                filename,
-            )
-        )
-
-
-total_files = len(files)
-
-print(
-    f"      Preparing to compress "
-    f"{total_files} files."
-)
-
-with zipfile.ZipFile(
-    output_zip,
-    mode="w",
-    compression=zipfile.ZIP_DEFLATED,
-    compresslevel=6,
-    allowZip64=True,
-) as archive:
-
-    for index, file_path in enumerate(
-        files,
-        start=1,
-    ):
-        relative_path = os.path.relpath(
-            file_path,
-            source_dir,
-        )
-
-        archive_path = os.path.join(
-            archive_root,
-            relative_path,
-        ).replace(
-            "\\",
-            "/",
-        )
-
-        archive.write(
-            windows_extended_path(
-                file_path
-            ),
-            archive_path,
-        )
-
-        if (
-            index == 1
-            or index % 250 == 0
-            or index == total_files
-        ):
-            percent = (
-                index
-                / total_files
-                * 100
-            )
-
-            print(
-                f"      {index}/{total_files} "
-                f"files ({percent:.0f}%)"
-            )
-
-
-print(
-    "      ZIP compression finished."
-)
-'@
-
-Set-Content `
-    -Path $ZipHelperPath `
-    -Value $ZipHelperCode `
-    -Encoding UTF8
-
-try {
-    & $PythonCommand.Source `
-        $ZipHelperPath `
-        $AppDistDir `
-        $OutputZip
-
-    $ZipExitCode = $LASTEXITCODE
-
-    if ($ZipExitCode -ne 0) {
-        throw "ZIP creation failed with exit code $ZipExitCode."
-    }
-}
-finally {
-    if (Test-Path $ZipHelperPath) {
-        Remove-Item `
-            $ZipHelperPath `
-            -Force
-    }
-}
+# The shared packager writes the inventory, SHA-256, and platform update metadata.
+& $PythonCommand.Source -B (Join-Path $RepoRoot "update_system.py") package `
+    --root $AppDistDir --output $OutputZip --version $Version --platform windows-x86_64
+if ($LASTEXITCODE -ne 0) { throw "Release packaging and update metadata validation failed." }
 
 if (-not (Test-Path $OutputZip)) {
     throw "Release ZIP was not created."
@@ -557,6 +433,9 @@ Write-Host "  $Version"
 Write-Host ""
 Write-Host "Release ZIP:"
 Write-Host "  $OutputZip"
+Write-Host "Update metadata (upload with the ZIP):"
+Write-Host "  $(Join-Path $DistRoot 'Deckadence-update-windows-x86_64.json')"
+Write-Host "  $OutputZip.sha256"
 Write-Host ""
 Write-Host "ZIP size:"
 Write-Host "  $ZipSizeMB MB"

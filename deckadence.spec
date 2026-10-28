@@ -91,7 +91,7 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    codesign_identity=None,
+    codesign_identity=os.environ.get('DECKADENCE_CODESIGN_IDENTITY') or None,
     entitlements_file=None,
 )
 coll = COLLECT(
@@ -105,6 +105,56 @@ coll = COLLECT(
 )
 
 distribution_dir = os.path.join(DISTPATH, 'Deckadence')
+
+# A self-contained helper runs outside the files it replaces. In particular,
+# Windows must not load this helper from the live application's _internal.
+updater_analysis = Analysis(
+    ['update_system.py'], pathex=['.'], binaries=[], datas=[],
+    hiddenimports=[], hookspath=[], runtime_hooks=[], excludes=[], noarchive=False,
+)
+updater_pyz = PYZ(updater_analysis.pure)
+updater_exe = EXE(
+    updater_pyz, updater_analysis.scripts, updater_analysis.binaries,
+    updater_analysis.datas, [], name='DeckadenceUpdater',
+    console=sys.platform != 'win32', strip=False, upx=False,
+    codesign_identity=os.environ.get('DECKADENCE_CODESIGN_IDENTITY') or None,
+)
+shutil.copy2(updater_exe.name, os.path.join(distribution_dir, os.path.basename(updater_exe.name)))
+
+if sys.platform == 'win32':
+    shutil.copy2(ROOT / '.dev_prompts' / 'Start_Deckadence.bat', distribution_dir)
+else:
+    launcher_name = 'Start_Deckadence.command' if sys.platform == 'darwin' else 'Start_Deckadence.sh'
+    launcher = Path(distribution_dir) / launcher_name
+    launcher.write_text('''#!/bin/sh
+set -eu
+cd -- "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+if [ -f .deckadence-update/transaction.json ]; then
+    ./.deckadence-update/runner recover --root "$PWD" || exit $?
+fi
+exec ./Deckadence "$@"
+''', encoding='utf-8')
+    launcher.chmod(0o755)
+    if sys.platform == 'darwin':
+        import plistlib
+        app_bundle = Path(distribution_dir) / 'Deckadence.app'
+        macos = app_bundle / 'Contents' / 'MacOS'
+        macos.mkdir(parents=True, exist_ok=True)
+        wrapper = macos / 'DeckadenceLauncher'
+        wrapper.write_text('''#!/bin/sh
+set -eu
+cd -- "$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"
+(sleep 3; open http://127.0.0.1:5000) &
+exec ./Start_Deckadence.command "$@"
+''', encoding='utf-8')
+        wrapper.chmod(0o755)
+        with (app_bundle / 'Contents' / 'Info.plist').open('wb') as stream:
+            release_version = runpy.run_path(str(ROOT / 'settings.py'))['APP_VERSION']
+            plistlib.dump({'CFBundleExecutable': 'DeckadenceLauncher',
+                          'CFBundleIdentifier': 'com.regenshire.deckadence',
+                          'CFBundleVersion': release_version,
+                          'CFBundleShortVersionString': release_version,
+                          'CFBundleName': 'Deckadence', 'CFBundlePackageType': 'APPL'}, stream)
 
 for distribution_filename in (
     'README.md',

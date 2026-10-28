@@ -1,3 +1,6 @@
+from update_system import guard_startup
+guard_startup()
+
 from foil_effects import render_print_foil, normalize_print_foil_intensity
 # *** DECKADENCE - Setup the App and Handle Page Actions ***
 from user_backup_system import recover_interrupted_import
@@ -521,6 +524,20 @@ pack_art_jobs = PackArtJobs(label_renderer=lambda code, name, label, **options:
         base_color=options.get('base_color'), set_name=name,
     ))
 app.secret_key = APP_SECRET_KEY
+
+from ui.updates import register_update_routes
+from plugin_system.manager import any_plugin_install_running
+
+application_update_jobs = register_update_routes(
+    app, root=RUNTIME_BASE_DIR, version=APP_VERSION, port=APP_SERVER_PORT,
+    activity_check=lambda: (
+        application_backup_jobs.busy
+        or application_backup_jobs.service.pending.exists()
+        or application_backup_jobs.activity_check()
+        or any_plugin_install_running()
+        or _isolation_maintenance_running
+    ),
+)
 
 from ui.backups import register_backup_routes
 
@@ -2427,6 +2444,20 @@ def build_global_reminder_state(config=None, import_metadata=None):
         import_metadata=import_metadata,
     )
 
+    # A manual updater check is fresher than the periodic reminder cache.
+    update_manager = globals().get("application_update_jobs")
+    if update_manager and update_manager.release:
+        update_status = update_manager.status()
+        release_update_state = {
+            **release_update_state,
+            "latest_version": update_status["latest_version"],
+            "release_notes": update_status["notes"],
+            "release_url": update_status["release_url"],
+            "update_available": update_status["newer_release"],
+            "last_checked_utc": update_status.get("last_checked_utc", ""),
+            "error": "",
+        }
+
     if release_update_state.get("check_enabled") and release_update_state.get("update_available"):
         latest_version = release_update_state.get("latest_version") or "new version"
 
@@ -2435,9 +2466,9 @@ def build_global_reminder_state(config=None, import_metadata=None):
             "severity": "info",
             "title": "Deckadence Update Available",
             "message": f"Version {latest_version} is available. You are running {APP_VERSION}.",
-            "target_section": "reminders",
-            "action_url": release_update_state.get("release_url") or "",
-            "action_label": "View GitHub Release",
+            "target_section": "release_updates",
+            "action_url": "/config?open=release_updates&scroll=release_updates",
+            "action_label": "View update",
         })
 
     reminder_frequency = (config.get("card_database_reminder_frequency") or "monthly").strip().lower()
@@ -12834,6 +12865,8 @@ def _run_isolation_maintenance():
 
 @app.before_request
 def maintain_isolated_images():
+    if (request.endpoint or "").startswith("application_updates.") or application_update_jobs.installing:
+        return
     if application_backup_jobs.busy or application_backup_jobs.service.pending.exists():
         return
     global _isolation_maintenance_next
@@ -21929,7 +21962,7 @@ def config_check_new_releases():
     else:
         flash("Release check complete. No GitHub Releases were found yet.")
 
-    return redirect(url_for("config") + "?open=reminders&scroll=reminders")
+    return redirect(url_for("config") + "?open=release_updates&scroll=release_updates")
 
 # *** CARD BACK CONTROLS - Preview, Upload, and Delete Card Backs ***
 @app.route(
@@ -22336,6 +22369,7 @@ def config():
 
         allowed_return_sections = {
             "reminders",
+            "release_updates",
             "card_database",
             "draft_modes",
             "print_settings",
@@ -39489,7 +39523,7 @@ if __name__ == "__main__":
     app.jinja_env.auto_reload = flask_debug_enabled
 
     if use_waitress_server:
-        from waitress import serve
+        from waitress import create_server, wasyncore
 
         local_url = f"http://127.0.0.1:{APP_SERVER_PORT}"
         network_url = (
@@ -39506,13 +39540,24 @@ if __name__ == "__main__":
         print("  Press Ctrl+C or close the command prompt to stop Deckadence.")
         print("", flush=True)
 
-        serve(
+        server_map = {}
+        server = create_server(
             app,
+            map=server_map,
             host="0.0.0.0",
             port=APP_SERVER_PORT,
             threads=8,
             max_request_body_size=200 * 1024 ** 3,
         )
+        def shutdown_for_update():
+            def close_server():
+                # Allow the browser's install response/status request to finish.
+                time.sleep(0.5)
+                server.task_dispatcher.shutdown(timeout=10)
+                wasyncore.close_all(map=server_map)
+            threading.Thread(target=close_server, name="update-shutdown", daemon=True).start()
+        application_update_jobs.shutdown = shutdown_for_update
+        server.run()
     else:
         app.run(
             host="0.0.0.0",

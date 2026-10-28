@@ -1,0 +1,29 @@
+{% set release_update_state = global_reminder_state.release_update_state if global_reminder_state else {} %}
+<div id="section_reminders" class="page-panel collapsible-panel {% if global_reminder_state and global_reminder_state.has_reminders %}is-open{% endif %}" data-section="reminders">
+    <button type="button" class="collapsible-header reminder-collapsible-header">
+        <span>Reminders <span id="settingsReminderCount" class="config-reminder-inline-badge" {% if not global_reminder_state or not global_reminder_state.count %}hidden{% endif %}>{{ global_reminder_state.count if global_reminder_state else 0 }}</span></span>
+        <span class="reminder-header-actions">
+            <span id="openReminderSettingsButton" class="reminder-settings-inline-icon" role="button" tabindex="0" aria-label="Open reminder settings" title="Reminder Settings"><i class="fa-solid fa-gear" aria-hidden="true"></i></span>
+            <span class="collapsible-chevron">▾</span>
+        </span>
+    </button>
+    <div class="collapsible-body">
+        <div class="settings-reminder-list">
+            <a id="releaseUpdateReminder" class="settings-reminder-shortcut" href="{{ url_for('config', open='release_updates', scroll='release_updates') }}" data-settings-section="release_updates" {% if not release_update_state.check_enabled or not release_update_state.update_available %}hidden{% endif %}>
+                <span class="settings-reminder-icon settings-reminder-icon-release"><i class="fa-solid fa-circle-arrow-up" aria-hidden="true"></i></span>
+                <span class="settings-reminder-copy"><strong id="releaseUpdateReminderTitle">Deckadence {{ release_update_state.latest_version }} is available</strong><span id="releaseUpdateReminderMessage">See what’s new and update when you’re ready.</span></span>
+                <span class="settings-reminder-destination"><span>View update</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
+            </a>
+            {% if global_reminder_state %}
+            {% for reminder in global_reminder_state['items'] if reminder.target_section != 'release_updates' %}
+            <a class="settings-reminder-shortcut" href="{{ url_for('config', open=reminder.target_section, scroll=reminder.target_section) }}" data-settings-section="{{ reminder.target_section }}">
+                <span class="settings-reminder-icon"><i class="fa-solid {{ 'fa-database' if reminder.target_section == 'card_database' else 'fa-print' if reminder.target_section == 'print_settings' else 'fa-bell' }}" aria-hidden="true"></i></span>
+                <span class="settings-reminder-copy"><strong>{{ reminder.title }}</strong><span>{{ reminder.message }}</span></span>
+                <span class="settings-reminder-destination"><span>{{ 'Open database' if reminder.target_section == 'card_database' else 'Open print settings' if reminder.target_section == 'print_settings' else 'Open settings' }}</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
+            </a>
+            {% endfor %}
+            {% endif %}
+            <p id="settingsRemindersEmpty" class="settings-reminders-empty" {% if global_reminder_state and global_reminder_state.has_reminders %}hidden{% endif %}><i class="fa-solid fa-circle-check" aria-hidden="true"></i> All caught up. No reminders right now.</p>
+        </div>
+    </div>
+</div>

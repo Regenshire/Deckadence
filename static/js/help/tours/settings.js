@@ -7,7 +7,7 @@
   window.DeckadenceTours.register({
     id: "settings_and_tribulations",
 
-    version: 2,
+    version: 3,
 
     title: "Settings and Tribulations",
 
@@ -35,19 +35,19 @@
 
         title: "Reminders",
 
-        body: "Deckadence will display reminders in System Settings, most importantly it will periodically remind you to update the Card Database files.\n\nWhile there is nothing wrong with using the files you downloaded during the setup phase for the rest of time, if you want newly released cards to appear in Deckadence you need to periodically update the Card Database.\n\nYou can configure the reminder interval by clicking on the Reminder Settings icon in the upper right.",
+        body: "Reminders are shortcuts to settings that need your attention. Select a release reminder to open Release Updates, or a database reminder to open the card database refresh tools.\n\nConfigure reminder intervals using the Reminder Settings icon in the upper right.",
       },
 
       {
-        id: "system_settings",
+        id: "release_updates",
 
         route: "/config",
 
-        target: "#section_reminders",
+        target: "#section_release_updates",
 
-        title: "Deckadence Release Status",
+        title: "Release Updates",
 
-        body: "Deckadence checks the git repository to see if there is a new version of the software available.  If you see a new version, feel free to update to it.\n\nBut only if you want. Its your choice!",
+        body: "Check the installed and latest versions, expand the release notes, and download an update when you’re ready.\n\nOn the computer running a packaged Deckadence release, choose Install and restart after the download is verified. Your saved data stays in place.",
       },
 
       {

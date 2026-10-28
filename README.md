@@ -141,6 +141,51 @@ Python is included in this package. You can also run **`Start_Deckadence.command
 
 ---
 
+# Updating Deckadence
+
+Starting with **v3.2.0**, packaged releases include an updater in **Settings → System Settings → Release Updates**, directly below Reminders. On the computer running Deckadence, open `http://127.0.0.1:5000`, choose **Check for updates**, then **Download update**. When the download has been verified, choose **Install and restart**, then confirm **Restart and install**. Keep the browser tab open; it reconnects when Deckadence restarts. Reminder shortcuts open the relevant settings section, and full release notes are expandable in Release Updates.
+
+- Finish exports, downloads, plugin setup, backups, and AI jobs before installing. Installation pauses requests from all connected devices.
+- The updater downloads the complete application package for Windows x86-64, Linux x86-64, or macOS Apple Silicon. It keeps the database, settings, installed plugins/models, artwork, print customizations, and exports in place. It does not download the card database again.
+- Deckadence must be in a folder your account can write to. Source checkouts use their normal development update process. Installation controls are available only through a loopback address on the host computer.
+- **Users on v3.1.0 or earlier need one manual upgrade to an updater-enabled release.** Use Settings to export your user content, extract the complete new release into a new folder, start it, and import your backup. Follow the plugin setup instructions for any optional plugins. Subsequent supported updates can be installed from Settings.
+- Before replacing application files, the helper saves the previous application and a consistent snapshot of `cards.db` and `settings.json`. The new version remains in maintenance mode until it starts successfully. A startup failure restores those snapshots and restarts the previous version. This is startup recovery, not an undo button for changes made after a successful update.
+- If power loss or a closed helper interrupts installation, run **Start_Deckadence.bat**, **Start_Deckadence.sh**, or **Start_Deckadence.command** to recover. Keep the entire folder, including `.deckadence-update`, intact. Diagnostics and the most recent recovery snapshots are in that folder. Do not open the executable directly during interrupted-update recovery.
+- An update will stop if application-owned files were customized, a package is incomplete, or disk space is insufficient. It will not overwrite those changes. User files should live in the runtime data/customization folders, outside `_internal` and `Deckadence.app`.
+
+## Publishing updater-compatible releases
+
+Build each platform from the **same release commit**, on its matching operating system and architecture. Keep the Linux build on the supported glibc baseline. The shared `deckadence.spec` builds the application, the independent `DeckadenceUpdater` helper, and launchers with recovery support. Windows' existing `.dev_prompts/build_Deckadence_release.ps1` also packages the update automatically.
+
+The final packaging command works on all three platforms. For example, after a native Apple Silicon build:
+
+```bash
+python3 -m PyInstaller --noconfirm --clean \
+  --workpath .dev_prompts/ai_work/release-build \
+  --distpath .dev_prompts/ai_work/release-dist deckadence.spec
+
+python3 -B update_system.py package \
+  --root .dev_prompts/ai_work/release-dist/Deckadence \
+  --output .dev_prompts/ai_work/Deckadence_v3.2.0_macOS_arm64.zip \
+  --version 3.2.0 --platform macos-arm64
+```
+
+For Linux, use `--platform linux-x86_64` and an archive ending in `_Linux_x86_64.tar.gz`. For Windows, use `--platform windows-x86_64` and `_Windows.zip`. Change the version for each release. The packager rejects unexpected files in the release folder to prevent shipping user data, and creates:
+
+1. The platform archive, containing `deckadence-install.json` with the application file inventory.
+2. An archive `.sha256` file.
+3. `Deckadence-update-<platform>.json`, containing the version, required updater version, minimum application version, package filename, size, and SHA-256 checksum.
+
+Create a **draft GitHub release**, upload each platform's archive and both metadata files, test upgrades and fresh installations, then publish it as a stable release. Only advertise a platform after its archive and metadata are uploaded. A missing platform package shows a manual-release link instead of offering an incompatible download. Prereleases are not offered by the stable updater. The application currently supports upgrading from v3.2.0 onward; if a future migration requires an intermediate version, raise `minimum_app_version` in the packager before publishing that release.
+
+All downloads are restricted to the Deckadence GitHub release and GitHub's HTTPS asset hosts. Downloads are checked against the manifest's SHA-256 and GitHub's asset digest when provided. These checks detect corruption and mismatches; they are **not publisher signatures**. Protect GitHub publishing access accordingly. A separately signed update feed can be added in a later updater schema.
+
+Native signing is separate from these checks. `DECKADENCE_CODESIGN_IDENTITY` can supply the macOS signing identity to PyInstaller. Complete and validate macOS Developer ID signing/notarization, including the launcher app, before producing the final inventory and update archive; any subsequent change requires regenerating them. Test the extracted download and an in-app upgrade on a real Mac with Gatekeeper enabled. Windows signing, if used, likewise happens before final packaging.
+
+Future startup migrations must be compatible with recovery: the helper snapshots the main database and settings, while other user folders remain in place. Any migration that changes other user files must add those files to the recovery design before that release is published. Failed updates should be corrected in a new version rather than replacing an already published archive.
+
+---
+
 # First-Time Use
 
 The startup instructions below are for the packaged Windows release. Linux and macOS users should start Deckadence using their installation instructions above, then follow steps 2 onward in the browser.

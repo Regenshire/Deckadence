@@ -64,6 +64,7 @@ plugin_src/**/models/*.onnx
 plugin_src/**/models/*.safetensors
 
 # Distributions
+.deckadence-update/
 dist/
 build/
 build/Deckadence/

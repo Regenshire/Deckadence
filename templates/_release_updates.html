@@ -1,0 +1,46 @@
+{% set release = global_reminder_state.release_update_state if global_reminder_state else {} %}
+<div id="section_release_updates" class="page-panel collapsible-panel is-open" data-section="release_updates">
+    <button type="button" class="collapsible-header release-updates-header">
+        <span>Release Updates</span>
+        <span class="release-header-status"><span id="applicationUpdateBadge" class="release-status-badge">{{ 'Update available' if release.update_available else 'Check failed' if release.error else 'Not checked' if not release.latest_version else 'No newer release' }}</span><span class="collapsible-chevron">▾</span></span>
+    </button>
+    <div id="applicationUpdateControls" class="collapsible-body application-update-controls">
+        <div class="release-summary">
+            <div class="release-versions">
+                <div><span class="release-version-label">Installed</span><strong id="applicationUpdateInstalled">{{ release.current_version or 'Unknown' }}</strong></div>
+                <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                <div><span class="release-version-label">Latest release</span><strong id="applicationUpdateLatest">{{ release.latest_version or 'Not checked' }}</strong></div>
+            </div>
+            <div class="release-status-copy">
+                <h3 id="applicationUpdateTitle">{{ 'A new version is available.' if release.update_available else 'Keep Deckadence up to date.' }}</h3>
+                <p id="applicationUpdateMessage" role="status" aria-live="polite">Loading update controls…</p>
+                <div id="applicationUpdateMeta" class="release-metadata" hidden><i class="fa-solid fa-desktop" aria-hidden="true"></i><span id="applicationUpdatePlatform"></span><span id="applicationUpdateSize" hidden></span><span>Stable</span></div>
+                <div id="applicationUpdateDownloadProgress" class="release-download-progress" hidden>
+                    <div><span id="applicationUpdateProgressText">Preparing download…</span><span id="applicationUpdatePercent"></span></div>
+                    <progress id="applicationUpdateProgress" aria-label="Update download progress"></progress>
+                </div>
+                <p id="applicationUpdateHost" class="release-host-note" hidden>On the computer running Deckadence, open Settings at <code id="applicationUpdateHostAddress"></code></p>
+            </div>
+        </div>
+        <details id="applicationUpdateNotes" class="release-notes" {% if not release.release_notes and not release.release_url %}hidden{% endif %}>
+            <summary>Full release notes</summary>
+            <pre id="applicationUpdateNotesText">{{ release.release_notes or '' }}</pre>
+            <a id="applicationUpdateReleaseLink" href="{{ release.release_url or 'https://github.com/Regenshire/Deckadence/releases' }}" target="_blank" rel="noopener noreferrer">View on GitHub <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+        </details>
+        <div id="applicationUpdateActions" class="release-actions">
+            <button type="button" id="applicationUpdateDownload" class="action-button" hidden><i class="fa-solid fa-download" aria-hidden="true"></i> <span>Download update</span></button>
+            <button type="button" id="applicationUpdateInstall" class="action-button" hidden><i class="fa-solid fa-rotate" aria-hidden="true"></i> <span>Install and restart</span></button>
+            <button type="button" id="applicationUpdateCheck" class="action-button" disabled><i class="fa-solid fa-rotate" aria-hidden="true"></i> <span>Check for updates</span></button>
+            <button type="submit" form="configForm" formaction="{{ url_for('config_check_new_releases') }}" formmethod="post" id="legacyReleaseCheck" class="action-button secondary-button" hidden><i class="fa-solid fa-rotate" aria-hidden="true"></i> Check for updates</button>
+            <span id="applicationUpdateLastChecked" class="release-last-checked">{{ 'Checked ' ~ release.last_checked_utc if release.last_checked_utc else 'Not checked yet' }}</span>
+        </div>
+        <div id="applicationUpdateConfirmation" class="release-confirmation" hidden>
+            <h3>Ready to restart Deckadence?</h3>
+            <p>Finish your work on connected devices. This page will reconnect after the update.</p>
+            <div class="release-actions"><button type="button" id="applicationUpdateConfirmInstall" class="action-button">Restart and install</button><button type="button" id="applicationUpdateCancelInstall" class="action-button secondary-button">Not now</button></div>
+        </div>
+        <p class="release-preserve"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Your database, artwork, plugins, settings, and exports stay in place.</span></p>
+        <noscript><p>Enable JavaScript to download and install updates. <a href="https://github.com/Regenshire/Deckadence/releases" target="_blank" rel="noopener noreferrer">View releases on GitHub</a>.</p></noscript>
+    </div>
+</div>
+<script type="application/json" id="applicationReleaseState">{{ release | tojson }}</script>

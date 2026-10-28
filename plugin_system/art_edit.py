@@ -113,6 +113,10 @@ def validate_edit(value):
 
 def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decode_mask,card_key):
     jobs={};lock=threading.Lock()
+    def update_activity():
+        with lock:
+            return any(job['state'] in ('queued', 'running') for job in jobs.values())
+    app.extensions.setdefault('update_activity_checks', []).append(update_activity)
     @app.context_processor
     def art_development_context():
         return dict(studio_development_diagnostics=diagnostics.enabled())

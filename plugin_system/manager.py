@@ -34,6 +34,11 @@ PLUGIN_INSTALL_STATUS_LOCK = (
     threading.Lock()
 )
 
+
+def any_plugin_install_running():
+    with PLUGIN_INSTALL_STATUS_LOCK:
+        return any(value.get("is_running") for value in PLUGIN_INSTALL_STATUS.values())
+
 PERSISTENT_PLUGIN_COMMANDS = {
     "upscale",
     "upscale_batch",

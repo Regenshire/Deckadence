@@ -316,8 +316,11 @@ function initializeRefreshCards() {
   let refreshPollPending = false;
   let lastRefreshFinishedAtPrompted = null;
   let refreshObservedRunning = Boolean(refreshButton.disabled);
+  let refreshRunning = refreshObservedRunning;
+  let refreshStarting = false;
 
   function setRefreshRunningUi(isRunning) {
+    refreshRunning = isRunning;
     refreshButton.disabled = isRunning;
 
     if (forcedRefreshButton) {
@@ -461,6 +464,7 @@ function initializeRefreshCards() {
 
         window.alert("Card database download complete.");
       }
+      if (!status.is_running && !refreshStarting) refreshObservedRunning = false;
     } catch (error) {
       const timing = document.getElementById("refreshTiming");
       if (timing)
@@ -479,11 +483,14 @@ function initializeRefreshCards() {
       setRefreshRunningUi(false);
     } finally {
       refreshPollPending = false;
-      refreshPollTimer = setTimeout(pollRefreshStatus, 2000);
+      if ((refreshRunning || refreshStarting) && !document.hidden) {
+        refreshPollTimer = setTimeout(pollRefreshStatus, 2000);
+      }
     }
   }
 
   async function startRefresh(forceDownload) {
+    refreshStarting = true;
     try {
       refreshObservedRunning = true;
       setRefreshRunningUi(true);
@@ -522,12 +529,16 @@ function initializeRefreshCards() {
 
       await pollRefreshStatus();
     } catch (error) {
+      refreshObservedRunning = false;
       setRefreshRunningUi(false);
-
-      if (refreshError) {
+      // The start request may have reached the server even if its response was lost.
+      await pollRefreshStatus();
+      if (refreshError && !refreshRunning) {
         refreshError.textContent = error.message;
         refreshError.classList.remove("hidden");
       }
+    } finally {
+      refreshStarting = false;
     }
   }
 
@@ -578,6 +589,13 @@ function initializeRefreshCards() {
     });
   }
 
+  document.addEventListener("visibilitychange", function () {
+    clearTimeout(refreshPollTimer);
+    if (!document.hidden) pollRefreshStatus();
+  });
+  document.addEventListener("settings:section-opened", function (event) {
+    if (event.detail.section === "card_database") pollRefreshStatus();
+  });
   pollRefreshStatus();
 }
 
@@ -614,7 +632,12 @@ function initializeSettingsConsole() {
     },
     reminders: {
       description:
-        "Release checks, reminder status, and notification preferences.",
+        "Shortcuts to things that need your attention.",
+      showSave: false,
+    },
+    release_updates: {
+      description: "Keep Deckadence up to date.",
+      showSave: false,
     },
     print_settings: {
       description:
@@ -690,7 +713,17 @@ function initializeSettingsConsole() {
       description:
         "Application-wide reminders, release information, and notification preferences.",
       iconClass: "fa-solid fa-sliders",
-      sections: ["reminders", "theme"],
+      sections: ["reminders", "release_updates", "theme"],
+      parent: "form",
+    },
+    {
+      key: "database",
+      eyebrow: "CARD DATA",
+      title: "Database Settings",
+      description:
+        "Manage the local card database, refresh status, and card data source.",
+      iconClass: "fa-solid fa-database",
+      sections: ["card_database"],
       parent: "form",
     },
     {
@@ -738,16 +771,6 @@ function initializeSettingsConsole() {
         "other_filters",
         "momir_print_settings",
       ],
-      parent: "form",
-    },
-    {
-      key: "database",
-      eyebrow: "CARD DATA",
-      title: "Database Settings",
-      description:
-        "Manage the local card database, refresh status, and card data source.",
-      iconClass: "fa-solid fa-database",
-      sections: ["card_database"],
       parent: "form",
     },
     {
@@ -951,8 +974,13 @@ function initializeConfigPanels() {
       return;
     }
 
+    header.setAttribute("aria-expanded", String(panel.classList.contains("is-open")));
     header.addEventListener("click", function () {
       panel.classList.toggle("is-open");
+      header.setAttribute("aria-expanded", String(panel.classList.contains("is-open")));
+      if (panel.classList.contains("is-open")) {
+        document.dispatchEvent(new CustomEvent("settings:section-opened", {detail: {section: panel.dataset.section}}));
+      }
     });
   });
 }
@@ -1027,6 +1055,36 @@ function initializeConfigShortcutNavigation() {
   const openParam = (url.searchParams.get("open") || "").trim();
   const scrollParam = (url.searchParams.get("scroll") || "").trim();
 
+  function openSection(sectionName, scroll = false, focus = false) {
+    const panel = document.getElementById("section_" + sectionName);
+    if (!panel || !panel.classList.contains("collapsible-panel")) return false;
+    panel.classList.add("is-open");
+    document.dispatchEvent(new CustomEvent("settings:section-opened", {detail: {section: sectionName}}));
+    const header = panel.querySelector(".collapsible-header");
+    if (header) {
+      header.setAttribute("aria-expanded", "true");
+      if (focus) header.focus({preventScroll: true});
+    }
+    if (scroll) panel.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth",
+      block: "start",
+    });
+    return true;
+  }
+
+  document.querySelectorAll("[data-settings-section]").forEach(function (link) {
+    link.addEventListener("click", function (event) {
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
+      const sectionName = link.dataset.settingsSection;
+      if (!openSection(sectionName, true, true)) return;
+      event.preventDefault();
+      const destination = new URL(window.location.href);
+      destination.searchParams.set("open", sectionName);
+      destination.searchParams.set("scroll", sectionName);
+      window.history.replaceState(null, "", destination);
+    });
+  });
+
   if (openParam) {
     const sectionNames = openParam
       .split(",")
@@ -1036,24 +1094,11 @@ function initializeConfigShortcutNavigation() {
       .filter(Boolean);
 
     sectionNames.forEach(function (sectionName) {
-      const panel = document.querySelector(
-        '.collapsible-panel[data-section="' + sectionName + '"]',
-      );
-      if (panel) {
-        panel.classList.add("is-open");
-      }
+      openSection(sectionName);
     });
   }
 
   if (scrollParam) {
-    const scrollTarget = document.getElementById("section_" + scrollParam);
-    if (scrollTarget) {
-      setTimeout(function () {
-        scrollTarget.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }, 150);
-    }
+    setTimeout(() => openSection(scrollParam, true), 150);
   }
 }
