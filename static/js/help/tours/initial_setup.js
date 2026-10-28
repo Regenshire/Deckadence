@@ -13,7 +13,7 @@
   window.DeckadenceTours.register({
     id: "initial_setup",
 
-    version: 2,
+    version: 3,
 
     title: "Initial Setup",
 
@@ -53,7 +53,7 @@
 
         title: "Download Card Database",
 
-        body: "Use Download Card Database to download the current card database files. This button downloads data files from sources such as MTGJSON and Scryfall to create the local card database.  It installs the data Deckadence requires to function. To use Deckadence you must complete this step.",
+        body: "Choose Download database to get the card data Deckadence needs. After setup, this button becomes Refresh database so you can update the local MTGJSON and Scryfall data.",
       },
 
       {
@@ -61,11 +61,11 @@
 
         route: "/config",
 
-        target: "#section_card_database .refresh-status-row",
+        target: "#section_card_database .database-health",
 
         title: "Download Progress",
 
-        body: "The current stage, progress, and any errors appear here. Keep Deckadence running until the stage says Complete.",
+        body: "The current stage, progress, and any errors appear here. Keep Deckadence running until you see Database refresh complete. Expand Refresh activity for the detailed log.",
       },
 
       {

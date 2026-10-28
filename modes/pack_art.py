@@ -804,7 +804,7 @@ class PackArtJobs:
         self.results = []
         self.state = {'state': 'idle', 'job_id': '', 'stage': 'Ready', 'message': 'Choose products and start a download.',
                       'total_sets': 0, 'completed_sets': 0, 'downloaded': 0, 'existing': 0,
-                      'unavailable': 0, 'bytes_received': 0, 'error': ''}
+                      'unavailable': 0, 'bytes_received': 0, 'error': '', 'skipped_sets': []}
 
     @property
     def busy(self):
@@ -814,7 +814,8 @@ class PackArtJobs:
     def status(self, after=0, job_id=''):
         with self.lock:
             offset = max(0, min(after, len(self.results))) if job_id == self.state['job_id'] else 0
-            return {**self.state, 'results': copy.deepcopy(self.results[offset:]), 'cursor': len(self.results)}
+            return {**self.state, 'skipped_sets': list(self.state.get('skipped_sets', [])),
+                    'results': copy.deepcopy(self.results[offset:]), 'cursor': len(self.results)}
 
     def _update(self, **changes):
         with self.lock:
@@ -901,7 +902,7 @@ class PackArtJobs:
                 message += f' {skipped} changed files kept; {failed} files could not be cleared.'
             self.state = {'state': 'idle', 'job_id': uuid4().hex, 'stage': 'Generated pack images cleared',
                           'message': message, 'total_sets': 0, 'completed_sets': 0, 'downloaded': 0,
-                          'existing': 0, 'unavailable': 0, 'bytes_received': 0, 'error': ''}
+                          'existing': 0, 'unavailable': 0, 'bytes_received': 0, 'error': '', 'skipped_sets': []}
             return {'cleared': cleared, 'skipped': skipped, 'failed': failed}
 
     def start(self, set_codes=None, product_types=None, pack_style='auto', base_color=None):
@@ -918,10 +919,8 @@ class PackArtJobs:
         types = [key for key in PRODUCT_TYPES if key in product_types]  # packs before boxes and bundles
         catalog = self.catalog()
         unknown = codes - {item['set_code'] for item in catalog}
-        if unknown:
-            raise ValueError('No imported booster definitions for: ' + ', '.join(sorted(unknown)))
         selected = [item for item in catalog if not codes or item['set_code'] in codes]
-        if not selected:
+        if not selected and not codes:
             raise ValueError('Download the card database before downloading pack art.')
         with self.lock:
             if self.busy:
@@ -932,7 +931,13 @@ class PackArtJobs:
             self.state = {'state': 'running', 'job_id': uuid4().hex, 'stage': 'Starting', 'message': 'Checking existing artwork…',
                           'total_sets': len(selected), 'completed_sets': 0, 'downloaded': 0, 'existing': 0,
                           'unavailable': 0, 'bytes_received': 0, 'error': '', 'started_at': time.time(),
+                          'skipped_sets': sorted(unknown),
                           'product_types': types, 'set_codes': sorted(codes), 'pack_style': pack_style, 'base_color': base_color}
+            if not selected:
+                self.worker = None
+                self.state.update(state='complete', stage='No matching sets', finished_at=time.time(),
+                                  message='No images downloaded. Check the skipped set codes or refresh the card database, then try again.')
+                return self.state['job_id']
             self.worker = threading.Thread(target=self._run, args=(selected, types), name='deckadence-pack-art', daemon=True)
             try:
                 self.worker.start()

@@ -14,7 +14,7 @@
 >
 <link
     rel="stylesheet"
-    href="{{ url_for('static', filename='css/config.css', v='release-section-2') }}"
+    href="{{ url_for('static', filename='css/config.css', v='pack-skip-5') }}"
 >
 
 {% endblock %}
@@ -584,81 +584,7 @@
 
 
     </form>
-    <div id="section_card_database" class="page-panel collapsible-panel {% if section_defaults.get('card_database') == '1' %}is-open{% endif %}" data-section="card_database">
-        <button type="button" class="collapsible-header">
-            <span>Card Database</span>
-            <span class="collapsible-chevron">▾</span>
-        </button>
-
-        <div class="collapsible-body">
-
-            <div class="metadata-list">
-                <div class="metadata-row">
-                    <span>Last Database Download</span>
-                    <strong id="importLastRefresh">{{ import_metadata.get("last_refresh_utc", "Never") }}</strong>
-                </div>
-                <div class="metadata-row">
-                    <span>Source URL</span>
-                    <strong class="metadata-value-wrap">{{ import_metadata.get("source_url", "Not downloaded yet") }}</strong>
-                </div>
-                <div class="metadata-row">
-                    <span>Source File Date</span>
-                    <strong id="importSourceLastUpdated">{{ import_metadata.get("source_last_updated", "Unknown") }}</strong>
-                </div>
-                <div class="metadata-row">
-                    <span>Cards Imported</span>
-                    <strong id="importCardsCount">{{ import_metadata.get("cards_imported", "0") }}</strong>
-                </div>
-                <div class="metadata-row">
-                    <span>Sets Represented</span>
-                    <strong id="importSetsCount">{{ import_metadata.get("sets_represented", "0") }}</strong>
-                </div>
-            </div>
-
-            <div class="refresh-panel">
-                <div class="refresh-status-row">
-                    <div id="refreshSpinner" class="spinner {% if not refresh_status.get('is_running') %}hidden{% endif %}"></div>
-                    <div class="refresh-status-text">
-                        <div><strong id="refreshStage">{{ refresh_status.get("stage", "Idle") }}</strong></div>
-                        <div id="refreshMessage">{{ refresh_status.get("message", "No refresh has been run yet.") }}</div>
-                        <progress id="refreshProgress" aria-label="Current stage progress" hidden></progress>
-                        <div id="refreshProgressSummary" role="status"></div>
-                        <div id="refreshTiming"></div>
-                        <div id="refreshError" class="refresh-error {% if not refresh_status.get('error') %}hidden{% endif %}">
-                            {{ refresh_status.get("error", "") }}
-                        </div>
-
-                        <pre
-                            id="refreshDetailLines"
-                            class="refresh-detail-lines"
-                        >{% if refresh_status.get("detail_lines") %}{{ refresh_status.get("detail_lines", []) | join('\n') }}{% endif %}</pre>
-                    </div>
-                </div>
-                <div class="config-button-row">
-                    <button
-                        type="button"
-                        id="refreshCardsButton"
-                        class="action-button"
-                        {% if refresh_status.get("is_running") %}disabled{% endif %}
-                    >
-                        Download Card Database
-                    </button>
-
-                    <!--<button
-                        type="button"
-                        id="forcedRefreshCardsButton"
-                        class="action-button secondary-button force-refresh-button"
-                        {% if refresh_status.get("is_running") %}disabled{% endif %}
-                    >
-                        Forced Refresh
-                    </button>-->
-                    <button type="button" id="openPackDownloader" class="action-button secondary-button">
-                        Pack Image Downloader
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+    {% include "_card_database_settings.html" %}
 
         <div id="section_exports" class="page-panel collapsible-panel {% if section_defaults.get('exports') == '1' %}is-open{% endif %}" data-section="exports">
             <button type="button" class="collapsible-header">
@@ -1242,7 +1168,7 @@
         <fieldset id="packDownloaderOptions" class="pack-downloader-options" aria-label="Choose products to download">
             <label class="pack-downloader-set-label" for="packDownloaderSets">Set codes <span>(optional)</span></label>
             <input id="packDownloaderSets" type="text" placeholder="All imported booster sets, or enter FIN, ECL, TMT" maxlength="2000" autocomplete="off" spellcheck="false" aria-describedby="packDownloaderSetsHelp">
-            <p id="packDownloaderSetsHelp" class="pack-downloader-hint">Leave blank to check all imported booster sets, newest first.</p>
+            <p id="packDownloaderSetsHelp" class="pack-downloader-hint">Leave blank to check all imported booster sets, newest first. Set codes without imported booster definitions are skipped.</p>
             <label class="pack-downloader-set-label" for="packDownloaderStyle">Generated pack design</label>
             <select id="packDownloaderStyle">
                 <option value="auto">Automatic — release year</option>
@@ -1276,6 +1202,7 @@
             <progress id="packDownloaderProgress" value="0" max="1" aria-label="Sets checked"></progress>
             <div class="pack-downloader-status-heading"><span id="packDownloaderMessage">Choose products and start a download.</span><span id="packDownloaderTransfer"></span></div>
             <span id="packDownloaderSetProgress"></span>
+            <p id="packDownloaderSkipped" class="pack-downloader-skipped" hidden></p>
         </div>
         <p id="packDownloaderError" class="pack-downloader-error" role="alert" hidden></p>
         <div id="packDownloaderResults" class="pack-downloader-results" aria-label="Downloaded pack images and results"></div>
@@ -2456,7 +2383,7 @@
 {% endblock %}
 
 {% block page_scripts_before_app %}
-<script src="{{ url_for('static', filename='js/config.js', v='database-order-5') }}"></script>
+<script src="{{ url_for('static', filename='js/config.js', v='pack-skip-8') }}"></script>
 {% endblock %}
 
 {% block page_scripts_after_app %}

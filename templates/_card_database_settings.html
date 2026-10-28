@@ -1,0 +1,49 @@
+{% set database = namespace(ready=true, due=false) %}
+{% if global_reminder_state %}
+    {% for reminder in global_reminder_state['items'] %}
+        {% if reminder.key == 'card_database_missing' %}{% set database.ready = false %}{% endif %}
+        {% if reminder.key in ['card_database_due', 'card_database_unknown'] %}{% set database.due = true %}{% endif %}
+    {% endfor %}
+{% endif %}
+<div id="section_card_database" class="page-panel collapsible-panel {% if section_defaults.get('card_database') == '1' %}is-open{% endif %}" data-section="card_database">
+    <button type="button" class="collapsible-header database-header">
+        <span>Card Database</span>
+        <span class="database-header-status"><span id="databaseStatusBadge" class="database-status-badge">{{ 'Setup needed' if not database.ready else 'Refresh due' if database.due else 'Ready' }}</span><span class="collapsible-chevron">▾</span></span>
+    </button>
+    <div class="collapsible-body database-body">
+        <div class="database-summary">
+            <div class="database-stats">
+                <div class="database-stat"><span>Cards</span><strong id="importCardsCount">{{ '{:,}'.format(import_metadata.get('cards_imported', '0') | int) }}</strong></div>
+                <div class="database-stat"><span>Sets</span><strong id="importSetsCount">{{ '{:,}'.format(import_metadata.get('sets_represented', '0') | int) }}</strong></div>
+                <div class="database-last-refreshed">Last refreshed <span id="importLastRefresh">{{ import_metadata.get('last_refresh_utc') or 'Not downloaded' }}</span></div>
+            </div>
+            <div class="database-health">
+                <h3 id="databaseStatusTitle">{{ 'Get your card database ready.' if not database.ready else 'Ready for a refresh.' if database.due else 'Your card database is ready.' }}</h3>
+                <p id="refreshMessage" role="status" aria-live="polite">{{ 'Download the card and set information Deckadence needs to find cards and build packs.' if not database.ready else 'Refresh your database to pick up newly released cards and updated set information.' }}</p>
+                <div class="database-source-hint"><i class="fa-solid fa-cloud-arrow-down" aria-hidden="true"></i><span>MTGJSON · card and set data</span></div>
+                <p id="refreshError" class="database-error" role="alert" hidden></p>
+                <div id="databaseRefreshProgress" class="database-progress" hidden>
+                    <div id="refreshOverallProgress" hidden>
+                        <div class="database-progress-labels"><strong id="refreshStepLabel">Overall refresh</strong><span id="refreshStepCount"></span></div>
+                        <div id="refreshOverallTrack" class="database-progress-track" role="progressbar" aria-label="Overall refresh steps" aria-valuemin="0"><span class="database-progress-fill"></span></div>
+                    </div>
+                    <div class="database-progress-labels"><span id="refreshProgressStage">Preparing refresh</span><span id="refreshProgressPercent"></span></div>
+                    <div id="refreshProgress" class="database-progress-track" role="progressbar" aria-labelledby="refreshProgressStage" aria-describedby="refreshProgressSummary" aria-valuemin="0" aria-valuemax="100"><span class="database-progress-fill"></span></div>
+                    <p id="refreshProgressSummary"></p>
+                </div>
+            </div>
+        </div>
+        <div class="database-actions"><button type="button" id="refreshCardsButton" class="action-button" {% if refresh_status.get('is_running') %}disabled{% endif %}><i class="fa-solid fa-rotate" aria-hidden="true"></i><span>{{ 'Refresh database' if database.ready else 'Download database' }}</span></button><span id="databaseRefreshHint">Checks for newer source data before refreshing.</span></div>
+        <div class="database-disclosures">
+            <details><summary>Source details</summary><dl class="database-source-details"><dt>Primary provider</dt><dd>MTGJSON</dd><dt>Primary source file</dt><dd>AtomicCards.json</dd><dt>Supporting data</dt><dd>MTGJSON sets, printings, booster data and prices; Scryfall printings, tokens and set icons.</dd><dt>Downloaded source date</dt><dd id="importSourceLastUpdated">{{ import_metadata.get('source_last_updated') or 'Not downloaded' }}</dd><dt>Source URL</dt><dd id="importSourceUrl">{{ import_metadata.get('source_url') or 'https://mtgjson.com/api/v5/AtomicCards.json' }}</dd></dl></details>
+            <details id="databaseRefreshActivity"><summary>Refresh activity</summary><div class="database-activity-body"><strong id="refreshStage">{{ refresh_status.get('stage', 'Idle') }}</strong><p id="refreshActivityMessage">{{ refresh_status.get('message', '') }}</p><p id="refreshTiming"></p><pre id="refreshDetailLines">{{ refresh_status.get('detail_lines', []) | join('\n') }}</pre><p id="refreshActivityEmpty" {% if refresh_status.get('detail_lines') %}hidden{% endif %}>No detailed refresh activity yet.</p></div></details>
+        </div>
+        <p class="database-preserve"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Your decks, custom cards, and artwork stay in place.</span></p>
+    </div>
+</div>
+<div id="databasePackImages" class="database-pack-images">
+    <span class="database-pack-icon"><i class="fa-solid fa-images" aria-hidden="true"></i></span>
+    <div class="database-pack-copy"><strong>Pack images</strong><p>Download artwork for booster packs and products.</p></div>
+    <button type="button" id="openPackDownloader" class="action-button secondary-button" aria-haspopup="dialog" aria-controls="packDownloaderModal">Open downloader <i class="fa-solid fa-arrow-right" aria-hidden="true"></i></button>
+</div>
+<script type="application/json" id="databaseSettingsState">{{ {'ready': database.ready, 'due': database.due, 'last_refresh_utc': import_metadata.get('last_refresh_utc', ''), 'status': refresh_status} | tojson }}</script>

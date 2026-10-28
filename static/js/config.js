@@ -130,8 +130,16 @@ function initializePackDownloader() {
       state.state === "cancelling" ? "Cancelling…" : "Cancel download";
     get("packDownloaderStage").textContent = state.stage;
     get("packDownloaderMessage").textContent = state.message;
+    const skipped = Array.isArray(state.skipped_sets) ? state.skipped_sets : [];
     get("packDownloaderCounts").textContent =
-      `${state.downloaded} saved · ${state.existing} kept · ${state.unavailable} unavailable`;
+      `${state.downloaded} saved · ${state.existing} kept · ${state.unavailable} unavailable` +
+      (skipped.length ? ` · ${skipped.length} ${skipped.length === 1 ? "set" : "sets"} skipped` : "");
+    const skippedNotice = get("packDownloaderSkipped");
+    const skippedMessage = skipped.length
+      ? `Skipped ${skipped.join(", ")}: no imported booster definitions are available for these set codes. Other matching sets are processed normally.`
+      : "";
+    if (skippedNotice.textContent !== skippedMessage) skippedNotice.textContent = skippedMessage;
+    skippedNotice.hidden = !skipped.length;
     get("packDownloaderProgress").max = state.total_sets || 1;
     get("packDownloaderProgress").value = state.completed_sets || 0;
     get("packDownloaderSetProgress").textContent = state.total_sets
@@ -214,6 +222,7 @@ function initializePackDownloader() {
         base_color: baseColor || null,
       });
       await refresh();
+      get("packDownloaderStatus").scrollIntoView({block: "nearest"});
     } catch (e) {
       showError(e.message);
       options.disabled = running;
@@ -304,6 +313,12 @@ function initializeRefreshCards() {
   const importSourceLastUpdated = document.getElementById(
     "importSourceLastUpdated",
   );
+  const databaseState = document.getElementById("databaseSettingsState");
+  const database = databaseState ? JSON.parse(databaseState.textContent) : {ready: false, due: false};
+  const databaseBadge = document.getElementById("databaseStatusBadge");
+  const databaseTitle = document.getElementById("databaseStatusTitle");
+  const refreshButtonLabel = refreshButton?.querySelector("span");
+  let statusUnavailable = false;
 
   const clearHistoryButton = document.getElementById("clearHistoryButton");
   const historyCount = document.getElementById("historyCount");
@@ -314,7 +329,6 @@ function initializeRefreshCards() {
 
   let refreshPollTimer = null;
   let refreshPollPending = false;
-  let lastRefreshFinishedAtPrompted = null;
   let refreshObservedRunning = Boolean(refreshButton.disabled);
   let refreshRunning = refreshObservedRunning;
   let refreshStarting = false;
@@ -332,25 +346,112 @@ function initializeRefreshCards() {
     }
   }
 
+  function displayDate(value) {
+    if (!value) return "Not downloaded";
+    const date = new Date(String(value).replace(" UTC", "Z").replace(/^(\d{4}-\d\d-\d\d) /, "$1T"));
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString([], {dateStyle: "medium", timeStyle: "short"});
+  }
+
+  function showRefreshError(text) {
+    if (!refreshError) return;
+    refreshError.textContent = text || "";
+    refreshError.hidden = !text;
+  }
+
+  function renderDatabaseStatus(status) {
+    const stage = status.stage || "Idle";
+    const busy = Boolean(status.is_running);
+    const failed = !busy && (stage === "Failed" || Boolean(status.error));
+    let badge = "Ready", tone = "neutral", title = "Your card database is ready.";
+    let copy = "Refresh to pick up newly released cards and updated set information.";
+    let action = "Refresh database";
+    if (!database.ready) {
+      badge = "Setup needed"; tone = "warning"; title = "Get your card database ready.";
+      copy = "Download the card and set information Deckadence needs to find cards and build packs.";
+      action = "Download database";
+    } else if (database.due) {
+      badge = "Refresh due"; tone = "warning"; title = "Ready for a refresh.";
+    } else if (stage === "Complete") {
+      badge = "Updated"; tone = "success"; title = "Database refresh complete.";
+      copy = "Your card and set information is ready to use.";
+    }
+    if (busy) {
+      tone = "info";
+      if (/download check|checking|starting/i.test(stage)) {
+        badge = "Checking"; title = "Checking the database sources…";
+      } else if (/download/i.test(stage)) {
+        badge = "Downloading"; title = "Downloading database files…";
+      } else {
+        badge = "Importing"; title = "Updating cards and sets…";
+      }
+      action = badge + "…";
+      copy = "Keep Deckadence running and this page open until the refresh finishes.";
+    } else if (failed) {
+      badge = "Refresh interrupted"; tone = "warning"; title = "The refresh couldn’t finish.";
+      copy = "Review Refresh activity for details, then try again.";
+      action = "Try refresh again";
+    }
+    if (databaseBadge) {databaseBadge.textContent = badge; databaseBadge.dataset.tone = tone;}
+    if (databaseTitle) databaseTitle.textContent = title;
+    if (refreshMessage && refreshMessage.textContent !== copy) refreshMessage.textContent = copy;
+    if (refreshButtonLabel) refreshButtonLabel.textContent = action;
+    const hint = document.getElementById("databaseRefreshHint");
+    if (hint) hint.textContent = busy ? "Progress updates while the refresh is running." : "Checks for newer source data before refreshing.";
+  }
+
+  function clearDatabaseReminders() {
+    document.querySelectorAll('.settings-reminder-shortcut[data-settings-section="card_database"]').forEach(row => {row.hidden = true;});
+    const count = Array.from(document.querySelectorAll(".settings-reminder-shortcut")).filter(row => !row.hidden).length;
+    const badge = document.getElementById("settingsReminderCount");
+    const empty = document.getElementById("settingsRemindersEmpty");
+    if (badge) {badge.textContent = count; badge.hidden = !count;}
+    if (empty) empty.hidden = Boolean(count);
+  }
+
   function applyRefreshStatus(status) {
+    statusUnavailable = false;
     const progress = document.getElementById("refreshProgress");
     const summary = document.getElementById("refreshProgressSummary");
     const timing = document.getElementById("refreshTiming");
-    const total = Number(status.progress_total) || 0;
-    const current = Number(status.progress_current) || 0;
+    const total = Math.max(0, Number(status.progress_total) || 0);
+    const current = Math.max(0, Number(status.progress_current) || 0);
+    const percent = total ? Math.min(100, current / total * 100) : null;
+    const progressContainer = document.getElementById("databaseRefreshProgress");
+    const progressStage = document.getElementById("refreshProgressStage");
+    const progressPercent = document.getElementById("refreshProgressPercent");
+    if (progressContainer) progressContainer.hidden = !status.is_running;
+    if (progressStage) progressStage.textContent = (status.stage || "Preparing refresh").replace(/\s*- DO NOT LEAVE PAGE/i, "");
+    if (progressPercent) progressPercent.textContent = total ? Math.floor(percent) + "%" : "Working…";
     if (progress) {
-      progress.hidden = !status.is_running && status.stage !== "Complete";
-      progress.max = total || 1;
-      if (total) progress.value = Math.min(current, total);
-      else if (status.stage === "Complete") progress.value = 1;
-      else progress.removeAttribute("value");
+      progress.classList.toggle("is-indeterminate", !total);
+      progress.querySelector(".database-progress-fill").style.width = total ? `${percent}%` : "";
+      if (total) progress.setAttribute("aria-valuenow", percent);
+      else progress.removeAttribute("aria-valuenow");
     }
-    if (summary)
-      summary.textContent = total
-        ? `${current.toLocaleString()} of ${total.toLocaleString()} ${status.progress_unit || "items"} (${Math.floor((current / total) * 100)}%)`
-        : status.is_running
-          ? "Processing..."
-          : "";
+    const unit = status.progress_unit || "items processed";
+    const isBytes = unit.startsWith("bytes ");
+    const formatCount = value => isBytes
+      ? `${(value / 1024 / 1024).toLocaleString(undefined, {maximumFractionDigits: 1})} MB`
+      : value.toLocaleString();
+    if (summary) summary.textContent = total
+      ? `${formatCount(current)} of ${formatCount(total)} ${isBytes ? unit.slice(6) : unit}`
+      : current > 0
+        ? `${formatCount(current)} ${isBytes ? unit.slice(6) : unit} · total not yet known`
+        : status.message || "Working on this step…";
+    const stepTotal = Number(status.step_total) || 0;
+    const stepCurrent = Math.min(stepTotal, Math.max(0, Number(status.step_current) || 0));
+    const completed = Math.min(stepTotal, Math.max(0, Number(status.steps_completed) || 0));
+    const overall = document.getElementById("refreshOverallProgress");
+    if (overall) {
+      overall.hidden = !stepTotal;
+      document.getElementById("refreshStepLabel").textContent = "Overall refresh";
+      document.getElementById("refreshStepCount").textContent = stepCurrent ? `Step ${stepCurrent} of ${stepTotal}` : `${stepTotal} steps`;
+      const track = document.getElementById("refreshOverallTrack");
+      track.setAttribute("aria-valuemax", stepTotal);
+      track.setAttribute("aria-valuenow", completed);
+      track.setAttribute("aria-valuetext", `${completed} of ${stepTotal} steps finished. ${status.step_label || "Preparing refresh"}`);
+      track.querySelector(".database-progress-fill").style.width = stepTotal ? `${completed / stepTotal * 100}%` : "0%";
+    }
     if (timing) {
       const now = Date.now() / 1000;
       const age = Math.max(0, Math.floor(now - (status.updated_epoch || now)));
@@ -369,19 +470,9 @@ function initializeRefreshCards() {
       refreshStage.textContent = status.stage || "Idle";
     }
 
-    if (refreshMessage) {
-      refreshMessage.textContent = status.message || "";
-    }
-
-    if (refreshError) {
-      if (status.error) {
-        refreshError.textContent = status.error;
-        refreshError.classList.remove("hidden");
-      } else {
-        refreshError.textContent = "";
-        refreshError.classList.add("hidden");
-      }
-    }
+    const activityMessage = document.getElementById("refreshActivityMessage");
+    if (activityMessage) activityMessage.textContent = status.message || "";
+    showRefreshError(status.error);
 
     if (refreshDetailLines) {
       const detailLines = Array.isArray(status.detail_lines)
@@ -393,31 +484,32 @@ function initializeRefreshCards() {
         const logChanged = refreshDetailLines.textContent !== nextLogText;
 
         refreshDetailLines.textContent = nextLogText;
-        refreshDetailLines.classList.remove("hidden");
+        refreshDetailLines.hidden = false;
 
         if (logChanged) {
           refreshDetailLines.scrollTop = refreshDetailLines.scrollHeight;
         }
       } else {
         refreshDetailLines.textContent = "";
-        refreshDetailLines.classList.add("hidden");
+        refreshDetailLines.hidden = true;
       }
+      const empty = document.getElementById("refreshActivityEmpty");
+      if (empty) empty.hidden = detailLines.length > 0;
     }
 
-    if (importCardsCount && status.cards_imported !== undefined) {
-      importCardsCount.textContent = String(status.cards_imported);
-    }
-
-    if (importSetsCount && status.sets_represented !== undefined) {
-      importSetsCount.textContent = String(status.sets_represented);
-    }
-
-    if (importLastRefresh && status.finished_at) {
-      importLastRefresh.textContent = status.finished_at;
-    }
-
-    if (importSourceLastUpdated && status.source_last_updated) {
-      importSourceLastUpdated.textContent = status.source_last_updated;
+    // Keep the last successful database summary during a new or failed attempt.
+    const complete = !status.is_running && status.stage === "Complete";
+    if (complete || status.stage === "Idle - Setup Complete") {
+      database.ready = true;
+      if (complete && status.finished_at && status.finished_at !== database.last_refresh_utc) database.due = false;
+      if (importCardsCount && status.cards_imported !== undefined) importCardsCount.textContent = Number(status.cards_imported).toLocaleString();
+      if (importSetsCount && status.sets_represented !== undefined) importSetsCount.textContent = Number(status.sets_represented).toLocaleString();
+      if (status.finished_at) {
+        database.last_refresh_utc = status.finished_at;
+        if (importLastRefresh) importLastRefresh.textContent = displayDate(status.finished_at);
+      }
+      if (importSourceLastUpdated && status.source_last_updated) importSourceLastUpdated.textContent = displayDate(status.source_last_updated);
+      if (complete && !database.due) clearDatabaseReminders();
     }
 
     if (status.is_running) {
@@ -425,6 +517,7 @@ function initializeRefreshCards() {
     }
 
     setRefreshRunningUi(Boolean(status.is_running));
+    renderDatabaseStatus(status);
   }
 
   async function fetchRefreshStatus() {
@@ -452,28 +545,17 @@ function initializeRefreshCards() {
       const status = await fetchRefreshStatus();
       applyRefreshStatus(status);
 
-      if (
-        refreshObservedRunning &&
-        !status.is_running &&
-        status.stage === "Complete" &&
-        status.finished_at &&
-        status.finished_at !== lastRefreshFinishedAtPrompted
-      ) {
-        lastRefreshFinishedAtPrompted = status.finished_at;
-        refreshObservedRunning = false;
-
-        window.alert("Card database download complete.");
-      }
       if (!status.is_running && !refreshStarting) refreshObservedRunning = false;
     } catch (error) {
+      statusUnavailable = true;
       const timing = document.getElementById("refreshTiming");
       if (timing)
         timing.textContent =
           "Status unavailable — reconnecting. The download may still be running.";
-      if (refreshError) {
-        refreshError.textContent = error.message;
-        refreshError.classList.remove("hidden");
-      }
+      showRefreshError(error.message);
+      if (databaseBadge) {databaseBadge.textContent = "Status unavailable"; databaseBadge.dataset.tone = "warning";}
+      if (databaseTitle) databaseTitle.textContent = "Couldn’t read the refresh status.";
+      if (refreshMessage) refreshMessage.textContent = refreshObservedRunning ? "The refresh may still be running. Waiting to reconnect…" : "Check the connection to Deckadence and try again.";
 
       if (refreshObservedRunning) {
         setRefreshRunningUi(true);
@@ -481,6 +563,7 @@ function initializeRefreshCards() {
       }
 
       setRefreshRunningUi(false);
+      if (refreshButtonLabel) refreshButtonLabel.textContent = "Retry connection";
     } finally {
       refreshPollPending = false;
       if ((refreshRunning || refreshStarting) && !document.hidden) {
@@ -495,10 +578,8 @@ function initializeRefreshCards() {
       refreshObservedRunning = true;
       setRefreshRunningUi(true);
 
-      if (refreshError) {
-        refreshError.textContent = "";
-        refreshError.classList.add("hidden");
-      }
+      showRefreshError("");
+      renderDatabaseStatus({is_running: true, stage: "Starting"});
 
       if (refreshStage) {
         refreshStage.textContent = "Starting";
@@ -534,8 +615,7 @@ function initializeRefreshCards() {
       // The start request may have reached the server even if its response was lost.
       await pollRefreshStatus();
       if (refreshError && !refreshRunning) {
-        refreshError.textContent = error.message;
-        refreshError.classList.remove("hidden");
+        showRefreshError(error.message);
       }
     } finally {
       refreshStarting = false;
@@ -543,7 +623,8 @@ function initializeRefreshCards() {
   }
 
   refreshButton.addEventListener("click", async function () {
-    await startRefresh(false);
+    if (statusUnavailable) await pollRefreshStatus();
+    else await startRefresh(false);
   });
 
   if (forcedRefreshButton) {
@@ -596,6 +677,9 @@ function initializeRefreshCards() {
   document.addEventListener("settings:section-opened", function (event) {
     if (event.detail.section === "card_database") pollRefreshStatus();
   });
+  if (importLastRefresh) importLastRefresh.textContent = displayDate(database.last_refresh_utc);
+  if (importSourceLastUpdated) importSourceLastUpdated.textContent = displayDate(importSourceLastUpdated.textContent.trim());
+  if (database.status) applyRefreshStatus(database.status);
   pollRefreshStatus();
 }
 
@@ -650,7 +734,8 @@ function initializeSettingsConsole() {
     },
     card_database: {
       description:
-        "Card database status, refresh controls, and source information.",
+        "Card and set information stored on this computer.",
+      showSave: false,
     },
     draft_modes: {
       description:
@@ -721,9 +806,10 @@ function initializeSettingsConsole() {
       eyebrow: "CARD DATA",
       title: "Database Settings",
       description:
-        "Manage the local card database, refresh status, and card data source.",
+        "Keep your cards, sets, and pack artwork current.",
       iconClass: "fa-solid fa-database",
       sections: ["card_database"],
+      footerId: "databasePackImages",
       parent: "form",
     },
     {
@@ -909,6 +995,10 @@ function initializeSettingsConsole() {
 
     category.appendChild(categoryHeader);
     category.appendChild(panelContainer);
+    if (definition.footerId) {
+      const categoryFooter = document.getElementById(definition.footerId);
+      if (categoryFooter) category.appendChild(categoryFooter);
+    }
 
     return category;
   }

@@ -2590,6 +2590,25 @@ def runtime_pack_art_url(relative_pack_art_path):
 SCRYFALL_SETS_API_URL = "https://api.scryfall.com/sets"
 SET_ICON_RELATIVE_DIR = "img/set_icons"
 
+# Ordered work in run_refresh_job. Downloads may contain retries/extraction;
+# these change the substage without advancing the overall step a second time.
+REFRESH_STEPS = (
+    ("card_download", "Download card data"),
+    ("set_download", "Download set list"),
+    ("sets", "Import sets"),
+    ("icons", "Update set icons"),
+    ("artwork", "Prepare artwork folders"),
+    ("cards", "Import cards"),
+    ("printing_download", "Download paper printings"),
+    ("printings", "Index paper printings"),
+    ("draft_download", "Download draft card data"),
+    ("draft_cards", "Import draft cards"),
+    ("tokens", "Import printable tokens"),
+    ("boosters", "Update booster data"),
+    ("prices", "Update prices"),
+    ("finish", "Finalize database"),
+)
+
 refresh_status = {
     "is_running": False,
     "stage": "Idle",
@@ -2723,10 +2742,22 @@ upscaling_batch_lock = threading.Lock()
 def set_refresh_status(**kwargs):
     with refresh_lock:
         now = time.time()
-        if kwargs.get("stage", refresh_status.get("stage")) != refresh_status.get("stage"):
-            refresh_status.update(progress_current=0, progress_total=0, progress_unit="")
-        if kwargs.get("is_running") and kwargs.get("stage") == "Starting":
+        starting = kwargs.get("is_running") and kwargs.get("stage") == "Starting"
+        step = kwargs.pop("step", None)
+        if starting:
             refresh_status["started_epoch"] = now
+            refresh_status.update(step_current=0, step_total=len(REFRESH_STEPS),
+                                  step_label="Preparing refresh", steps_completed=0)
+        if starting or step or kwargs.get("stage", refresh_status.get("stage")) != refresh_status.get("stage"):
+            refresh_status.update(progress_current=0, progress_total=0, progress_unit="")
+        if step:
+            step_index, step_label = next(
+                (index, label) for index, (key, label) in enumerate(REFRESH_STEPS, 1) if key == step
+            )
+            refresh_status.update(step_current=step_index, step_total=len(REFRESH_STEPS),
+                                  step_label=step_label, steps_completed=step_index - 1)
+        if kwargs.get("stage") == "Complete":
+            refresh_status["steps_completed"] = len(REFRESH_STEPS)
         refresh_status["updated_epoch"] = now
         refresh_status.update(kwargs)
 
@@ -3352,6 +3383,12 @@ def import_chaos_cards_from_all_printings():
                 uuid_lookup[card_uuid] = card_obj
 
     imported_count = 0
+    processed_count = 0
+    total_records = sum(
+        len(safe_list(payload.get("cards"))) + len(safe_list(payload.get("tokens")))
+        for payload in all_sets.values() if isinstance(payload, dict)
+    )
+    set_refresh_status(progress_current=0, progress_total=total_records, progress_unit="printings processed")
 
     for set_code, set_obj in all_sets.items():
         if not isinstance(set_obj, dict):
@@ -3364,6 +3401,10 @@ def import_chaos_cards_from_all_printings():
         ]
 
         for card_obj in cards:
+            if processed_count % 5000 == 0:
+                set_refresh_status(progress_current=processed_count, progress_total=total_records,
+                                   progress_unit="printings processed")
+            processed_count += 1
             if not isinstance(card_obj, dict):
                 continue
 
@@ -3514,6 +3555,8 @@ def import_chaos_cards_from_all_printings():
     conn.close()
 
     set_import_metadata("chaos_cards_imported", imported_count)
+    set_refresh_status(progress_current=processed_count, progress_total=total_records,
+                       progress_unit="printings processed")
 
     return imported_count
 
@@ -4998,6 +5041,7 @@ def download_file_with_retries(
             set_refresh_status(
                 stage=f"Downloading {label}",
                 message=f"Starting {label} download attempt {attempt_number}/{attempts}...",
+                progress_current=0, progress_total=0, progress_unit="bytes downloaded", error="",
             )
 
             with requests.get(
@@ -5041,6 +5085,8 @@ def download_file_with_retries(
                         f"{label} returned a suspiciously small Content-Length: {content_length} bytes."
                     )
 
+                set_refresh_status(progress_current=0, progress_total=content_length or 0,
+                                   progress_unit="bytes downloaded")
                 with open(temp_path, "wb") as file_handle:
                     for chunk in response.iter_content(chunk_size=chunk_size):
                         if not chunk:
@@ -5050,7 +5096,7 @@ def download_file_with_retries(
                         downloaded_bytes += len(chunk)
 
                         now = time.monotonic()
-                        if now - last_log_at >= 5:
+                        if now - last_log_at >= 2:
                             if content_length:
                                 message = (
                                     f"{label}: downloaded {format_download_size(downloaded_bytes)} "
@@ -5063,6 +5109,8 @@ def download_file_with_retries(
                             set_refresh_status(
                                 stage=f"Downloading {label}",
                                 message=message,
+                                progress_current=downloaded_bytes, progress_total=content_length or 0,
+                                progress_unit="bytes downloaded",
                             )
 
                             try:
@@ -5095,6 +5143,8 @@ def download_file_with_retries(
                 set_refresh_status(
                     stage=f"Downloading {label}",
                     message=f"{label} download complete: {format_download_size(downloaded_bytes)}.",
+                    progress_current=downloaded_bytes, progress_total=downloaded_bytes,
+                    progress_unit="bytes downloaded",
                 )
 
                 return {
@@ -5156,6 +5206,7 @@ def extract_gzip_file_with_progress(
     set_refresh_status(
         stage=f"Extracting {label}",
         message=f"Extracting {label}...",
+        progress_current=0, progress_total=0, progress_unit="bytes extracted",
     )
 
     extracted_bytes = 0
@@ -5173,12 +5224,13 @@ def extract_gzip_file_with_progress(
                     extracted_bytes += len(chunk)
 
                     now = time.monotonic()
-                    if now - last_log_at >= 5:
+                    if now - last_log_at >= 2:
                         message = f"{label}: extracted {format_download_size(extracted_bytes)}"
                         append_refresh_detail_line(f"=== {message} ===")
                         set_refresh_status(
                             stage=f"Extracting {label}",
                             message=message,
+                            progress_current=extracted_bytes, progress_total=0, progress_unit="bytes extracted",
                         )
 
                         try:
@@ -5202,6 +5254,7 @@ def extract_gzip_file_with_progress(
         set_refresh_status(
             stage=f"Extracting {label}",
             message=f"{label} extract complete: {format_download_size(extracted_bytes)}.",
+            progress_current=extracted_bytes, progress_total=extracted_bytes, progress_unit="bytes extracted",
         )
 
         return {
@@ -18245,6 +18298,7 @@ def import_scryfall_default_cards_into_database():
                         f"Indexed {inserted_count} "
                         "Scryfall paper-printing rows..."
                     ),
+                    progress_current=inserted_count, progress_total=0, progress_unit="printings indexed",
                 )
 
                 write_debug_log(
@@ -18412,9 +18466,13 @@ def import_scryfall_tokens_into_chaos_cards():
     imported_count = 0
 
     try:
-        for card_obj in iter_scryfall_default_card_objects(
+        for scanned_count, card_obj in enumerate(iter_scryfall_default_card_objects(
             SCRYFALL_DEFAULT_CARDS_PATH
-        ):
+        ), 1):
+            if scanned_count % 5000 == 0:
+                set_refresh_status(progress_current=scanned_count, progress_total=0,
+                                   progress_unit="printings checked for tokens",
+                                   message=f"Checked {scanned_count:,} printings; added {imported_count:,} tokens...")
             if not isinstance(card_obj, dict):
                 continue
 
@@ -18967,7 +19025,10 @@ def import_set_list_into_database():
 
     inserted_count = 0
 
-    for set_obj in set_list:
+    for set_index, set_obj in enumerate(set_list, 1):
+        if set_index == 1 or set_index % 100 == 0 or set_index == len(set_list):
+            set_refresh_status(stage="Importing Sets", progress_current=set_index - 1,
+                               progress_total=len(set_list), progress_unit="sets processed")
         if not isinstance(set_obj, dict):
             continue
 
@@ -19009,6 +19070,7 @@ def import_set_list_into_database():
     conn.close()
 
     set_import_metadata("sets_imported", inserted_count)
+    set_refresh_status(progress_current=len(set_list), progress_total=len(set_list), progress_unit="sets processed")
 
     return inserted_count
 
@@ -19031,6 +19093,7 @@ def import_atomic_cards_into_database():
     set_refresh_status(
         stage="Importing",
         message="Importing card records into SQLite...",
+        progress_current=0, progress_total=total_cards, progress_unit="cards processed",
         total_cards=total_cards,
         cards_processed=0,
         cards_imported=0,
@@ -19445,33 +19508,32 @@ def run_refresh_job(force_download=False):
             error="",
         )
 
+        set_refresh_status(step="card_download", stage="Checking Card Data", message="Checking for newer card data...")
         download_result = download_atomic_cards_json(force_download=force_download)
 
         set_refresh_status(
+            step="set_download",
             stage="Downloading Set List",
             message="Downloading SetList.json from MTGJSON...",
         )
         download_set_list_json(force_download=True)
 
         set_refresh_status(
+            step="sets",
             stage="Importing Sets - DO NOT LEAVE PAGE",
             message="Importing set metadata into SQLite...",
         )
         imported_sets = import_set_list_into_database()
 
         set_refresh_status(
+            step="icons",
             stage="Downloading Set Icons",
             message="Downloading Scryfall set icons...",
         )
         download_scryfall_set_icons()
 
         set_refresh_status(
-            stage="Importing Cards - DO NOT LEAVE PAGE",
-            message=f"{download_result['reason']} Beginning import from local AtomicCards.json...",
-            sets_represented=imported_sets,
-        )
-
-        set_refresh_status(
+            step="artwork",
             stage="Preparing Pack Art Folders",
             message="Creating Chaos Draft pack art set folders...",
             sets_represented=imported_sets,
@@ -19479,9 +19541,11 @@ def run_refresh_job(force_download=False):
 
         created_pack_art_folders = ensure_chaos_pack_art_set_folders(report_progress=True)
 
+        set_refresh_status(step="cards", stage="Importing Cards", message="Reading local card data...")
         summary = import_atomic_cards_into_database()
 
         try:
+            set_refresh_status(step="printing_download", stage="Checking Paper Printings", message="Checking Scryfall bulk data...")
             scryfall_bulk_result = (
                 download_scryfall_default_cards_json(
                     force_download=False
@@ -19489,6 +19553,7 @@ def run_refresh_job(force_download=False):
             )
 
             set_refresh_status(
+                step="printings",
                 stage="Indexing Paper Printings",
                 message=scryfall_bulk_result["message"],
                 cards_processed=summary["cards_imported"],
@@ -19563,6 +19628,7 @@ def run_refresh_job(force_download=False):
         print("=== CHAOS DRAFT: BEGIN ALLPRINTINGS DOWNLOAD ===")
 
         set_refresh_status(
+            step="draft_download",
             stage="Downloading Chaos Draft Card Data",
             message="Downloading AllPrintings.json for Chaos Draft...",
             cards_processed=summary["cards_imported"],
@@ -19583,6 +19649,7 @@ def run_refresh_job(force_download=False):
             append_refresh_detail_line(f"=== CHAOS DRAFT: ALL_PRINTINGS_PATH SIZE === {os.path.getsize(ALL_PRINTINGS_PATH)}")
 
         set_refresh_status(
+            step="draft_cards",
             stage="Importing Chaos Draft Cards",
             message="Importing AllPrintings.json into Chaos Draft card tables...",
             cards_processed=summary["cards_imported"],
@@ -19595,6 +19662,7 @@ def run_refresh_job(force_download=False):
         append_refresh_detail_line(f"=== CHAOS DRAFT: IMPORTED CHAOS CARDS === {chaos_cards_imported}")
 
         set_refresh_status(
+            step="tokens",
             stage="Importing Printable Tokens",
             message="Adding paper tokens and emblems from the Scryfall bulk file...",
             cards_processed=summary["cards_imported"],
@@ -19609,6 +19677,7 @@ def run_refresh_job(force_download=False):
         )
 
         set_refresh_status(
+            step="boosters",
             stage="Importing Chaos Draft Booster Data",
             message="Importing MTGJSON Chaos Draft booster CSV data...",
             cards_processed=summary["cards_imported"],
@@ -19617,9 +19686,11 @@ def run_refresh_job(force_download=False):
         )
 
         download_chaos_booster_csvs(force_download=True)
+        set_refresh_status(stage="Importing Chaos Draft Booster Data", message="Importing downloaded booster tables...")
         import_chaos_booster_data()
 
         set_refresh_status(
+            step="prices",
             stage="Downloading Price Data",
             message="Downloading MTGJSON AllPricesToday data...",
             cards_processed=summary["cards_imported"],
@@ -19644,6 +19715,7 @@ def run_refresh_job(force_download=False):
         except Exception as exc:
             append_refresh_detail_line(f"Optional legacy search prices unavailable: {exc}")
 
+        set_refresh_status(step="finish", stage="Finalizing Database", message="Saving refresh results...")
         refresh_finished_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
         set_import_metadata("last_refresh_utc", refresh_finished_at)

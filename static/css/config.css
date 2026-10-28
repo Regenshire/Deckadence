@@ -1522,6 +1522,7 @@ html[data-theme-scheme="light"] .pack-downloader-modal { color-scheme: light; }
 .pack-downloader-status[data-running="true"] strong::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 9px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: pack-download-spin 1s linear infinite; }
 @keyframes pack-download-spin { to { transform: rotate(360deg); } }
 .pack-downloader-error { color: var(--theme-error, var(--danger)); overflow-wrap: anywhere; }
+.pack-downloader-skipped { padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--button); color: var(--text); font-size: .85rem; line-height: 1.5; overflow-wrap: anywhere; }
 .pack-downloader-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 12px; margin-top: 18px; }
 .pack-download-result { border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 5px; min-width: 0; font-size: 0.82rem; overflow-wrap: anywhere; }
 .pack-download-result img { height: 170px; width: 100%; object-fit: contain; margin-bottom: 7px; }
@@ -1567,3 +1568,85 @@ html[data-theme] .app-shell .settings-flat-screen .settings-category {
 @media (max-width: 480px) {
   .pack-clear-modal .pack-downloader-footer .config-button-row { grid-template-columns: 1fr; }
 }
+
+/* Compact database summary, with source information and activity on demand. */
+#section_card_database [hidden] { display: none !important; }
+.database-header-status { display: flex; align-items: center; gap: 16px; }
+.database-status-badge {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border-radius: 20px;
+  background: var(--button); color: var(--muted); font-size: .75rem; font-weight: 650; line-height: 1.3; white-space: nowrap;
+}
+.database-status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.database-status-badge[data-tone="info"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, var(--panel)); }
+.database-status-badge[data-tone="success"] { color: var(--theme-success, var(--text)); background: color-mix(in srgb, var(--theme-success, var(--accent)) 12%, var(--panel)); }
+.database-status-badge[data-tone="warning"] { color: var(--theme-warning, var(--text)); background: color-mix(in srgb, var(--theme-warning, var(--accent)) 12%, var(--panel)); }
+#section_card_database .database-body { padding: 22px; }
+.database-summary { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 32px; }
+.database-stats { display: flex; flex-wrap: wrap; gap: 18px 28px; align-content: start; }
+.database-stat { display: grid; gap: 6px; min-width: 0; }
+.database-stat > span { color: var(--muted); font-size: .7rem; letter-spacing: .07em; font-weight: 750; text-transform: uppercase; }
+.database-stat strong { font-size: 1.6rem; line-height: 1.25; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.database-last-refreshed { width: 100%; color: var(--muted); font-size: .75rem; line-height: 1.6; }
+.database-last-refreshed span { display: block; color: var(--text); font-size: .8rem; }
+.database-health { min-width: 0; }
+.database-health h3 { font-size: 1.05rem; line-height: 1.4; margin: 0 0 7px; }
+.database-health > p { color: var(--muted); font-size: .9rem; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
+.database-source-hint { display: flex; align-items: center; gap: 7px; margin-top: 12px; color: var(--muted); font-size: .75rem; }
+.database-health .database-error { margin-top: 12px; color: var(--theme-error, var(--danger)); font-weight: 600; }
+.database-progress { margin-top: 18px; }
+.database-progress-labels { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+#refreshOverallProgress { margin-bottom: 16px; }
+.database-progress-labels strong { color: var(--text); font-weight: 600; }
+#refreshStepCount, #refreshProgressPercent { flex-shrink: 0; }
+#section_card_database .database-progress-track { display: block; width: 100%; height: 6px; margin: 8px 0; border: 0; border-radius: 6px; background: var(--button); overflow: hidden; }
+.database-progress-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .3s ease; }
+#refreshProgress.is-indeterminate .database-progress-fill { width: 30%; animation: database-progress-working 1.6s ease-in-out infinite alternate; }
+@keyframes database-progress-working { from { transform: translateX(0); } to { transform: translateX(233.33%); } }
+@media (prefers-reduced-motion: reduce) {
+  .database-progress-fill { transition: none; }
+  #refreshProgress.is-indeterminate .database-progress-fill { animation: none; }
+}
+#refreshProgressSummary { font-size: .75rem; line-height: 1.5; color: var(--muted); margin: 0; overflow-wrap: anywhere; }
+.database-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding-top: 4px; }
+.database-actions > span { color: var(--muted); font-size: .75rem; }
+.database-actions .action-button, .database-pack-images .action-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  width: auto; min-height: 42px; padding: 10px 16px; margin: 0; border-radius: 9px;
+  font-size: .85rem; font-weight: 650; line-height: 1.4; box-shadow: none;
+}
+.database-actions .action-button:disabled { opacity: .65; cursor: default; }
+.database-disclosures { border-top: 1px solid var(--border); }
+.database-disclosures details + details { border-top: 1px solid var(--border); }
+.database-disclosures summary { padding: 14px 0; cursor: pointer; color: var(--accent); font-size: .85rem; font-weight: 650; }
+.database-source-details { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 10px 20px; font-size: .85rem; line-height: 1.5; margin: 0; padding: 0 0 16px; }
+.database-source-details dt { color: var(--muted); }
+.database-source-details dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+.database-activity-body { font-size: .85rem; line-height: 1.5; color: var(--muted); padding-bottom: 16px; }
+.database-activity-body > strong { color: var(--text); }
+.database-activity-body p { margin: 8px 0 0; }
+#refreshDetailLines { max-height: 280px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: .8rem/1.6 Consolas, "Courier New", monospace; color: var(--muted); margin: 12px 0 0; }
+#section_card_database .database-preserve { display: flex; align-items: start; gap: 8px; font-size: .75rem; line-height: 1.5; color: var(--muted); margin: 0; }
+.database-preserve i { margin-top: 3px; }
+.database-pack-images { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--border); margin-top: 18px; padding-top: 18px; }
+.database-pack-icon { width: 36px; height: 36px; flex: 0 0 auto; display: grid; place-items: center; background: var(--button); color: var(--muted); border-radius: 9px; }
+.database-pack-copy { flex: 1; min-width: 0; }
+.database-pack-copy strong { font-size: .9rem; }
+.database-pack-copy p { color: var(--muted); font-size: .8rem; line-height: 1.5; margin: 4px 0 0; }
+.database-pack-images .secondary-button { background: var(--button); color: var(--text); border: 1px solid var(--border); }
+.database-pack-images .secondary-button:hover { background: var(--button-hover); }
+@media (max-width: 700px) {
+  .database-summary { grid-template-columns: 1fr; gap: 22px; }
+  #section_card_database .database-body { padding: 16px; }
+  .database-last-refreshed span { display: inline; margin-left: 5px; }
+  .database-pack-images { display: grid; grid-template-columns: 36px minmax(0,1fr); }
+  .database-pack-images .action-button { grid-column: 2; justify-self: start; }
+  .database-source-details { grid-template-columns: 1fr; gap: 4px; }
+  .database-source-details dd + dt { margin-top: 8px; }
+}
+@media (max-width: 480px) {
+  .database-header { flex-wrap: wrap; }
+  .database-header .settings-section-header-copy { flex-basis: 100%; }
+  .database-header-status { width: 100%; justify-content: space-between; }
+  .database-actions > span { width: 100%; }
+}
+@media (pointer: coarse) { .database-actions .action-button, .database-pack-images .action-button, .database-disclosures summary { min-height: 44px; } }
