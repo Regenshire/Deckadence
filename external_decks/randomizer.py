@@ -68,6 +68,20 @@ class ExternalDeckRandomizer:
             or ExternalDeckSelectionOptions()
         )
 
+        required_title_terms = title_phrases + tuple(
+            normalized_term
+            for term in options.required_title_terms
+            if (normalized_term := " ".join(str(term or "").split()).casefold())
+        )
+        title_alias_patterns = tuple(
+            (
+                re.compile(r"\b(?:" + "|".join(re.escape(alias) for alias in aliases) + r")\b", re.IGNORECASE),
+                " ".join(aliases).casefold(),
+            )
+            for aliases in options.title_alias_groups
+            if aliases
+        )
+
         selection_count = (
             self._bounded_int(
                 options.selection_count,
@@ -265,14 +279,18 @@ class ExternalDeckRandomizer:
             )
 
             for deck in page.decks:
-                if title_phrases:
+                if required_title_terms:
                     normalized_title = " ".join(
                         str(deck.name or "").split()
                     ).casefold()
 
+                    for pattern, aliases in title_alias_patterns:
+                        if pattern.search(normalized_title):
+                            normalized_title += " " + aliases
+
                     if not all(
                         phrase in normalized_title
-                        for phrase in title_phrases
+                        for phrase in required_title_terms
                     ):
                         continue
 

@@ -29,7 +29,7 @@ BASE_OPTIONS = {
     "layer_type": "white_underbase", "output_format": "spot_pdf",
     "spot_name": "White", "spot_display_color": "#FF00FF", "mask_tone": "binary", "coverage_percent": 100,
     "edge_adjustment_mm": 0, "safe_margin_mm": 0, "resolution_ppi": 600,
-    "selection": "highlights", "protect_text": True, "protect_frame": True,
+    "selection": "highlights", "protect_text": False, "protect_frame": False,
     "selection_amount": 35, "foil_coverage_percent": 100, "generation_action": "foil", "selection_cleanup": "balanced",
     "text_treatment": "original", "border_treatment": "original", "border_width_percent": 2,
     "review_mask": True, "overprint": True, "raster_polarity": "white_coverage",

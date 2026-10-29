@@ -1058,7 +1058,7 @@
 .sim-price-sidebar {
   position: fixed;
   right: 18px;
-  top: 118px;
+  top: var(--app-navigation-panel-top, 118px);
   bottom: 18px;
   width: 370px;
   max-width: calc(100vw - 24px);
@@ -1490,7 +1490,7 @@
 }
 @media (max-width: 760px) {
   .sim-price-sidebar {
-    top: 84px;
+    top: var(--app-navigation-panel-top, 84px);
     right: 12px;
     bottom: 12px;
     width: 360px;

@@ -18,7 +18,7 @@
 
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/deckbuilder.css', v='foil-types-1') }}"
+  href="{{ url_for('static', filename='css/deckbuilder.css', v='builder-ux-2') }}"
 />
 <link
   rel="stylesheet"
@@ -43,6 +43,8 @@
   class="deckbuilder-workspace"
   id="deckbuilderWorkspace"
   data-deck-id="{{ deckbuilder.deck_id }}"
+  data-organization-url="{{ url_for('deckbuilder_organization', deck_id=deckbuilder.deck_id) }}"
+  data-organization='{{ deckbuilder.organization|tojson }}'
   data-source-type="{{ deckbuilder.source_type }}"
   data-source-id="{{ deckbuilder.source_id }}"
   data-default-view-mode="{{ deckbuilder.default_view_mode or 'grid' }}"
@@ -791,6 +793,7 @@
           data-card-name="{{ picked_card.card_name }}"
           data-card-uuid="{{ picked_card.card_uuid or '' }}"
           data-card-rarity="{{ picked_card.rarity or '' }}"
+          data-card-mana-cost="{{ picked_card.mana_cost or '' }}"
           data-card-mana-value="{{ picked_card.mana_value if picked_card.mana_value is not none else '' }}"
           data-card-type-line="{{ picked_card.type_line or '' }}"
           data-card-color-identity="{{ picked_card.color_identity_json or '[]' }}"
@@ -1052,6 +1055,7 @@
           data-card-name="{{ picked_card.card_name }}"
           data-card-uuid="{{ picked_card.card_uuid or '' }}"
           data-card-rarity="{{ picked_card.rarity or '' }}"
+          data-card-mana-cost="{{ picked_card.mana_cost or '' }}"
           data-card-mana-value="{{ picked_card.mana_value if picked_card.mana_value is not none else '' }}"
           data-card-type-line="{{ picked_card.type_line or '' }}"
           data-card-color-identity="{{ picked_card.color_identity_json or '[]' }}"
@@ -1546,13 +1550,13 @@
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
 <script src="{{ url_for('static', filename='js/custom_card_modal.js', v='2') }}"></script>
-<script src="{{ url_for('static', filename='js/card_search_modal.js', v='gallery-scroll-6') }}"></script>
+<script src="{{ url_for('static', filename='js/card_search_modal.js', v='builder-destination-1') }}"></script>
 <script src="{{ url_for('static', filename='js/print_export_modal.js', v='tracking-tags-1') }}"></script>
 <script src="{{ url_for('static', filename='js/moxfield_sync.js') }}"></script>
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
-<script src="{{ url_for('static', filename='js/deckbuilder.js', v='card-finishing-menu-1') }}"></script>
+<script src="{{ url_for('static', filename='js/deckbuilder.js', v='builder-auto-groups-4') }}"></script>
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}

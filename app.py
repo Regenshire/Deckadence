@@ -357,6 +357,7 @@ from db.deckdb import (
     update_deck_art_config,
     update_deck_card_back_key,
     update_deckbuilder_stack_layout,
+    update_deckbuilder_organization,
     update_deckbuilder_basic_land_printing,
     update_deckbuilder_card_foil,
     update_deckbuilder_card_printing,
@@ -26206,6 +26207,7 @@ def serialize_deckbuilder_context_for_ajax(deckbuilder_context):
             for card in deckbuilder_context.get("sideboard_cards", [])
         ],
         "basic_land_counts": deckbuilder_context.get("basic_land_counts") or {},
+        "organization": deckbuilder_context.get("organization") or {},
         "basic_land_names": deckbuilder_context.get("basic_land_names") or [],
         "basic_land_cards": [
             {
@@ -27323,6 +27325,7 @@ def get_persisted_deck_art_path(
 def save_persisted_deck_art_image(
     deck_id,
     spec,
+    use_cached=False,
 ):
     output_path = get_persisted_deck_art_path(
         deck_id
@@ -27333,21 +27336,22 @@ def save_persisted_deck_art_image(
             "Invalid deck ID for Deck Art output."
         )
 
-    rendered_image = DECK_ART_RENDERER.render(
-        spec
-    )
-
+    rendered_image = None
     temp_path = (
         f"{output_path}."
         f"{threading.get_ident()}.tmp"
     )
 
     try:
-        rendered_image.save(
-            temp_path,
-            format="PNG",
-            optimize=True,
-        )
+        if use_cached:
+            shutil.copyfile(DECK_ART_RENDERER.render_cached(spec), temp_path)
+        else:
+            rendered_image = DECK_ART_RENDERER.render(spec)
+            rendered_image.save(
+                temp_path,
+                format="PNG",
+                optimize=True,
+            )
 
         os.replace(
             temp_path,
@@ -27642,6 +27646,16 @@ def build_deck_art_spec_for_deck(
             >= 1
         )
 
+        roulette_art = saved_deck_art_config.get("roulette_art")
+        if not has_custom_deck_art and isinstance(roulette_art, dict):
+            return DeckArtSpec(
+                deck_name=roulette_art.get("deck_name") or deck_row["deck_name"],
+                author=roulette_art.get("author") or "",
+                format_label=roulette_art.get("format_label") or "Deck",
+                color_identity=tuple(roulette_art.get("color_identity") or ()),
+                scryfall_id=roulette_art.get("scryfall_id") or "",
+            )
+
         external_author = ""
         external_format = ""
 
@@ -27863,7 +27877,7 @@ def build_deck_art_spec_for_deck(
         or "Deck"
     ).strip()
 
-    if external_format:
+    if external_format and external_format != "none":
         format_rule = (
             ExternalDeckRouletteService
             .get_format_rule(
@@ -28068,15 +28082,22 @@ def deck_art_image(
         deck_id
     )
 
-    if (
-        not image_path
-        or not os.path.isfile(
-            image_path
-        )
-    ):
-        return Response(
-            status=404
-        )
+    if not image_path:
+        return Response(status=404)
+
+    if not os.path.isfile(image_path):
+        # Older imports saved their cards but never persisted the Roulette cover.
+        # Recover only missing covers, leaving existing artwork untouched.
+        if not get_external_deck_source(deck_id, provider="moxfield"):
+            return Response(status=404)
+        try:
+            spec = build_deck_art_spec_for_deck(deck_id)
+            if spec is None:
+                return Response(status=404)
+            save_persisted_deck_art_image(deck_id, spec, use_cached=True)
+        except Exception as exc:
+            write_error_log("IMPORTED DECK ART RECOVERY FAILED", exc=exc)
+            return Response(status=503)
 
     response = send_file(
         image_path,
@@ -29021,21 +29042,21 @@ def normalize_deck_roulette_choice(
     return parsed_value
 
 
+def build_deck_roulette_art_spec(candidate):
+    return DeckArtSpec(
+        deck_name=candidate.deck_name,
+        author=candidate.author,
+        format_label=candidate.format_label or candidate.format or "Deck",
+        color_identity=tuple(candidate.color_identity or ()),
+        scryfall_id=candidate.display_card_scryfall_id,
+    )
+
+
 def serialize_deck_roulette_candidate(
     candidate,
 ):
-    candidate_data = (
-        candidate.to_dict()
-    )
-
-    color_identity = tuple(
-        getattr(
-            candidate,
-            "color_identity",
-            (),
-        )
-        or ()
-    )
+    candidate_data = candidate.to_dict()
+    spec = build_deck_roulette_art_spec(candidate)
 
     candidate_data[
         "image_src"
@@ -29043,30 +29064,23 @@ def serialize_deck_roulette_candidate(
         "deck_art_external",
 
         deck_name=(
-            candidate.deck_name
+            spec.deck_name
         ),
 
         author=(
-            candidate.author
+            spec.author
         ),
 
         format_label=(
-            getattr(
-                candidate,
-                "format_label",
-                "",
-            )
-            or candidate.format
-            or "Deck"
+            spec.format_label
         ),
 
         colors="".join(
-            color_identity
+            spec.color_identity
         ),
 
         scryfall_id=(
-            candidate
-            .display_card_scryfall_id
+            spec.scryfall_id
         ),
 
         art_version=(
@@ -29495,7 +29509,8 @@ def deck_roulette_open():
 
     import_result = (
         importer.import_deck(
-            external_deck
+            external_deck,
+            deck_format=format_rule.get("import_format"),
         )
     )
 
@@ -29525,6 +29540,24 @@ def deck_roulette_open():
     deck_id = int(
         import_result["deck_id"]
     )
+
+    try:
+        spec = build_deck_roulette_art_spec(candidate)
+        save_result = update_deck_art_config(deck_id, {
+            "roulette_art": {
+                "deck_name": spec.deck_name,
+                "author": spec.author,
+                "format_label": spec.format_label,
+                "color_identity": list(spec.color_identity),
+                "scryfall_id": spec.scryfall_id,
+            },
+        })
+        if not save_result.get("ok"):
+            raise ValueError(save_result.get("message") or "Deck Art settings could not be saved.")
+        save_persisted_deck_art_image(deck_id, spec, use_cached=True)
+    except Exception as exc:
+        write_error_log("DECK ROULETTE ART IMPORT FAILED", exc=exc)
+        flash("The deck was imported, but its artwork could not be saved. Reopen the deck to retry.", "warning")
 
     return jsonify({
         "ok": True,
@@ -30410,6 +30443,9 @@ def deckbuilder_cards_import_list_add_most_recent(deck_id):
             "message": "No card names could be parsed from the imported list.",
         }), 400
 
+    target_zone = request.form.get("target_zone", "deck")
+    if target_zone not in {"deck", "sideboard"}:
+        return jsonify({"ok": False, "message": "Invalid destination."}), 400
     added_count = 0
     unresolved_items = []
 
@@ -30426,6 +30462,7 @@ def deckbuilder_cards_import_list_add_most_recent(deck_id):
             add_result = add_card_to_deckbuilder_sideboard(
                 deck_id=deck_id,
                 card_uuid=resolved_row["card_uuid"],
+                target_zone=target_zone,
             )
 
             if add_result.get("ok"):
@@ -30434,7 +30471,7 @@ def deckbuilder_cards_import_list_add_most_recent(deck_id):
     result = {
         "ok": True,
         "message": (
-            f"Added {added_count} card(s) to sideboard. "
+            f"Added {added_count} card(s) to {target_zone}. "
             f"Unresolved {len(unresolved_items)} card name(s)."
         ),
         "added_count": added_count,
@@ -30474,6 +30511,7 @@ def deckbuilder_cards_add(deck_id):
         card_uuid=card_uuid,
         if_absent=payload.get("custom_card_creation") is True and card_uuid.startswith("custom-"),
         is_foil=payload.get("is_foil") is True,
+        target_zone=payload.get("target_zone", "deck"),
     )
 
     if not result.get("ok"):
@@ -30483,7 +30521,7 @@ def deckbuilder_cards_add(deck_id):
         "ok": True,
         "response_mode": "delta",
         "inserted": result.get("inserted", True),
-        "message": result.get("message") or "Card added to sideboard.",
+        "message": result.get("message") or "Card added.",
         "add_card_result": result,
     })
 
@@ -30903,6 +30941,19 @@ def deckbuilder_change_printing(deck_id):
         payload["_basicLandCountsAuthoritative"] = True
 
     return jsonify(payload), 200 if payload.get("ok") else 400
+
+@app.route("/deck-builder/<int:deck_id>/organization", methods=["POST"])
+def deckbuilder_organization(deck_id):
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "message": "Invalid organization request."}), 400
+    result = update_deckbuilder_organization(deck_id, data.get("organization"), data.get("move_card_ids"), data.get("target_zone"))
+    if not result.get("ok"):
+        return jsonify(result), 400
+    deck_row = get_deck_by_id(deck_id)
+    payload = get_deckbuilder_payload_after_update(deck_id, deck_row, "organization_result", result)
+    return jsonify(payload), 200 if payload.get("ok") else 400
+
 
 @app.route("/deck-builder/<int:deck_id>/stack-layout", methods=["POST"])
 def deckbuilder_stack_layout(deck_id):

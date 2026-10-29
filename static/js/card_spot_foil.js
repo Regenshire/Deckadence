@@ -32,19 +32,27 @@
   const layerOrder={effect1:5,effect2:6,mask:7,gloss:8};
   const printedLayer=()=>editingLayer.startsWith("effect");
   const effectPreviews=new Map();
-  let mirrorGeneration=null,mirrorLayers=null,trekTransporter=null;
+  let mirrorGeneration=null,mirrorLayers=null,trekTransporter=null,disintegrate=null;
   let mirrorDiagnostics=null;
   let mirrorJobState=null,mirrorClock=null;
   const mirrorExport=dialog.querySelector('[data-spot-export-mirror]');
   const mirrorJobPart=name=>dialog.querySelector('[data-spot-mirror-'+name+']');
+  const mirrorJobHome=document.createComment('Shared AI progress panel');
+  mirrorJobPart('job').before(mirrorJobHome);
   function mirrorElapsed(){
     const seconds=Math.max(0,Math.floor(((mirrorJobState?.finished||Date.now())-(mirrorJobState?.started||Date.now()))/1000));
     return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')+' elapsed';
   }
   function renderMirrorJob(){
-    const state=mirrorJobState,visible=Boolean(state&&state.session===session&&state.layer===editingLayer&&!artEditor.active&&printedLayer()&&fields.finish.value==='mirror_shards'&&fields.effect_mirror.checked);
-    mirrorJobPart('job').hidden=mirrorJobPart('job-banner').hidden=!visible;
+    const state=mirrorJobState,dis=state?.kind==='disintegrate',visible=Boolean(state&&state.session===session&&state.layer===editingLayer&&!artEditor.active&&printedLayer()&&(dis?fields.finish.value==='disintegrate':fields.finish.value==='mirror_shards'&&fields.effect_mirror.checked));
+    const slot=dis?dialog.querySelector('[data-dis-job-slot]'):null;
+    if(slot){if(mirrorJobPart('job').parentElement!==slot)slot.append(mirrorJobPart('job'));}
+    else if(mirrorJobPart('job').previousSibling!==mirrorJobHome)mirrorJobHome.after(mirrorJobPart('job'));
+    mirrorJobPart('job').hidden=!visible;
+    mirrorJobPart('job-banner').hidden=!visible||dis;
     if(!visible)return;
+    mirrorJobPart('job').setAttribute('aria-label',dis?'Disintegrate AI job progress':'Mirror AI job progress');
+    mirrorJobPart('job-stages').setAttribute('aria-label',dis?'Disintegrate generation stages':'Mirror generation stages');
     mirrorJobPart('job-title').textContent=state.title;
     mirrorJobPart('job-message').textContent=state.message;
     mirrorJobPart('job-model').textContent=state.model||'Generative Art AI · on this PC';
@@ -55,10 +63,12 @@
       node.classList.toggle('is-done',i<index);node.classList.toggle('is-current',i===index);
       if(i===index)node.setAttribute('aria-current','step');else node.removeAttribute('aria-current');
     }
-    mirrorJobPart('job-cancel').hidden=!mirrorGeneration;
-    mirrorJobPart('job-cancel').disabled=!mirrorGeneration?.url;
+    mirrorJobPart('job-cancel').hidden=dis?!disintegrate?.generating:!mirrorGeneration;
+    mirrorJobPart('job-cancel').disabled=dis?false:!mirrorGeneration?.url;
     mirrorJobPart('job-view').hidden=state.phase!=='review';
-    mirrorJobPart('job-view').disabled=busy||!fields.effect_scene.value;
+    mirrorJobPart('job-view').disabled=busy||(dis?!disintegrate?.hasResult:!fields.effect_scene.value);
+    mirrorJobPart('job-view').textContent=dis?'Inspect '+disintegrate.resultKind:'View generated art';
+    mirrorJobPart('job-retry').hidden=!dis||!['failed','cancelled'].includes(state.phase);
   }
   function updateMirrorJob(value){mirrorJobState={...mirrorJobState,...value};renderMirrorJob();}
   function stopMirrorClock(){clearInterval(mirrorClock);mirrorClock=null;}
@@ -68,6 +78,21 @@
     const phase=result.phase||mirrorJobState.phase;
     const label=mirrorJobState.stages.find(([key])=>key===phase)?.[1];
     updateMirrorJob({phase,title:(phase!=='prepare'&&label?label+' · ':'')+(stages[result.stage]||'Generating artwork'),message:result.message||'The model is working.',model:result.model_label||mirrorJobState.model});
+  }
+  // Disintegrate uses the same job panel, banner, timer and actions as Mirror AI.
+  function disintegrateJob(value){
+    if(value.start){
+      const stages=[['prepare','Prepare'],['analyze','Analyze'],['plan','Plan'],['generate','Generate'],['preview','Preview'],['review','Review']];
+      mirrorJobState={kind:'disintegrate',session,layer:editingLayer,stages,started:Date.now(),phase:'prepare',title:'Starting background reconstruction',message:'Preparing the disintegration area and surrounding artwork.'};
+      mirrorDiagnostics=null;
+      mirrorJobPart('job-stages').replaceChildren(...stages.map(([,label])=>Object.assign(document.createElement('li'),{textContent:label})));
+      stopMirrorClock();mirrorClock=setInterval(renderMirrorJob,1000);renderMirrorJob();openMirrorJob();return;
+    }
+    if(mirrorJobState?.kind!=='disintegrate')return;
+    const phase=value.phase||({analyzing:'analyze',planning:'plan',loading:'generate',generating:'generate',rendering:'preview'}[value.stage]||'prepare');
+    const titles={queued:'Waiting for local AI',preparing:'Preparing subject and background',detecting:'Detecting frame and text',analyzing:'Analyzing artwork',planning:'Building generation plan',loading:'Loading local model',generating:'Reconstructing background',rendering:'Preparing preview'};
+    if(value.finished){stopMirrorClock();if(value.diagnosticsUrl)mirrorDiagnostics={url:value.diagnosticsUrl,session,layer:editingLayer};}
+    updateMirrorJob({phase,title:value.title||titles[value.stage]||'Reconstructing background',message:value.message||'The local model is working.',model:value.model_label||mirrorJobState.model,...(value.finished?{finished:mirrorJobState.finished||Date.now()}:{})});
   }
   let mirrorSelectionCache=null;
   const artDialog=document.getElementById("spotGeneratedArtDialog"),artImage=artDialog.querySelector("[data-spot-art-image]"),artViewport=artDialog.querySelector("[data-spot-art-viewport]");
@@ -108,8 +133,8 @@
     for(let pixel=0;pixel<756*1056;pixel++)if(pixels[pixel*4+3]>0)bits[pixel>>3]|=1<<(pixel&7);
     return bits;
   }
-  function encodeSceneSelection(surface) {
-    const bits=sceneSelectionBits(surface);let binary="";
+  function encodeSceneSelection(surface,wholeIfEmpty=false) {
+    const bits=sceneSelectionBits(surface);if(wholeIfEmpty&&!bits.some(Boolean))bits.fill(255);let binary="";
     for(let offset=0;offset<bits.length;offset+=8192)binary+=String.fromCharCode(...bits.subarray(offset,offset+8192));
     return btoa(binary);
   }
@@ -143,11 +168,25 @@
   for(const family of ["wind_ribbons","wind_curls","wind_storm","wind_painted","waves_swells","waves_crests","waves_field"])for(const suffix of ["","_sparse"])effectColors[family+suffix]="#FFFFFF";
   effectColors.dragon_strike="#FFFFFF";
   effectColors.federation_transporter="#FFFFFF";
+  effectColors.raised_solar="#E8B94F";
+  effectColors.disintegrate='#FF9D35';
+  function solarShiftColor(color) {
+    const rgb=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16)/255),maximum=Math.max(...rgb),minimum=Math.min(...rgb),delta=maximum-minimum;
+    let hue=!delta?0:maximum===rgb[0]?((rgb[1]-rgb[2])/delta)%6:maximum===rgb[1]?(rgb[2]-rgb[0])/delta+2:(rgb[0]-rgb[1])/delta+4;
+    hue=((hue/6-8/360)%1+1)%1;
+    const saturation=Math.min(1,(maximum?delta/maximum:0)*1.06),value=maximum*.6,sector=hue*6;
+    const chroma=value*saturation,x=chroma*(1-Math.abs(sector%2-1)),m=value-chroma;
+    const shifted=sector<1?[chroma,x,0]:sector<2?[x,chroma,0]:sector<3?[0,chroma,x]:sector<4?[0,x,chroma]:sector<5?[x,0,chroma]:[chroma,0,x];
+    return '#'+shifted.map(c=>Math.round((c+m)*255).toString(16).padStart(2,'0')).join('').toUpperCase();
+  }
+  const solarDefaults={center_x:50,center_y:50,sun_size:300,sun_opacity:100,spacing:100,thickness:38,depth:55,rays:18,band_width:4,off_brightness:45,off_opacity:100,off_color:solarShiftColor('#E8B94F'),off_auto:true,relief:70,opacity:0,background_opacity:100,radial_bands:true,ring_bands:false};
+  const solarFields=Object.keys(solarDefaults).map(key=>'effect_solar_'+key);
   const pathEffects=new Set(["confetti_glitter","ukiyo_e","chocobo_tracks","dragon_strike","federation_transporter","phyrexian","mana_foil","dragonscale","gilded","invisible_ink"]);
-  const copyPathEffects=new Set([...pathEffects,"galaxy","confetti","glitter_1","glitter_2","glitter_3","halftone","stars","water_beads"]);
-  const effectBlend=value=>value.finish==="oil_slick"?100:value.finish==="neon_ink"?85:value.finish==="fracture"?Number(value.translucence)||0:0;
+  const copyPathEffects=new Set([...pathEffects,"disintegrate","raised_solar","galaxy","confetti","glitter_1","glitter_2","glitter_3","halftone","stars","water_beads"]);
+  const effectBlend=value=>value.finish==="raised_solar"?100-Number(value.solar?.opacity??0):value.finish==="oil_slick"?100:value.finish==="neon_ink"?85:value.finish==="fracture"?Number(value.translucence)||0:0;
   const effectHelp={silver_black:"Converts selected artwork to deep black shadows and silver highlights. For Oil Slick, use this in Effect 1 and Oil Slick Rainbow in Effect 2 with the same mask.",oil_slick:"A subtle rainbow that follows the light and dark detail underneath. Use above Silver & Black Art for the oil slick look; strength controls the color intensity.",phyrexian:"Repeating Phyrexian symbols inspired by Step-and-Compleat foil. Copy Path reuses the symbols as a foil or gloss mask.",mana_foil:"Staggered rows of the five mana symbols. Copy Path keeps the symbol shapes at full coverage.",dragonscale:"Overlapping pointed scales with fine reflective edges and clear centers.",gilded:"Gold Art Deco corner fans, stepped rails and ornaments. Copy Path can add foil or raised gloss to the filigree.",halo:"Flowing, irregular iridescent rings inspired by Halo foil.",ripple:"Fine, curved interference bands inspired by Ripple foil.",invisible_ink:"This effect has been removed. Choose another effect or remove this layer.",neon_ink:"Colored ink across the selected area, preserving artwork detail. Choose a color below."};
   let previousEffectFinish="";
+  effectHelp.raised_solar="A raised circular sun with straight zig-zag ridges. Effect and off-band colors alternate in radial sections at each bend. Alternating zig-zag rings are optional. The default blends with the artwork underneath.";
   function updateEffectColor(resetDefault=false) {
     if(resetDefault && fields.effect_color.value.toUpperCase()===(effectColors[previousEffectFinish]||"#FFE7A0"))fields.effect_color.value=effectColors[fields.finish.value]||"#FFE7A0";
     previousEffectFinish=fields.finish.value;
@@ -169,6 +208,8 @@
   }
   function updateShardControls() {
     disableEffect.hidden=!printedLayer();
+    const dis=printedLayer()&&fields.finish.value==='disintegrate';
+    dialog.querySelector('[data-spot-disintegrate-controls]').hidden=!dis;
     dialog.querySelector('[data-spot-transporter-controls]').hidden=!printedLayer()||fields.finish.value!=='federation_transporter';
     dialog.querySelectorAll('[data-spot-transporter-emblem]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.spotTransporterEmblem===fields.effect_transporter_emblem.value)));
     dialog.querySelector('[data-spot-dragon-controls]').hidden=!printedLayer()||fields.finish.value!=='dragon_strike';
@@ -176,10 +217,16 @@
     dialog.querySelector("[data-spot-particle-controls]").hidden=!printedLayer()||fields.finish.value!=="confetti_glitter";
     dialog.querySelector("[data-spot-ukiyo-controls]").hidden=!printedLayer()||fields.finish.value!=="ukiyo_e";
     dialog.querySelector("[data-spot-ripple-origin]").hidden=!printedLayer()||fields.finish.value!=="ripple";
+    dialog.querySelector('[data-spot-solar-controls]').hidden=!printedLayer()||fields.finish.value!=='raised_solar';
+    fields.effect_solar_band_width.closest('label').hidden=!fields.effect_solar_ring_bands.checked;
+    if(fields.finish.value==='raised_solar'&&fields.effect_solar_off_auto.checked)fields.effect_solar_off_color.value=solarShiftColor(fields.effect_color.value);
+    for(const key of ['center_x','center_y','sun_opacity','thickness','depth','relief','off_brightness','off_opacity','opacity','background_opacity'])dialog.querySelector(`[data-spot-solar-${key}-value]`).value=fields['effect_solar_'+key].value+'%';
+    dialog.querySelector('[data-spot-solar-sun-size-value]').value=fields.effect_solar_sun_size.value+' px';
+    dialog.querySelector('[data-spot-solar-off-color-value]').value=fields.effect_solar_off_color.value.toUpperCase();
     dialog.querySelector("[data-spot-flame-controls]").hidden=!printedLayer()||!["flame_1","flame_2"].includes(fields.finish.value);
     const layers=printedLayer()&&fields.finish.value==="mirror_layers";
     const trek=printedLayer()&&fields.finish.value==='federation_transporter';
-    fields.strength.closest('label').hidden=trek;
+    fields.strength.closest('label').hidden=trek||dis;
     const shards=printedLayer()&&fields.finish.value==="mirror_shards";
     const tracks=printedLayer()&&["chocobo_tracks","dragon_strike"].includes(fields.finish.value);
     const pattern=printedLayer()&&pathEffects.has(fields.finish.value);
@@ -197,14 +244,14 @@
     // switching between a template and the other printable effects.
     for(const [control,slot] of [["effect-rotation","rotation"],["effect-color-controls","color"]]) {
       const element=dialog.querySelector(`[data-spot-${control}]`);
-      const target=layers&&slot==='color'?dialog.querySelector('[data-ml-color-slot]'):dialog.querySelector(`[data-spot-${shards?"shard":"pattern"}-${slot}-slot]`);
+      const target=dis&&slot==='color'?dialog.querySelector('[data-dis-color-slot]'):fields.finish.value==='raised_solar'&&slot==='color'?dialog.querySelector('[data-spot-solar-color-slot]'):layers&&slot==='color'?dialog.querySelector('[data-ml-color-slot]'):dialog.querySelector(`[data-spot-${shards?"shard":"pattern"}-${slot}-slot]`);
       if(element.parentElement!==target)target.appendChild(element);
-      dialog.querySelector(`[data-spot-pattern-${slot}-slot]`).hidden=shards || (slot==="color"&&element.hidden);
+      dialog.querySelector(`[data-spot-pattern-${slot}-slot]`).hidden=shards || (slot==="color"&&(element.hidden||fields.finish.value==='raised_solar'));
     }
     dialog.querySelector("[data-spot-shard-controls]").hidden=!shards;
-    dialog.querySelector("[data-spot-pattern-size]").hidden=shards||layers||flat||trek;
-    dialog.querySelector("[data-spot-pattern-rotation-slot]").hidden=shards||layers||flat||trek;
-    dialog.querySelector("[data-spot-pattern-density]").hidden=shards||layers||tracks||trek||fields.finish.value==="neon_ink"||["oil_slick","halo","ripple","gilded"].includes(fields.finish.value);
+    dialog.querySelector("[data-spot-pattern-size]").hidden=shards||layers||flat||trek||dis;
+    dialog.querySelector("[data-spot-pattern-rotation-slot]").hidden=shards||layers||flat||trek||dis;
+    dialog.querySelector("[data-spot-pattern-density]").hidden=shards||layers||tracks||trek||dis||fields.finish.value==="neon_ink"||["oil_slick","halo","ripple","gilded","raised_solar"].includes(fields.finish.value);
     dialog.querySelector("[data-spot-density-label]").textContent=fields.finish.value==="silver_black"?"Contrast (%)":"Density (%)";
     dialog.querySelector("[data-spot-silver-controls]").hidden=!printedLayer()||fields.finish.value!=="silver_black";
     dialog.querySelector("[data-spot-new-pattern]").hidden=shards||layers||tracks||flat||fields.finish.value==="gilded";
@@ -221,7 +268,7 @@
     dialog.querySelector("[data-spot-view-art]").disabled=!fields.effect_scene.value;
     if(mirrorExport)mirrorExport.disabled=busy||!mirrorDiagnostics||mirrorDiagnostics.session!==session||mirrorDiagnostics.layer!==editingLayer;
     renderMirrorJob();
-    updateMirrorStatus();mirrorLayers?.update();trekTransporter?.update();
+    updateMirrorStatus();mirrorLayers?.update();trekTransporter?.update();disintegrate?.update();
   }
   async function generateMirrorScene() {
     if(!ready||busy||!metadata?.mirror_generator_ready||!printedLayer())return;
@@ -302,9 +349,12 @@
   }
   dialog.querySelector("[data-spot-generate-mirror]").addEventListener("click",generateMirrorScene);
   dialog.querySelector("[data-spot-cancel-generation]").addEventListener("click",cancelMirrorGeneration);
-  mirrorJobPart('job-cancel').addEventListener('click',cancelMirrorGeneration);
+  mirrorJobPart('job-cancel').addEventListener('click',()=>mirrorJobState?.kind==='disintegrate'?disintegrate.cancel():cancelMirrorGeneration());
   dialog.querySelector('[data-spot-open-mirror-job]').addEventListener('click',openMirrorJob);
-  mirrorJobPart('job-view').addEventListener('click',()=>dialog.querySelector('[data-spot-view-art]').click());
+  mirrorJobPart('job-view').addEventListener('click',()=>mirrorJobState?.kind==='disintegrate'?disintegrate.inspect():dialog.querySelector('[data-spot-view-art]').click());
+  const retryAI=document.createElement('button');retryAI.type='button';retryAI.dataset.spotMirrorJobRetry='';retryAI.hidden=true;retryAI.textContent='Retry reconstruction';
+  mirrorJobPart('job-view').after(retryAI);retryAI.addEventListener('click',()=>disintegrate.generate());
+  if(mirrorExport)mirrorJobPart('job-view').after(mirrorExport);
   mirrorExport?.addEventListener('click',async()=>{
     const saved=mirrorDiagnostics;if(!saved||busy||saved.session!==session||saved.layer!==editingLayer)return;
     mirrorExport.disabled=true;
@@ -314,8 +364,8 @@
       if(!response.ok){const error=await response.json().catch(()=>({}));throw new Error(error.message||'Generate a new scene to export its diagnostics.');}
       const blob=await response.blob();if(saved!==mirrorDiagnostics||saved.session!==session)return;
       const href=URL.createObjectURL(blob),link=document.createElement('a');link.href=href;
-      link.download='mirror-generation-diagnostics-'+new URL(saved.url,location.href).pathname.split('/').pop()+'.zip';link.click();setTimeout(()=>URL.revokeObjectURL(href),1000);
-      message('Mirror diagnostics exported, including each stage’s reference, prompt and output.');
+      link.download='generation-diagnostics-'+new URL(saved.url,location.href).pathname.split('/').pop()+'.zip';link.click();setTimeout(()=>URL.revokeObjectURL(href),1000);
+      message('AI diagnostics exported, including each stage’s reference, prompt and output.');
     } catch(error){if(saved.session===session)message(error.message,true);}
     finally{if(saved.session===session)updateShardControls();}
   });
@@ -439,10 +489,11 @@
   function captureLayer() {
     mirrorLayers?.flush();
     trekTransporter?.flush();
+    disintegrate?.flush();
     const values={};
     for(const field of fields)if(field.name && !["mask_file","zoom"].includes(field.name))values[field.name]=field.type==="checkbox"?field.checked:field.value;
     return {values,generation:generationOptions(),png:encodedMask(),width:mask.width,
-      history:[...history],historyIndex,maskReviewed,removal,enabled:!removal&&(hasInk||maskReviewed||activeSaved()||printedLayer()&&['mirror_layers','federation_transporter'].includes(fields.finish.value)),recentColors:[...recentColors],textRegions,textSymbols};
+      history:[...history],historyIndex,maskReviewed,removal,enabled:!removal&&(hasInk||maskReviewed||activeSaved()||printedLayer()&&['mirror_layers','federation_transporter','disintegrate'].includes(fields.finish.value)),recentColors:[...recentColors],textRegions,textSymbols};
   }
   function glossDraft(record, base) {
     const values={...base.values,finish:record?.finish||"gloss",strength:record?.strength||100,overlay_color:record?.overlay_color||"#00BFFF",
@@ -465,11 +516,13 @@
     Object.assign(draft.values,{finish:windWaveEffect(record?.finish||"")?"ukiyo_e":legacyGlitter(record?.finish)?"confetti_glitter":record?.finish||"confetti_glitter",
       effect_transporter_emblem:record?.transporter_emblem||'tos_badge',effect_transporter_style:record?.transporter_style||'multicolor',effect_transporter_alignment:record?.transporter_alignment||'emblem',
       effect_transporter_layout:JSON.stringify(window.DeckadenceTrekTransporter.fromRecord(record)),
+      effect_disintegrate:JSON.stringify(record?.disintegrate||window.DeckadenceDisintegrate.defaults()),
       effect_dragon_emblem:record?.dragon_emblem||'bolas_command',effect_dragon_trail:record?.dragon_trail||'winding_magic',effect_dragon_alignment:record?.dragon_alignment||'dragon',effect_dragon_color_effect:record?.dragon_color_effect||'normal',
       effect_particle_type:record?.particle_type||(legacyGlitter(record?.finish)?record.finish:"glitter_1"),effect_particle_flip:Boolean(record?.flip_horizontal),
       effect_ukiyo_type:record?.ukiyo_type||(windWaveEffect(record?.finish||"")?record.finish.replace(/_sparse$/u,""):"wind_ribbons"),effect_ukiyo_sparse:record?.sparse??Boolean(record?.finish?.endsWith("_sparse")),effect_ukiyo_flip:Boolean(record?.flip_horizontal),strength:String(record?.strength||65),
       overlay_color:record?.overlay_color||(layer==="effect1"?"#FF9800":"#76FF03"),
       effect_origin_x:String(record?.origin_x??20),effect_origin_y:String(record?.origin_y??72),
+      ...Object.fromEntries(Object.entries(solarDefaults).map(([key,value])=>['effect_solar_'+key,key==='off_auto'?(record?.solar?.off_auto??!record?.solar?.off_color):typeof value==='boolean'?(record?.solar?.[key]??value):String(record?.solar?.[key]??value)])),
       effect_disabled:Boolean(record?.disabled),effect_stacked:Boolean(record?.stacked),effect_scale:String(record?.scale||100),effect_density:String(record?.density||100),
       effect_black_depth:String(record?.black_depth??0),effect_silver_brightness:String(record?.silver_brightness??90),
       effect_mirrors:JSON.stringify(record?.mirrors||window.DeckadenceMirrorLayers.defaults()),
@@ -501,11 +554,13 @@
   function effectParams(values) {
     return {finish:values.finish,disabled:Boolean(values.effect_disabled),strength:Number(values.strength),scale:Number(values.effect_scale),density:Number(values.effect_density),seed:Number(values.effect_seed),color:values.effect_color||effectColors[values.finish]||"#FFE7A0",translucence:Number(values.effect_translucence||0),rotation:Number(values.effect_rotation||0),
       ...(values.finish==="mirror_layers"?{mirrors:JSON.parse(values.effect_mirrors||JSON.stringify(window.DeckadenceMirrorLayers.defaults()))}:{}),
+      ...(values.finish==='disintegrate'?{disintegrate:JSON.parse(values.effect_disintegrate||JSON.stringify(window.DeckadenceDisintegrate.defaults())),strength:100,scale:100,density:100,rotation:0}:{}),
       ...(values.finish==="dragon_strike"?{dragon_emblem:values.effect_dragon_emblem||'bolas_command',dragon_trail:values.effect_dragon_trail||'winding_magic',dragon_alignment:values.effect_dragon_alignment||'dragon',dragon_color_effect:values.effect_dragon_color_effect||'normal'}:{}),
       ...(values.finish==="federation_transporter"?{transporter_emblem:values.effect_transporter_emblem||'tos_badge',transporter_style:values.effect_transporter_style||'multicolor',transporter_alignment:values.effect_transporter_alignment||'emblem',transporter_layout:JSON.parse(values.effect_transporter_layout||JSON.stringify(window.DeckadenceTrekTransporter.defaults())),strength:100,scale:100,density:100,color:'#FFFFFF',rotation:0}:{}),
       ...(values.finish==="confetti_glitter"?{particle_type:values.effect_particle_type||"glitter_1",flip_horizontal:Boolean(values.effect_particle_flip)}:{}),
       ...(values.finish==="ukiyo_e"?{ukiyo_type:values.effect_ukiyo_type||"wind_ribbons",sparse:Boolean(values.effect_ukiyo_sparse),flip_horizontal:Boolean(values.effect_ukiyo_flip)}:{}),
       ...(values.finish==="ripple"?{origin_x:Number(values.effect_origin_x??20),origin_y:Number(values.effect_origin_y??72)}:{}),
+      ...(values.finish==='raised_solar'?{solar:Object.fromEntries(Object.entries(solarDefaults).map(([key,value])=>[key,key==='off_color'?(values['effect_solar_'+key]??value):typeof value==='boolean'?Boolean(values['effect_solar_'+key]??value):Number(values['effect_solar_'+key]??value)])),density:100}:{}),
       ...(["flame_1","flame_2"].includes(values.finish)?{stacked:Boolean(values.effect_stacked)}:{}),
       ...(values.finish==="silver_black"?{black_depth:Number(values.effect_black_depth??0),silver_brightness:Number(values.effect_silver_brightness??90)}:{}),
       ...(pathEffects.has(values.finish)?{position_x:values.finish==='federation_transporter'?0:Number(values.effect_track_x||0),position_y:values.finish==='federation_transporter'?0:Number(values.effect_track_y||0),transparency:values.finish==='federation_transporter'?0:Number(values.effect_track_transparency||0)}:{}),
@@ -514,12 +569,15 @@
   function effectControlValues() {
     mirrorLayers?.flush();
     trekTransporter?.flush();
+    disintegrate?.flush();
     const names=["finish","strength","effect_scale","effect_density","effect_seed","effect_color","effect_translucence","effect_rotation","effect_scene_rotation","effect_scene_zoom","effect_scene_skew","effect_scene_x","effect_scene_y","effect_shard_template","effect_shard_size","effect_shard_x","effect_shard_y","effect_shard_theme","effect_mirror","effect_tint","effect_scene","effect_scene_theme","effect_scene_source","effect_scene_selection","effect_custom_prompt","effect_scene_custom_prompt","effect_maintain_style","effect_scene_maintain_style","effect_outpaint_margin","effect_scene_margin","effect_scene_padding_x","effect_scene_padding_y"];
     names.push("effect_particle_type","effect_particle_flip","effect_ukiyo_type","effect_ukiyo_sparse","effect_ukiyo_flip","effect_origin_x","effect_origin_y","effect_disabled","effect_stacked","effect_track_x","effect_track_y","effect_track_transparency","effect_black_depth","effect_silver_brightness");
     names.push('effect_mirrors');
+    names.push('effect_disintegrate');
     names.push('effect_dragon_emblem','effect_dragon_trail','effect_dragon_alignment','effect_dragon_color_effect');
     names.push('effect_transporter_emblem','effect_transporter_style','effect_transporter_alignment');
     names.push('effect_transporter_layout');
+    names.push(...solarFields);
     names.push('effect_prompt_details','effect_scene_prompt_details','effect_scene_flip_horizontal','effect_scene_flip_vertical');
     return Object.fromEntries(names.map(name=>[name,fields[name].type==="checkbox"?fields[name].checked:fields[name].value]));
   }
@@ -653,6 +711,48 @@
     canMove:()=>tool==='pan'&&view==='effect'&&!showingText&&!showingFrame&&!fields.effect_disabled.checked,
     changed:()=>{scheduleEffectRender();markChanged();},
     moveTool:()=>{setTool('pan');setView('effect');syncPreviewInteraction();}});
+  disintegrate=window.DeckadenceDisintegrate.create({dialog,stage,
+    job:disintegrateJob,
+    active:()=>printedLayer()&&!artEditor.active&&!removal&&fields.finish.value==='disintegrate',
+    busy:()=>busy||!ready||Boolean(activeStroke),scope:()=>session+':'+editingLayer,
+    seed:()=>Number(fields.effect_seed.value),
+    canMove:()=>tool==='pan'&&view==='effect'&&!showingText&&!showingFrame&&!fields.effect_disabled.checked,
+    changed:()=>{scheduleEffectRender();markChanged();},preview:scheduleEffectRender,refresh:controls,message,
+    setBusy:value=>{busy=value;controls();},moveTool:()=>{setTool('pan');setView('effect');syncPreviewInteraction();},
+    url:route=>apiUrl(endpoint(current.target)+'/'+route),
+    inputs:()=>{
+      const source=document.createElement('canvas');source.width=1512;source.height=2112;
+      source.getContext('2d').drawImage(artEditor.artworkSource(),0,0,1512,2112);
+      return {image_data:source.toDataURL('image/png'),source_bounds:window.DeckadenceSpotSelection.artworkBounds(artBoxOptions())};
+    },
+    beginTarget:async subject=>{
+      const saved=document.createElement('canvas');saved.width=mask.width;saved.height=mask.height;saved.getContext('2d').drawImage(mask,0,0);
+      const backup={mask:saved,history,historyIndex,maskReviewed,removal,view,tool,marquee,showingText,showingFrame};
+      if(!await loadMask('data:image/png;base64,'+subject))throw new Error('The editor changed before the target could be opened.');
+      history=[encodedMask()];historyIndex=0;maskReviewed=true;removal=false;marquee=null;showingText=false;showingFrame=false;
+      coverage();setView('mask');setTool('paint');renderMask();message('Editing target cutout · Paint adds to the subject, Erase removes unwanted areas.');return backup;
+    },
+    targetCutout:()=>{
+      coverage();if(!hasInk)throw new Error('Paint the subject before using the corrected target.');
+      const cutout=document.createElement('canvas');cutout.width=1512;cutout.height=2112;
+      const context=cutout.getContext('2d');context.drawImage(mask,0,0,1512,2112);context.globalCompositeOperation='source-in';context.drawImage(artEditor.artworkSource(),0,0,1512,2112);
+      return cutout.toDataURL('image/png').split(',')[1];
+    },
+    endTarget:backup=>{
+      if(!backup)return;
+      sizeMask(backup.mask.width);ctx.drawImage(backup.mask,0,0);maskChanged();
+      ({history,historyIndex,maskReviewed,removal,marquee,showingText,showingFrame}=backup);
+      coverage();setView(backup.view);setTool(backup.tool);renderMask();
+    },
+    inspect:async (encoded,subject=false)=>{
+      if(!encoded)return;const token=session,source=artEditor.artworkSource(),plate=new Image();plate.src='data:image/png;base64,'+encoded;await plate.decode();if(token!==session)return;
+      const combined=document.createElement('canvas');combined.width=1512;combined.height=2112;
+      const context=combined.getContext('2d');if(!subject)context.drawImage(source,0,0,1512,2112);context.drawImage(plate,0,0,1512,2112);
+      artDialog.querySelector('h2').textContent=subject?'Disintegrate Foil · original subject cutout':'Disintegrate Foil · reconstructed background';artImage.onload=null;
+      artDialog.querySelector('[data-spot-art-info]').textContent=subject?'Check that the entire subject is included, especially hands, feet and equipment. Use Refine target to correct missing or unwanted parts.':'Background behind the disintegrated subject. The effect reveals this scenery only where the original subject disappears.';
+      setArtView(false);artImage.src=combined.toDataURL('image/png');artDialog.showModal();
+    }
+  });
   dialog.querySelector('[data-spot-edit-tab]').addEventListener('click',()=>{
     if(!ready||busy||activeStroke)return;
     artEditor.setActive(true);showingText=false;showingFrame=false;setView('art');renderMask();dialog.querySelectorAll('[data-spot-layer]').forEach(b=>b.setAttribute('aria-pressed','false'));controls();message('Editing artwork. Paint, select an area, or add text.');
@@ -867,11 +967,13 @@
     syncPreviewInteraction();
     const painting = Boolean(activeStroke && !activeStroke.pan);
     dialog.querySelectorAll("[data-spot-edit-controls]").forEach(el => {el.disabled = !ready || busy || painting;});
+    dialog.querySelector('.spot-finish-controls').disabled=!ready||busy||painting||Boolean(disintegrate?.pending);
     dialog.querySelector("[data-spot-apply]").disabled = fields.selection_mode.value === "none";
     artEditor.setDisabled(!ready||busy||painting);
-    dialog.querySelector('[data-spot-edit-tab]').disabled=!ready||busy||painting;
-    save.disabled = !ready || busy || painting || artEditor.pending || (!artEditor.dirty && !hasInk && !maskReviewed && !current?.record && !removal && !(printedLayer()&&['mirror_layers','federation_transporter'].includes(fields.finish.value)) && !Object.values(layerDrafts).some(draft=>draft.enabled||draft.removal));
-    dialog.querySelectorAll("[data-spot-layer]").forEach(button=>button.disabled=!ready||busy||Boolean(activeStroke)||artEditor.pending);
+    dialog.querySelector('[data-spot-edit-tab]').disabled=!ready||busy||painting||disintegrate?.pending;
+    fields.finish.disabled=Boolean(disintegrate?.pending);
+    save.disabled = !ready || busy || painting || artEditor.pending || disintegrate?.pending || (!artEditor.dirty && !hasInk && !maskReviewed && !current?.record && !removal && !(printedLayer()&&['mirror_layers','federation_transporter','disintegrate'].includes(fields.finish.value)) && !Object.values(layerDrafts).some(draft=>draft.enabled||draft.removal));
+    dialog.querySelectorAll("[data-spot-layer]").forEach(button=>button.disabled=!ready||busy||Boolean(activeStroke)||artEditor.pending||disintegrate?.pending);
     dialog.querySelectorAll('[data-spot-view]').forEach(button=>{button.disabled=!ready||busy||painting||artEditor.pending;button.title=artEditor.pending?'Apply or discard the AI preview before changing views.':'';});
     dialog.querySelector("[data-spot-invert]").disabled = !ready || busy || painting;
     dialog.querySelector("[data-spot-undo]").disabled = !ready || busy || painting || historyIndex <= 0;
@@ -881,9 +983,9 @@
     dialog.querySelector("[data-spot-copy-path]").disabled = !ready || busy || Boolean(activeStroke);
     dialog.querySelector("[data-spot-paste-mask]").disabled = !ready || busy || Boolean(activeStroke) || !maskClipboard;
     dialog.querySelector("[data-spot-append-mask]").disabled = !ready || busy || Boolean(activeStroke) || !maskClipboard;
-    dialog.querySelector("[data-spot-remove]").disabled = !ready || busy || painting || !activeSaved();
+    dialog.querySelector("[data-spot-remove]").disabled = !ready || busy || painting || disintegrate?.pending || !activeSaved();
     dialog.querySelectorAll("[data-spot-close]").forEach(button => {button.disabled = busy;});
-    renderMirrorJob();mirrorLayers?.update();
+    renderMirrorJob();mirrorLayers?.update();disintegrate?.update();
   }
   function coverage() {
     if(coverageVersion===maskVersion)return maskArea;
@@ -898,8 +1000,8 @@
     return maskArea;
   }
   function markChanged() {
-    const area=coverage(),whole=printedLayer()&&['mirror_layers','federation_transporter'].includes(fields.finish.value)&&!hasInk;
-    message(removal ? "Removal pending · save to restore the regular card finish." : whole?'Unsaved changes · no mask: free placement across the card.':`Unsaved changes · ${area}% of the card selected`);
+    const area=coverage(),whole=printedLayer()&&['mirror_layers','federation_transporter','disintegrate'].includes(fields.finish.value)&&!hasInk;
+    message(disintegrate?.refining?'Editing target cutout · Paint adds to the subject, Erase removes unwanted areas.':removal ? "Removal pending · save to restore the regular card finish." : whole?'Unsaved changes · no mask: free placement across the card.':`Unsaved changes · ${area}% of the card selected`);
     updateMirrorStatus();
     controls();
   }
@@ -956,7 +1058,7 @@
       overlay.fillRect(0, 0, canvas.width, canvas.height); overlay.globalCompositeOperation = "source-over";
     }
     if (!painting || view === "effect") {
-      const draftFor=layer=>layer===editingLayer?{enabled:!removal&&(hasInk||maskReviewed||activeSaved()||printedLayer()&&['mirror_layers','federation_transporter'].includes(fields.finish.value)),png:effectUrl,
+      const draftFor=layer=>layer===editingLayer?{enabled:!removal&&(hasInk||maskReviewed||activeSaved()||printedLayer()&&['mirror_layers','federation_transporter','disintegrate'].includes(fields.finish.value)),png:effectUrl,
         values:effectControlValues()}:layerDrafts[layer];
       const preview=layer=>{const draft=draftFor(layer);return draft?.enabled&&draft.png?{maskUrl:maskPreviewUrl(layer,draft.png),finish:draft.values.finish,strength:Number(draft.values.strength)}:null;};
       effects.setSpotFoil(stage,preview("mask"));effects.setGloss(stage,preview("gloss"));
@@ -1096,19 +1198,22 @@
     if(!fields.effect_disabled.checked && !(pathEffects.has(fields.finish.value)&&Number(fields.effect_track_transparency.value)===100))
       visibleMask.getContext('2d').drawImage(mask,0,0);
     const tracks=copyPathEffects.has(fields.finish.value);
-    const settings=tracks ? {finish:fields.finish.value,scale:Number(fields.effect_scale.value),
+    let settings=tracks ? {finish:fields.finish.value,scale:Number(fields.effect_scale.value),
       rotation:Number(fields.effect_rotation.value),width:mask.width} : {finish:fields.finish.value,template:fields.effect_shard_template.value,
       scale:Number(fields.effect_shard_size.value),rotation:Number(fields.effect_rotation.value),
       x:Number(fields.effect_shard_x.value),y:Number(fields.effect_shard_y.value),width:mask.width};
     if(tracks&&!["chocobo_tracks","dragon_strike"].includes(fields.finish.value))Object.assign(settings,{density:Number(fields.effect_density.value),seed:Number(fields.effect_seed.value)});
+    if(fields.finish.value==='raised_solar')settings.solar=effectParams(effectControlValues()).solar;
     if(fields.finish.value==='dragon_strike')Object.assign(settings,{dragon_emblem:fields.effect_dragon_emblem.value,dragon_trail:fields.effect_dragon_trail.value,dragon_alignment:fields.effect_dragon_alignment.value});
     if(fields.finish.value==='federation_transporter')Object.assign(settings,{transporter_emblem:fields.effect_transporter_emblem.value,transporter_style:fields.effect_transporter_style.value,transporter_alignment:fields.effect_transporter_alignment.value,transporter_layout:JSON.parse(fields.effect_transporter_layout.value),scale:100,rotation:0});
     if(fields.finish.value==="confetti_glitter")Object.assign(settings,{particle_type:fields.effect_particle_type.value,flip_horizontal:fields.effect_particle_flip.checked});
     if(fields.finish.value==="ukiyo_e")Object.assign(settings,{ukiyo_type:fields.effect_ukiyo_type.value,sparse:fields.effect_ukiyo_sparse.checked,flip_horizontal:fields.effect_ukiyo_flip.checked});
     if(pathEffects.has(fields.finish.value))Object.assign(settings,{x:Number(fields.effect_track_x.value),y:Number(fields.effect_track_y.value)});
+    const dis=fields.finish.value==='disintegrate';
+    if(dis){const effect=effectParams(effectControlValues());effect.disintegrate={...effect.disintegrate,scene:''};settings={effect,mask_data:encodedMask(),width:mask.width};}
     busy=true;controls();
     try {
-      const response=await fetch(apiUrl(endpoint(current.target)+"/effect-path"),{method:"POST",
+      const response=await fetch(apiUrl(endpoint(current.target)+(dis?'/disintegrate-path':"/effect-path")),{method:"POST",
         headers:{"Content-Type":"application/json"},body:JSON.stringify(settings)});
       if(!response.ok){const result=await response.json();throw new Error(result.message||"Could not copy the template path.");}
       const bitmap=await createImageBitmap(await response.blob());
@@ -1116,8 +1221,8 @@
         if(token!==session||!dialog.open||current?.artworkChanged)return;
         const copy=document.createElement("canvas");copy.width=bitmap.width;copy.height=bitmap.height;
         const copied=copy.getContext("2d");copied.drawImage(bitmap,0,0);
-        copied.globalCompositeOperation="destination-in";
-        copied.drawImage(visibleMask,0,0,copy.width,copy.height);
+        if(!dis){copied.globalCompositeOperation="destination-in";
+        copied.drawImage(visibleMask,0,0,copy.width,copy.height);}
         copied.globalCompositeOperation="source-over";
         maskClipboard=copy;maskClipboardRegion=null;
         message(`${tracks?metadata.effect_types[fields.finish.value]:"Shard"} visible path copied. Choose any tab and use Paste Mask or Append Paste.`,false,{preserveWording:true});
@@ -1197,11 +1302,11 @@
     syncPreviewInteraction();
   }
   function syncPreviewInteraction() {
-    const enabled = ready && !busy && !mirrorLayers?.moving && !trekTransporter?.moving && !artEditor.active && !showingText && !showingFrame && tool === "pan" && view === "effect" && !activeStroke;
+    const enabled = ready && !busy && !mirrorLayers?.moving && !trekTransporter?.moving && !disintegrate?.moving && !artEditor.active && !showingText && !showingFrame && tool === "pan" && view === "effect" && !activeStroke;
     stage.dataset.tilt = String(enabled);
     effects.setInteractive(stage, enabled);
     const pan=dialog.querySelector('[data-spot-pan]');pan.disabled=!ready||busy||Boolean(activeStroke)||artEditor.pending;pan.setAttribute('aria-pressed',String(artEditor.active?artEditor.panning:tool==='pan'));
-    mirrorLayers?.update();trekTransporter?.update();
+    mirrorLayers?.update();trekTransporter?.update();disintegrate?.update();
   }
   function setTool(value) {
     if (activeStroke) return;
@@ -1217,7 +1322,7 @@
     dialog.querySelector("[data-spot-marquee-tools]").hidden = !["marquee","ellipse"].includes(tool);
     dialog.querySelector("[data-spot-tool-amount]").hidden = ["pan", "marquee","ellipse","lasso","selection-brush"].includes(tool);
     syncPreviewInteraction();
-    if (value !== "pan") {
+    if (value !== "pan" && !disintegrate?.refining) {
       dialog.querySelector("[data-spot-touch-up]").open = true;
       activateStep(dialog.querySelector("[data-spot-touch-up]"));
     }
@@ -1358,8 +1463,8 @@
   discardDialog.addEventListener('keydown',event=>event.stopPropagation());
   function closeEditor() {
     if (busy || discardDialog.open) return;
-    if (artEditor.dirty || artEditor.pending) {
-      discardDialog.querySelector('p').textContent=artEditor.pending?'Your unsaved artwork edits and AI preview will be lost.':'Your unsaved artwork edits will be lost.';
+    if (artEditor.dirty || artEditor.pending || disintegrate?.pending) {
+      discardDialog.querySelector('p').textContent=disintegrate?.refining?'Your unapplied target correction will be lost.':disintegrate?.pending?'Your unapplied Disintegrate reconstruction will be lost.':artEditor.pending?'Your unsaved artwork edits and AI preview will be lost.':'Your unsaved artwork edits will be lost.';
       discardDialog.showModal();discardDialog.querySelector('[data-keep-editing]').focus();return;
     }
     dialog.close();
@@ -1367,6 +1472,7 @@
   function releaseEditor() {
     if(discardDialog.open)discardDialog.close();
     artEditor.release();
+    disintegrate?.release();
     if(artDialog.open)artDialog.close();artImage.removeAttribute("src");
     cancelMirrorGeneration();
     stopMirrorClock();mirrorJobState=null;renderMirrorJob();
@@ -1384,7 +1490,7 @@
   }
   dialog.addEventListener("close", () => {if (!dialog.open && current) releaseEditor();});
   dialog.addEventListener("cancel", event => {
-    if(artEditor.active||artEditor.dirty||artEditor.pending||busy||activeStroke)event.preventDefault();
+    if(artEditor.active||artEditor.dirty||artEditor.pending||disintegrate?.pending||busy||activeStroke)event.preventDefault();
     else if(!artEditor.active&&marquee){event.preventDefault();deselectMarquee();}
   });
   dialog.querySelectorAll("[data-spot-close]").forEach(button => button.addEventListener("click", closeEditor));
@@ -1777,13 +1883,14 @@
   dialog.querySelector("[data-spot-remove]").addEventListener("click", () => {
     if (selectArea("none",true)) {removal = true; markChanged();renderMask();}
   });
-  for (const field of [fields.effect_particle_type,fields.effect_particle_flip,fields.effect_ukiyo_type,fields.effect_ukiyo_sparse,fields.effect_ukiyo_flip,fields.finish, fields.strength, fields.effect_origin_x,fields.effect_origin_y,fields.effect_disabled, fields.effect_stacked, fields.effect_scale, fields.effect_density,fields.effect_black_depth,fields.effect_silver_brightness, fields.effect_color, fields.effect_translucence,fields.effect_track_x,fields.effect_track_y,fields.effect_track_transparency,fields.effect_rotation,fields.effect_scene_rotation,fields.effect_scene_zoom,fields.effect_scene_skew,fields.effect_scene_x,fields.effect_scene_y,fields.effect_scene_flip_horizontal,fields.effect_scene_flip_vertical, fields.effect_shard_template,fields.effect_shard_size,fields.effect_shard_x,fields.effect_shard_y,fields.effect_shard_theme,fields.effect_mirror,fields.effect_tint,fields.effect_custom_prompt,fields.effect_prompt_details,fields.effect_maintain_style,fields.effect_outpaint_margin]) field.addEventListener("input", () => {
+  for (const field of [...solarFields.map(name=>fields[name]),fields.effect_particle_type,fields.effect_particle_flip,fields.effect_ukiyo_type,fields.effect_ukiyo_sparse,fields.effect_ukiyo_flip,fields.finish, fields.strength, fields.effect_origin_x,fields.effect_origin_y,fields.effect_disabled, fields.effect_stacked, fields.effect_scale, fields.effect_density,fields.effect_black_depth,fields.effect_silver_brightness, fields.effect_color, fields.effect_translucence,fields.effect_track_x,fields.effect_track_y,fields.effect_track_transparency,fields.effect_rotation,fields.effect_scene_rotation,fields.effect_scene_zoom,fields.effect_scene_skew,fields.effect_scene_x,fields.effect_scene_y,fields.effect_scene_flip_horizontal,fields.effect_scene_flip_vertical, fields.effect_shard_template,fields.effect_shard_size,fields.effect_shard_x,fields.effect_shard_y,fields.effect_shard_theme,fields.effect_mirror,fields.effect_tint,fields.effect_custom_prompt,fields.effect_prompt_details,fields.effect_maintain_style,fields.effect_outpaint_margin]) field.addEventListener("input", () => {
     if(field===fields.effect_custom_prompt||field===fields.effect_prompt_details){
       message('Unsaved prompt changes. Generate artwork to use them.');return;
     }
     if(field===fields.effect_rotation||field===fields.effect_scene_rotation){
       dialog.querySelector(field===fields.effect_rotation?'[data-spot-rotation-value]':'[data-spot-scene-rotation-value]').value=field.value+'°';return;
     }
+    if(field===fields.effect_solar_off_color)fields.effect_solar_off_auto.checked=false;
     updateEffectColor(field===fields.finish);
     if(field===fields.finish&&['mirror_layers','federation_transporter'].includes(fields.finish.value)){setTool('pan');setView('effect');}
     dialog.querySelector("[data-spot-strength-value]").value = fields.strength.value + "%";
@@ -1820,6 +1927,14 @@
   dialog.querySelectorAll("[data-spot-effect-swatch]").forEach(button=>button.addEventListener("click",()=>{
     fields.effect_color.value=button.dataset.spotEffectSwatch;fields.effect_color.dispatchEvent(new Event("input",{bubbles:true}));
   }));
+  dialog.querySelectorAll('[data-spot-solar-off-swatch]').forEach(button=>{
+    const color=solarShiftColor(button.dataset.spotSolarOffSwatch);
+    button.style.setProperty('--swatch',color);button.setAttribute('aria-label',`Use ${color} off-band color`);
+    button.addEventListener('click',()=>{
+      fields.effect_solar_off_color.value=color;
+      fields.effect_solar_off_color.dispatchEvent(new Event('input',{bubbles:true}));
+    });
+  });
   dialog.querySelector("[data-spot-maximize]").addEventListener("click", event => {
     const maximized = dialog.classList.toggle("is-maximized"), button = event.currentTarget;
     button.setAttribute("aria-pressed", String(maximized));
@@ -2008,6 +2123,9 @@
         }
         layerPayloads[layer]=draft.enabled?{finish:draft.values.finish,strength:Number(draft.values.strength),overlay_color:draft.values.overlay_color,generation:draft.generation,mask_data:png,
           ...(layer.startsWith("effect")?effectParams(draft.values):{})}:null;
+        if(layerPayloads[layer]?.finish==='disintegrate'&&!layerPayloads[layer].disabled){
+          disintegrate.validate(layerPayloads[layer].disintegrate);
+        }
       }
       if(current?.artworkChanged)throw new Error("Artwork changed. Close and reopen before saving.");
       const removeAll=!layerPayloads.edit&&!Object.values(layerDrafts).some(draft=>draft.enabled);

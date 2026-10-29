@@ -27,9 +27,7 @@
     return {
       theme: catalog.some((theme) => theme.id === value?.theme)
         ? value.theme
-        : value?.theme === "backup"
-          ? "dark"
-          : "white-mana",
+        : "dark",
       background:
         typeof value?.background === "boolean" ? value.background : true,
       backgroundType:

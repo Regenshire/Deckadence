@@ -372,6 +372,7 @@ class ExternalDeckImporter:
         self,
         external_deck,
         allow_partial=False,
+        deck_format=None,
     ):
         plan = self.prepare_import(
             external_deck
@@ -427,7 +428,8 @@ class ExternalDeckImporter:
                     or "Imported Deck"
                 ),
                 deck_format=(
-                    summary.format
+                    deck_format
+                    or summary.format
                     or "Commander"
                 ),
                 author=(

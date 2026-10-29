@@ -1510,6 +1510,140 @@ html[data-theme]
   box-shadow: none;
 }
 
+/* Adaptive navigation shares the page's outer edges, including side panels. */
+html body > .app-shell { padding-top: 12px; }
+html[data-theme] .app-shell .app-frame .app-tabs.app-tabs-adaptive:not(.app-tabs-collapsed) {
+  flex: none;
+  width: var(--app-navigation-width, 100%);
+  max-width: none;
+  margin-left: var(--app-navigation-left, 0px);
+  margin-right: 0;
+  min-height: 64px;
+  height: 64px;
+  padding: 8px 18px;
+  gap: 22px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow: 0 5px 18px #0001;
+  /* Width is measured from the content; animating it makes resizing lag. */
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive:not(.app-tabs-collapsed) .app-logo-expanded {
+  height: 34px;
+  width: auto;
+  max-width: none;
+}
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-tabs-nav {
+  margin-left: 0;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-primary-link {
+  font-size: 14px;
+  min-height: 38px;
+  height: 38px;
+  padding-left: 13px;
+}
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-menu .app-nav-main-control {
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+}
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-menu-toggle {
+  height: 38px;
+  width: 28px;
+  min-width: 28px;
+}
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-menu-active .app-nav-main-control {
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  box-shadow: inset 0 -2px var(--accent);
+}
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-menu-active .app-nav-main-control::before {
+  display: none;
+}
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-square-button {
+  height: 36px;
+  width: 36px;
+  min-width: 36px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+}
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-gear-button { font-size: 19px; }
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-qr-thumbnail { width: 23px; height: 23px; }
+html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-dropdown {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 14px 40px #0004;
+}
+.app-navigation-tray-button { display: none; }
+
+@media (max-width: 760px) {
+  html body > .app-shell { padding-top: 8px; }
+  html[data-theme] .app-shell .app-frame .app-tabs.app-tabs-adaptive:not(.app-tabs-collapsed) {
+    height: 60px;
+    min-height: 60px;
+    padding: 9px 12px;
+    gap: 8px;
+  }
+  html[data-theme] .app-shell .app-frame .app-tabs-adaptive:not(.app-tabs-collapsed) .app-logo-expanded {
+    display: block;
+    height: 30px;
+  }
+  html[data-theme] .app-shell .app-frame .app-tabs-adaptive:not(.app-tabs-collapsed) .app-logo-collapsed { display: none; }
+  .app-tabs-adaptive .app-navigation-tray-button {
+    display: flex;
+    margin-left: auto;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 18px;
+    cursor: pointer;
+  }
+  html[data-theme] .app-shell .app-frame .app-tabs-adaptive > .app-tabs-nav { display: none; }
+  html[data-theme] .app-shell .app-frame .app-tabs-adaptive.app-navigation-tray-open > .app-tabs-nav {
+    display: flex;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 6px);
+    padding: 10px;
+    flex-wrap: wrap;
+    gap: 5px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 12px 30px #0004;
+  }
+  .app-tabs-adaptive .app-tabs-nav > .app-nav-menu:not(.app-nav-icon-menu) { display: block; flex: 1 1 28%; }
+  html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-menu .app-nav-main-control { width: 100%; }
+  html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-primary-link { min-height: 44px; height: 44px; }
+  .app-tabs-adaptive .app-nav-home-menu .app-nav-primary-link { width: 100%; }
+  html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-menu-toggle { margin-left: auto; height: 44px; }
+  .app-tabs-adaptive .app-tabs-nav > .app-nav-icon-menu { margin-left: 0; }
+  html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-square-button { display: flex; width: 44px; height: 44px; }
+  html[data-theme] .app-shell .app-frame .app-tabs-adaptive .app-nav-dropdown {
+    position: fixed;
+    top: 130px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: calc(100dvh - 150px);
+    overflow: auto;
+    transform-origin: top center;
+  }
+  .app-tabs-adaptive .app-nav-mobile-qr-item,
+  .app-tabs-adaptive .app-nav-mobile-qr-divider { display: none; }
+}
+
 /* Submit variants retain the same visible outline as other toolbar buttons. */
 html[data-theme] .app-shell .icon-button.icon-button-submit {
   border: 1px solid var(--border);

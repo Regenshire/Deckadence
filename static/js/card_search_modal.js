@@ -1816,6 +1816,7 @@
         card.color_identity_json || "[]",
       ).toLowerCase();
       row.dataset.manaValue = manaValue;
+      row.dataset.manaCost = card.mana_cost || "";
       row.dataset.typeLine = String(card.type_line || "").toLowerCase();
       row.dataset.cardName = String(card.card_name || "").toLowerCase();
       row.dataset.displayCardName = String(card.card_name || "");
@@ -2763,10 +2764,11 @@
         return;
       }
 
+      Object.entries(config.getAddPayload?.() || {}).forEach(([key,value]) => formData.set(key,String(value)));
       const confirmed = await confirmAction({
         title: "Add Most Recent Printings",
         message:
-          config.bulkImportAddMostRecentConfirmMessage ||
+          (typeof config.bulkImportAddMostRecentConfirmMessage === "function" ? config.bulkImportAddMostRecentConfirmMessage() : config.bulkImportAddMostRecentConfirmMessage) ||
           "This will add the most recent matching printing for each parsed card name directly.",
         confirmText: "Add Cards",
         cancelText: "Cancel",
@@ -2835,6 +2837,7 @@
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
+            ...(config.getAddPayload?.() || {}),
             card_uuid: cardUuid,
             custom_card_creation: customCardCreation,
             is_foil: isFoil,
@@ -3146,7 +3149,7 @@
 
       setModalTitle(
         "Add Cards",
-        config.addAllResultsUrl ? "Choose cards for your custom set" : "Add cards to your deck’s sideboard",
+        config.getAddSubtitle?.() || (config.addAllResultsUrl ? "Choose cards for your custom set" : "Add cards to your deck’s sideboard"),
       );
 
       open();

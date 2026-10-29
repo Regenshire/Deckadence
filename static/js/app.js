@@ -1356,14 +1356,65 @@ function initializeAppNavigationMenus() {
 (function () {
   const appTabs = document.querySelector(".app-tabs");
   const menuToggleButton = document.getElementById("appMenuToggleButton");
+  let navigationTrayButton = document.getElementById("appNavigationTrayButton");
+  const appFrame = document.querySelector(".app-frame");
 
   if (!appTabs || !menuToggleButton) {
     return;
   }
 
+  // A running server can still have the previous base template cached.
+  // Upgrade that markup too, so refreshing loads the new navigation.
+  appTabs.classList.add("app-tabs-adaptive");
+  const navigationLinks = appTabs.querySelector(".app-tabs-nav");
+  if (navigationLinks && !navigationTrayButton) {
+    navigationLinks.id = navigationLinks.id || "appNavigationLinks";
+    navigationTrayButton = document.createElement("button");
+    navigationTrayButton.type = "button";
+    navigationTrayButton.id = "appNavigationTrayButton";
+    navigationTrayButton.className = "app-navigation-tray-button";
+    navigationTrayButton.setAttribute("aria-label", "Open navigation");
+    navigationTrayButton.setAttribute("aria-expanded", "false");
+    navigationTrayButton.setAttribute("aria-controls", navigationLinks.id);
+    const icon = document.createElement("i");
+    icon.className = "fa-solid fa-bars";
+    icon.setAttribute("aria-hidden", "true");
+    navigationTrayButton.append(icon);
+    appTabs.append(navigationTrayButton);
+  }
+
   const menuStorageKey = "imomir-main-menu-collapsed";
   const mobileNavigationMedia = window.matchMedia("(max-width: 760px)");
   const mobileHomeUrl = String(menuToggleButton.dataset.mobileHomeUrl || "/");
+  const workspace = document.getElementById("deckbuilderWorkspace");
+  const pageContent = workspace || appFrame?.querySelector(":scope > main, :scope > .screen, :scope > .deckbuilder-manage-page") || appFrame;
+  const priceSidebar = document.querySelector(".sim-price-sidebar");
+  let navigationLayoutFrame = 0;
+
+  function setNavigationTrayOpen(open, restoreFocus) {
+    const wasOpen = appTabs.classList.contains("app-navigation-tray-open");
+    const shouldOpen = isMobileNavigation() && Boolean(open);
+    appTabs.classList.toggle("app-navigation-tray-open", shouldOpen);
+    if (navigationTrayButton) {
+      navigationTrayButton.setAttribute("aria-expanded", String(shouldOpen));
+      navigationTrayButton.setAttribute("aria-label", shouldOpen ? "Close navigation" : "Open navigation");
+    }
+    if (!shouldOpen) {
+      appTabs.querySelectorAll(".app-nav-menu.is-open").forEach(function (menu) {
+        menu.classList.remove("is-open");
+        menu.querySelector("[data-app-menu-toggle]")?.setAttribute("aria-expanded", "false");
+      });
+      if (restoreFocus && wasOpen) navigationTrayButton?.focus();
+    }
+  }
+
+  function scheduleNavigationLayout() {
+    if (navigationLayoutFrame) return;
+    navigationLayoutFrame = window.requestAnimationFrame(function () {
+      navigationLayoutFrame = 0;
+      updateWorkspaceNavigationOffset();
+    });
+  }
 
   function isMobileNavigation() {
     return mobileNavigationMedia.matches;
@@ -1383,17 +1434,45 @@ function initializeAppNavigationMenus() {
         "--imomir-workspace-nav-offset",
         "0px",
       );
+      document.documentElement.style.setProperty("--app-navigation-panel-top", "24px");
 
       return;
     }
 
+    if (appFrame && pageContent) {
+      const frameRect = appFrame.getBoundingClientRect();
+      const contentRect = pageContent.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth;
+      let left = Math.max(12, contentRect.left);
+      let right = Math.min(viewportWidth - 12, contentRect.right);
+      if (workspace) {
+        left = 8;
+        right = viewportWidth - 8;
+      }
+      if (priceSidebar && !priceSidebar.hidden && window.matchMedia("(min-width: 1024px)").matches) {
+        const sidebarRect = priceSidebar.getBoundingClientRect();
+        if (sidebarRect.width > 0) {
+          left = Math.min(left, sidebarRect.left);
+          right = Math.max(right, Math.min(viewportWidth - 12, sidebarRect.right));
+        }
+      }
+      if (right - left < 280) {
+        left = 8;
+        right = viewportWidth - 8;
+      }
+      appTabs.style.setProperty("--app-navigation-left", (left - frameRect.left) + "px");
+      appTabs.style.setProperty("--app-navigation-width", (right - left) + "px");
+    }
+
     const tabsRect = appTabs.getBoundingClientRect();
-    const navigationBottom = Math.ceil(tabsRect.bottom + 8);
+    // Fixed workspaces and panels should not follow the page's scroll offset.
+    const navigationBottom = Math.ceil(tabsRect.bottom + window.scrollY);
 
     document.documentElement.style.setProperty(
       "--imomir-workspace-nav-offset",
-      navigationBottom + "px",
+      (navigationBottom + 12) + "px",
     );
+    document.documentElement.style.setProperty("--app-navigation-panel-top", (navigationBottom + 24) + "px");
   }
 
   function updateMenuAccessibilityState() {
@@ -1423,6 +1502,7 @@ function initializeAppNavigationMenus() {
 
   function setMenuCollapsed(collapsed, savePreference) {
     const shouldCollapse = !isMobileNavigation() && Boolean(collapsed);
+    setNavigationTrayOpen(false, false);
 
     appTabs.classList.toggle("app-tabs-collapsed", shouldCollapse);
 
@@ -1434,9 +1514,7 @@ function initializeAppNavigationMenus() {
      * Wait for the class change to be applied before measuring the
      * expanded menu's size.
      */
-    window.requestAnimationFrame(function () {
-      updateWorkspaceNavigationOffset();
-    });
+    scheduleNavigationLayout();
 
     if (savePreference && !isMobileNavigation()) {
       try {
@@ -1475,9 +1553,20 @@ function initializeAppNavigationMenus() {
     setMenuCollapsed(!isMenuCollapsed(), true);
   });
 
-  window.addEventListener("resize", function () {
-    updateWorkspaceNavigationOffset();
+  navigationTrayButton?.addEventListener("click", function () {
+    setNavigationTrayOpen(!appTabs.classList.contains("app-navigation-tray-open"), false);
   });
+  document.addEventListener("pointerdown", function (event) {
+    if (!appTabs.contains(event.target)) setNavigationTrayOpen(false, false);
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") setNavigationTrayOpen(false, true);
+  });
+  document.addEventListener("focusin", function (event) {
+    if (!appTabs.contains(event.target)) setNavigationTrayOpen(false, false);
+  });
+  window.addEventListener("resize", scheduleNavigationLayout);
+  window.addEventListener("load", scheduleNavigationLayout);
 
   if (typeof mobileNavigationMedia.addEventListener === "function") {
     mobileNavigationMedia.addEventListener("change", loadSavedMenuState);
@@ -1486,11 +1575,16 @@ function initializeAppNavigationMenus() {
   }
 
   if (window.ResizeObserver) {
-    const navigationResizeObserver = new ResizeObserver(function () {
-      updateWorkspaceNavigationOffset();
-    });
-
+    const navigationResizeObserver = new ResizeObserver(scheduleNavigationLayout);
     navigationResizeObserver.observe(appTabs);
+    if (appFrame) navigationResizeObserver.observe(appFrame);
+    if (pageContent) navigationResizeObserver.observe(pageContent);
+    if (priceSidebar) navigationResizeObserver.observe(priceSidebar);
+  }
+  if (window.MutationObserver) {
+    const layoutObserver = new MutationObserver(scheduleNavigationLayout);
+    if (pageContent) layoutObserver.observe(pageContent, { attributes: true, attributeFilter: ["class"] });
+    if (priceSidebar) layoutObserver.observe(priceSidebar, { attributes: true, attributeFilter: ["hidden", "class"] });
   }
 
   loadSavedMenuState();

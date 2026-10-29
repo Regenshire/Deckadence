@@ -101,8 +101,10 @@ You can also run **`Deckadence.exe`** directly. The Deckadence window will displ
 Deckadence normally uses:
 
 ```text
-http://127.0.0.1:5000
+http://127.0.0.1:5050
 ```
+
+Port **5050** is the default on Windows, Linux, and macOS, avoiding the macOS AirPlay Receiver conflict on port 5000. Update any saved Deckadence bookmarks or port-specific firewall rules to use 5050.
 
 Keep the Deckadence program window open while using the application. Closing that window stops Deckadence.
 
@@ -126,7 +128,7 @@ Windows may ask whether Deckadence is allowed to communicate on your network. If
 ./Start_Deckadence.sh
 ```
 
-4. Open the address shown in the terminal, normally **http://127.0.0.1:5000**.
+4. Open the address shown in the terminal, normally **http://127.0.0.1:5050**.
 
 Python is included in the package. Keep the terminal open while using Deckadence; press **Ctrl+C** to stop it. Run the same launcher to start it again.
 
@@ -135,7 +137,7 @@ Python is included in the package. Keep the terminal open while using Deckadence
 1. Download `Deckadence_vX.X.X_macOS_arm64.zip` from the [Deckadence Releases page](https://github.com/Regenshire/Deckadence/releases). This build is for **Apple Silicon Macs** only.
 2. Extract the ZIP into a folder where you want to save the application, such as Documents or Applications.
 3. Open **`Deckadence.app`** inside that folder. This will start Deckadence and opens your browser. It might take several seconds to initially load.
-4. If it does not automatically open, then open your preferred web browser such as Safari and open **http://127.0.0.1:5000** to go to Deckadence.
+4. If it does not automatically open, then open your preferred web browser such as Safari and open **http://127.0.0.1:5050** to go to Deckadence.
 
 Python is included in this package. You can also run **`Start_Deckadence.command`** to start Deckadence in your Terminal; keep the terminal window open while using it and press **Ctrl+C** to stop it.
 
@@ -143,12 +145,12 @@ Python is included in this package. You can also run **`Start_Deckadence.command
 
 # Updating Deckadence
 
-Starting with **v3.2.0**, packaged releases include an updater in **Settings → System Settings → Release Updates**, directly below Reminders. On the computer running Deckadence, open `http://127.0.0.1:5000`, choose **Check for updates**, then **Download update**. When the download has been verified, choose **Install and restart**, then confirm **Restart and install**. Keep the browser tab open; it reconnects when Deckadence restarts. Reminder shortcuts open the relevant settings section, and full release notes are expandable in Release Updates.
+Starting with **v3.2.0**, packaged releases include an updater in **Settings → System Settings → Release Updates**, directly below Reminders. On the computer running Deckadence, open `http://127.0.0.1:5050`, choose **Check for updates**, then **Download update**. When the download has been verified, choose **Install and restart**, then confirm **Restart and install**. Keep the browser tab open; it reconnects when Deckadence restarts. Reminder shortcuts open the relevant settings section, and full release notes are expandable in Release Updates.
 
 - Finish exports, downloads, plugin setup, backups, and AI jobs before installing. Installation pauses requests from all connected devices.
 - The updater downloads the complete application package for Windows x86-64, Linux x86-64, or macOS Apple Silicon. It keeps the database, settings, installed plugins/models, artwork, print customizations, and exports in place. It does not download the card database again.
 - Deckadence must be in a folder your account can write to. Source checkouts use their normal development update process. Installation controls are available only through a loopback address on the host computer.
-- **Users on v3.1.0 or earlier need one manual upgrade to an updater-enabled release.** Use Settings to export your user content, extract the complete new release into a new folder, start it, and import your backup. Follow the plugin setup instructions for any optional plugins. Subsequent supported updates can be installed from Settings.
+- **Users on v3.1.0 or earlier, or a release still using port 5000, need one manual upgrade.** The older updater checks startup on the old port and cannot complete the switch to 5050. Use Settings in the old application to export your user content, extract the complete new release into a new folder, start it, and import your backup. Follow the plugin setup instructions for any optional plugins. Subsequent supported updates can be installed from Settings.
 - Before replacing application files, the helper saves the previous application and a consistent snapshot of `cards.db` and `settings.json`. The new version remains in maintenance mode until it starts successfully. A startup failure restores those snapshots and restarts the previous version. This is startup recovery, not an undo button for changes made after a successful update.
 - If power loss or a closed helper interrupts installation, run **Start_Deckadence.bat**, **Start_Deckadence.sh**, or **Start_Deckadence.command** to recover. Keep the entire folder, including `.deckadence-update`, intact. Diagnostics and the most recent recovery snapshots are in that folder. Do not open the executable directly during interrupted-update recovery.
 - An update will stop if application-owned files were customized, a package is incomplete, or disk space is insufficient. It will not overwrite those changes. User files should live in the runtime data/customization folders, outside `_internal` and `Deckadence.app`.
@@ -199,7 +201,7 @@ Run `Start_Deckadence.bat`. Your browser should open Deckadence automatically.
 If the browser does not open, use the local address shown in the Deckadence program window. The normal local address is:
 
 ```text
-http://127.0.0.1:5000
+http://127.0.0.1:5050
 ```
 
 ## 2. Accept the Personal Use Agreement (All)
@@ -244,7 +246,7 @@ Use the **QR code button** in the Deckadence navigation bar, or enter the networ
 For example:
 
 ```text
-http://192.168.1.50:5000
+http://192.168.1.50:5050
 ```
 
 The exact address depends on the computer running Deckadence.
@@ -323,7 +325,7 @@ python app.py
 Then open:
 
 ```text
-http://127.0.0.1:5000
+http://127.0.0.1:5050
 ```
 
 ---

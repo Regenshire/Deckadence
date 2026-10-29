@@ -245,6 +245,7 @@
           </div>
           <p class="spot-card-caption" data-spot-preview-only>Screen preview only.</p>
           <div data-spot-pattern-controls hidden>
+            <div data-spot-disintegrate-controls hidden class="spot-disintegrate-controls"></div>
             <div data-spot-transporter-controls hidden class="spot-transporter-controls">
               <h3>Transporter emblem</h3>
               <input type="hidden" name="effect_transporter_emblem" value="tos_badge">
@@ -281,6 +282,49 @@
               </div>
             </div>
             <div data-spot-pattern-rotation-slot><label class="spot-card-range-label" data-spot-effect-rotation>Effect rotation <output data-spot-rotation-value>0°</output><input name="effect_rotation" type="range" min="-180" max="180" value="0" step="1"></label></div>
+            <div data-spot-solar-controls data-spot-fixed-copy hidden style="grid-column:1 / -1">
+              <h3>Raised Solar Pattern</h3>
+              <label class="spot-card-range-label">Sun diameter <output data-spot-solar-sun-size-value>300 px</output><input name="effect_solar_sun_size" type="range" min="0" max="1500" value="300" step="1"></label>
+              <p class="spot-card-caption">A circle in the effect color with raised edge shading. Set to 0 px to hide the sun.</p>
+              <label class="spot-card-range-label">Sun opacity <output data-spot-solar-sun_opacity-value>100%</output><input name="effect_solar_sun_opacity" type="range" min="0" max="100" value="100" step="1"></label>
+              <p class="spot-card-caption">Fades the sun and its raised rim. 0% reveals the artwork inside the circle.</p>
+              <div class="spot-finish-pair">
+                <label class="spot-card-range-label">Sun center X <output data-spot-solar-center_x-value>50%</output><input name="effect_solar_center_x" type="range" min="0" max="100" value="50" step="1"></label>
+                <label class="spot-card-range-label">Sun center Y <output data-spot-solar-center_y-value>50%</output><input name="effect_solar_center_y" type="range" min="0" max="100" value="50" step="1"></label>
+                <label>Ridge spacing (%)<input name="effect_solar_spacing" type="number" min="25" max="300" value="100" step="1"></label>
+                <label>Zig-zag points<input name="effect_solar_rays" type="number" min="8" max="96" value="18" step="1"></label>
+              </div>
+              <p class="spot-card-caption">Fewer points make longer zig-zag segments. More points make shorter segments.</p>
+              <label class="spot-card-range-label">Zig-zag thickness <output data-spot-solar-thickness-value>38%</output><input name="effect_solar_thickness" type="range" min="10" max="85" value="38" step="1"></label>
+              <label class="spot-card-range-label">Zig-zag depth <output data-spot-solar-depth-value>55%</output><input name="effect_solar_depth" type="range" min="0" max="100" value="55" step="1"></label>
+              <label class="spot-card-range-label">Raised edge shading <output data-spot-solar-relief-value>70%</output><input name="effect_solar_relief" type="range" min="0" max="100" value="70" step="1"></label>
+              <h3>Alternating bands</h3>
+              <label class="spot-card-check"><input name="effect_solar_radial_bands" type="checkbox" checked> Alternate radial sections</label>
+              <p class="spot-card-caption">Colors switch at each zig-zag bend, forming straight sections from the sun to the edge.</p>
+              <label class="spot-card-check"><input name="effect_solar_ring_bands" type="checkbox"> Alternate zig-zag rings</label>
+              <p class="spot-card-caption">Optional color changes across groups of ridges. Turn off to keep each radial section one color.</p>
+              <label hidden>Ridges per ring band<input name="effect_solar_band_width" type="number" min="1" max="12" value="4" step="1"></label>
+              <div class="spot-finish-pair" data-spot-solar-colors>
+                <div data-spot-solar-color-slot></div>
+                <div>
+                  <label class="spot-card-color-picker"><span>Off-band color</span><input name="effect_solar_off_color" type="color" value="#8B602A"><output data-spot-solar-off-color-value>#8B602A</output></label>
+                  <div class="spot-card-swatches" role="group" aria-label="Off-band colors">
+                    {% for color in ['#FFFFFF', '#FFE7A0', '#00DDFF', '#FF2FBB', '#8CFF45', '#18213B'] %}
+                    <button type="button" class="spot-card-swatch" data-spot-solar-off-swatch="{{ color }}" aria-label="Use shifted {{ color }} off-band color"></button>
+                    {% endfor %}
+                  </div>
+                  <label class="spot-card-check"><input name="effect_solar_off_auto" type="checkbox" checked> Auto · follow Effect color</label>
+                </div>
+              </div>
+              <label class="spot-card-range-label">Off-band brightness <output data-spot-solar-off_brightness-value>45%</output><input name="effect_solar_off_brightness" type="range" min="0" max="100" value="45" step="1"></label>
+              <label class="spot-card-range-label">Off-band opacity <output data-spot-solar-off_opacity-value>100%</output><input name="effect_solar_off_opacity" type="range" min="0" max="100" value="100" step="1"></label>
+              <p class="spot-card-caption">Fades the off-band ridges. 0% hides them; background opacity stays separate.</p>
+              <label class="spot-card-range-label">Background opacity <output data-spot-solar-background_opacity-value>100%</output><input name="effect_solar_background_opacity" type="range" min="0" max="100" value="100" step="1"></label>
+              <p class="spot-card-caption">Controls the spaces between ridges. 0% leaves those spaces transparent.</p>
+              <label class="spot-card-range-label">Opaque coverage <output data-spot-solar-opacity-value>0%</output><input name="effect_solar_opacity" type="range" min="0" max="100" value="0" step="1"></label>
+              <p class="spot-card-caption">0% modifies the artwork’s color and texture. 100% paints the pattern over it. Use 100% Effect strength for fully opaque coverage.</p>
+              <p class="spot-card-caption">Copy Path respects Off-band opacity and Sun opacity. Background is always excluded. Paste onto Foil Mask or Gloss.</p>
+            </div>
             <div class="spot-finish-pair" style="grid-column:1 / -1" data-spot-ripple-origin hidden>
               <label>Origin X (%)<input type="number" name="effect_origin_x" min="0" max="100" step="1" value="20"></label>
               <label>Origin Y (%)<input type="number" name="effect_origin_y" min="0" max="100" step="1" value="72"></label>
@@ -425,6 +469,6 @@
     <div><h2 id="spotGeneratedArtTitle">Generated art</h2><p data-spot-art-info></p></div>
     <button type="button" data-spot-art-close aria-label="Close generated art">×</button>
   </header>
-  <div class="spot-art-toolbar"><span>Full image, including the outpainted background.</span><div><button type="button" data-spot-art-fit aria-pressed="true">Fit</button><button type="button" data-spot-art-actual aria-pressed="false">100%</button></div></div>
-  <div class="spot-art-viewport" data-spot-art-viewport tabindex="0" aria-label="Generated artwork, scroll to inspect at full size"><img data-spot-art-image alt="Complete generated artwork before shard clipping"></div>
+  <div class="spot-art-toolbar"><span>Full image. Choose 100% to inspect fine details.</span><div><button type="button" data-spot-art-fit aria-pressed="true">Fit</button><button type="button" data-spot-art-actual aria-pressed="false">100%</button></div></div>
+  <div class="spot-art-viewport" data-spot-art-viewport tabindex="0" aria-label="Artwork preview, scroll to inspect at full size"><img data-spot-art-image alt="Complete artwork preview"></div>
 </dialog>

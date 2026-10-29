@@ -12,6 +12,7 @@ from dataclasses import (
 )
 
 import random
+import re
 
 from .core import (
     ExternalDeck,
@@ -93,6 +94,20 @@ class ExternalDeckRouletteSpin:
 
 class ExternalDeckRouletteService:
     FORMAT_RULES = {
+        "welcomeDecks": {
+            "label": "Welcome Decks (40 card deck)",
+            "group": "Starter Decks",
+            "provider_format": "none",
+            "deck_size_mode": "exact",
+            "deck_size": 40,
+            "requires_leader": False,
+            "allow_leaders": False,
+            "require_legal": False,
+            "default_title_search": "welcome",
+            "required_title_word": "welcome",
+            "title_alias_groups": (("star trek", "trk"),),
+            "import_format": "Limited",
+        },
         "commander": {
             "label": "Commander (100 card deck)",
             "group": "Commander",
@@ -186,6 +201,7 @@ class ExternalDeckRouletteService:
     FORMAT_GROUP_ORDER = (
         "Commander",
         "Constructed",
+        "Starter Decks",
     )
 
     LEADER_BOARDS = {
@@ -316,6 +332,25 @@ class ExternalDeckRouletteService:
             ],
         )
 
+        welcome_title_terms = ()
+        if format_rule["key"] == "welcomeDecks":
+            # Moxfield ORs title words, so combining "welcome" with a set name
+            # broadens the search. Keep its query narrow and refine locally.
+            welcome_title_terms = tuple(
+                term.strip('"“”')
+                for term in re.findall(r'"[^"]+"|“[^”]+”|\S+', filters.deck_name or "")
+                if term.strip('"“”')
+            )
+            filters = replace(
+                filters,
+                deck_name=format_rule["default_title_search"],
+            )
+        elif not str(filters.deck_name or "").strip():
+            filters = replace(
+                filters,
+                deck_name=format_rule.get("default_title_search", ""),
+            )
+
         options = (
             options
             or ExternalDeckSelectionOptions()
@@ -350,13 +385,24 @@ class ExternalDeckRouletteService:
 
         discovery_options = replace(
             options,
+            require_legal=format_rule.get("require_legal", options.require_legal),
             selection_count=(
                 top_result_limit
             ),
             candidate_pool_size=(
                 top_result_limit
             ),
-            required_playable_card_count=None,
+            required_playable_card_count=(
+                format_rule["deck_size"]
+                if format_rule["key"] == "welcomeDecks"
+                else None
+            ),
+            required_title_terms=(
+                options.required_title_terms + welcome_title_terms
+            ),
+            title_alias_groups=(
+                options.title_alias_groups + format_rule.get("title_alias_groups", ())
+            ),
             top_result_limit=(
                 top_result_limit
             ),
@@ -378,6 +424,13 @@ class ExternalDeckRouletteService:
         )
 
         if not candidates:
+            if format_rule["key"] == "welcomeDecks":
+                raise ExternalDeckSelectionError(
+                    "No 40-card Welcome Decks were found among the selected "
+                    "Moxfield results. Try clearing Title Search or increasing "
+                    "Out of Top. Decks must have 'Welcome' in their title; "
+                    "a matching public upload may not be available yet."
+                )
             raise ExternalDeckSelectionError(
                 "Deck Roulette found no complete "
                 "decks within the selected "
@@ -493,6 +546,7 @@ class ExternalDeckRouletteService:
             return []
 
         loaded_by_index = {}
+        load_errors = []
 
         worker_count = min(
             self.max_workers,
@@ -525,7 +579,8 @@ class ExternalDeckRouletteService:
                         future.result()
                     )
 
-                except ExternalDeckError:
+                except ExternalDeckError as exc:
+                    load_errors.append(exc)
                     continue
 
                 candidate = (
@@ -544,6 +599,10 @@ class ExternalDeckRouletteService:
                     index
                 ] = candidate
 
+        if len(load_errors) == len(summaries):
+            # A provider failure is not evidence that no matching decks exist.
+            raise load_errors[0]
+
         return [
             loaded_by_index[index]
             for index
@@ -560,6 +619,14 @@ class ExternalDeckRouletteService:
         if not isinstance(
             external_deck,
             ExternalDeck,
+        ):
+            return None
+
+        required_title_word = format_rule.get("required_title_word")
+        if required_title_word and not re.search(
+            rf"\b{re.escape(required_title_word)}\b",
+            external_deck.summary.name or "",
+            re.IGNORECASE,
         ):
             return None
 
@@ -596,6 +663,9 @@ class ExternalDeckRouletteService:
             if board in self.LEADER_BOARDS:
                 leader_card_count += quantity
                 leader_cards.append(card)
+
+        if leader_cards and not format_rule.get("allow_leaders", True):
+            return None
 
         if format_rule["requires_leader"]:
             playable_card_count = (

@@ -15,6 +15,7 @@ from foil_effects import custom_pattern_alpha
 from paths import IMAGE_CACHE_DIR
 from .finishing_wind_waves import EFFECTS as WIND_WAVE_EFFECTS, render_wind_waves
 from .finishing_ukiyo import TYPES as UKIYO_TYPES, render_ukiyo
+from .finishing_solar import validate_solar, render_solar, soft_light, RENDER_VERSION as SOLAR_RENDER_VERSION
 from .finishing_materials import MATERIAL_EFFECTS, render_material
 from .finishing_patterns import EFFECTS as PATTERN_EFFECTS, COLORS as PATTERN_COLORS, PATH_EFFECTS, RETIRED_EFFECTS, render_pattern
 from .mirror_shards import validate_shards, decode_scene, render_shards, transform_image
@@ -22,6 +23,7 @@ from .mirror_layers import validate_mirrors, render_mirrors, has_strength_overri
 from .dragon_strike import EMBLEMS as DRAGON_EMBLEMS, TRAILS as DRAGON_TRAILS, LEGACY_TRAILS as LEGACY_DRAGON_TRAILS, selection as dragon_selection
 from .dragon_strike import RENDER_VERSION as DRAGON_RENDER_VERSION, ALIGNMENTS as DRAGON_ALIGNMENTS
 from .dragon_strike import COLOR_EFFECTS as DRAGON_COLOR_EFFECTS, color_overlay as dragon_color_overlay
+from .finishing_disintegrate import validate_settings as validate_disintegrate, render_disintegrate, RENDER_VERSION as DISINTEGRATE_RENDER_VERSION
 from .federation_transporter import (EMBLEMS as TRANSPORTER_EMBLEMS, STYLES as TRANSPORTER_STYLES,
     ALIGNMENTS as TRANSPORTER_ALIGNMENTS, RENDER_VERSION as TRANSPORTER_RENDER_VERSION, render_transporter,
     layout_settings as transporter_layout_settings)
@@ -35,6 +37,8 @@ COLOR_DEFAULTS['ukiyo_e']='#FFFFFF'
 COLOR_DEFAULTS['confetti_glitter']='#FFFFFF'
 COLOR_DEFAULTS['dragon_strike']='#FFFFFF'
 COLOR_DEFAULTS['federation_transporter']='#FFFFFF'
+COLOR_DEFAULTS['raised_solar']='#E8B94F'
+COLOR_DEFAULTS['disintegrate']='#FF9D35'
 COLOR_DEFAULTS.update(PATTERN_COLORS)
 COLOR_DEFAULTS.update(dict.fromkeys(WIND_WAVE_EFFECTS, "#FFFFFF"))
 MATERIAL_PATH = Path(__file__).resolve().parents[1] / 'static/img/card-effects/fracture-foil-material-v1.png'
@@ -45,6 +49,8 @@ EFFECT_TYPES = {
     "chocobo_tracks": "Chocobo Track",
     "dragon_strike": "Dragon Strike Foil",
     "federation_transporter": "Trek Transport Foil",
+    "disintegrate": "Disintegrate Foil · AI Effect",
+    "raised_solar": "Raised Solar Pattern",
     "pearl": "Pearlescent Wash", "etched": "Etched Metal", "watercolor": "Watercolor Texture",
     "halftone": "Halftone Dots", "neon": "Neon Edge Glow",
     **{key:label for key,label in MATERIAL_EFFECTS.items() if key not in CONFETTI_GLITTER_TYPES},
@@ -56,13 +62,21 @@ EFFECT_TYPES = {
 
 
 def validate_effect(value):
-    if not isinstance(value, dict) or set(value)-{'color','translucence','shards','mirrors','rotation','position_x','position_y','transparency','black_depth','silver_brightness','stacked','disabled','origin_x','origin_y','ukiyo_type','sparse','flip_horizontal','particle_type','dragon_emblem','dragon_trail','dragon_alignment','dragon_color_effect','transporter_emblem','transporter_style','transporter_alignment','transporter_layout'} != {"finish", "strength", "scale", "density", "seed"}:
+    if not isinstance(value, dict) or set(value)-{'disintegrate','color','translucence','solar','shards','mirrors','rotation','position_x','position_y','transparency','black_depth','silver_brightness','stacked','disabled','origin_x','origin_y','ukiyo_type','sparse','flip_horizontal','particle_type','dragon_emblem','dragon_trail','dragon_alignment','dragon_color_effect','transporter_emblem','transporter_style','transporter_alignment','transporter_layout'} != {"finish", "strength", "scale", "density", "seed"}:
         raise ValueError("Choose valid finishing effect settings.")
     if not isinstance(value["finish"],str) or (value["finish"] not in EFFECT_TYPES and value["finish"] not in RETIRED_EFFECTS and value["finish"] not in WIND_WAVE_EFFECTS and value["finish"] not in CONFETTI_GLITTER_TYPES):
         raise ValueError("Choose a supported finishing effect.")
     for key, low, high in (("strength", 1, 100), ("scale", 25, 1000), ("density", 1, 200), ("seed", 0, 2147483647)):
         if type(value[key]) is not int or not low <= value[key] <= high:
             raise ValueError("Choose valid effect strength, size, density, and pattern.")
+    if value['finish']=='disintegrate':
+        value=dict(value,disintegrate=validate_disintegrate(value.get('disintegrate',{})))
+    elif 'disintegrate' in value:
+        raise ValueError('Disintegration settings only apply to Disintegrate Foil.')
+    if value['finish']=='raised_solar':
+        value=dict(value,solar=validate_solar(value.get('solar',{})))
+    elif 'solar' in value:
+        raise ValueError('Solar settings only apply to Raised Solar Pattern.')
     if value['finish']=='federation_transporter':
         value=dict(value)
         for key, choices in (('transporter_emblem',TRANSPORTER_EMBLEMS),('transporter_style',TRANSPORTER_STYLES),('transporter_alignment',TRANSPORTER_ALIGNMENTS)):
@@ -122,6 +136,8 @@ def validate_effect(value):
     color=value.get('color',COLOR_DEFAULTS.get(value['finish'],'#FFE7A0'))
     if not isinstance(color,str) or not re.fullmatch(r'#[0-9a-fA-F]{6}',color):
         raise ValueError('Choose a valid effect color.')
+    if value['finish']=='raised_solar':
+        value=dict(value,solar=validate_solar(value['solar'],color))
     translucence=value.get('translucence',0)
     rotation=value.get('rotation',0)
     if type(rotation) is not int or not -180<=rotation<=180:
@@ -164,6 +180,8 @@ def parameters(value):
             'translucence':value.get('translucence',0),
             'rotation':value.get('rotation',0),
             'disabled':value.get('disabled',False),
+            **({'disintegrate':validate_disintegrate(value.get('disintegrate',{}))} if value['finish']=='disintegrate' else {}),
+            **({'solar':validate_solar(value.get('solar',{}),value.get('color',COLOR_DEFAULTS['raised_solar']))} if value['finish']=='raised_solar' else {}),
             **({'transporter_emblem':value.get('transporter_emblem','tos_badge'),'transporter_style':value.get('transporter_style','multicolor'),'transporter_alignment':value.get('transporter_alignment','emblem')} if value['finish']=='federation_transporter' else {}),
             **({'transporter_layout':value['transporter_layout']} if value['finish']=='federation_transporter' and 'transporter_layout' in value else {}),
             **({'dragon_emblem':value.get('dragon_emblem','bolas_command'),'dragon_trail':value.get('dragon_trail','winding_magic')} if value['finish']=='dragon_strike' else {}),
@@ -183,6 +201,8 @@ def parameters(value):
 def visual_parameters(value):
     """Only inputs that change pixels; future generation instructions are metadata."""
     result = parameters(value)
+    if 'disintegrate' in result:
+        result['disintegrate'] = {key: item for key, item in result['disintegrate'].items() if key != 'prompt'}
     if 'mirrors' in result:
         mirrors = dict(result['mirrors'])
         for key in ('target', 'variation', 'theme', 'prompt', 'maintain_style', 'layout', 'layout_seed', 'layout_origin'):
@@ -200,6 +220,7 @@ def visual_parameters(value):
 
 
 def translucence_amount(effect):
+    if effect.get('finish')=='raised_solar':return 1-effect.get('solar',{}).get('opacity',0)/100
     if effect.get('finish')=='oil_slick':return 1
     if effect.get('finish')=='neon_ink':return .85
     return effect.get('translucence',0)/100 if effect.get('finish')=='fracture' else 0
@@ -223,7 +244,8 @@ def composite_overlay(backdrop, overlay, effect):
         gray=gray.point(tone)
         result=gray.convert('RGBA');result.putalpha(overlay.getchannel('A'))
         return result
-    return blend_overlay(backdrop,overlay,translucence_amount(effect))
+    return blend_overlay(backdrop,overlay,translucence_amount(effect),
+                         mode='soft-light' if effect.get('finish')=='raised_solar' else 'color')
 
 
 def _color_blend(backdrop, source):
@@ -253,14 +275,14 @@ def _color_blend(backdrop, source):
     return Image.merge('RGB',[ImageMath.lambda_eval(clip,r=bands[0],g=bands[1],b=bands[2],l=lum,channel=i) for i in range(3)])
 
 
-def blend_overlay(backdrop, overlay, translucence):
+def blend_overlay(backdrop, overlay, translucence, *, mode='color'):
     """Bake the two preview blend passes into one exportable RGBA layer."""
     if not translucence:
         return overlay
     normal=overlay.copy()
     normal.putalpha(overlay.getchannel('A').point(lambda v:round(v*(1-translucence))))
     beneath=Image.alpha_composite(backdrop.convert('RGBA'),normal)
-    glaze=_color_blend(beneath,overlay).convert('RGBA')
+    glaze=(soft_light(beneath,overlay) if mode=='soft-light' else _color_blend(beneath,overlay)).convert('RGBA')
     glaze.putalpha(overlay.getchannel('A').point(lambda v:round(v*translucence)))
     return Image.alpha_composite(normal,glaze)
 
@@ -440,8 +462,16 @@ def render_overlay(mask_png, effect, width=None):
         alpha=Image.new('L',size,255)
     if effect.get('disabled',False):
         output=BytesIO();Image.new('RGBA',size).save(output,format='PNG');return output.getvalue()
+    if effect['finish']=='disintegrate':
+        # The saved subject cutout defines what disappears. The Studio mask
+        # limits the effect area; an empty mask means the whole card.
+        image=render_disintegrate(effect,alpha)
+        image.putalpha(image.getchannel('A').point(lambda a:round(a*effect['strength']/100)))
+        output=BytesIO();image.save(output,format='PNG');return output.getvalue()
     unit=width/756
-    if effect['finish']=='confetti_glitter':
+    if effect['finish']=='raised_solar':
+        image=render_solar(effect,*size)
+    elif effect['finish']=='confetti_glitter':
         image=render_confetti_glitter(effect,*size)
     elif effect['finish']=='ukiyo_e':
         image=render_ukiyo(effect,*size)
@@ -479,7 +509,7 @@ def render_overlay(mask_png, effect, width=None):
         image=Image.new("RGBA",size,rgb);image.putalpha(glow)
     else:
         image=_texture(effect["finish"],effect["scale"],effect["density"],effect["seed"],*size,effect["color"],effect.get("stacked",False)).copy()
-    if effect['finish'] not in ('mirror_layers','mirror_shards','chocobo_tracks','dragon_strike','federation_transporter','silver_black','neon_ink','ripple','ukiyo_e','confetti_glitter') and effect['finish'] not in PATH_EFFECTS:
+    if effect['finish'] not in ('raised_solar','mirror_layers','mirror_shards','chocobo_tracks','dragon_strike','federation_transporter','silver_black','neon_ink','ripple','ukiyo_e','confetti_glitter') and effect['finish'] not in PATH_EFFECTS:
         image=transform_image(image,effect['rotation'],cover_rotation=False)
     image.putalpha(ImageChops.multiply(image.getchannel('A'),alpha))
     if effect['finish']!='mirror_layers' or not has_strength_overrides(effect['mirrors']):
@@ -494,6 +524,10 @@ def render_overlay(mask_png, effect, width=None):
 
 
 def renderer_version(effect):
+    if effect['finish']=='disintegrate':
+        return RENDER_VERSION*1000+DISINTEGRATE_RENDER_VERSION
+    if effect['finish']=='raised_solar':
+        return RENDER_VERSION*1000+SOLAR_RENDER_VERSION
     if effect['finish']=='federation_transporter':
         return RENDER_VERSION*1000+TRANSPORTER_RENDER_VERSION
     # A Dragon Strike geometry fix must not force unrelated effects to rebake.

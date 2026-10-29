@@ -12,12 +12,14 @@ import time
 from uuid import uuid4
 
 from flask import jsonify, request, send_file, url_for
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, UnidentifiedImageError
 from .foil_workflows import WORKFLOWS, OUTPUTS, LAYER_TYPES, load_preferences, normalize_display_color
 from .manager import get_plugin_status, run_plugin_json
 from .finishing_effects import CONFETTI_GLITTER_TYPES, render_confetti_glitter, EFFECT_TYPES, validate_effect, parameters, render_overlay, chocobo_selection, PARTICLE_PATH_EFFECTS, particle_selection
+from .finishing_solar import render_solar
 from .dragon_strike import TRAILS as DRAGON_TRAILS, COLOR_EFFECTS as DRAGON_COLOR_EFFECTS, selection as dragon_selection
 from .federation_transporter import STYLES as TRANSPORTER_STYLES, render_transporter
+from .finishing_disintegrate import render_disintegrate
 from .finishing_ukiyo import TYPES as UKIYO_TYPES, ukiyo_selection
 from .finishing_patterns import PATH_EFFECTS, pattern_selection
 from .mirror_shards import TEMPLATES as SHARD_TEMPLATES, THEMES as MIRROR_THEMES, shard_selection
@@ -30,6 +32,28 @@ MASK_SIZE = (756, 1056)
 MAX_MASK_SIZE = (3024, 4224)
 _text_detection_lock = threading.Lock()
 _subject_detection_lock = threading.Lock()
+
+
+def subject_at_point(mask,point):
+    """Choose the connected detected foreground at the requested artwork point."""
+    small=mask.copy();small.thumbnail((512,512),Image.Resampling.LANCZOS)
+    component=small.point(lambda a:255 if a>=128 else 0)
+    w,h=component.size;x=min(w-1,round(point[0]*(w-1)));y=min(h-1,round(point[1]*(h-1)))
+    if not component.getpixel((x,y)):
+        # Allow an antialiased edge or a small gap, never silently choose a
+        # different character on the opposite side of the illustration.
+        radius=max(3,round(min(w,h)*.06));pixels=component.load()
+        nearby=((px,py) for py in range(max(0,y-radius),min(h,y+radius+1))
+                for px in range(max(0,x-radius),min(w,x+radius+1)) if pixels[px,py])
+        selected=min(nearby,key=lambda p:(p[0]-x)**2+(p[1]-y)**2,default=None)
+        if selected is None:raise ValueError('No distinct subject found at the impact point. Move the impact onto the target and detect again.')
+        x,y=selected
+    ImageDraw.floodfill(component,(x,y),128)
+    component=component.point(lambda a:255 if a==128 else 0)
+    # Expand only the component selector, then retain the detector's original
+    # edge alpha, fine detail and holes rather than replacing it with a hard edge.
+    component=component.filter(ImageFilter.MaxFilter(3)).resize(mask.size,Image.Resampling.NEAREST)
+    return ImageChops.multiply(mask,component)
 
 
 class PreviewBusy(RuntimeError):
@@ -186,6 +210,8 @@ def summary_settings(settings):
             layer['shards'] = {**layer['shards'], 'scene': '', 'scene_selection': ''}
         if layer.get('mirrors'):
             layer['mirrors'] = {**layer['mirrors'], 'scenes': {}}
+        if layer.get('disintegrate'):
+            layer['disintegrate'] = {**layer['disintegrate'], 'scene':'', 'subject':''}
         result[name] = layer
     return json.dumps(result, allow_nan=False)
 
@@ -238,6 +264,8 @@ def record_json(row, key):
             value['shards']={**value['shards'],'scene':'','scene_selection':''}
         if value.get('mirrors') and request.endpoint=='card_spot_foil_lookup':
             value['mirrors']={**value['mirrors'],'scenes':{}}
+        if value.get('disintegrate') and request.endpoint=='card_spot_foil_lookup':
+            value['disintegrate']={**value['disintegrate'],'scene':'','subject':''}
         value["mask_url"] = url_for("card_spot_foil_mask", card_uuid=key[1], face=key[2], layer=layer,
                                     expected_scope=key[0], revision=row["revision"], **owner)
         if layer.startswith("effect"):
@@ -278,7 +306,7 @@ def decode_mask(value):
 
 
 def validate_generation(value):
-    defaults = dict(mode="highlights", region="artwork", amount=35, coverage=100, action="foil", cleanup="balanced",
+    defaults = dict(mode="highlights", region="full", amount=35, coverage=100, action="foil", cleanup="balanced",
                     art_box_width=88, art_box_height=44, art_box_x=50, art_box_y=34,
                     pocket_size=64, pocket_target="both",
                     text_mode="original", text_source="standard", text_detail="letters", text_ink="auto",
@@ -370,11 +398,13 @@ def validate_settings(payload):
         value = payload[layer]
         if value is not None:
             keys = {"finish", "strength", "scale", "density", "seed", "overlay_color", "generation", "mask_data"}
-            if not isinstance(value, dict) or set(value)-{"color","translucence","shards","mirrors","rotation","position_x","position_y","transparency","black_depth","silver_brightness","stacked","disabled","origin_x","origin_y","ukiyo_type","sparse","flip_horizontal","particle_type","dragon_emblem","dragon_trail","dragon_alignment","dragon_color_effect","transporter_emblem","transporter_style","transporter_alignment","transporter_layout"} != keys:
+            if not isinstance(value, dict) or set(value)-{"disintegrate","color","translucence","solar","shards","mirrors","rotation","position_x","position_y","transparency","black_depth","silver_brightness","stacked","disabled","origin_x","origin_y","ukiyo_type","sparse","flip_horizontal","particle_type","dragon_emblem","dragon_trail","dragon_alignment","dragon_color_effect","transporter_emblem","transporter_style","transporter_alignment","transporter_layout"} != keys:
                 raise ValueError("Provide valid printable effect settings.")
             value = {**validate_effect(parameters(value)), "overlay_color": normalize_display_color(value["overlay_color"]),
                      "generation": validate_generation(value["generation"]),
                      "mask_png_base64": base64.b64encode(decode_mask(value["mask_data"])).decode("ascii")}
+            if value['finish']=='disintegrate' and not value.get('disabled') and value['disintegrate']['amount'] and not value['disintegrate']['scene']:
+                raise ValueError('Generate and apply the Disintegrate background before saving.')
         result[layer] = value
     return result
 
@@ -605,13 +635,16 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if request.content_length and request.content_length > 6_100_000:
             return jsonify(ok=False, message="The card image is too large."), 413
         payload = request.get_json(silent=True)
-        if (not isinstance(payload, dict) or set(payload) != {"image"}
+        if (not isinstance(payload, dict) or set(payload)-{'point'} != {"image"}
                 or not isinstance(payload["image"], str) or len(payload["image"]) > 6_000_000):
             raise ValueError("Provide an image for subject detection.")
+        point=payload.get('point')
+        if point is not None and (not isinstance(point,list) or len(point)!=2 or any(type(v) not in (int,float) or not math.isfinite(v) or not 0<=v<=1 for v in point)):
+            raise ValueError('Choose a valid subject target point.')
         if not _subject_detection_lock.acquire(blocking=False):
             raise RuntimeError("Another subject is being detected. Try again when it finishes.")
         try:
-            result = run_plugin_json("card-finishing-studio", "detect_subject", payload, timeout=300)
+            result = run_plugin_json("card-finishing-studio", "detect_subject", {'image':payload['image']}, timeout=300)
             encoded = result.get("mask") if isinstance(result, dict) else None
             if not isinstance(encoded, str) or len(encoded) > 6_000_000:
                 raise ValueError("Subject detection returned an invalid mask.")
@@ -619,7 +652,7 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
                 if source.format != "PNG" or source.mode != "L" or source.width * source.height > 4_000_000:
                     raise ValueError("Subject detection returned an invalid mask.")
                 canonical = Image.new("RGBA", source.size, "white")
-                canonical.putalpha(source)
+                canonical.putalpha(subject_at_point(source,point) if point is not None else source)
                 output = BytesIO(); canonical.save(output, format="PNG")
             return jsonify(ok=True, mask_data="data:image/png;base64," + base64.b64encode(output.getvalue()).decode("ascii"))
         except subprocess.TimeoutExpired as exc:
@@ -706,7 +739,9 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
             raise ValueError("Provide an effect and its mask.")
         def render():
             effect = validate_effect(payload['effect'])
-            png = render_overlay(decode_mask(payload['mask_data']), effect, width=756)
+            # Fine diagonal beam cores need enough samples when zooming in.
+            png = render_overlay(decode_mask(payload['mask_data']), effect,
+                                 width=1512 if effect['finish']=='disintegrate' else 756)
             response = send_file(BytesIO(png), mimetype='image/png')
             response.cache_control.no_store = True
             return response
@@ -753,6 +788,28 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         output=BytesIO();image.save(output,format='PNG');output.seek(0)
         return send_file(output,mimetype='image/png')
 
+    @app.post('/cards/spot-foil/<card_uuid>/<face>/disintegrate-path')
+    @api_errors
+    def card_disintegrate_path(card_uuid,face):
+        card_key(dict(card_uuid=card_uuid,face=face))
+        if request.content_length and request.content_length>71_000_000:
+            return jsonify(ok=False,message='The Disintegrate path settings are too large.'),413
+        payload=request.get_json(silent=True)
+        if not isinstance(payload,dict) or set(payload)!={'effect','mask_data','width'}:
+            raise ValueError('Provide the Disintegrate effect, target mask and path width.')
+        effect=validate_effect(payload['effect'])
+        width=payload['width']
+        if effect['finish']!='disintegrate' or type(width) is not int or not 756<=width<=3024:
+            raise ValueError('Choose Disintegrate Foil and a supported mask width.')
+        target=Image.open(BytesIO(decode_mask(payload['mask_data']))).getchannel('A')
+        target=target.resize((width,round(width*1056/756)),Image.Resampling.LANCZOS)
+        alpha=render_disintegrate(effect,target,selection=True).getchannel('A')
+        alpha=alpha.point(lambda a:round(a*effect['strength']/100))
+        image=Image.new('RGBA',target.size,'white');image.putalpha(alpha)
+        output=BytesIO();image.save(output,format='PNG');output.seek(0)
+        response=send_file(output,mimetype='image/png');response.cache_control.no_store=True
+        return response
+
     @app.route("/cards/spot-foil/<card_uuid>/<face>/effect-path", methods=["POST"])
     @api_errors
     def card_finishing_path(card_uuid, face):
@@ -769,6 +826,8 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         keys = {'finish','scale','rotation','width'}
         if finish == 'mirror_shards':
             keys |= {'template','x','y'}
+        elif finish == 'raised_solar':
+            keys |= {'density','seed','solar'}
         elif finish == 'confetti_glitter':
             keys |= {'density','seed','particle_type','flip_horizontal','x','y'}
         elif finish == 'ukiyo_e':
@@ -793,7 +852,11 @@ def register_card_spot_foil_routes(app, get_connection, get_config, resolve_cont
         if type(width) is not int or not MASK_SIZE[0] <= width <= MAX_MASK_SIZE[0]:
             raise ValueError('Choose a mask width from 756 to 3024 pixels.')
         height = round(width * MASK_SIZE[1] / MASK_SIZE[0])
-        if finish == 'federation_transporter':
+        if finish == 'raised_solar':
+            effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=payload['density'],
+                seed=payload['seed'],rotation=payload['rotation'],solar=payload['solar']))
+            alpha=render_solar(effect,width,height,selection=True)
+        elif finish == 'federation_transporter':
             effect=validate_effect(dict(finish=finish,strength=100,scale=payload['scale'],density=payload['density'],seed=payload['seed'],
                 rotation=payload['rotation'],position_x=payload['x'],position_y=payload['y'],
                 **{key:payload[key] for key in ('transporter_emblem','transporter_style','transporter_alignment')},

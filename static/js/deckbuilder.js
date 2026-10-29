@@ -11,6 +11,9 @@
     "deckbuilderZoneResizeHandle",
   );
   let deckGroupBy = "mana";
+  let deckbuilderUX = null;
+  let deckbuilderAddDestination = "deck";
+  let deckbuilderOrganization = JSON.parse(workspace?.dataset.organization || '{"revision":0,"groups":[],"assignments":{},"orders":{}}');
   const groupBySelect = document.getElementById("deckbuilderGroupBySelect");
   const sortSelect = document.getElementById("deckbuilderSortSelect");
   const cardSizeSelect = document.getElementById("deckbuilderCardSizeSelect");
@@ -523,26 +526,39 @@
   }
 
   function getDeckbuilderCardSizePixels(sizePercent) {
-    return window.DeckadenceCardSizes.pixels(sizePercent, deckList);
+    const normalizedSizePercent = normalizeDeckbuilderCardSize(sizePercent);
+    if (normalizedSizePercent !== "auto") {
+      // The Deck Builder has a smaller baseline: 100% equals the shared scale's 80%.
+      const baseCardWidth = 336 * 0.8;
+      return Math.round(baseCardWidth * normalizedSizePercent / 100);
+    }
+    const style = getComputedStyle(deckList);
+    const width = deckList.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+    const gap = parseFloat(style.columnGap) || 12;
+    let columns = Math.max(1, Math.ceil((width + gap) / (180 + gap)));
+    if (deckbuilderViewMode === "stack") {
+      // Size the groups that are actually displayed, not empty grid slots.
+      // Custom groups remain visible as drop targets even when they are empty.
+      const occupiedGroups = new Set(getDeckbuilderCards(deckList).map(getDeckbuilderStackColumnKey));
+      const groupCount = getDeckbuilderStackColumnDefs().filter(group =>
+        occupiedGroups.has(group.key) ||
+        (deckGroupBy === "custom" && !["commander", "partner"].includes(group.key)),
+      ).length;
+      columns = Math.min(columns, Math.max(1, groupCount));
+    }
+    const fittedWidth = Math.max(96, Math.floor((width - gap * (columns - 1)) / columns));
+    // Auto is independent of the percentage scale. Avoid oversized cards when
+    // a deck has only one or two groups on a very wide screen.
+    return deckbuilderViewMode === "stack" ? Math.min(320, fittedWidth) : fittedWidth;
   }
 
-  function updateDeckbuilderCardSize(sizePercent) {
-    const normalizedSizePercent = normalizeDeckbuilderCardSize(sizePercent);
-    const cardWidth = getDeckbuilderCardSizePixels(normalizedSizePercent);
+  function applyDeckbuilderCardSizeStyles() {
+    const cardWidth = getDeckbuilderCardSizePixels(deckbuilderCardSize);
     const stackColumnWidth = Math.max(96, cardWidth);
-    const stackCardWidth = Math.max(80, stackColumnWidth - 16);
-    //const visibleStackStrip = Math.max(30, Math.round(stackCardWidth * 0.22));
+    const stackCardWidth = Math.max(80, stackColumnWidth);
     const visibleStackStrip = Math.max(30, Math.round(stackCardWidth * 0.16));
     const cardHeight = Math.round(stackCardWidth * 1.4);
     const overlap = Math.max(0, cardHeight - visibleStackStrip);
-
-    deckbuilderCardSize = normalizedSizePercent;
-    workspace.classList.toggle("card-size-auto", deckbuilderCardSize === "auto");
-
-    deckbuilderPreferences.set(
-      DECKBUILDER_PREFERENCE_KEYS.cardSize,
-      deckbuilderCardSize,
-    );
 
     workspace.style.setProperty("--deckbuilder-card-width", cardWidth + "px");
     workspace.style.setProperty(
@@ -553,6 +569,13 @@
       "--deckbuilder-stack-overlap",
       "-" + overlap + "px",
     );
+  }
+
+  function updateDeckbuilderCardSize(sizePercent) {
+    deckbuilderCardSize = normalizeDeckbuilderCardSize(sizePercent);
+    workspace.classList.toggle("card-size-auto", deckbuilderCardSize === "auto");
+    deckbuilderPreferences.set(DECKBUILDER_PREFERENCE_KEYS.cardSize, deckbuilderCardSize);
+    applyDeckbuilderCardSizeStyles();
 
     if (cardSizeSelect) {
       cardSizeSelect.value = String(deckbuilderCardSize);
@@ -583,6 +606,14 @@
   }
 
   function compareDeckbuilderCards(a, b) {
+    const side = a.dataset.currentZone === "sideboard" && b.dataset.currentZone === "sideboard";
+    const key = side ? "sideboard" : deckGroupBy + ":" + getDeckbuilderStackColumnKey(a);
+    const order = deckbuilderOrganization.orders[key];
+    if (order && (side || getDeckbuilderStackColumnKey(a) === getDeckbuilderStackColumnKey(b))) {
+      const ai = order.indexOf(String(a.dataset.deckCardId)), bi = order.indexOf(String(b.dataset.deckCardId));
+      const rank = (ai < 0 ? order.length : ai) - (bi < 0 ? order.length : bi);
+      if (rank) return rank;
+    }
     const roleCompare =
       getDeckbuilderRoleSortValue(a) - getDeckbuilderRoleSortValue(b);
 
@@ -670,7 +701,7 @@
   }
 
   function sortDeckbuilderZones() {
-    sortDeckbuilderZone(deckList);
+    buildStackColumnsForZone(deckList);
     sortDeckbuilderZone(sideboardList);
     applySideboardFilters();
     applyDeckFilters();
@@ -900,6 +931,7 @@
   }
 
   function applySideboardFilters() {
+    queueMicrotask(() => deckbuilderUX?.filtersChanged());
     if (!sideboardList) {
       return;
     }
@@ -1260,6 +1292,7 @@
   });
 
   function applyDeckFilters() {
+    queueMicrotask(() => deckbuilderUX?.decorateGroups());
     if (!deckList) {
       return;
     }
@@ -1350,6 +1383,7 @@
   }
 
   function updateCounts() {
+    queueMicrotask(() => deckbuilderUX?.refresh());
     if (deckCount) {
       deckCount.textContent = String(getDeckbuilderCards(deckList).length);
     }
@@ -2308,9 +2342,12 @@
       }
 
       for (let landIndex = 0; landIndex < landCount; landIndex += 1) {
+        const savedLand = (payload.human_deck_cards || []).filter(card =>
+          Number(card.is_basic_land) === 1 && card.card_name === landName
+        )[landIndex];
         deckList.insertAdjacentHTML(
           "beforeend",
-          buildDeckBasicLandCardHtml(landName, landIndex),
+          savedLand ? renderDeckbuilderCard(savedLand, "deck") : buildDeckBasicLandCardHtml(landName, landIndex),
         );
       }
     });
@@ -2487,6 +2524,7 @@
       escapeHtml(safeCard.card_uuid || "") +
       '" data-card-rarity="' +
       escapeHtml(safeCard.rarity || "") +
+      '" data-card-mana-cost="' + escapeHtml(safeCard.mana_cost || '') +
       '" data-card-mana-value="' +
       escapeHtml(safeCard.mana_value ?? "") +
       '" data-card-type-line="' +
@@ -2633,6 +2671,7 @@
     }
 
     const safePayload = getSafeDeckbuilderPayload(payload);
+    if (payload.organization?.groups) deckbuilderOrganization = payload.organization;
     const existingFilterMetadata = getDeckbuilderExistingFilterMetadata();
 
     const normalizedDeckCards = normalizeDeckbuilderPayloadCardsForFilters(
@@ -2862,6 +2901,9 @@
     }
 
     const result = payload.add_card_result || {};
+    if (result.inserted === false || (result.deck_card_id && workspace.querySelector('[data-deck-card-id="' + CSS.escape(String(result.deck_card_id)) + '"]'))) return true;
+    const destination = result.deck_zone === "sideboard" ? "sideboard" : "deck";
+    const targetList = destination === "deck" ? deckList : sideboardList;
     const resultRow = context.resultRow;
     const deckCardId = String(result.deck_card_id || "").trim();
     const cardUuid = String(result.card_uuid || context.cardUuid || "").trim();
@@ -2876,7 +2918,7 @@
       draft_test_pick_id: "deckcard_" + deckCardId + "_1",
       card_uuid: cardUuid,
       card_name: result.card_name || resultRow.dataset.displayCardName || "",
-      deck_zone: "sideboard",
+      deck_zone: destination,
       is_basic_land: 0,
       sheet_is_foil: Number(result.sheet_is_foil || 0),
       deck_role: "main",
@@ -2884,6 +2926,7 @@
       stack_order: "",
       rarity: resultRow.dataset.rarityDisplay || "",
       mana_value: resultRow.dataset.manaValue || "",
+      mana_cost: resultRow.dataset.manaCost || "",
       type_line: resultRow.dataset.typeLine || "",
       color_identity_json: resultRow.dataset.colorIdentity || "[]",
       set_code: resultRow.dataset.setCode || "",
@@ -2896,7 +2939,7 @@
 
     const cardTemplate = document.createElement("template");
 
-    cardTemplate.innerHTML = renderDeckbuilderCard(card, "sideboard").trim();
+    cardTemplate.innerHTML = renderDeckbuilderCard(card, destination).trim();
 
     const cardElement = cardTemplate.content.firstElementChild;
 
@@ -2904,14 +2947,14 @@
       return false;
     }
 
-    const firstPaletteCard = sideboardList.querySelector(
+    const firstPaletteCard = targetList.querySelector(
       ".deckbuilder-basic-land-card[data-is-land-palette='1']",
     );
 
     if (firstPaletteCard) {
-      sideboardList.insertBefore(cardElement, firstPaletteCard);
+      firstPaletteCard.before(cardElement);
     } else {
-      sideboardList.appendChild(cardElement);
+      targetList.appendChild(cardElement);
     }
 
     bindDragSources();
@@ -3128,6 +3171,7 @@
   }
 
   function clearDeckbuilderSelection() {
+    queueMicrotask(() => deckbuilderUX?.refreshSelection());
     Array.from(document.querySelectorAll(".deckbuilder-card-selected")).forEach(
       function (cardElement) {
         cardElement.classList.remove("deckbuilder-card-selected");
@@ -3139,6 +3183,7 @@
   }
 
   function setDeckbuilderCardSelected(cardElement, isSelected) {
+    queueMicrotask(() => deckbuilderUX?.refreshSelection());
     if (!isDeckbuilderSelectableCard(cardElement)) {
       return;
     }
@@ -4005,6 +4050,7 @@
   // *** CARD STACKS - Arrange Cards in Columns ***
   function getDeckbuilderStackColumnDefs() {
     const special = [{ key: "commander", label: "Commander" }, { key: "partner", label: "Partner" }];
+    if (deckGroupBy === "custom") return special.concat(deckbuilderOrganization.groups.map(g => ({key:g.id,label:g.name})), [{key:"ungrouped",label:"Ungrouped"}]);
     const groups = {
       rarity: [["mythic", "Mythic"], ["rare", "Rare"], ["uncommon", "Uncommon"], ["common", "Common"], ["other", "Other"]],
       color: [["W", "White"], ["U", "Blue"], ["B", "Black"], ["R", "Red"], ["G", "Green"], ["multi", "Multicolor"], ["colorless", "Colorless"]],
@@ -4090,6 +4136,7 @@
       return "partner";
     }
 
+    if (deckGroupBy === "custom") return deckbuilderOrganization.assignments[String(cardElement.dataset.deckCardId)] || "ungrouped";
     if (deckGroupBy === "rarity") {
       const rarity = String(cardElement.dataset.cardRarity || "").toLowerCase();
       return ["mythic", "rare", "uncommon", "common"].includes(rarity) ? rarity : "other";
@@ -4110,11 +4157,7 @@
       return "land";
     }
 
-    return (
-      normalizeDeckbuilderStackColumnKey(
-        cardElement?.dataset?.stackColumn || "",
-      ) || inferredColumn
-    );
+    return inferredColumn;
   }
 
   function clearStackInsertionMarkers() {
@@ -4457,7 +4500,7 @@
 
     existingCards.forEach(function (cardElement) {
       const columnKey = getDeckbuilderStackColumnKey(cardElement);
-      const targetColumn = columns[columnKey] || columns["0"];
+      const targetColumn = columns[columnKey] || columns["ungrouped"] || columns["other"] || columns["0"];
 
       targetColumn.appendChild(cardElement);
     });
@@ -4468,10 +4511,13 @@
       const hasCards = Boolean(
         columnElement.querySelector(".deckbuilder-card"),
       );
-      columnElement.classList.toggle("hidden", !hasCards);
+      columnElement.classList.toggle("hidden", !hasCards && (deckGroupBy !== "custom" || ["commander", "partner"].includes(columnElement.dataset.stackColumn)));
     });
 
-    if (deckGroupBy === "mana") bindStackColumnDropTargets();
+    deckbuilderUX?.decorateGroups();
+    if (listElement === deckList && deckbuilderCardSize === "auto") {
+      applyDeckbuilderCardSizeStyles();
+    }
     bindDragSources();
     bindHoverPreviews();
     bindCardContextMenus();
@@ -4499,7 +4545,7 @@
     clearDeckbuilderStackHoverExpansion();
     hideHoverPreview();
 
-    if (deckbuilderViewMode === "stack" && nextViewMode !== "stack") {
+    if (deckbuilderViewMode !== nextViewMode) {
       restoreFlatZoneFromStack(deckList);
     }
 
@@ -4866,6 +4912,8 @@
   }
 
   function openChangePrintingModal(changeTarget) {
+    const destination = document.querySelector('.deckbuilder-ux-destination');
+    if (destination) destination.hidden = true;
     activeChangePrintingTarget = changeTarget || null;
 
     if (!activeChangePrintingTarget || !deckbuilderCardSearchModal) {
@@ -5149,6 +5197,7 @@
   }
 
   function openCardContextMenu(event, cardElement) {
+    queueMicrotask(() => deckbuilderUX?.refreshContext());
     event.preventDefault();
     event.stopPropagation();
 
@@ -5475,23 +5524,468 @@
     );
   }
 
+  // Deck presentation controls share the builder’s native card actions.
+  deckbuilderUX = (() => {
+  const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+  const pref='imomir.deckbuilder.sideboard.';
+  const read=(key,fallback)=>{try{return localStorage.getItem(pref+key) ?? fallback;}catch{return fallback;}};
+  const write=(key,value)=>{try{localStorage.setItem(pref+key,String(value));}catch{}};
+  let mounted=false, sideMode=read('view','list'), desiredWidth=Number(read('width','330'))||330;
+  let activeResize=null, resizeFrame=0;
+  const menuBound=new WeakSet(), focusBound=new WeakSet();
+  const filterDefs=[['Type','deckbuilderSideboardFilterType'],['Color','deckbuilderSideboardFilterColor'],['Rarity','deckbuilderSideboardFilterRarity'],['Artwork','deckbuilderSideboardFilterAlternateImage']];
+  function button(text,label,fn,className='deckbuilder-ux-add') {
+    const b=document.createElement('button');b.type='button';b.className=className;b.textContent=text;b.setAttribute('aria-label',label);b.addEventListener('click',fn);return b;
+  }
+  function textMode(card) {
+    return card.dataset.currentZone==='sideboard' ? sideMode==='list' || card.dataset.isLandPalette==='1' : deckbuilderViewMode==='list';
+  }
+  function showMenu(card,button,event) {
+    event.preventDefault();event.stopPropagation();
+    const rect=button.getBoundingClientRect();
+    // Use the builder's own menu and the same event path as right-click.
+    card.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true,clientX:rect.right-3,clientY:rect.bottom+3}));
+    hideHoverPreview();
+    button.setAttribute('aria-expanded','true');
+  }
+  function addRowControls(card) {
+    let grip=$('.deckbuilder-ux-text-grip',card), qty=$('.deckbuilder-ux-text-qty',card), mana=$('.deckbuilder-ux-text-mana',card), menu=$('.deckbuilder-ux-card-menu',card);
+    if(!grip){grip=document.createElement('span');grip.className='deckbuilder-ux-text-grip';grip.textContent='≡';grip.setAttribute('aria-hidden','true');card.prepend(grip);}
+    if(!qty){qty=document.createElement('span');qty.className='deckbuilder-ux-text-qty';qty.textContent=card.dataset.isLandPalette==='1'?'∞':'1';qty.title=card.dataset.isLandPalette==='1'?'Unlimited basic lands':'1 copy';card.append(qty);}
+    if(!mana){mana=document.createElement('span');mana.className='deckbuilder-ux-text-mana';card.append(mana);}
+    const cost=card.dataset.cardManaCost || '';
+    if(cost!==undefined && mana.dataset.cost!==String(cost||'')) {
+      mana.dataset.cost=cost||'';mana.replaceChildren();mana.setAttribute('aria-label',cost?'Mana cost '+cost:'No mana cost');
+      (String(cost||'').match(/\{[^}]+\}|\/\//g)||[]).forEach(part=>{
+        const symbol=part.replace(/[{}]/g,'');
+        if(/^[WUBRGC]$/.test(symbol)){const img=document.createElement('img');img.src='/static/img/symbols/'+symbol+'.svg';img.alt=symbol;img.width=14;img.height=14;mana.append(img);}
+        else {const s=document.createElement('span');s.className='deckbuilder-ux-mana-pip'+(symbol==='//'?' deckbuilder-ux-mana-divider':'');s.textContent=symbol;mana.append(s);}
+      });
+    }
+    if(!menu){menu=button('⋮','Actions for '+card.dataset.cardName,()=>{},'deckbuilder-ux-card-menu');menu.setAttribute('aria-haspopup','menu');menu.setAttribute('aria-expanded','false');card.append(menu);}
+    if(!menuBound.has(menu)){menuBound.add(menu);menu.addEventListener('pointerdown',e=>e.stopPropagation());menu.addEventListener('click',e=>showMenu(card,menu,e));}
+    if(!focusBound.has(card)) {
+      focusBound.add(card);
+      card.addEventListener('focusin',e=>{
+        if(!textMode(card) || e.target.closest('.deckbuilder-ux-card-menu[aria-expanded="true"]'))return;
+        const rect=card.getBoundingClientRect();card.dispatchEvent(new MouseEvent('mouseenter',{clientX:rect.left+rect.width/2,clientY:rect.top}));
+      });
+      card.addEventListener('focusout',()=>card.dispatchEvent(new MouseEvent('mouseleave')));
+    }
+    card.classList.toggle('deckbuilder-ux-text-card',textMode(card));
+    const name=$('.campaign-test-draft-picked-name',card);if(name)name.title=card.dataset.cardName;
+    if(!name && card.dataset.isLandPalette==='1' && !$('.deckbuilder-ux-basic-label',card)) {
+      const label=document.createElement('span');label.className='deckbuilder-ux-basic-label';label.textContent=card.dataset.cardName;card.append(label);
+    }
+  }
+  function refresh() {
+    if(!mounted)return;
+    const workspace=$('#deckbuilderWorkspace'), side=$('.deckbuilder-zone-sideboard'), list=$('#deckbuilderSideboardList'), deck=$('#deckbuilderDeckList');
+    side.classList.toggle('deckbuilder-ux-side-list',sideMode==='list');side.classList.toggle('deckbuilder-ux-side-stack',sideMode==='stack');
+    $('#deckbuilderUxSideList').setAttribute('aria-pressed',String(sideMode==='list'));$('#deckbuilderUxSideStack').setAttribute('aria-pressed',String(sideMode==='stack'));
+    $$('.deckbuilder-card',workspace).forEach(addRowControls);
+    let stack=$('.deckbuilder-ux-side-stack-body',list), lands=$('.deckbuilder-ux-side-basics',list);
+    if(!stack){stack=document.createElement('div');stack.className='deckbuilder-ux-side-stack-body';list.prepend(stack);}
+    if(!lands){lands=document.createElement('details');lands.className='deckbuilder-ux-side-basics';lands.innerHTML='<summary>Basic lands <span>6</span></summary><div class="deckbuilder-ux-side-basic-cards"></div>';list.append(lands);}
+    const ordinary=$$('.deckbuilder-card:not([data-is-land-palette="1"])',list), palette=$$('.deckbuilder-card[data-is-land-palette="1"]',list);
+    ordinary.forEach(c=>{if(c.parentElement!==stack)stack.append(c);});
+    const order=(deckbuilderOrganization.orders.sideboard || []);
+    if(order.length)ordinary.sort((a,b)=>{const ai=order.indexOf(a.dataset.deckCardId),bi=order.indexOf(b.dataset.deckCardId);return (ai<0?10000:ai)-(bi<0?10000:bi);}).forEach(c=>stack.append(c));
+    palette.forEach(c=>{const target=$('.deckbuilder-ux-side-basic-cards',lands);if(c.parentElement!==target)target.append(c);});
+    if(deckbuilderViewMode==='list') {
+      let cols=$('.deckbuilder-ux-text-columns',deck);if(!cols){cols=document.createElement('div');cols.className='deckbuilder-ux-text-columns';deck.append(cols);}
+      $$('.deckbuilder-stack-column',deck).forEach(col=>{if(col.parentElement!==cols)cols.append(col);});
+    }
+    workspace.classList.toggle('deckbuilder-ux-list-active',deckbuilderViewMode==='list');
+    deck.classList.toggle('deckbuilder-ux-grouped-flat',deckbuilderViewMode!=='stack');
+    // Measure only after the previous view's layout classes and gaps are gone.
+    applyDeckbuilderCardSizeStyles();
+    $('#deckbuilderUxDeckCount').textContent=getDeckbuilderCards(deckList).length;
+    $('#deckbuilderUxSideCount').textContent=getDeckbuilderCards(sideboardList).length;
+    $('#deckbuilderUxShowSide').textContent='Sideboard · '+getDeckbuilderCards(sideboardList).length;
+    decorateGroups();refreshSelection();syncStackSize();filtersChanged();
+  }
+  function syncStackSize() {
+    const list=$('#deckbuilderSideboardList');if(!list)return;
+    if(list.clientWidth<32)return;
+    // clientWidth excludes the scrollbar; subtract the actual list padding as well.
+    const style=getComputedStyle(list);
+    const availableWidth=Math.max(1,list.clientWidth-(parseFloat(style.paddingLeft)||0)-(parseFloat(style.paddingRight)||0));
+    const auto=$('#deckbuilderCardSizeSelect').value==='auto';
+    const sharedWidth=parseFloat(getComputedStyle($('#deckbuilderWorkspace')).getPropertyValue('--deckbuilder-stack-column-width'));
+    const width=auto?availableWidth:Math.max(1,Math.min(Number.isFinite(sharedWidth)?sharedWidth:230,availableWidth));
+    list.style.setProperty('--deckbuilder-ux-side-card-width',width+'px');
+    list.style.setProperty('--deckbuilder-ux-side-card-overlap',(-Math.round(width*1.4-Math.max(34,width*.17)))+'px');
+  }
+  function applyWidth(value,save=false) {
+    const main=$('.deckbuilder-main'),max=Math.max(260,Math.min(680,main.clientWidth-440));
+    const width=Math.round(Math.max(250,Math.min(max,value)));
+    main.style.setProperty('--deckbuilder-ux-rail-width',width+'px');
+    const handle=$('#deckbuilderUxSideResizer');handle.setAttribute('aria-valuenow',String(width));handle.setAttribute('aria-valuemin','250');handle.setAttribute('aria-valuemax',String(Math.round(max)));handle.setAttribute('aria-valuetext',width+' pixels');
+    if(save){desiredWidth=width;write('width',width);}
+    syncStackSize();
+  }
+  function resizeEnd(event) {
+    if(!activeResize)return;
+    if(event?.type==='pointercancel')applyWidth(activeResize.startWidth);
+    else applyWidth(Number($('#deckbuilderUxSideResizer').getAttribute('aria-valuenow')),true);
+    activeResize=null;document.body.classList.remove('deckbuilder-ux-resizing');updateDeckbuilderCardSize(deckbuilderCardSize);refresh();
+  }
+  function mountResize(main,side) {
+    const handle=document.createElement('div');handle.id='deckbuilderUxSideResizer';handle.className='deckbuilder-ux-side-resizer';handle.tabIndex=0;handle.setAttribute('role','separator');handle.setAttribute('aria-orientation','vertical');handle.setAttribute('aria-label','Resize Sideboard');handle.setAttribute('aria-controls','deckbuilderSideboardList');handle.title='Drag to resize Sideboard. Arrow keys adjust width. Double-click to reset.';
+    handle.innerHTML='<span aria-hidden="true"></span>';side.before(handle);
+    handle.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();activeResize={pointer:e.pointerId,startX:e.clientX,startWidth:side.getBoundingClientRect().width};handle.setPointerCapture(e.pointerId);document.body.classList.add('deckbuilder-ux-resizing');setDeckbuilderContextMenuOpen(false); hideHoverPreview();});
+    handle.addEventListener('pointermove',e=>{if(!activeResize || e.pointerId!==activeResize.pointer)return;applyWidth(activeResize.startWidth+activeResize.startX-e.clientX);});
+    handle.addEventListener('pointerup',resizeEnd);handle.addEventListener('pointercancel',resizeEnd);
+    handle.addEventListener('dblclick',()=>{applyWidth(330,true);updateDeckbuilderCardSize(deckbuilderCardSize);});
+    handle.addEventListener('keydown',e=>{
+      let width=Number(handle.getAttribute('aria-valuenow')),delta=e.shiftKey?40:10;
+      if(e.key==='ArrowLeft')width+=delta;else if(e.key==='ArrowRight')width-=delta;else if(e.key==='Home')width=250;else if(e.key==='End')width=Number(handle.getAttribute('aria-valuemax'));else return;
+      e.preventDefault();applyWidth(width,true);updateDeckbuilderCardSize(deckbuilderCardSize);
+    });
+    applyWidth(desiredWidth);
+    new ResizeObserver(()=>{if(resizeFrame)cancelAnimationFrame(resizeFrame);resizeFrame=requestAnimationFrame(()=>{if(!activeResize)applyWidth(desiredWidth);syncStackSize();});}).observe(main);
+  }
+  function clearSearch() {$('#deckbuilderSideboardFilterText').value='';applySideboardFilters();}
+  function filtersChanged() {
+    if(!mounted || !$('#deckbuilderUxSideFilterChips'))return;
+    const list=$('#deckbuilderSideboardList'), all=$$('.deckbuilder-card:not([data-is-land-palette="1"])',list), visible=all.filter(c=>!c.classList.contains('hidden'));
+    const chips=$('#deckbuilderUxSideFilterChips');chips.replaceChildren();
+    let active=0;
+    const chip=(text,fn)=>{active++;chips.append(button(text+' ×','Remove '+text+' filter',fn,'deckbuilder-ux-filter-chip'));};
+    const query=$('#deckbuilderSideboardFilterText').value.trim();
+    if(query)chip('Search: '+query,clearSearch);
+    filterDefs.forEach(([label,id])=>{const input=$('#'+id);if(input.value)chip(label+': '+input.selectedOptions[0].textContent,()=>{input.value='';applySideboardFilters();});});
+    const op=$('#deckbuilderSideboardFilterManaOperator'),mv=$('#deckbuilderSideboardFilterManaValue');
+    if(op.value && mv.value!=='')chip('MV '+op.selectedOptions[0].textContent+' '+mv.value,()=>{op.value='';mv.value='';applySideboardFilters();});
+    const selectedTags=$$('[data-tag-filter="sideboard"] input:checked');
+    selectedTags.forEach(input=>{const text=input.closest('label')?.textContent.trim()||'Tag';chip('Tag: '+text,()=>input.click());});
+    $('#deckbuilderUxSideClearSearch').hidden=!query;$('#deckbuilderUxSideClearAll').hidden=!active;
+    $('#deckbuilderUxSideFilterBadge').textContent=active?String(active):'';$('#deckbuilderUxSideFilterBadge').hidden=!active;
+    if($('#deckbuilderUxSideMenuFilterCount'))$('#deckbuilderUxSideMenuFilterCount').textContent=active?String(active):'';
+    $('#deckbuilderSideboardFilterButton').setAttribute('aria-label',active?'Filter Sideboard, '+active+' active':'Filter Sideboard');
+    $('#deckbuilderUxSideResultCount').textContent=active?visible.length+' of '+all.length+' cards':all.length+' cards';
+    const status=$('#deckbuilderSideboardFilterStatus');status.textContent=active?visible.length+' of '+all.length+' cards match':'All '+all.length+' sideboard cards';
+    $('#deckbuilderUxSideEmpty').hidden=Boolean(visible.length);
+    $('#deckbuilderUxSideEmpty strong').textContent=all.length?'No matching cards':'Sideboard is empty';
+    $('#deckbuilderUxSideEmpty p').textContent=all.length?'Try a different search or clear your filters.':'Drag a card here, or use Add.';
+    $('#deckbuilderUxSideEmpty button').hidden=!active;
+    all.forEach(c=>c.classList.remove('deckbuilder-ux-last-stack-card'));visible.at(-1)?.classList.add('deckbuilder-ux-last-stack-card');
+    const lands=$('.deckbuilder-ux-side-basics',list);if(lands)lands.hidden=Boolean(active);
+  }
+  function mountFilters(side) {
+    const filter=$('#deckbuilderSideboardFilterPanel'),search=$('#deckbuilderSideboardFilterText');
+    const searchRow=document.createElement('div');searchRow.className='deckbuilder-ux-side-search';
+    searchRow.innerHTML='<i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>';
+    search.closest('label').remove();search.type='search';search.placeholder='Search Sideboard…';search.setAttribute('aria-label','Search Sideboard');searchRow.append(search);
+    const clear=button('×','Clear Sideboard search',clearSearch,'deckbuilder-ux-search-clear');clear.id='deckbuilderUxSideClearSearch';clear.hidden=true;searchRow.append(clear);
+    $('.deckbuilder-ux-side-views',side).after(searchRow);
+    const active=document.createElement('div');active.className='deckbuilder-ux-side-filter-state';active.innerHTML='<div id="deckbuilderUxSideFilterChips"></div><div class="deckbuilder-ux-side-resultline"><span id="deckbuilderUxSideResultCount" role="status" aria-live="polite"></span><button id="deckbuilderUxSideClearAll" type="button" hidden>Clear all</button></div>';
+    searchRow.after(active);$('#deckbuilderUxSideClearAll').onclick=()=>clearSideboardFilters();
+    filter.setAttribute('role','dialog');filter.setAttribute('aria-label','Filter Sideboard');
+    const heading=document.createElement('div');heading.className='deckbuilder-ux-side-filter-heading';heading.innerHTML='<strong>Filter Sideboard</strong>';
+    heading.append(button('×','Close Sideboard filters',()=>setSideboardFilterPanelVisible(false),'deckbuilder-ux-search-clear'));filter.prepend(heading);
+    const grid=$('.deckbuilder-sideboard-filter-grid',filter);
+    $('#deckbuilderSideboardFilterType').add(new Option('Token','token'));
+    $('#deckbuilderSideboardFilterType').add(new Option('Battle','battle'));
+    // Reorder the existing controls, keeping their bound filtering behavior.
+    ['deckbuilderSideboardFilterType','deckbuilderSideboardFilterColor','deckbuilderSideboardFilterRarity','deckbuilderSideboardFilterManaOperator','deckbuilderSideboardFilterAlternateImage'].forEach(id=>grid.append($('#'+id).closest('label')));
+    const artwork=$('#deckbuilderSideboardFilterAlternateImage').closest('label');artwork.querySelector('span').textContent='Alternate artwork';
+    artwork.classList.add('deckbuilder-ux-filter-wide');
+    grid.append($('[data-tag-filter="sideboard"]'));grid.append($('.deckbuilder-sideboard-filter-actions',filter));
+    $('#deckbuilderSideboardFilterManaOperator').setAttribute('aria-label','Mana value comparison');$('#deckbuilderSideboardFilterManaValue').setAttribute('aria-label','Mana value');
+    $('#deckbuilderSideboardFilterManaValue').addEventListener('input',()=>{if($('#deckbuilderSideboardFilterManaValue').value!=='' && !$('#deckbuilderSideboardFilterManaOperator').value){$('#deckbuilderSideboardFilterManaOperator').value='eq';applySideboardFilters();}});
+    $('#deckbuilderSideboardFilterButton').insertAdjacentHTML('beforeend','<span id="deckbuilderUxSideFilterBadge" hidden></span>');
+    const empty=document.createElement('div');empty.id='deckbuilderUxSideEmpty';empty.hidden=true;empty.innerHTML='<strong>No matching cards</strong><p>Try a different search or clear your filters.</p>';empty.append(button('Clear filters','Clear Sideboard filters',()=>clearSideboardFilters()));$('#deckbuilderSideboardList').before(empty);
+    document.addEventListener('pointerdown',e=>{if(!filter.contains(e.target) && !e.target.closest('#deckbuilderSideboardFilterButton'))setSideboardFilterPanelVisible(false);});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape' && !filter.classList.contains('hidden')){setSideboardFilterPanelVisible(false);$('#deckbuilderUxSideCommands').focus();}});
+  }
+  function mountCommands(side) {
+    const originalCollapse=$('#deckbuilderSideboardCollapseButton'),originalFilter=$('#deckbuilderSideboardFilterButton');
+    originalCollapse.classList.add('deckbuilder-ux-hidden-control');originalFilter.classList.add('deckbuilder-ux-hidden-control');
+    const menu=document.createElement('div');menu.id='deckbuilderUxSideCommandsMenu';menu.className='deckbuilder-ux-side-commands-menu';menu.hidden=true;menu.setAttribute('role','menu');menu.setAttribute('aria-label','Other Sideboard commands');
+    const toggle=button('⋯','Other Sideboard commands',()=>setOpen(menu.hidden),'campaign-test-draft-zone-view-button');toggle.id='deckbuilderUxSideCommands';toggle.title='Other commands';toggle.setAttribute('aria-haspopup','menu');toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-controls',menu.id);
+    const setOpen=open=>{menu.hidden=!open;toggle.setAttribute('aria-expanded',String(open));};
+    const filters=button('Filters','Sideboard filters',()=>{setOpen(false);setSideboardFilterPanelVisible(true);$('#deckbuilderSideboardFilterType').focus();},'deckbuilder-ux-side-command');filters.setAttribute('role','menuitem');filters.innerHTML='<i class="fa-solid fa-filter" aria-hidden="true"></i><span>Filters</span><span id="deckbuilderUxSideMenuFilterCount"></span>';
+    const collapse=button('Collapse Sideboard','Collapse Sideboard',()=>{setOpen(false);originalCollapse.click();},'deckbuilder-ux-side-command');collapse.setAttribute('role','menuitem');collapse.innerHTML='<i class="fa-solid fa-chevron-right" aria-hidden="true"></i><span>Collapse Sideboard</span>';
+    menu.append(filters,collapse);originalCollapse.after(toggle);side.append(menu);
+    document.addEventListener('pointerdown',e=>{if(!menu.contains(e.target) && !toggle.contains(e.target))setOpen(false);});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape' && !menu.hidden){setOpen(false);toggle.focus();}});
+  }
+  function mount() {
+    if(mounted)return;mounted=true;if(!['list','stack'].includes(sideMode))sideMode='list';
+    mountBuilderControls();
+    const side=$('.deckbuilder-zone-sideboard'),main=$('.deckbuilder-main');
+    const bar=document.createElement('div');bar.className='deckbuilder-ux-side-views';bar.setAttribute('role','group');bar.setAttribute('aria-label','Sideboard presentation');
+    const choose=mode=>{sideMode=mode;write('view',mode);setDeckbuilderContextMenuOpen(false); hideHoverPreview();refresh();};
+    const list=button('☷ List','Sideboard List View',()=>choose('list'));
+    const stack=button('','Sideboard Stack View',()=>choose('stack'));
+    stack.innerHTML='<i class="fa-solid fa-layer-group" aria-hidden="true"></i> Stack';
+    list.id='deckbuilderUxSideList';stack.id='deckbuilderUxSideStack';bar.append(list,stack);$('.deckbuilder-zone-header',side).after(bar);
+    mountResize(main,side);mountFilters(side);
+    mountCommands(side);
+    updateDeckbuilderCardSize(deckbuilderCardSize);
+    $('#deckbuilderCardSizeSelect').addEventListener('change',()=>requestAnimationFrame(syncStackSize));
+    new MutationObserver(syncStackSize).observe($('#deckbuilderWorkspace'),{attributes:true,attributeFilter:['style']});
+    new ResizeObserver(syncStackSize).observe($('#deckbuilderSideboardList'));
+    $('.deckbuilder-ux-rail-bottom',side).innerHTML='<span>Drag cards between Deck and Sideboard · Right-click for actions</span>';
+    document.addEventListener('click',e=>{if(!e.target.closest('.deckbuilder-ux-card-menu'))$$('.deckbuilder-ux-card-menu[aria-expanded="true"]').forEach(b=>b.setAttribute('aria-expanded','false'));});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')$$('.deckbuilder-ux-card-menu[aria-expanded="true"]').forEach(b=>b.setAttribute('aria-expanded','false'));});
+    refresh();
+  }
+  let organizationBusy = false, dragCards = [], insertBefore = null;
+  const collapsedGroups = new Set();
+  const cardId = card => String(card.dataset.deckCardId || '');
+  function cleanOrganization() {
+    const next = structuredClone(deckbuilderOrganization);
+    const ids = new Set(getDeckbuilderCards(deckList).concat(getDeckbuilderCards(sideboardList)).map(cardId).filter(Boolean));
+    next.assignments = Object.fromEntries(Object.entries(next.assignments).filter(([id]) => ids.has(id)));
+    next.orders = Object.fromEntries(Object.entries(next.orders).map(([key, idsInOrder]) => [key, idsInOrder.filter(id => ids.has(id))]));
+    return next;
+  }
+  async function saveOrganization(next, moving = [], zone = null) {
+    if (organizationBusy) return false;
+    organizationBusy = true;
+    workspace.setAttribute('aria-busy', 'true');
+    try {
+      const response = await fetch(workspace.dataset.organizationUrl, {
+        method: 'POST', headers: {'Content-Type': 'application/json', Accept: 'application/json'},
+        body: JSON.stringify({organization:next, move_card_ids:moving, target_zone:zone})
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || 'The change could not be saved.');
+      applyDeckbuilderPayload(payload);
+      return true;
+    } catch (error) { showDeckbuilderError(error); return false; }
+    finally { organizationBusy = false; workspace.removeAttribute('aria-busy'); }
+  }
+  function decorateGroups() {
+    if (!mounted) return;
+    const definitions = getDeckbuilderStackColumnDefs();
+    $$('.deckbuilder-stack-column',deckList).forEach(column => {
+      const key=column.dataset.stackColumn, head=$('.deckbuilder-stack-column-title',column), body=$('.deckbuilder-stack-column-body',column);
+      const label=definitions.find(group=>group.key===key)?.label || key;
+      const count=$$('.deckbuilder-card:not(.hidden)',body).length;
+      const closed=collapsedGroups.has(deckGroupBy+':'+key);
+      head.replaceChildren();
+      const toggle=button('',(closed?'Expand ':'Collapse ')+label,()=>{
+        const collapseKey=deckGroupBy+':'+key;
+        collapsedGroups.has(collapseKey)?collapsedGroups.delete(collapseKey):collapsedGroups.add(collapseKey);
+        decorateGroups();
+      },'deckbuilder-ux-group-title');
+      toggle.setAttribute('aria-expanded',String(!closed));
+      const chevron=document.createElement('span');chevron.textContent=closed?'▸':'▾';chevron.setAttribute('aria-hidden','true');toggle.append(chevron);
+      const name=document.createElement('span');name.textContent=deckGroupBy==='mana' && /^[0-6]$/.test(key)?key:label;
+      if(deckGroupBy==='mana' && /^[0-6]$/.test(key))name.className='deckbuilder-ux-group-mana';
+      toggle.append(name);
+      if(deckGroupBy==='mana' && key==='6')toggle.append(document.createTextNode(' +'));
+      const quantity=document.createElement('span');quantity.className='deckbuilder-ux-group-count';quantity.textContent='Qtty: '+count;
+      head.append(toggle,quantity);column.classList.toggle('deckbuilder-ux-group-collapsed',closed);
+      $('.deckbuilder-ux-drop-empty',body)?.remove();
+      if(!body.querySelector('.deckbuilder-card')){
+        const empty=document.createElement('div');empty.className='deckbuilder-ux-drop-empty';empty.textContent='Drop cards here';body.append(empty);
+      }
+    });
+  }
+  function refreshSelection() {
+    if(!mounted)return;
+    const selected=getDeckbuilderSelectedCards(), bar=$('.deckbuilder-ux-selection',workspace);
+    bar.hidden=!selected.length;$('strong',bar).textContent=selected.length+' selected';
+    $('#deckbuilderUxMoveDeck').disabled=!selected.some(c=>c.dataset.currentZone!=='deck');
+    $('#deckbuilderUxMoveSide').disabled=!selected.some(c=>c.dataset.currentZone!=='sideboard');
+    const select=$('#deckbuilderUxGroupSelection');
+    select.replaceChildren(new Option('Move to group…',''),...deckbuilderOrganization.groups.map(g=>new Option(g.name,g.id)),new Option('Ungrouped','ungrouped'));
+    $('#deckbuilderUxManageGroups').hidden=deckGroupBy!=='custom';
+  }
+  async function moveSelection(zone) {
+    const selected=getDeckbuilderSelectedCards().filter(c=>c.dataset.currentZone!==zone);
+    if(!selected.length)return;
+    if(zone==='sideboard' && selected.some(c=>c.dataset.isBasicLand==='1')) {
+      await handleDeckbuilderMultiCardAction('move',selected,'deck');
+      return;
+    }
+    await saveOrganization(cleanOrganization(),selected.map(cardId).filter(Boolean),zone);
+  }
+  async function assignGroup(cards, group) {
+    const next=cleanOrganization(), moving=[];
+    cards.forEach(card=>{
+      const id=cardId(card);if(!id || ['commander','partner'].includes(card.dataset.deckRole))return;
+      if(group==='ungrouped')delete next.assignments[id];else next.assignments[id]=group;
+      if(card.dataset.currentZone!=='deck')moving.push(id);
+    });
+    if(await saveOrganization(next,moving,'deck')) {
+      deckGroupBy='custom';groupBySelect.value='custom';deckbuilderPreferences.set('imomir.deckbuilder.groupBy',deckGroupBy);setViewMode(deckbuilderViewMode);
+    }
+  }
+  async function clearOrders() {
+    const next=cleanOrganization();
+    if(!Object.keys(next.orders).length){setViewMode(deckbuilderViewMode);return;}
+    next.orders={};await saveOrganization(next);
+  }
+  function drawGroupEditor() {
+    const list=$('#deckbuilderUxGroupRows');list.replaceChildren();
+    deckbuilderOrganization.groups.forEach(group=>{
+      const row=document.createElement('form');row.className='deckbuilder-ux-group-edit-row';
+      const input=document.createElement('input');input.value=group.name;input.maxLength=60;input.required=true;input.setAttribute('aria-label','Rename '+group.name);
+      const save=button('Save','Save '+group.name,()=>row.requestSubmit());
+      row.onsubmit=async event=>{
+        event.preventDefault();if(organizationBusy)return;
+        const next=cleanOrganization(), target=next.groups.find(g=>g.id===group.id);target.name=input.value.trim();
+        if(await saveOrganization(next))drawGroupEditor();
+      };
+      const remove=button('×','Remove group '+group.name,async()=>{
+        const next=cleanOrganization();next.groups=next.groups.filter(g=>g.id!==group.id);
+        Object.keys(next.assignments).forEach(id=>{if(next.assignments[id]===group.id)delete next.assignments[id];});
+        delete next.orders['custom:'+group.id];
+        if(await saveOrganization(next))drawGroupEditor();
+      });row.append(input,save,remove);list.append(row);
+    });
+  }
+  function closeGroups() { const panel=$('.deckbuilder-ux-groups');panel.hidden=true;$('#deckbuilderUxManageGroups').focus(); }
+  function refreshContext() {
+    const groupAction=$('.deckbuilder-ux-group-context',cardContextMenu),select=groupAction?.querySelector('select');if(!select)return;
+    select.replaceChildren(new Option('Choose…',''),...deckbuilderOrganization.groups.map(g=>new Option(g.name,g.id)),new Option('Ungrouped','ungrouped'));
+    groupAction.hidden=!activeContextCard || ['commander','partner'].includes(activeContextCard.dataset.deckRole);
+  }
+  function openAdd(zone) {
+    $('.deckbuilder-ux-destination').hidden=false;
+    deckbuilderAddDestination=zone;$('#deckbuilderUxDestination').value=zone;
+    deckbuilderCardSearchModal.openAddCards();
+  }
+  function clearDrag() {
+    dragCards=[];insertBefore=null;
+    $$('.deckbuilder-ux-drop-over,.deckbuilder-ux-insert-before').forEach(el=>el.classList.remove('deckbuilder-ux-drop-over','deckbuilder-ux-insert-before'));
+    $('#deckbuilderUxDragStatus').hidden=true;clearDropZoneState();
+  }
+  function dragTarget(event) {
+    const zoneElement=event.target.closest('.deckbuilder-zone');
+    if(!zoneElement || !workspace.contains(zoneElement))return null;
+    const zone=zoneElement.classList.contains('deckbuilder-zone-deck')?'deck':'sideboard';
+    const column=event.target.closest('.deckbuilder-stack-column');
+    const group=column?.dataset.stackColumn;
+    const palette=dragCards.some(c=>c.dataset.isLandPalette==='1');
+    if(palette && zone!=='deck')return null;
+    if(group && ['commander','partner'].includes(group) && dragCards.some(c=>c.dataset.deckRole!==group))return null;
+    if(group && deckGroupBy!=='custom' && dragCards.some(c=>getDeckbuilderStackColumnKey(c)!==group)) {
+      // Moving in from Sideboard uses the card's actual attributes; it never changes its mana/type group.
+      if(dragCards.some(c=>c.dataset.currentZone!=='deck'))return {zone,group:null,element:zoneElement};
+      return null;
+    }
+    return {zone,group,element:column || zoneElement};
+  }
+  function bindInteractions() {
+    workspace.addEventListener('dragstart',event=>{
+      const card=event.target.closest('.deckbuilder-card');if(!card || organizationBusy)return;
+      const selected=getDeckbuilderSelectedCards(card.dataset.currentZone);
+      dragCards=card.classList.contains('deckbuilder-card-selected') && selected.length>1?selected:[card];
+      $('#deckbuilderUxDragStatus').textContent='Moving '+dragCards.length+' card'+(dragCards.length===1?'':'s');$('#deckbuilderUxDragStatus').hidden=false;
+    },true);
+    workspace.addEventListener('dragover',event=>{
+      if(!dragCards.length)return;
+      const target=dragTarget(event);event.preventDefault();event.stopPropagation();
+      $$('.deckbuilder-ux-drop-over,.deckbuilder-ux-insert-before').forEach(el=>el.classList.remove('deckbuilder-ux-drop-over','deckbuilder-ux-insert-before'));
+      insertBefore=null;
+      if(!target){event.dataTransfer.dropEffect='none';return;}
+      event.dataTransfer.dropEffect=dragCards.some(c=>c.dataset.isLandPalette==='1')?'copy':'move';target.element.classList.add('deckbuilder-ux-drop-over');
+      const card=event.target.closest('.deckbuilder-card:not([data-is-land-palette="1"])');
+      if(card && !dragCards.includes(card)){
+        const rect=card.getBoundingClientRect();insertBefore=event.clientY<rect.top+Math.min(rect.height,42)/2?card:card.nextElementSibling;
+        if(insertBefore?.classList.contains('deckbuilder-card') && !dragCards.includes(insertBefore))insertBefore.classList.add('deckbuilder-ux-insert-before');else insertBefore=null;
+      }
+      $('#deckbuilderUxDragStatus').textContent='Move '+dragCards.length+' to '+(target.zone==='deck'?'Deck':'Sideboard')+(target.group && deckGroupBy==='custom'?' · '+(deckbuilderOrganization.groups.find(g=>g.id===target.group)?.name || target.group):'');
+      // Keep both scrolling areas usable while dragging a long deck.
+      const list=target.zone==='deck'?deckList:sideboardList,r=list.getBoundingClientRect();
+      if(event.clientY<r.top+40)list.scrollTop-=14;else if(event.clientY>r.bottom-40)list.scrollTop+=14;
+    },true);
+    workspace.addEventListener('drop',async event=>{
+      if(!dragCards.length)return;
+      event.preventDefault();event.stopPropagation();
+      const target=dragTarget(event), cards=[...dragCards], before=insertBefore;
+      clearDrag();draggedDeckbuilderItem=null;if(!target)return;
+      try {
+        if(cards.length===1 && cards[0].dataset.isLandPalette==='1'){
+          const name=cards[0].dataset.basicLandName || cards[0].dataset.cardName;
+          const previousIds=new Set(getDeckbuilderCards(deckList).map(cardId));
+          const payload=await updateBasicLand(name,'add');
+          payload._basicLandCountsAuthoritative=true;applyDeckbuilderPayload(payload);
+          if(target.group && deckGroupBy==='custom') {
+            const matching=getDeckbuilderCards(deckList).filter(card=>card.dataset.isBasicLand==='1' && card.dataset.cardName===name);
+            const added=matching.find(card=>!previousIds.has(cardId(card))) || matching.at(-1);
+            if(added)await assignGroup([added],target.group);
+          }
+          return;
+        }
+        if(target.zone==='sideboard' && cards.some(c=>c.dataset.isBasicLand==='1')){
+          await handleDeckbuilderMultiCardAction('move',cards,'deck');return;
+        }
+        const next=cleanOrganization(), moving=[...new Set(cards.map(cardId).filter(Boolean))], movingSet=new Set(moving);
+        if(!moving.length)return;
+        if(target.zone==='deck' && target.group && deckGroupBy==='custom')cards.forEach(c=>{
+          if(['commander','partner'].includes(c.dataset.deckRole))return;
+          if(target.group==='ungrouped')delete next.assignments[cardId(c)];else next.assignments[cardId(c)]=target.group;
+        });
+        if(target.zone==='sideboard' || target.group){
+          const list=target.zone==='sideboard'?sideboardList:target.element;
+          const order=[...new Set(getDeckbuilderCards(list).map(cardId).filter(id=>id && !movingSet.has(id)))];
+          const index=before?order.indexOf(cardId(before)):-1;
+          order.splice(index<0?order.length:index,0,...moving);
+          next.orders[target.zone==='sideboard'?'sideboard':deckGroupBy+':'+target.group]=order;
+        }
+        await saveOrganization(next,moving,target.zone);
+      }catch(error){showDeckbuilderError(error);}
+    },true);
+    workspace.addEventListener('dragend',clearDrag,true);
+  }
+  function mountBuilderControls() {
+    const main=$('.deckbuilder-main'),deck=$('.deckbuilder-zone-deck'),side=$('.deckbuilder-zone-sideboard');main.prepend(deck);
+    const deckTitle=$('h2',deck),sideTitle=$('h2',side);
+    deckTitle.parentElement.classList.add('deckbuilder-ux-zone-title');sideTitle.parentElement.classList.add('deckbuilder-ux-zone-title');
+    deckTitle.insertAdjacentHTML('afterend','<span id="deckbuilderUxDeckCount" class="deckbuilder-ux-count"></span>');
+    sideTitle.insertAdjacentHTML('afterend','<span id="deckbuilderUxSideCount" class="deckbuilder-ux-count"></span>');
+    deckTitle.parentElement.append(openAddCardsButton);
+    openAddCardsButton.className='deckbuilder-ux-add primary';openAddCardsButton.textContent='+ Add Cards';openAddCardsButton.setAttribute('aria-label','Add Cards to Deck');openAddCardsButton.title='Add Cards to Deck';
+    const add=button('+','Add cards to Sideboard',()=>openAdd('sideboard'),'campaign-test-draft-zone-view-button');add.title='Add cards to Sideboard';$('.deckbuilder-zone-header-actions',side).prepend(add);
+    const show=button('Sideboard','Show Sideboard',()=>{setDeckbuilderSideboardCollapsed(false);setDeckbuilderMobileActiveZone('sideboard');refresh();},'deckbuilder-ux-add deckbuilder-ux-show-sideboard');show.id='deckbuilderUxShowSide';$('.deckbuilder-zone-header-actions',deck).append(show);
+    const bottom=document.createElement('div');bottom.className='deckbuilder-ux-rail-bottom';side.append(bottom);
+    groupBySelect.add(new Option('Custom groups','custom'));
+    const manage=button('Edit groups','Edit custom groups',()=>{$('.deckbuilder-ux-groups').hidden=false;drawGroupEditor();$('#deckbuilderUxNewGroup').focus();});manage.id='deckbuilderUxManageGroups';groupBySelect.parentElement.after(manage);
+    const selection=document.createElement('div');selection.className='deckbuilder-ux-selection';selection.hidden=true;
+    selection.innerHTML='<strong>0 selected</strong><button type="button" class="deckbuilder-ux-add" id="deckbuilderUxMoveDeck">Move to Deck</button><button type="button" class="deckbuilder-ux-add" id="deckbuilderUxMoveSide">Move to Sideboard</button><select class="deckbuilder-ux-add" id="deckbuilderUxGroupSelection" aria-label="Move selected cards to group"></select><button type="button" class="deckbuilder-ux-add" id="deckbuilderUxClear">Clear</button>';
+    main.after(selection);$('#deckbuilderUxMoveDeck').onclick=()=>moveSelection('deck').catch(showDeckbuilderError);$('#deckbuilderUxMoveSide').onclick=()=>moveSelection('sideboard').catch(showDeckbuilderError);$('#deckbuilderUxClear').onclick=clearDeckbuilderSelection;
+    $('#deckbuilderUxGroupSelection').onchange=event=>{if(event.target.value)assignGroup(getDeckbuilderSelectedCards(),event.target.value);};
+    const destination=document.createElement('label');destination.className='deckbuilder-ux-destination';destination.innerHTML='Add to <select id="deckbuilderUxDestination" aria-label="Add cards destination"><option value="deck">Deck</option><option value="sideboard">Sideboard</option></select>';
+    $('.card-search-header-actions').prepend(destination);$('#deckbuilderUxDestination').onchange=event=>{deckbuilderAddDestination=event.target.value;$('.card-search-heading-copy .page-subtitle').textContent='Choose cards and printings to add to your '+deckbuilderAddDestination+'.';};
+    const panel=document.createElement('div');panel.className='deckbuilder-ux-groups';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Edit custom groups');
+    panel.innerHTML='<div class="deckbuilder-ux-groups-header"><strong>Custom groups</strong><button class="deckbuilder-ux-add" id="deckbuilderUxCloseGroups" type="button" aria-label="Close group editor">×</button></div><div id="deckbuilderUxGroupRows"></div><label for="deckbuilderUxNewGroup">New group</label><form class="deckbuilder-ux-group-edit-row" id="deckbuilderUxGroupForm"><input id="deckbuilderUxNewGroup" placeholder="e.g. Protection" maxlength="60" required><button class="deckbuilder-ux-add" type="submit">Create</button></form><p>Drag cards into a group, or select several and use Move to group. Removing a group keeps its cards.</p>';
+    document.body.append(panel);$('#deckbuilderUxCloseGroups').onclick=closeGroups;
+    $('#deckbuilderUxGroupForm').onsubmit=async event=>{
+      event.preventDefault();if(organizationBusy)return;
+      const input=$('#deckbuilderUxNewGroup'),next=cleanOrganization();next.groups.push({id:crypto.randomUUID(),name:input.value.trim()});
+      if(await saveOrganization(next)){input.value='';drawGroupEditor();}
+    };
+    const drag=document.createElement('div');drag.id='deckbuilderUxDragStatus';drag.className='deckbuilder-ux-drag-status';drag.hidden=true;document.body.append(drag);
+    const groupAction=document.createElement('label');groupAction.className='deckbuilder-ux-group-context';groupAction.append(document.createTextNode('Move to group'));
+    const groupSelect=document.createElement('select');groupSelect.setAttribute('aria-label','Move card to custom group');groupAction.append(groupSelect);cardContextMenu.append(groupAction);
+    groupSelect.onchange=()=>{if(groupSelect.value && activeContextCard){const cards=getDeckbuilderSelectedCards();assignGroup(cards.includes(activeContextCard)?cards:[activeContextCard],groupSelect.value);setDeckbuilderContextMenuOpen(false);}};
+    document.addEventListener('keydown',event=>{if(event.key==='Escape' && !panel.hidden){closeGroups();event.preventDefault();}});
+    bindInteractions();
+  }
+
+  return {mount,refresh,filtersChanged,decorateGroups,refreshSelection,refreshContext,clearOrders,openAdd};
+  })();
+
   if (groupBySelect) {
     groupBySelect.addEventListener("change", () => {
       deckGroupBy = groupBySelect.value;
-      setViewMode("stack");
+      deckbuilderPreferences.set("imomir.deckbuilder.groupBy", deckGroupBy);
+      setViewMode(deckbuilderViewMode);
     });
   }
 
   if (sortSelect) {
     sortSelect.addEventListener("change", function () {
       pickedSortMode = sortSelect.value || "rarity-desc";
-
-      if (deckbuilderViewMode === "stack") {
-        sortDeckbuilderZone(sideboardList);
-        buildStackColumnsForZone(deckList);
-      } else {
-        sortDeckbuilderZones();
-      }
+      deckbuilderUX.clearOrders();
     });
   }
 
@@ -5753,11 +6247,13 @@
   deckbuilderCardSearchModal = window.iMomirCardSearchModal.init({
     searchUrl: addCardSearchUrl || changePrintingOptionsUrl,
     addUrl: addCardUrl,
+    getAddPayload: () => ({target_zone: deckbuilderAddDestination}),
+    getAddSubtitle: () => "Choose cards and printings to add to your " + deckbuilderAddDestination + ".",
     bulkImportUrl: bulkImportUrl,
     bulkImportAddMostRecentUrl: bulkImportAddMostRecentUrl,
-    bulkImportAddMostRecentText: "Add Most Recent to Deck",
+    bulkImportAddMostRecentText: "Add Most Recent",
     bulkImportAddMostRecentConfirmMessage:
-      "This will add the most recent matching printing for each parsed card name directly to this deck's sideboard.",
+      () => "Add the most recent matching printing for each parsed card to " + (deckbuilderAddDestination === "deck" ? "Deck" : "Sideboard") + "?",
 
     showMessage: function (messageText, isError) {
       if (!messageText) {
@@ -5809,7 +6305,7 @@
       }
 
       if (context && typeof context.setStatus === "function") {
-        context.setStatus(payload.message || "Card added to sideboard.", false);
+        context.setStatus(payload.message || "Card added.", false);
       }
     },
 
@@ -5845,7 +6341,7 @@
   if (openAddCardsButton) {
     openAddCardsButton.addEventListener("click", function () {
       if (deckbuilderCardSearchModal) {
-        deckbuilderCardSearchModal.openAddCards();
+        deckbuilderUX.openAdd("deck");
       }
     });
   }
@@ -6273,10 +6769,16 @@
     }
   });
 
+  deckbuilderUX.mount();
+  deckGroupBy = deckbuilderPreferences.get("imomir.deckbuilder.groupBy", "mana");
+  if (!["mana","rarity","color","type","custom"].includes(deckGroupBy)) deckGroupBy = "mana";
+  groupBySelect.value = deckGroupBy;
   applyDeckbuilderResponsiveLayout();
   setDeckbuilderBasicLandCounts(getCurrentDeckBasicLandCounts());
   window.DeckadenceCardSizes.observe(deckList, () => {
-    if (deckbuilderCardSize === "auto") updateDeckbuilderCardSize("auto");
+    // Resizing only changes dimensions; keep card nodes, selection and drag
+    // interactions intact while the Sideboard divider or window is moving.
+    if (deckbuilderCardSize === "auto") applyDeckbuilderCardSizeStyles();
   });
   updateDeckbuilderCardSize(deckbuilderCardSize);
   setViewMode(deckbuilderViewMode);

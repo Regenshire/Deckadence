@@ -47,22 +47,22 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/pack_opening.css', v='1') }}">
     <script src="{{ url_for('static', filename='js/sealed_effects.js', v='shared-1') }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/card_effects.css', v='art-edit-1') }}">
-    <script src="{{ url_for('static', filename='js/card_effects.js', v='studio-views-3') }}"></script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_spot_foil.css', v='65') }}">
+    <script src="{{ url_for('static', filename='js/card_effects.js', v='studio-solar-1') }}"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/card_spot_foil.css', v='71') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/card_prices.css', v='compact-3') }}">
     <script src="{{ url_for('static', filename='js/card_prices.js', v='compact-4') }}" data-default-price-source="{{ global_price_source }}"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css', v='theme-surfaces-20') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/white_mana_flair.css', v='36') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/white_mana_flair.css', v='adaptive-nav-1') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/surge_highlight.css', v='1') }}">
     <script src="{{ url_for('static', filename='js/theme_catalog.js', v='eucalyptus-5') }}"></script>
     <script src="{{ url_for('static', filename='js/background_motion.js', v='constellation-2') }}" data-tile-base="{{ url_for('static', filename='img/themes/') }}"></script>
-    <script src="{{ url_for('static', filename='js/themes.js', v='background-animation-control-4') }}" data-tile-base="{{ url_for('static', filename='img/themes/') }}"></script>
+    <script src="{{ url_for('static', filename='js/themes.js', v='dark-default-5') }}" data-tile-base="{{ url_for('static', filename='img/themes/') }}"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/draft_mode_switch.css', v='1') }}">
 </head>
   <body{% if global_personal_use_agreement_required %} class="personal-use-agreement-active"{% endif %}>
     <div class="app-shell">
       <div class="app-frame">
-        <nav class="app-tabs" aria-label="Primary">
+        <nav class="app-tabs app-tabs-adaptive" aria-label="Primary">
           <div class="app-tabs-left">
             <button
               type="button"
@@ -94,7 +94,7 @@
             </button>
           </div>
 
-          <div class="app-tabs-nav app-menu-expandable">
+          <div id="appNavigationLinks" class="app-tabs-nav app-menu-expandable">
             <div
               class="app-nav-menu app-nav-home-menu {% if request.endpoint == 'index' %}app-nav-menu-active{% endif %}"
             >
@@ -520,6 +520,16 @@
               />
             </button>
           </div>
+          <button
+            type="button"
+            id="appNavigationTrayButton"
+            class="app-navigation-tray-button"
+            aria-label="Open navigation"
+            aria-expanded="false"
+            aria-controls="appNavigationLinks"
+          >
+            <i class="fa-solid fa-bars" aria-hidden="true"></i>
+          </button>
         </nav>
 
         {# Page Content #}
@@ -592,7 +602,8 @@
     <script src="{{ url_for('static', filename='js/card_art_edit.js', v='planner-5') }}"></script>
     <script src="{{ url_for('static', filename='js/mirror_layers.js', v='13') }}"></script>
     <script src="{{ url_for('static', filename='js/trek_transporter.js', v='2') }}"></script>
-    <script src="{{ url_for('static', filename='js/card_spot_foil.js', v='111') }}"></script>
+    <script src="{{ url_for('static', filename='js/disintegrate_foil.js', v='12') }}"></script>
+    <script src="{{ url_for('static', filename='js/card_spot_foil.js', v='126') }}"></script>
 
     <script src="{{ url_for('static', filename='js/print_template_selector.js') }}"></script>
     <script src="{{ url_for('static', filename='js/silhouette_template_library.js') }}"></script>
@@ -607,7 +618,7 @@
 
     {% block page_scripts_before_app %}{% endblock %}
 
-    <script src="{{ url_for('static', filename='js/app.js', v='tracking-tags-bulk-1') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v='adaptive-nav-1') }}"></script>
 
     {% block page_scripts_after_app %}{% endblock %}
 

@@ -111,6 +111,8 @@ class ExternalDeckSelectionOptions:
     allowed_brackets: tuple[int, ...] = ()
     top_result_limit: int | None = None
     exclude_external_ids: tuple[str, ...] = ()
+    required_title_terms: tuple[str, ...] = ()
+    title_alias_groups: tuple[tuple[str, ...], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

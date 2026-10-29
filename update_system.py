@@ -28,6 +28,8 @@ import urllib.request
 import uuid
 import zipfile
 
+from settings import APP_SERVER_PORT
+
 SCHEMA = 1
 UPDATER_VERSION = 1
 REPOSITORY = "Regenshire/Deckadence"
@@ -679,7 +681,7 @@ def healthy(state, port):
         return False
 
 
-def apply_update(root, parent_pid, port=5000):
+def apply_update(root, parent_pid, port=APP_SERVER_PORT):
     root = Path(root).resolve()
     work = workspace(root)
     state = transaction(work)
@@ -785,7 +787,7 @@ def main():
     apply = commands.add_parser("apply")
     apply.add_argument("--root", required=True)
     apply.add_argument("--parent", type=int, required=True)
-    apply.add_argument("--port", type=int, default=5000)
+    apply.add_argument("--port", type=int, default=APP_SERVER_PORT)
     recover = commands.add_parser("recover")
     recover.add_argument("--root", required=True)
     args = parser.parse_args()

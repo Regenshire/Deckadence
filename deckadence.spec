@@ -21,6 +21,7 @@ import json
 from pathlib import Path
 
 ROOT = Path(SPECPATH)
+release_settings = runpy.run_path(str(ROOT / 'settings.py'))
 # Bundle the same validated source payload as the standalone Studio ZIP.
 # Local models, virtual environments and user prompt overrides are excluded.
 studio_builder = runpy.run_path(str(ROOT / 'plugin_src/build_card_finishing_plugin.py'))
@@ -141,15 +142,15 @@ exec ./Deckadence "$@"
         macos = app_bundle / 'Contents' / 'MacOS'
         macos.mkdir(parents=True, exist_ok=True)
         wrapper = macos / 'DeckadenceLauncher'
-        wrapper.write_text('''#!/bin/sh
+        wrapper.write_text(f'''#!/bin/sh
 set -eu
 cd -- "$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"
-(sleep 3; open http://127.0.0.1:5000) &
+(sleep 3; open http://127.0.0.1:{release_settings['APP_SERVER_PORT']}) &
 exec ./Start_Deckadence.command "$@"
 ''', encoding='utf-8')
         wrapper.chmod(0o755)
         with (app_bundle / 'Contents' / 'Info.plist').open('wb') as stream:
-            release_version = runpy.run_path(str(ROOT / 'settings.py'))['APP_VERSION']
+            release_version = release_settings['APP_VERSION']
             plistlib.dump({'CFBundleExecutable': 'DeckadenceLauncher',
                           'CFBundleIdentifier': 'com.regenshire.deckadence',
                           'CFBundleVersion': release_version,

@@ -131,7 +131,7 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
         for key,job in list(jobs.items()):
             if time.monotonic()-job.get('finished',job['created'])>(14700 if job['state'] in ('queued','running') else 1800):
                 job['cancel'].set();del jobs[key]
-    def execute(job,source,mask,mode,prompt,seed,maintain_style,source_bounds,model,style_mode,custom_style,prepare_only):
+    def execute(job,source,mask,mode,prompt,seed,maintain_style,source_bounds,model,style_mode,custom_style,prepare_only,background_reconstruction=False):
         capture=job.get('diagnostics')
         def progress(stage,message):
             with lock:
@@ -147,18 +147,25 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
             if capture:
                 capture.add('source-edited.png',source)
                 capture.add('selection-original.png',alpha)
-            if mode=='remove_object':
+            if mode=='remove_object' or background_reconstruction:
                 alpha=preparation.removal_blend_mask(alpha)
             extension_reference=None
             sample_bounds=source_bounds
-            if mode=='outpaint' or (mode!='remove_text' and style_mode=='match'):
+            if not background_reconstruction and (mode=='outpaint' or (mode!='remove_text' and style_mode=='match')):
                 sample_bounds=detect_outpaint_bounds(source,source_bounds,job['cancel'],progress)
             analysis_bounds=sample_bounds
             if mode=='outpaint':
                 # Analysis needs a clean rectangle; generation keeps all clean
                 # unselected context above and below an overlapping selection.
-                analysis_bounds=unselected_outpaint_bounds(source,sample_bounds,alpha)
-                extension_reference,extension_mask=outpaint_inputs(source,alpha,sample_bounds)
+                if background_reconstruction:
+                    # Reuse Mirror's masked background-fill recipe and model
+                    # adapter for an interior hole. Keep the original context;
+                    # a smoothed placeholder teaches the model to retain blur.
+                    extension_reference=source
+                    extension_mask=preparation.removal_generation_mask(alpha)
+                else:
+                    analysis_bounds=unselected_outpaint_bounds(source,sample_bounds,alpha)
+                    extension_reference,extension_mask=outpaint_inputs(source,alpha,sample_bounds)
             l,t,r,b=alpha.getbbox();pad=max(32,round(max(r-l,b-t)*.6))
             box=(max(0,l-pad),max(0,t-pad),min(source.width,r+pad),min(source.height,b+pad))
             if mode=='outpaint':
@@ -219,7 +226,7 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
                 patch=generated.convert('RGBA').resize(crop.size,Image.Resampling.LANCZOS)
             # Compare only selected pixels. This is a visibility hint, not a
             # model-quality verdict; users can still inspect and apply it.
-            blend_mask = alpha.crop(box) if mode in ('remove_object','remove_text') else generation_blend_mask(alpha.crop(box))
+            blend_mask = alpha.crop(box) if background_reconstruction or mode in ('remove_object','remove_text') else generation_blend_mask(alpha.crop(box))
             if capture:
                 capture.add('worker-output.png',output)
                 capture.add('blend-mask.png',blend_mask)
@@ -259,7 +266,7 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
             return jsonify(ok=False,message='The selected artwork is too large.'),413
         payload=request.get_json(silent=True)
         required={'image_data','mask_data','mode','prompt','seed'}
-        if not isinstance(payload,dict) or not required<=set(payload) or set(payload)-required-{'maintain_style','source_bounds','model','style_mode','custom_style','prepare_only'}:
+        if not isinstance(payload,dict) or not required<=set(payload) or set(payload)-required-{'maintain_style','source_bounds','model','style_mode','custom_style','prepare_only','background_reconstruction'}:
             raise ValueError('Provide artwork, selection and an edit instruction.')
         model=payload.get('model')
         if model is not None and (not isinstance(model,str) or model not in MODELS):
@@ -271,6 +278,9 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
         if style_mode not in ('match','custom','none') or not isinstance(custom_style,str) or len(custom_style)>2000 or type(prepare_only) is not bool:
             raise ValueError('Choose valid style and preparation settings.')
         mode=payload['mode'];prompt=payload['prompt'];seed=payload['seed']
+        background_reconstruction=payload.get('background_reconstruction',False)
+        if type(background_reconstruction) is not bool or background_reconstruction and mode!='outpaint':
+            raise ValueError('Background reconstruction uses the shared background-fill operation.')
         if mode!='remove_text' and style_mode=='custom' and not custom_style.strip():raise ValueError('Enter a custom style description.')
         if mode not in ('remove_text','replace','remove_object','outpaint') or not isinstance(prompt,str) or len(prompt)>2000 or (mode=='replace' and not prompt.strip()):
             raise ValueError('Enter an instruction for the selected area.')
@@ -291,7 +301,7 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
         source=Image.open(BytesIO(image_png(payload['image_data']))).convert('RGBA')
         selection=Image.open(BytesIO(decode_mask(payload['mask_data']))).convert('RGBA')
         if not selection.getchannel('A').getbbox():raise ValueError('Select an area first.')
-        if mode=='remove_object' and not ImageChops.invert(selection.getchannel('A').point(lambda v:255 if v else 0)).getbbox():
+        if (mode=='remove_object' or background_reconstruction) and not ImageChops.invert(selection.getchannel('A').point(lambda v:255 if v else 0)).getbbox():
             raise ValueError('Leave some surrounding artwork outside the selection for object removal.')
         with lock:
             prune()
@@ -304,7 +314,7 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
             if diagnostics.enabled() and mode!='remove_text' and not prepare_only:
                 job['diagnostics']=diagnostics.Capture(dict(job_id=key,card_uuid=card_uuid,face=face,operation=mode,seed=seed,
                     instruction=prompt.strip(),style_mode=style_mode,custom_style=custom_style,requested_model=model,configured_art_bounds=source_bounds))
-        threading.Thread(target=execute,args=(job,source,selection,mode,prompt.strip(),seed,maintain_style,source_bounds,model,style_mode,custom_style,prepare_only),daemon=True).start()
+        threading.Thread(target=execute,args=(job,source,selection,mode,prompt.strip(),seed,maintain_style,source_bounds,model,style_mode,custom_style,prepare_only,background_reconstruction),daemon=True).start()
         return jsonify(ok=True,job=key,state='queued'),202
 
     @app.route('/cards/spot-foil/<card_uuid>/<face>/art-generation/<job_id>',methods=['GET','DELETE'])
@@ -317,7 +327,7 @@ def register_art_edit_routes(app,get_connection,resolve_context,api_errors,decod
             if request.method=='DELETE':
                 job['cancel'].set();job.update(state='cancelled',finished=time.monotonic());job.pop('image_data',None)
                 job.pop('diagnostics',None)
-            response=jsonify(ok=True,state=job['state'],stage=job['stage'],model_label=job['model_label'],elapsed_seconds=round(job.get('finished',time.monotonic())-job['created'],1),image_data=job.get('image_data'),message=job.get('message'),change_summary=job.get('change_summary'),plan=job.get('plan'),reference_previews=job.get('reference_previews',[]))
+            response=jsonify(ok=True,state=job['state'],stage=job['stage'],model_label=job['model_label'],elapsed_seconds=round(job.get('finished',time.monotonic())-job['created'],1),image_data=job.get('image_data'),message=job.get('message'),change_summary=job.get('change_summary'),plan=job.get('plan'),reference_previews=job.get('reference_previews',[]),diagnostics_available=bool(job.get('diagnostics') and job['state']=='complete'))
         response.cache_control.no_store=True
         return response
 

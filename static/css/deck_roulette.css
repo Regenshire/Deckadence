@@ -38,6 +38,13 @@
   padding: 16px 18px;
 }
 
+.deck-roulette-search-help {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
 .deck-roulette-filter-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

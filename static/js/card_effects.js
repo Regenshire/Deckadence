@@ -144,6 +144,7 @@
         if(!glaze){glaze=document.createElement("span");glaze.className="card-printed-glaze";glaze.dataset.layer=String(index+1);glaze.setAttribute("aria-hidden","true");layer.after(glaze);}
         if(glaze.style.backgroundImage!==background)glaze.style.backgroundImage=background;
         glaze.style.opacity=String(translucence);
+        glaze.style.mixBlendMode=value.finish==='raised_solar'?'soft-light':'color';
       }else glaze?.remove();
     }
   }

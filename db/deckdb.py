@@ -980,7 +980,7 @@ def get_saved_deckbuilder_cards_for_deck(deck_id, deck_zone=None, include_basic_
     finally:
         conn.close()
 
-def add_card_to_deckbuilder_sideboard(deck_id, card_uuid, *, if_absent=False, is_foil=False):
+def add_card_to_deckbuilder_sideboard(deck_id, card_uuid, *, if_absent=False, is_foil=False, target_zone="sideboard"):
     ensure_deck_schema()
 
     parsed_deck_id = normalize_deck_optional_int(deck_id)
@@ -997,6 +997,9 @@ def add_card_to_deckbuilder_sideboard(deck_id, card_uuid, *, if_absent=False, is
             "ok": False,
             "message": "Card UUID is required.",
         }
+
+    if not isinstance(target_zone, str) or target_zone not in {"deck", "sideboard"}:
+        return {"ok": False, "message": "Invalid destination."}
 
     now_utc = deck_utc_now()
 
@@ -1049,7 +1052,7 @@ def add_card_to_deckbuilder_sideboard(deck_id, card_uuid, *, if_absent=False, is
         # Custom-card creation retries should not add a second deck copy.
         conn.execute("BEGIN IMMEDIATE")
         existing = conn.execute(
-            "SELECT deck_card_id, sheet_is_foil FROM deck_cards WHERE deck_id = ? AND card_uuid = ? LIMIT 1",
+            "SELECT deck_card_id, sheet_is_foil, deck_zone FROM deck_cards WHERE deck_id = ? AND card_uuid = ? LIMIT 1",
             (parsed_deck_id, clean_card_uuid),
         ).fetchone()
         if existing:
@@ -1057,7 +1060,7 @@ def add_card_to_deckbuilder_sideboard(deck_id, card_uuid, *, if_absent=False, is
             return {"ok": True, "message": "Card is already in this deck.",
                     "deck_id": parsed_deck_id, "deck_card_id": existing["deck_card_id"],
                     "card_uuid": clean_card_uuid, "card_name": card_row["card_name"],
-                    "deck_zone": "sideboard", "sheet_is_foil": existing["sheet_is_foil"], "inserted": False}
+                    "deck_zone": existing["deck_zone"], "sheet_is_foil": existing["sheet_is_foil"], "inserted": False}
 
     cursor.execute(
         """
@@ -1085,7 +1088,7 @@ def add_card_to_deckbuilder_sideboard(deck_id, card_uuid, *, if_absent=False, is
             parsed_deck_id,
             card_row["card_uuid"],
             card_row["card_name"],
-            "sideboard",
+            target_zone,
             1,
             "manual_add",
             parsed_deck_id,
@@ -1123,12 +1126,12 @@ def add_card_to_deckbuilder_sideboard(deck_id, card_uuid, *, if_absent=False, is
 
     return {
         "ok": True,
-        "message": "Card added to sideboard.",
+        "message": f"Card added to {target_zone}.",
         "deck_id": parsed_deck_id,
         "deck_card_id": deck_card_id,
         "card_uuid": clean_card_uuid,
         "card_name": card_row["card_name"],
-        "deck_zone": "sideboard",
+        "deck_zone": target_zone,
         "sheet_is_foil": int(bool(is_foil)),
     }
 
@@ -2887,6 +2890,91 @@ def get_deck_builder_layout_json(layout_row):
     return {}
 
 
+
+def get_deckbuilder_organization(deck_id):
+    """Card groups and manual ordering are deck data, separate from display settings."""
+    saved = get_deck_builder_layout_json(get_deck_builder_layout(deck_id, "organization"))
+    return saved or {
+        "revision": 0,
+        "groups": [{"id": key, "name": name} for key, name in (
+            ("ramp", "Ramp"), ("advantage", "Card advantage"),
+            ("interaction", "Interaction"), ("finishers", "Finishers"))],
+        "assignments": {}, "orders": {},
+    }
+
+
+def update_deckbuilder_organization(deck_id, organization, move_card_ids=None, target_zone=None):
+    """Validate ownership and save a drag/group operation in one transaction."""
+    ensure_deck_schema()
+    conn = get_db_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if not conn.execute("SELECT 1 FROM decks WHERE deck_id=? AND status='active'", (deck_id,)).fetchone():
+            raise ValueError("Deck was not found.")
+        row = conn.execute("SELECT layout_json FROM deck_builder_layouts WHERE deck_id=? AND layout_key='organization'", (deck_id,)).fetchone()
+        previous = get_deck_builder_layout_json(row)
+        revision = previous.get("revision", 0)
+        if not isinstance(organization, dict) or organization.get("revision") != revision:
+            raise ValueError("This deck's groups changed in another window. Refresh before editing again.")
+        groups = organization.get("groups")
+        assignments = organization.get("assignments")
+        orders = organization.get("orders")
+        if not isinstance(groups, list) or len(groups) > 50 or not isinstance(assignments, dict) or not isinstance(orders, dict) or len(orders) > 100:
+            raise ValueError("Invalid deck organization.")
+        clean_groups, group_ids, names = [], set(), set()
+        for group in groups:
+            if not isinstance(group, dict):
+                raise ValueError("Invalid group.")
+            key, name = group.get("id"), group.get("name")
+            if not isinstance(key, str) or not key or len(key) > 64 or not all(c.isalnum() or c in '-_' for c in key) or key in {"commander", "partner", "ungrouped"} or key in group_ids:
+                raise ValueError("Invalid group ID.")
+            if not isinstance(name, str) or not name.strip() or len(name.strip()) > 60 or name.strip().casefold() in names:
+                raise ValueError("Group names must be unique and between 1 and 60 characters.")
+            group_ids.add(key)
+            names.add(name.strip().casefold())
+            clean_groups.append({"id": key, "name": name.strip()})
+        cards = {str(row["deck_card_id"]): row for row in conn.execute("SELECT deck_card_id, is_basic_land, deck_zone FROM deck_cards WHERE deck_id=? AND deck_zone IN ('deck','sideboard')", (deck_id,))}
+        clean_assignments = {}
+        for key, group in assignments.items():
+            if key not in cards or not isinstance(group, str) or group not in group_ids:
+                raise ValueError("A grouped card or group no longer belongs to this deck. Refresh and try again.")
+            clean_assignments[key] = group
+        clean_orders = {}
+        for key, order in orders.items():
+            if not isinstance(key, str) or len(key) > 100 or not isinstance(order, list) or len(order) > len(cards):
+                raise ValueError("Invalid card order.")
+            ids = [str(value) for value in order]
+            if len(set(ids)) != len(ids) or any(value not in cards for value in ids):
+                raise ValueError("Ordered cards must belong to this deck.")
+            clean_orders[key] = ids
+        if not isinstance(move_card_ids or [], list):
+            raise ValueError("Invalid cards to move.")
+        moving = list(dict.fromkeys(str(value) for value in (move_card_ids or [])))
+        if moving and (not isinstance(target_zone, str) or target_zone not in {"deck", "sideboard"}):
+            raise ValueError("Invalid destination.")
+        if any(value not in cards for value in moving):
+            raise ValueError("Cards to move must belong to this deck.")
+        if target_zone == "sideboard" and any(cards[value]["is_basic_land"] for value in moving):
+            raise ValueError("Use the basic-land controls to return basic lands to the palette.")
+        now = deck_utc_now()
+        for value in moving:
+            if target_zone == "sideboard":
+                conn.execute("UPDATE deck_cards SET deck_zone=?, deck_role='main', stack_column=NULL, stack_order=NULL, updated_at_utc=? WHERE deck_id=? AND deck_card_id=?", (target_zone, now, deck_id, value))
+            else:
+                conn.execute("UPDATE deck_cards SET deck_zone=?, updated_at_utc=? WHERE deck_id=? AND deck_card_id=?", (target_zone, now, deck_id, value))
+        clean = {"revision": revision + 1, "groups": clean_groups, "assignments": clean_assignments, "orders": clean_orders}
+        conn.execute("""INSERT INTO deck_builder_layouts (deck_id,layout_key,layout_json,created_at_utc,updated_at_utc)
+            VALUES (?,'organization',?,?,?) ON CONFLICT(deck_id,layout_key) DO UPDATE SET layout_json=excluded.layout_json,updated_at_utc=excluded.updated_at_utc""", (deck_id, json.dumps(clean), now, now))
+        conn.execute("UPDATE decks SET updated_at_utc=? WHERE deck_id=?", (now, deck_id))
+        conn.commit()
+        return {"ok": True, "organization": clean, "message": "Deck organization saved."}
+    except ValueError as error:
+        conn.rollback()
+        return {"ok": False, "message": str(error)}
+    finally:
+        conn.close()
+
+
 def update_deck_settings(
     deck_id,
     deck_name,
@@ -3585,6 +3673,15 @@ def duplicate_deck(deck_id):
         ),
     )
 
+    organization_row = conn.execute("SELECT layout_json FROM deck_builder_layouts WHERE deck_id=? AND layout_key='organization'", (new_deck_id,)).fetchone()
+    if organization_row:
+        organization = get_deck_builder_layout_json(organization_row)
+        id_map = {str(row["source_item_id"]): str(row["deck_card_id"]) for row in conn.execute("SELECT deck_card_id,source_item_id FROM deck_cards WHERE deck_id=?", (new_deck_id,))}
+        organization["assignments"] = {id_map[key]: value for key, value in organization.get("assignments", {}).items() if key in id_map}
+        organization["orders"] = {key: [id_map[value] for value in order if value in id_map] for key, order in organization.get("orders", {}).items()}
+        organization["revision"] = 0
+        conn.execute("UPDATE deck_builder_layouts SET layout_json=? WHERE deck_id=? AND layout_key='organization'", (json.dumps(organization), new_deck_id))
+
     try:
         copied_scope = clone_alternate_image_scope(
             conn, source_deck["alternate_image_scope_id"]
@@ -3857,6 +3954,7 @@ def build_deckbuilder_context_for_deck(deck_id):
         "default_view_mode": default_view_mode,
         "default_sort_mode": default_sort_mode,
         "default_card_size": default_card_size,
+        "organization": get_deckbuilder_organization(parsed_deck_id),
         "sideboard_flex": sideboard_flex,
         "deck_flex": deck_flex,
     }
@@ -3979,6 +4077,7 @@ def build_deckbuilder_context_for_draft_test(draft_state, preferred_deck_id=None
         "default_view_mode": default_view_mode,
         "default_sort_mode": default_sort_mode,
         "default_card_size": default_card_size,
+        "organization": get_deckbuilder_organization(deck_result["deck_id"]),
         "sideboard_flex": sideboard_flex,
         "deck_flex": deck_flex,
     }

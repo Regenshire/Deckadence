@@ -63,6 +63,8 @@ class DeckRouletteController {
 
     this.titleSearchInput = document.getElementById("deckRouletteTitleSearch");
 
+    this.welcomeHelp = document.getElementById("deckRouletteWelcomeHelp");
+
     this.commanderField = document.getElementById("deckRouletteCommanderField");
 
     this.commanderLabel = document.getElementById("deckRouletteCommanderLabel");
@@ -325,8 +327,24 @@ class DeckRouletteController {
 
   updateFormatControls() {
     const leaderFiltersEnabled = this.isCommanderFormat();
+    const welcomeDecksEnabled = this.formatInput?.value === "welcomeDecks";
     const disableBracketFilters =
       this.filterControlsLocked || !leaderFiltersEnabled;
+
+    if (this.titleSearchInput) {
+      this.titleSearchInput.placeholder = welcomeDecksEnabled
+        ? "Optional set or title, e.g. Star Trek"
+        : "Search part of a deck title";
+      if (welcomeDecksEnabled) {
+        this.titleSearchInput.setAttribute("aria-describedby", "deckRouletteWelcomeHelp");
+      } else {
+        this.titleSearchInput.removeAttribute("aria-describedby");
+      }
+    }
+
+    if (this.welcomeHelp) {
+      this.welcomeHelp.classList.toggle("hidden", !welcomeDecksEnabled);
+    }
 
     if (this.commanderLabel) {
       if (leaderFiltersEnabled) {
