@@ -2,7 +2,7 @@
 import secrets
 
 # Deckadance App Version
-APP_VERSION = "3.2.0"
+APP_VERSION = "3.3.0"
 
 # Card sizes (millimeters)
 STANDARD_CARD_WIDTH_MM = 63.0

@@ -168,8 +168,8 @@ python3 -m PyInstaller --noconfirm --clean \
 
 python3 -B update_system.py package \
   --root .dev_prompts/ai_work/release-dist/Deckadence \
-  --output .dev_prompts/ai_work/Deckadence_v3.2.0_macOS_arm64.zip \
-  --version 3.2.0 --platform macos-arm64
+  --output .dev_prompts/ai_work/Deckadence_v3.3.0_macOS_arm64.zip \
+  --version 3.3.0 --platform macos-arm64
 ```
 
 For Linux, use `--platform linux-x86_64` and an archive ending in `_Linux_x86_64.tar.gz`. For Windows, use `--platform windows-x86_64` and `_Windows.zip`. Change the version for each release. The packager rejects unexpected files in the release folder to prevent shipping user data, and creates:
