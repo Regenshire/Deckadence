@@ -12,6 +12,7 @@
     const actions = get('applicationUpdateActions');
     const badge = get('applicationUpdateBadge');
     const busyStates = new Set(['checking', 'downloading', 'verifying', 'installing']);
+    const pluginBusyStates = new Set(['waiting', 'checking', 'updating']);
     const platformNames = {'windows-x86_64': 'Windows · 64-bit', 'linux-x86_64': 'Linux · x86-64', 'macos-arm64': 'macOS · Apple Silicon'};
     let csrf = '', timer, lastState, pending = false, statusFailed = false;
     let restarting = false, restartStarted = 0, oldVersion = cached.current_version || '';
@@ -45,11 +46,13 @@
         csrf = state.csrf || '';
         const mode = state.state;
         const busy = busyStates.has(mode);
+        const plugins = state.plugin_updates || {};
+        const pluginBusy = pluginBusyStates.has(plugins.state);
         const latest = state.latest_version ?? cached.latest_version;
         const newer = state.newer_release ?? cached.update_available;
         const supported = !!state.supported;
         const downloadable = supported && state.available && !busy && mode !== 'ready';
-        const installable = supported && mode === 'ready' && state.can_restart;
+        const installable = supported && mode === 'ready' && state.can_restart && !pluginBusy;
         root.dataset.state = mode || 'idle';
         get('applicationUpdateInstalled').textContent = state.current_version || cached.current_version || 'Unknown';
         get('applicationUpdateLatest').textContent = latest || 'Not checked';
@@ -89,6 +92,22 @@
         badge.dataset.tone = tone;
         get('applicationUpdateTitle').textContent = title;
         message.textContent = copy;
+        get('applicationPluginUpdates').hidden = !plugins.state;
+        get('applicationPluginUpdateMessage').textContent = plugins.message || '';
+        const pluginList = get('applicationPluginUpdateList');
+        pluginList.replaceChildren();
+        for (const plugin of plugins.plugins || []) {
+            const row = document.createElement('li');
+            row.dataset.state = plugin.state;
+            const name = document.createElement('strong');
+            name.textContent = plugin.name;
+            const detail = document.createElement('span');
+            detail.textContent = plugin.message || plugin.stage || '';
+            row.append(name, detail);
+            pluginList.append(row);
+        }
+        get('applicationPluginUpdateRetry').hidden = plugins.state !== 'partial';
+        get('applicationPluginUpdateRetry').disabled = busy || pending || pluginBusy;
         get('applicationUpdateErrorLog').hidden = mode !== 'failed';
 
         check.hidden = !supported;
@@ -143,7 +162,7 @@
                 return;
             }
         }
-        if (busy || restarting) schedule();
+        if (busy || restarting || pluginBusy) schedule();
     }
 
     async function refresh() {
@@ -206,11 +225,13 @@
             pending = false;
             const busy = restarting || busyStates.has(lastState?.state);
             check.disabled = download.disabled = install.disabled = busy;
+            get('applicationPluginUpdateRetry').disabled = busy || pluginBusyStates.has(lastState?.plugin_updates?.state);
             get('applicationUpdateConfirmInstall').disabled = false;
         }
     }
 
     check.addEventListener('click', () => statusFailed ? refresh() : operate('check'));
+    get('applicationPluginUpdateRetry').addEventListener('click', () => operate('plugins'));
     download.addEventListener('click', () => operate('download'));
     install.addEventListener('click', () => {
         confirmation.hidden = false; actions.hidden = true;

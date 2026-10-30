@@ -22,6 +22,12 @@
                 </div>
             </div>
         </div>
+        <section id="applicationPluginUpdates" class="release-plugin-updates" hidden aria-label="Installed plugin updates">
+            <h3>Installed plugins</h3>
+            <p id="applicationPluginUpdateMessage" role="status" aria-live="polite"></p>
+            <ul id="applicationPluginUpdateList"></ul>
+            <div class="release-actions"><button type="button" id="applicationPluginUpdateRetry" class="action-button secondary-button" hidden>Retry plugin updates</button></div>
+        </section>
         <details id="applicationUpdateNotes" class="release-notes" {% if not release.release_notes and not release.release_url %}hidden{% endif %}>
             <summary>Full release notes</summary>
             <pre id="applicationUpdateNotesText">{{ release.release_notes or '' }}</pre>
@@ -36,7 +42,7 @@
         </div>
         <div id="applicationUpdateConfirmation" class="release-confirmation" hidden>
             <h3>Ready to restart Deckadence?</h3>
-            <p>Finish your work on connected devices. This page will reconnect after the update.</p>
+            <p>Finish your work on connected devices. This page will reconnect after the update, then check and update plugins you already have installed.</p>
             <div class="release-actions"><button type="button" id="applicationUpdateConfirmInstall" class="action-button">Restart and install</button><button type="button" id="applicationUpdateCancelInstall" class="action-button secondary-button">Not now</button></div>
         </div>
         <p class="release-preserve"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i><span>Your database, artwork, plugins, settings, and exports stay in place.</span></p>

@@ -75,6 +75,12 @@
 .release-download-progress progress::-moz-progress-bar { background: var(--accent); border-radius: 6px; }
 .release-confirmation { border-top: 1px solid var(--border); padding-top: 16px; }
 .release-confirmation .release-actions { margin-top: 12px; }
+.release-plugin-updates { border-top: 1px solid var(--border); padding-top: 16px; }
+.release-plugin-updates h3 { margin: 0 0 8px; font-size: 1rem; }
+.release-plugin-updates p, .release-plugin-updates li span { color: var(--muted); font-size: .85rem; line-height: 1.5; }
+.release-plugin-updates ul { list-style: none; padding: 0; margin: 12px 0; display: grid; gap: 10px; }
+.release-plugin-updates li { display: grid; gap: 3px; overflow-wrap: anywhere; }
+.release-plugin-updates li[data-state="failed"] span { color: var(--theme-warning, var(--text)); }
 .settings-reminder-shortcut:focus-visible, .release-notes summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 @media (max-width: 700px) {
   .release-summary { grid-template-columns: 1fr; gap: 20px; }

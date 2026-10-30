@@ -635,6 +635,8 @@ def launch_app(root, work, state=None):
     for key in ("DECKADENCE_UPDATE_TOKEN", "DECKADENCE_UPDATE_HELPER", "_PYI_APPLICATION_HOME_DIR", "_PYI_ARCHIVE_FILE", "_PYI_PARENT_PROCESS_LEVEL"):
         environment.pop(key, None)
     environment["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    # The existing browser tab reconnects after both updates and rollback.
+    environment["DECKADENCE_NO_BROWSER"] = "1"
     environment["DECKADENCE_SERVER_PORT"] = str(state.get("port", resolve_server_port(root)) if state else resolve_server_port(root))
     if state:
         environment["DECKADENCE_UPDATE_TOKEN"] = state["token"]

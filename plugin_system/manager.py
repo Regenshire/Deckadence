@@ -3,6 +3,7 @@ import atexit
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -33,6 +34,8 @@ PLUGIN_INSTALL_STATUS = {}
 PLUGIN_INSTALL_STATUS_LOCK = (
     threading.Lock()
 )
+PLUGIN_INSTALL_EXECUTION_LOCK = threading.Lock()
+PLUGIN_INSTALL_START_LOCK = threading.Lock()
 
 
 def any_plugin_install_running():
@@ -1054,7 +1057,7 @@ def _install_plugin_requirements(
     )
 
 
-def _download_latest_release_asset(
+def _latest_plugin_release(
     plugin_id,
     catalog_entry,
 ):
@@ -1129,8 +1132,13 @@ def _download_latest_release_asset(
 
     matching_release = None
 
-    for release in releases_data:
-        if release.get("draft"):
+    def release_version(release):
+        value = str(release.get("tag_name", ""))
+        suffix = value[len(tag_prefix):] if value.startswith(tag_prefix) else ""
+        return tuple(map(int, suffix.split("."))) if re.fullmatch(r"\d+(?:\.\d+)*", suffix) else ()
+
+    for release in sorted(releases_data, key=release_version, reverse=True):
+        if release.get("draft") or release.get("prerelease"):
             continue
 
         tag_name = str(
@@ -1195,18 +1203,46 @@ def _download_latest_release_asset(
             "download URL."
         )
 
+    return {
+        "version": str(matching_release["tag_name"])[len(tag_prefix):],
+        "tag": matching_release["tag_name"],
+        "url": download_url,
+    }
+
+
+def check_installed_plugin_update(plugin_id):
+    """Check versions without installing, initializing models, or enabling plugins."""
+    installed = load_plugin_manifest(plugin_id)
+    if not installed:
+        return None
+    entry = get_plugin_catalog_entry(plugin_id)
+    if not entry:
+        return None
+    release = None
+    if entry.get("bundled_source"):
+        latest = _load_plugin_manifest_from_directory(plugin_id, get_plugin_development_dir(plugin_id)) or {}
+        version = str(latest.get("version") or "")
+    else:
+        release = _latest_plugin_release(plugin_id, entry)
+        version = release["version"]
+    current = str(installed.get("version") or "")
+    def numbers(value):
+        return tuple(int(part) for part in value.lstrip("v").split(".")) if re.fullmatch(r"v?\d+(?:\.\d+)*", value) else ()
+    available = bool(numbers(version) and (not numbers(current) or numbers(version) > numbers(current)))
+    return {"plugin_id": plugin_id, "name": entry["name"], "installed_version": current,
+            "latest_version": version, "available": available, "release": release}
+
+
+def _download_latest_release_asset(plugin_id, catalog_entry, release=None):
+    release = release or _latest_plugin_release(plugin_id, catalog_entry)
+    download_url = release["url"]
+
     destination_path = os.path.join(
         PLUGIN_DOWNLOAD_DIR,
         f"{plugin_id}.zip",
     )
 
-    release_tag = str(
-        matching_release.get(
-            "tag_name",
-            "",
-        )
-        or ""
-    ).strip()
+    release_tag = release["tag"]
 
     _set_install_status(
         plugin_id,
@@ -1244,7 +1280,27 @@ def _download_latest_release_asset(
 
 def install_plugin(
     plugin_id,
+    release=None,
 ):
+    # Shared by manual and inline updates: only one installer touches runtimes
+    # and models at a time.
+    with PLUGIN_INSTALL_EXECUTION_LOCK:
+        return _install_plugin(plugin_id, release)
+
+
+def recover_interrupted_plugin_update(plugin_id):
+    if not get_plugin_catalog_entry(plugin_id):
+        return
+    with PLUGIN_INSTALL_EXECUTION_LOCK:
+        plugin_dir = get_plugin_install_dir(plugin_id)
+        backup_dir = plugin_dir + ".backup"
+        if os.path.isdir(backup_dir):
+            if os.path.exists(plugin_dir):
+                shutil.rmtree(plugin_dir)
+            os.replace(backup_dir, plugin_dir)
+
+
+def _install_plugin(plugin_id, release=None):
     ensure_plugin_directories()
 
     _stop_plugin_worker(
@@ -1267,6 +1323,7 @@ def install_plugin(
         _download_latest_release_asset(
             plugin_id,
             catalog_entry,
+            release,
         )
     )
 
@@ -1340,7 +1397,7 @@ def install_plugin(
         # Studio keeps its existing plugin ID so installed models can be reused.
         # Copy before setup, retaining the backup intact for rollback on failure.
         cached_models = os.path.join(backup_dir, "models")
-        if catalog_entry.get("preserve_models") and os.path.isdir(cached_models):
+        if os.path.isdir(cached_models):
             shutil.copytree(cached_models, os.path.join(plugin_dir, "models"), dirs_exist_ok=True)
 
         _install_plugin_requirements(
@@ -1392,6 +1449,7 @@ def install_plugin(
 
 def _install_plugin_worker(
     plugin_id,
+    release=None,
 ):
     try:
         _set_install_status(
@@ -1405,7 +1463,7 @@ def _install_plugin_worker(
         )
 
         plugin_status = install_plugin(
-            plugin_id
+            plugin_id, release=release
         )
 
         _set_install_status(
@@ -1434,7 +1492,13 @@ def _install_plugin_worker(
 # *** INSTALL CONTROLS - Start Installation and Remove Plugins ***
 def start_plugin_install(
     plugin_id,
+    release=None,
 ):
+    with PLUGIN_INSTALL_START_LOCK:
+        return _start_plugin_install(plugin_id, release)
+
+
+def _start_plugin_install(plugin_id, release=None):
     catalog_entry = (
         get_plugin_catalog_entry(
             plugin_id
@@ -1469,7 +1533,7 @@ def start_plugin_install(
 
     worker = threading.Thread(
         target=_install_plugin_worker,
-        args=(plugin_id,),
+        args=(plugin_id, release),
         daemon=True,
         name=(
             "deckadence-plugin-install-"
@@ -1477,7 +1541,11 @@ def start_plugin_install(
         ),
     )
 
-    worker.start()
+    try:
+        worker.start()
+    except Exception as error:
+        _set_install_status(plugin_id, is_running=False, stage="Failed", error=str(error))
+        raise
 
     return get_plugin_install_status(
         plugin_id

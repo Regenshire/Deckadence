@@ -145,7 +145,6 @@ exec ./Deckadence "$@"
         wrapper.write_text('''#!/bin/sh
 set -eu
 cd -- "$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"
-(sleep 3; ./DeckadenceUpdater open --root "$PWD") &
 exec ./Start_Deckadence.command "$@"
 ''', encoding='utf-8')
         wrapper.chmod(0o755)

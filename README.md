@@ -96,7 +96,7 @@ The packaged Windows release is the easiest way to use Deckadence. You do **not*
 4. Open the extracted `Deckadence` folder.
 5. Run **`Start_Deckadence.bat`**. This starts Deckadence and opens it in your default browser.
 
-You can also run **`Deckadence.exe`** directly. The Deckadence window will display the local and network addresses you can open in a browser.
+You can also run **`Deckadence.exe`** directly. It opens your default browser when the application is ready and displays the local and network addresses in its program window.
 
 Deckadence normally uses:
 
@@ -152,6 +152,7 @@ Starting with **v3.2.0**, packaged releases include an updater in **Settings →
 - If power loss or a closed helper interrupts installation, run **Start_Deckadence.bat**, **Start_Deckadence.sh**, or **Start_Deckadence.command** to recover. Keep the entire folder, including `.deckadence-update`, intact. Diagnostics and the most recent recovery snapshots are in that folder. Do not open the executable directly during interrupted-update recovery.
 - Updates replace the application files and carry forward local additions. If a local addition uses a filename introduced by the new release, its original is saved under `.deckadence-update/preserved-files/`. The previous application is kept for rollback. Custom templates and other user files can remain in their runtime folders.
 - Update activity is recorded in `.deckadence-update/events.log`. Failure details are saved in `.deckadence-update/last-error.json`; restart-stage output is also available in `helper.log` and `startup.log`.
+- After the app update succeeds, Deckadence checks already-installed plugins and updates those with newer versions, one at a time. Progress and retry controls appear in Release Updates. A plugin failure does not undo the app update; plugins you have not installed are left alone.
 
 ## Publishing updater-compatible releases
 
@@ -166,8 +167,8 @@ python3 -m PyInstaller --noconfirm --clean \
 
 python3 -B update_system.py package \
   --root .dev_prompts/ai_work/release-dist/Deckadence \
-  --output .dev_prompts/ai_work/Deckadence_v3.3.1_macOS_arm64.zip \
-  --version 3.3.1 --platform macos-arm64
+  --output .dev_prompts/ai_work/Deckadence_v3.3.2_macOS_arm64.zip \
+  --version 3.3.2 --platform macos-arm64
 ```
 
 For Linux, use `--platform linux-x86_64` and an archive ending in `_Linux_x86_64.tar.gz`. For Windows, use `--platform windows-x86_64` and `_Windows.zip`. Change the version for each release. The packager rejects unexpected files in the release folder to prevent shipping user data, and creates:

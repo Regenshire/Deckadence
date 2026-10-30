@@ -39621,6 +39621,25 @@ def sets():
     )
 
 # *** APP STARTUP - Start the Server and Open the Browser ***
+def open_startup_browser(url):
+    if (
+        not getattr(sys, "frozen", False)
+        or os.environ.get("DECKADENCE_UPDATE_TOKEN")
+        or os.environ.get("DECKADENCE_NO_BROWSER", "").strip().lower() in {"1", "true", "yes", "on"}
+    ):
+        return
+
+    def open_browser():
+        import webbrowser
+        try:
+            if not webbrowser.open(url):
+                app.logger.warning("Could not open the browser automatically. Open %s to use Deckadence.", url)
+        except Exception:
+            app.logger.warning("Could not open the browser automatically. Open %s to use Deckadence.", url, exc_info=True)
+
+    threading.Thread(target=open_browser, name="startup-browser", daemon=True).start()
+
+
 if __name__ == "__main__":
     initialize_database()
     backfill_finish_metadata()
@@ -39682,6 +39701,10 @@ if __name__ == "__main__":
                 wasyncore.close_all(map=server_map)
             threading.Thread(target=close_server, name="update-shutdown", daemon=True).start()
         application_update_jobs.shutdown = shutdown_for_update
+        application_update_jobs.resume_plugin_updates()
+        # create_server has bound the port after all application setup is done.
+        # Open once here so direct executable launches and all wrappers agree.
+        open_startup_browser(local_url)
         server.run()
     else:
         app.run(

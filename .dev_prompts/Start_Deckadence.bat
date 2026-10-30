@@ -9,6 +9,3 @@ if exist ".deckadence-update\transaction.json" (
     )
 )
 start "" "Deckadence.exe"
-timeout /t 4 >nul
-echo Please leave this window open while running the app. If you close this window Deckadence will not run. Close the window to shut down the app.
-start "" "DeckadenceUpdater.exe" open --root .

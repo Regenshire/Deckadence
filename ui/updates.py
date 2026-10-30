@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hmac
+import copy
 from datetime import datetime, timezone
 import os
 from pathlib import Path
@@ -17,6 +18,8 @@ from flask import Blueprint, g, jsonify, request
 
 import update_system as updates
 
+PLUGIN_BUSY_STATES = {"waiting", "checking", "updating"}
+
 
 class UpdateManager:
     def __init__(self, root, version, port, activity_check, packaged=None):
@@ -31,6 +34,8 @@ class UpdateManager:
         self.csrf = secrets.token_urlsafe(32)
         self.release = None
         self.staged = None
+        self.plugin_updates = {}
+        self.plugin_worker = None
         self.state = {"state": "idle", "message": "Check for a compatible update.", "current_version": version}
         self.unsupported = ""
         try:
@@ -47,6 +52,13 @@ class UpdateManager:
                     self.state.update(state=saved.get("state", "idle"), message=saved.get("message", ""))
         except (ValueError, OSError, KeyError) as error:
             self.unsupported = str(error) if not isinstance(error, FileNotFoundError) else "This folder predates in-app updates. Install an updater-enabled release manually once."
+        if self.packaged:
+            try:
+                saved = updates.read_json(self.root / updates.WORK_NAME / "plugin-updates.json")
+                if saved.get("app_version") == version:
+                    self.plugin_updates = saved
+            except (ValueError, OSError, AttributeError):
+                pass
 
     def status(self):
         with self.condition:
@@ -62,6 +74,13 @@ class UpdateManager:
                     except (ValueError, OSError):
                         pass
             value = dict(self.state)
+            value["plugin_updates"] = copy.deepcopy(self.plugin_updates)
+            for item in value["plugin_updates"].get("plugins", []):
+                if item.get("state") == "updating":
+                    from plugin_system.manager import get_plugin_install_status
+                    progress = get_plugin_install_status(item["plugin_id"])
+                    item["message"] = progress.get("message") or item.get("message", "")
+                    item["stage"] = progress.get("stage", "")
             value.update(supported=not self.unsupported, reason=self.unsupported, csrf=self.csrf,
                          can_restart=bool(self.shutdown), current_version=self.version,
                          platform=getattr(self, "platform", ""))
@@ -86,6 +105,11 @@ class UpdateManager:
                 raise ValueError("An update is still being verified or needs recovery. Wait, or run the Start_Deckadence launcher.")
             if self.installing or self.state["state"] in {"checking", "downloading", "verifying", "installing"}:
                 raise ValueError("An update operation is already running.")
+            if operation == "plugins":
+                self.start_plugin_updates()
+                return
+            if operation == "install" and self.plugin_updates.get("state") in PLUGIN_BUSY_STATES:
+                raise ValueError("Installed plugins are updating. Let them finish before restarting Deckadence.")
             if operation == "download" and not (self.release and self.release["available"]):
                 raise ValueError("Check for an available update first.")
             if operation == "install" and (self.state["state"] != "ready" or self.staged is None):
@@ -104,6 +128,84 @@ class UpdateManager:
                 self.installing = False
                 self.state.update(state="failed", message="Could not start the update worker.")
                 raise
+
+    def save_plugin_updates(self, **values):
+        with self.condition:
+            self.plugin_updates.update(copy.deepcopy(values), app_version=self.version)
+            snapshot = copy.deepcopy(self.plugin_updates)
+        try:
+            updates.write_json(updates.workspace(self.root) / "plugin-updates.json", snapshot)
+        except OSError as error:
+            updates.record_update_event(self.root, "plugins", error, error=True)
+
+    def resume_plugin_updates(self):
+        if not self.packaged:
+            return
+        after_restart = bool(os.environ.get("DECKADENCE_UPDATE_TOKEN"))
+        if after_restart or self.plugin_updates.get("state") in PLUGIN_BUSY_STATES:
+            self.start_plugin_updates(after_restart=after_restart)
+
+    def start_plugin_updates(self, *, after_restart=False):
+        with self.condition:
+            if self.plugin_worker and self.plugin_worker.is_alive():
+                return
+            interrupted = [item["plugin_id"] for item in self.plugin_updates.get("plugins", [])
+                           if item.get("state") == "updating"]
+            self.save_plugin_updates(state="waiting" if after_restart else "checking",
+                                     message="Waiting for the app update to finish." if after_restart else "Checking installed plugins…", plugins=[])
+            self.plugin_worker = threading.Thread(target=self.run_plugin_updates, args=(after_restart, interrupted),
+                                                  daemon=True, name="installed-plugin-updates")
+            self.plugin_worker.start()
+
+    def run_plugin_updates(self, after_restart=False, interrupted=()):
+        try:
+            if after_restart:
+                while updates.startup_pending(self.root):
+                    time.sleep(.2)
+                receipt = updates.read_json(self.root / updates.WORK_NAME / "last-result.json")
+                if receipt.get("state") != "complete" or receipt.get("version") != self.version:
+                    self.save_plugin_updates(state="complete", message="Plugin updates were not started because the app update did not complete.")
+                    return
+            from plugin_system import manager as plugins
+            for plugin_id in interrupted:
+                plugins.recover_interrupted_plugin_update(plugin_id)
+            installed = [key for key in plugins.PLUGIN_CATALOG if plugins.load_plugin_manifest(key)]
+            rows = [{"plugin_id": key, "name": plugins.PLUGIN_CATALOG[key]["name"], "state": "waiting", "message": "Waiting to check for updates."} for key in installed]
+            self.save_plugin_updates(state="checking", message="Checking installed plugins…", plugins=rows)
+            for item in rows:
+                plugin_id = item["plugin_id"]
+                try:
+                    while plugins.any_plugin_install_running():
+                        time.sleep(.25)
+                    item.update(state="checking", message="Checking for updates…")
+                    self.save_plugin_updates(plugins=rows)
+                    candidate = plugins.check_installed_plugin_update(plugin_id)
+                    if candidate is None:
+                        item.update(state="skipped", message="Plugin is no longer installed.")
+                    elif not candidate["available"]:
+                        item.update(candidate, state="current", message="Up to date.")
+                    elif not plugins.load_plugin_manifest(plugin_id):
+                        item.update(state="skipped", message="Plugin is no longer installed.")
+                    else:
+                        item.update(candidate, state="updating", message="Starting plugin update…")
+                        self.save_plugin_updates(state="updating", plugins=rows)
+                        plugins.start_plugin_install(plugin_id, release=candidate.get("release"))
+                        while plugins.get_plugin_install_status(plugin_id).get("is_running"):
+                            time.sleep(.25)
+                        result = plugins.get_plugin_install_status(plugin_id)
+                        if result.get("error"):
+                            raise RuntimeError(result["error"])
+                        item.update(state="complete", message=f"Updated to {candidate['latest_version']}.")
+                except Exception as error:
+                    item.update(state="failed", message=str(error))
+                    updates.record_update_event(self.root, "plugin:" + plugin_id, error, error=True)
+                self.save_plugin_updates(plugins=rows)
+            failed = any(item["state"] == "failed" for item in rows)
+            self.save_plugin_updates(state="partial" if failed else "complete", plugins=rows,
+                                     message="Some installed plugins need attention. You can retry their updates." if failed else "Installed plugins are up to date." if rows else "No installed plugins to update.")
+        except Exception as error:
+            updates.record_update_event(self.root, "plugins", error, error=True)
+            self.save_plugin_updates(state="partial", message=str(error))
 
     def run(self, operation):
         try:
@@ -230,7 +332,7 @@ def register_update_routes(app, *, root, version, port, activity_check, packaged
 
     @blueprint.post("/<operation>")
     def operate(operation):
-        if operation not in {"check", "download", "install"}:
+        if operation not in {"check", "download", "install", "plugins"}:
             return jsonify(ok=False, message="Unknown update operation."), 404
         try:
             manager.start(operation)
