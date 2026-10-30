@@ -165,7 +165,7 @@
     // Completed updates belong in Config; keep Home clear after installation.
     statusPanel.hidden = !running && (dismissed || !failed);
     install.disabled = starting || running;
-    install.textContent = running ? "Installingâ€¦" : failed ? "Retry download" : "Download card database";
+    install.textContent = running ? "Installing\u2026" : failed ? "Retry download" : "Download card database";
     retry.hidden = !failed || !ready;
     retry.disabled = starting || running;
     check.hidden = true;
@@ -186,13 +186,13 @@
       : "");
     setText("homeImportedCards", Number(next.cards_imported || 0).toLocaleString());
     setText("homeImportedSets", Number(next.sets_represented || 0).toLocaleString());
-    setText("homeDatabaseFinished", next.finished_at || "â€”");
+    setText("homeDatabaseFinished", next.finished_at || "\u2014");
     setText("homeDatabaseLog", Array.isArray(next.detail_lines) ? next.detail_lines.join("\n") : "");
     const now = Date.now() / 1000;
     const elapsed = Math.max(0, Math.floor((running ? now : next.updated_epoch || now) - (next.started_epoch || now)));
     const age = Math.max(0, Math.floor(now - (next.updated_epoch || now)));
     setText("homeDatabaseTiming", next.started_epoch
-      ? `Elapsed: ${Math.floor(elapsed / 60)}m ${elapsed % 60}s${running ? ` Â· Last progress update ${age}s ago` : ""}` : "");
+      ? `Elapsed: ${Math.floor(elapsed / 60)}m ${elapsed % 60}s${running ? ` \u00b7 Last progress update ${age}s ago` : ""}` : "");
     if (ready && !showcaseStarted) {
       showcaseStarted = true;
       selectFeature(feature);
@@ -244,7 +244,7 @@
     dismissed = false;
     install.disabled = retry.disabled = true;
     statusPanel.hidden = false;
-    setText("homeDatabaseConnection", "Starting database downloadâ€¦");
+    setText("homeDatabaseConnection", "Starting database download\u2026");
     try {
       // Finish an older status request before dispatching, so its stale idle
       // response cannot re-enable the installer after this POST starts a job.

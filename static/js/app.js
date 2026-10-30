@@ -1033,6 +1033,25 @@ function initializeAlternateBleedReprocessing() {
 }
 
 function initializeAppNavigationMenus() {
+  const reminderCount = document.getElementById("settingsReminderCount");
+  const reminderBadges = document.querySelectorAll("[data-navigation-reminder-count]");
+  function syncReminderBadges() {
+    if (!reminderCount) return;
+    const count = reminderCount.hidden ? 0 : Math.max(0, Number(reminderCount.textContent) || 0);
+    reminderBadges.forEach((badge) => {
+      badge.textContent = count;
+      badge.hidden = count === 0;
+    });
+    const settingsButton = document.getElementById("appSettingsButton");
+    settingsButton?.classList.toggle("app-gear-button-has-reminders", count > 0);
+    settingsButton?.setAttribute("aria-label", "Open Settings menu" + (count ? ` - ${count} reminder${count === 1 ? "" : "s"}` : ""));
+  }
+  if (reminderCount) {
+    syncReminderBadges();
+    new MutationObserver(syncReminderBadges).observe(reminderCount, {
+      childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["hidden"],
+    });
+  }
   const menuToggles = document.querySelectorAll("[data-app-menu-toggle]");
   const qrOpenButtons = document.querySelectorAll("[data-app-qr-open]");
   const qrModal = document.getElementById("appQrModal");

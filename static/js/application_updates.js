@@ -80,8 +80,8 @@
             label = 'Update interrupted'; title = 'The update couldn’t finish.'; tone = 'warning';
         }
         if (!supported) {
-            label = state.host_required ? 'Host computer required' : 'Manual installation';
-            title = state.host_required ? 'Install from the Deckadence computer.' : 'Automatic installation is unavailable.';
+            label = 'Manual installation';
+            title = 'Automatic installation is unavailable.';
             copy = state.reason || copy;
             tone = 'neutral';
         }
@@ -89,6 +89,7 @@
         badge.dataset.tone = tone;
         get('applicationUpdateTitle').textContent = title;
         message.textContent = copy;
+        get('applicationUpdateErrorLog').hidden = mode !== 'failed';
 
         check.hidden = !supported;
         check.disabled = busy || pending;
@@ -120,8 +121,6 @@
             get('applicationUpdateProgressText').textContent = mode === 'verifying' ? 'Checking package integrity…' : 'Preparing download…';
             get('applicationUpdatePercent').textContent = '';
         }
-        get('applicationUpdateHost').hidden = !state.host_required;
-        get('applicationUpdateHostAddress').textContent = state.local_url || '';
         const notes = state.notes ?? cached.release_notes;
         const releaseUrl = state.release_url ?? cached.release_url;
         get('applicationUpdateNotes').hidden = !notes && !releaseUrl;
@@ -152,10 +151,6 @@
         try {
             const response = await fetch('/maintenance/updates/status', {cache: 'no-store', signal: AbortSignal.timeout(5000)});
             const state = await response.json();
-            if (response.status === 403 && state.code === 'host_required') {
-                render({supported: false, host_required: true, reason: state.message, local_url: state.local_url});
-                return;
-            }
             if (!response.ok) throw new Error(state.message || 'Could not read update status.');
             if (!oldVersion) oldVersion = state.current_version;
             render(state);

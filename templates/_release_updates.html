@@ -14,12 +14,12 @@
             <div class="release-status-copy">
                 <h3 id="applicationUpdateTitle">{{ 'A new version is available.' if release.update_available else 'Keep Deckadence up to date.' }}</h3>
                 <p id="applicationUpdateMessage" role="status" aria-live="polite">Loading update controls…</p>
+                <p id="applicationUpdateErrorLog" hidden>Details are saved in <code>.deckadence-update/last-error.json</code> inside your Deckadence folder.</p>
                 <div id="applicationUpdateMeta" class="release-metadata" hidden><i class="fa-solid fa-desktop" aria-hidden="true"></i><span id="applicationUpdatePlatform"></span><span id="applicationUpdateSize" hidden></span><span>Stable</span></div>
                 <div id="applicationUpdateDownloadProgress" class="release-download-progress" hidden>
                     <div><span id="applicationUpdateProgressText">Preparing download…</span><span id="applicationUpdatePercent"></span></div>
                     <progress id="applicationUpdateProgress" aria-label="Update download progress"></progress>
                 </div>
-                <p id="applicationUpdateHost" class="release-host-note" hidden>On the computer running Deckadence, open Settings at <code id="applicationUpdateHostAddress"></code></p>
             </div>
         </div>
         <details id="applicationUpdateNotes" class="release-notes" {% if not release.release_notes and not release.release_url %}hidden{% endif %}>

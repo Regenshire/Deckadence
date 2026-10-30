@@ -1,9 +1,8 @@
-"""Local-only Settings controls for portable application updates."""
+"""Settings controls for portable application updates."""
 from __future__ import annotations
 
 import hmac
 from datetime import datetime, timezone
-import ipaddress
 import os
 from pathlib import Path
 import secrets
@@ -108,6 +107,7 @@ class UpdateManager:
 
     def run(self, operation):
         try:
+            updates.record_update_event(self.root, operation, "Started.")
             if operation == "check":
                 self.staged = None
                 self.release = updates.discover_update(self.version, self.platform)
@@ -123,11 +123,12 @@ class UpdateManager:
                 updates.download_update(self.release, work / "download", self.update)
                 self.update(state="verifying", message="Verifying the application package…")
                 self.staged = updates.extract_update(work / "download", work / "staged", metadata)
-                updates.verify_install(self.root, self.installed)
                 self.update(state="ready", message="Download verified. Install and restart when you are ready.")
+                updates.record_update_event(self.root, operation, "Package ready to install.")
             else:
                 self.install()
         except Exception as error:
+            updates.record_update_event(self.root, operation, error, error=True)
             retry_install = operation == "install" and self.staged is not None and not updates.startup_pending(self.root)
             self.update(state="ready" if retry_install else "failed", message=str(error))
             with self.condition:
@@ -140,8 +141,6 @@ class UpdateManager:
                 raise ValueError("Other requests are still running. Finish them before installing the update.")
         if self.activity_check():
             raise ValueError("Finish exports, downloads, plugin installation, upscaling, and backup/restore jobs before installing.")
-        updates.verify_install(self.root, self.installed)
-        updates.verify_install(self.root / updates.WORK_NAME / "staged", self.staged)
         work = updates.workspace(self.root)
         runner = work / ("runner.exe" if os.name == "nt" else "runner")
         if runner.exists() and updates.is_link(runner):
@@ -189,22 +188,8 @@ def register_update_routes(app, *, root, version, port, activity_check, packaged
     manager = UpdateManager(root, version, port, background_activity, packaged)
     blueprint = Blueprint("application_updates", __name__, url_prefix="/maintenance/updates")
 
-    def local_request():
-        try:
-            address = ipaddress.ip_address(request.remote_addr or "")
-        except ValueError:
-            return False
-        try:
-            host = urlsplit(request.host_url).hostname
-        except ValueError:
-            return False
-        return address.is_loopback and host in {"localhost", "127.0.0.1", "::1"}
-
     @blueprint.before_request
     def protect_update_controls():
-        if not local_request():
-            return jsonify(ok=False, code="host_required", local_url="http://127.0.0.1:" + str(port),
-                           message="Installation is available on the computer running Deckadence."), 403
         if request.method == "POST":
             origin = request.headers.get("Origin")
             if origin and urlsplit(origin).netloc != request.host:

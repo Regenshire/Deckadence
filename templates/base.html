@@ -12,8 +12,8 @@
     <link
       rel="stylesheet"
       id="appBaseStyles"
-      data-default-href="{{ url_for('static', filename='css/style.css', v='overlay-performance-2') }}"
-      href="{{ url_for('static', filename='css/style.css', v='overlay-performance-2') }}"
+      data-default-href="{{ url_for('static', filename='css/style.css', v='reminder-badge-1') }}"
+      href="{{ url_for('static', filename='css/style.css', v='reminder-badge-1') }}"
     />
 
     <link
@@ -274,12 +274,9 @@
               >
                 <i class="fa-solid fa-gear"></i>
 
-                {% if global_reminder_state and
-                global_reminder_state.has_reminders %}
-                <span class="app-gear-reminder-badge">
-                  {{ global_reminder_state.count }}
+                <span class="app-gear-reminder-badge" data-navigation-reminder-count aria-hidden="true" {% if not global_reminder_state or not global_reminder_state.count %}hidden{% endif %}>
+                  {{ global_reminder_state.count if global_reminder_state else 0 }}
                 </span>
-                {% endif %}
               </button>
 
               <div class="app-nav-dropdown app-settings-dropdown" role="menu">
@@ -312,12 +309,14 @@
                 <a
                   class="app-nav-dropdown-item"
                   href="{{ url_for('config') }}?open=reminders&scroll=reminders"
+                  id="appRemindersLink"
                   role="menuitem"
                 >
                   <span class="app-nav-item-icon">
                     <i class="fa-solid fa-bell"></i>
                   </span>
                   <span>Reminders</span>
+                  <span class="app-gear-reminder-badge app-menu-reminder-badge" data-navigation-reminder-count {% if not global_reminder_state or not global_reminder_state.count %}hidden{% endif %}>{{ global_reminder_state.count if global_reminder_state else 0 }}</span>
                 </a>
 
                 <a
@@ -618,7 +617,7 @@
 
     {% block page_scripts_before_app %}{% endblock %}
 
-    <script src="{{ url_for('static', filename='js/app.js', v='adaptive-nav-1') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v='reminder-badge-1') }}"></script>
 
     {% block page_scripts_after_app %}{% endblock %}
 

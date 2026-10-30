@@ -527,8 +527,10 @@ pack_art_jobs = PackArtJobs(label_renderer=lambda code, name, label, **options:
 app.secret_key = APP_SECRET_KEY
 
 from ui.updates import register_update_routes
+from update_system import resolve_server_port
 from plugin_system.manager import any_plugin_install_running
 
+APP_SERVER_PORT = resolve_server_port(RUNTIME_BASE_DIR, APP_SERVER_PORT)
 application_update_jobs = register_update_routes(
     app, root=RUNTIME_BASE_DIR, version=APP_VERSION, port=APP_SERVER_PORT,
     activity_check=lambda: (

@@ -23,6 +23,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import traceback
 import urllib.parse
 import urllib.request
 import uuid
@@ -74,6 +75,20 @@ def helper_name(key=None):
 
 def metadata_name(key):
     return f"Deckadence-update-{key}.json"
+
+
+def resolve_server_port(root, default=APP_SERVER_PORT):
+    value = os.environ.get("DECKADENCE_SERVER_PORT")
+    if value is None:
+        try:
+            value = read_json(Path(root) / WORK_NAME / "server-port.json").get("port")
+        except (OSError, ValueError, AttributeError):
+            pass
+    try:
+        port = int(value)
+        return port if 1 <= port <= 65535 else default
+    except (TypeError, ValueError):
+        return default
 
 
 def disk_path(path):
@@ -208,15 +223,79 @@ def validate_install(document, key=None, version=None):
     return document
 
 
-def verify_install(root, document):
-    validate_install(document)
-    actual = inventory(root, document["roots"])
-    # Windows does not preserve POSIX executable bits in ZIP extraction.
-    expected = document["files"]
-    def comparable(value):
-        return {name: {k: v for k, v in record.items() if k != "mode"} for name, record in value.items()}
-    if comparable(actual) != comparable(expected):
-        raise ValueError("Application files were changed or the package is incomplete. Use a fresh release folder and import your user backup; your current files have not been overwritten.")
+def record_update_event(root, operation, message, *, error=False):
+    """Diagnostics must never prevent an update or hide the original error."""
+    try:
+        work = workspace(root)
+        value = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                 "operation": operation, "message": str(message)}
+        if error:
+            value["traceback"] = traceback.format_exc()
+            write_json(work / "last-error.json", value)
+        with (work / "events.log").open("a", encoding="utf-8") as log:
+            log.write(json.dumps(value, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
+def preserve_local_files(root, work, state):
+    """Carry additions forward; archive replaced files without comparing their bytes."""
+    root, work = Path(root), Path(work)
+    preserved = work / "preserved-files" / state["id"]
+    identity = str.casefold if os.name == "nt" else str
+    known = {identity(name) for name in state["old"]["files"]}
+    incoming = {identity(name) for name in state["new"]["files"]}
+    incoming_parents = {str(parent) for name in incoming for parent in PurePosixPath(name).parents}
+    additions = []
+
+    def conflicts(name):
+        key = identity(name)
+        return key in incoming or key in incoming_parents or any(str(parent) in incoming for parent in PurePosixPath(key).parents)
+
+    def visit(source, name):
+        if is_link(source):
+            if identity(name) not in known:
+                additions.append(name)
+        elif source.is_dir():
+            for child in source.iterdir():
+                visit(child, name + "/" + child.name)
+        elif source.is_file():
+            if identity(name) not in known and name != INSTALL_MANIFEST:
+                additions.append(name)
+
+    for name in sorted(set(state["old"]["roots"]) | set(state["new"]["roots"])):
+        source = root / name
+        if source.exists() or source.is_symlink():
+            visit(source, name)
+
+    # Replaced files remain in previous-app for rollback. Local additions that
+    # collide with a new release file also get a durable, separately kept copy.
+    for name in additions:
+        if not conflicts(name):
+            continue
+        source, target = root / name, preserved / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if source.is_symlink():
+            os.symlink(os.readlink(source), target, target_is_directory=source.is_dir())
+        else:
+            shutil.copy2(source, target)
+    state["local_additions"] = [name for name in additions if not conflicts(name)]
+    state["preserved_conflicts"] = [name for name in additions if conflicts(name)]
+    write_json(work / "transaction.json", state)
+    record_update_event(root, "preserve", f"Carrying forward {len(state['local_additions'])} local additions; preserving {len(state['preserved_conflicts'])} filename conflicts.")
+
+
+def restore_local_files(root, work, state):
+    """Restore additions from the previous application without replacing release files."""
+    for name in state.get("local_additions", []):
+        source, target = work / "previous-app" / name, root / name
+        if target.exists() or target.is_symlink():
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if source.is_symlink():
+            os.symlink(os.readlink(source), target, target_is_directory=source.is_dir())
+        else:
+            shutil.copy2(source, target)
 
 
 def package_release(root, output, version, key):
@@ -443,9 +522,6 @@ def extract_update(archive_path, destination, metadata):
         disk_path(path.parent).mkdir(parents=True, exist_ok=True)
         os.symlink(target, path)
     document = validate_install(read_json(destination / INSTALL_MANIFEST), metadata["platform"], metadata["version"])
-    if set(p.name for p in destination.iterdir()) != set(document["roots"]):
-        raise ValueError("The package contains unexpected top-level files.")
-    verify_install(destination, document)
     return document
 
 
@@ -559,6 +635,7 @@ def launch_app(root, work, state=None):
     for key in ("DECKADENCE_UPDATE_TOKEN", "DECKADENCE_UPDATE_HELPER", "_PYI_APPLICATION_HOME_DIR", "_PYI_ARCHIVE_FILE", "_PYI_PARENT_PROCESS_LEVEL"):
         environment.pop(key, None)
     environment["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    environment["DECKADENCE_SERVER_PORT"] = str(state.get("port", resolve_server_port(root)) if state else resolve_server_port(root))
     if state:
         environment["DECKADENCE_UPDATE_TOKEN"] = state["token"]
         environment["DECKADENCE_UPDATE_HELPER"] = str(os.getpid())
@@ -650,19 +727,24 @@ def restore_data(root, work, state):
 
 
 def rollback(root, work, state, message):
+    # A failed snapshot has not touched application files. Keep that distinction
+    # in the journal so recovery itself can also be interrupted and retried.
+    state.setdefault("swap_started", state.get("phase") != "prepared")
     state["phase"] = "rolling_back"
     write_json(work / "transaction.json", state)
     backup = work / "previous-app"
     roots = set(state["old"]["roots"]) | set(state["new"]["roots"])
-    for name in sorted(roots):
-        target, original = root / name, backup / name
-        if original.exists():
-            remove_owned(target, root)
-            os.replace(original, target)
-        elif name not in state["old"]["roots"]:
-            remove_owned(target, root)
+    existing = set(state.get("existing_roots", state["old"]["roots"]))
+    if state["swap_started"]:
+        for name in sorted(roots):
+            target, original = root / name, backup / name
+            if original.exists() or original.is_symlink():
+                remove_owned(target, root)
+                os.replace(original, target)
+            elif name not in existing:
+                remove_owned(target, root)
     restore_data(root, work, state)
-    verify_install(root, state["old"])
+    record_update_event(root, "rollback", message)
     write_json(work / "last-result.json", {"state": "failed", "version": state["old"]["version"],
                "message": "Update did not complete; the previous version and database were restored. " + message})
     (work / "transaction.json").unlink()
@@ -685,6 +767,9 @@ def apply_update(root, parent_pid, port=APP_SERVER_PORT):
     root = Path(root).resolve()
     work = workspace(root)
     state = transaction(work)
+    state["port"] = port
+    write_json(work / "transaction.json", state)
+    write_json(work / "server-port.json", {"port": port})
     write_json(work / "helper-ready.json", {"id": state["id"], "pid": os.getpid()})
     wait_for_exit(parent_pid)
     with operation_lock(work):
@@ -694,22 +779,25 @@ def apply_update(root, parent_pid, port=APP_SERVER_PORT):
         child = None
         try:
             staged = work / "staged"
-            verify_install(root, state["old"])
-            verify_install(staged, state["new"])
+            preserve_local_files(root, work, state)
             database_size = (root / "cards.db").stat().st_size if (root / "cards.db").exists() else 0
             check_space(root, database_size * 2 + 64 * CHUNK)
             snapshot_data(root, work, state)
             backup = work / "previous-app"
             backup.mkdir()
+            roots = sorted(set(state["old"]["roots"]) | set(state["new"]["roots"]))
+            state["existing_roots"] = [name for name in roots if (root / name).exists() or (root / name).is_symlink()]
+            state["swap_started"] = True
             state["phase"] = "swapping"
             write_json(work / "transaction.json", state)
-            for name in sorted(set(state["old"]["roots"]) | set(state["new"]["roots"])):
+            for name in roots:
                 if (root / name).exists():
                     if is_link(root / name):
                         raise ValueError("An application directory cannot be a symbolic link.")
                     os.replace(root / name, backup / name)
                 if name in state["new"]["roots"]:
                     os.replace(staged / name, root / name)
+            restore_local_files(root, work, state)
             state["phase"] = "testing"
             write_json(work / "transaction.json", state)
             child = launch_app(root, work, state)
@@ -720,14 +808,19 @@ def apply_update(root, parent_pid, port=APP_SERVER_PORT):
                 if child.poll() is not None:
                     raise ValueError("The new version exited during startup.")
                 if healthy(state, port):
+                    message = f"Updated successfully to Deckadence {state['new']['version']}."
+                    if state.get("preserved_conflicts"):
+                        message += f" Local files replaced by release files were preserved in {WORK_NAME}/preserved-files/{state['id']}."
                     write_json(work / "last-result.json", {"state": "complete", "version": state["new"]["version"],
-                               "message": f"Updated successfully to Deckadence {state['new']['version']}."})
+                               "message": message, "preserved_conflicts": state.get("preserved_conflicts", [])})
                     # Removing the journal releases the new application's gate.
                     (work / "transaction.json").unlink()
+                    record_update_event(root, "complete", f"Updated to {state['new']['version']}.")
                     return
                 time.sleep(0.5)
             raise ValueError("The new version did not finish starting within two minutes.")
         except Exception as error:
+            record_update_event(root, "install", error, error=True)
             if child is not None and child.poll() is None:
                 child.terminate()
                 try:
@@ -766,10 +859,6 @@ def prepare_workspace(root):
 def stage_transaction(root, old, new):
     root = Path(root).resolve()
     work = workspace(root)
-    # Never replace an unrelated file at a newly introduced application path.
-    for name in set(new["roots"]) - set(old["roots"]):
-        if (root / name).exists() or (root / name).is_symlink():
-            raise ValueError(f"The new application path already exists: {name}. Move it before updating.")
     state = {"schema": SCHEMA, "id": uuid.uuid4().hex, "token": uuid.uuid4().hex + uuid.uuid4().hex,
              "phase": "prepared", "old": old, "new": new}
     write_json(work / "transaction.json", state)
@@ -790,16 +879,22 @@ def main():
     apply.add_argument("--port", type=int, default=APP_SERVER_PORT)
     recover = commands.add_parser("recover")
     recover.add_argument("--root", required=True)
+    open_browser = commands.add_parser("open")
+    open_browser.add_argument("--root", required=True)
     args = parser.parse_args()
     try:
         if args.command == "package":
             print(json.dumps(package_release(args.root, args.output, args.version, args.platform), indent=2))
         elif args.command == "apply":
             apply_update(args.root, args.parent, args.port)
+        elif args.command == "open":
+            import webbrowser
+            webbrowser.open(f"http://127.0.0.1:{resolve_server_port(args.root)}")
         else:
             recover_update(args.root)
     except Exception as error:
         if args.command in {"apply", "recover"}:
+            record_update_event(args.root, args.command, error, error=True)
             try:
                 write_json(workspace(args.root) / "helper-error.json", {"message": str(error)})
             except OSError:

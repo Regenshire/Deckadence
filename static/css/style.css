@@ -709,6 +709,20 @@ input {
   line-height: 12px;
 }
 
+.app-menu-reminder-badge {
+  position: static;
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  font-size: 0.72rem;
+  line-height: 16px;
+}
+
+.app-gear-reminder-badge[hidden] {
+  display: none;
+}
+
 .app-settings-dropdown {
   left: 0;
   right: auto;

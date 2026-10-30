@@ -142,10 +142,10 @@ exec ./Deckadence "$@"
         macos = app_bundle / 'Contents' / 'MacOS'
         macos.mkdir(parents=True, exist_ok=True)
         wrapper = macos / 'DeckadenceLauncher'
-        wrapper.write_text(f'''#!/bin/sh
+        wrapper.write_text('''#!/bin/sh
 set -eu
 cd -- "$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"
-(sleep 3; open http://127.0.0.1:{release_settings['APP_SERVER_PORT']}) &
+(sleep 3; ./DeckadenceUpdater open --root "$PWD") &
 exec ./Start_Deckadence.command "$@"
 ''', encoding='utf-8')
         wrapper.chmod(0o755)
