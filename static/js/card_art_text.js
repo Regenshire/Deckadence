@@ -1,6 +1,6 @@
 // Card-coordinate text presets and ProxyGlyph symbols shared by preview and saved pixels.
 window.DeckadenceArtText = (() => {
-  const fonts=['Beleren Proxy','Plantin MT Pro','Beleren Small Caps','ProxyGlyph','Georgia','Arial','Times New Roman','Courier New'];
+  const fonts=['Beleren Proxy','Plantin MT Pro','Beleren Small Caps','ProxyGlyph','LCARSGTJ2','LCARSGTJ3','Georgia','Arial','Times New Roman','Courier New'];
   const presets={
     title:{label:'Card title',font:fonts[0],size:40,x:.085,y:.059,width:.65,height:.05,bold:true},
     mana:{label:'Mana cost',font:fonts[3],size:38,x:.74,y:.058,width:.175,height:.047,align:'right'},
@@ -121,6 +121,6 @@ window.DeckadenceArtText = (() => {
     c.restore();
   }
   function preset(key){return {type:key,text:'',font:fonts[1],size:32,x:.1,y:.4,width:.8,height:.15,bold:false,italic:false,align:'left',color:'#171717',line_height:1.15,paragraph_spacing:0,autofit:true,...presets[key]};}
-  async function ready(){await Promise.all(fonts.slice(0,4).map(name=>document.fonts.load(`32px "${name}"`)));await Promise.all(['italic','bold','bold italic'].map(style=>document.fonts.load(`${style} 32px "Plantin MT Pro"`)));}
+  async function ready(){await Promise.all(fonts.slice(0,6).map(name=>document.fonts.load(`32px "${name}"`)));await Promise.all(['italic','bold','bold italic'].map(style=>document.fonts.load(`${style} 32px "Plantin MT Pro"`)));}
   return {fonts,presets,symbols,preset,render,measure,symbol,ready,normalize,characterStyles,formatRange,editText};
 })();

@@ -53,6 +53,13 @@ from io import BytesIO, StringIO
 from pypdf import PdfWriter
 
 from card_backs import (
+    CARD_BACK_LIBRARY_CONFIG_KEY,
+    UNASSIGNED_CARD_BACK_FOLDER,
+    card_back_folders,
+    load_card_back_library,
+    update_card_back_library,
+    rename_custom_card_back,
+    set_card_back_folder_default,
     DEFAULT_CARD_BACK_KEY,
     delete_custom_card_back,
     list_card_back_options,
@@ -1969,6 +1976,7 @@ def _build_pdf_template_layout(
         ),
         "round_the_corners": bool(template_layout.get("round_the_corners", False)),
         "draw_row_cut_lines": bool(template_layout.get("draw_row_cut_lines", False)),
+        "row_cut_line_width_mm": template_layout.get("row_cut_line_width_mm"),
         "draw_side_guide_lines": bool(template_layout.get("draw_side_guide_lines", False)),
         "registration_background_path": (
             template_layout.get(
@@ -4089,6 +4097,7 @@ def build_registry_template_layout(
         ),
         "round_the_corners": bool(rendering.get("round_the_corners", False)),
         "draw_row_cut_lines": bool(rendering.get("draw_row_cut_lines", False)),
+        "row_cut_line_width_mm": rendering.get("row_cut_line_width_mm"),
         "draw_side_guide_lines": bool(rendering.get("draw_side_guide_lines", False)),
 
         "registration_background_path": (
@@ -5832,6 +5841,8 @@ def serialize_card_back_option(option):
         "filename": option["filename"],
         "label": option["label"],
         "source": option["source"],
+        "folder": option["folder"],
+        "legacy_keys": option.get("legacy_keys", []),
         "image_url": image_url,
         "label_preview_url": url_for("card_back_label_preview", key=option["key"]),
         "supports_labels": bool(option.get("supports_labels")),
@@ -5846,12 +5857,15 @@ def serialize_card_back_option(option):
     }
 
 
-def get_serialized_card_back_options():
+def get_serialized_card_back_options(library=None):
+    if library is None:
+        library = load_card_back_library(get_request_config().get(CARD_BACK_LIBRARY_CONFIG_KEY))
     return [
         serialize_card_back_option(option)
         for option in list_card_back_options(
             app.static_folder,
             RUNTIME_CARD_BACK_DIR,
+            library=library,
         )
     ]
 
@@ -6540,15 +6554,16 @@ def draw_pdf_cutting_guide_corner_marks(pdf_canvas, cut_rect):
     pdf_canvas.restoreState()
 
 def get_pdf_row_cut_positions_mm(slot_defs):
-    """Center strip cuts in the clear gaps between printed row bands."""
+    """Center strip cuts between finished rows, even when their bleed overlaps."""
+    shapes = [get_print_card_shape(slot, 0.0) for slot in (slot_defs or [])]
     bands = sorted({
-        (float(slot["y_mm"]), float(slot["y_mm"]) + float(slot["height_mm"]))
-        for slot in (slot_defs or [])
+        (round(shape["y_mm"], 6), round(shape["y_mm"] + shape["height_mm"], 6))
+        for shape in shapes
     })
     cuts = []
     previous_top = None
     for bottom, top in bands:
-        if previous_top is not None and bottom > previous_top + 0.001:
+        if previous_top is not None and bottom >= previous_top - 0.001:
             cuts.append((previous_top + bottom) / 2.0)
         previous_top = max(previous_top if previous_top is not None else top, top)
     return cuts
@@ -6612,7 +6627,13 @@ def draw_pdf_template_cutting_guides(pdf_canvas, template_layout, slot_defs, pag
     page_width_mm = float(template_layout["page_width_mm"])
     page_height_mm = float(template_layout["page_height_mm"])
     inset_mm = min(5.0, page_width_mm / 4.0)
+    row_width_mm = template_layout.get("row_cut_line_width_mm")
+    if row_width_mm is not None:
+        inset_mm = (page_width_mm - min(float(row_width_mm), page_width_mm)) / 2.0
     thickness_mm = get_pdf_cutting_guide_settings()["thickness_mm"]
+    # Mark this self-contained foreground block so finishing layers added in
+    # the final PDF pass cannot cover the guides.
+    pdf_canvas.addLiteral("/DeckadenceCuttingGuides BMC")
     pdf_canvas.saveState()
     pdf_canvas.setStrokeColorRGB(*get_pdf_cutting_guide_rgb_normalized())
     pdf_canvas.setLineWidth(thickness_mm * mm)
@@ -6628,6 +6649,7 @@ def draw_pdf_template_cutting_guides(pdf_canvas, template_layout, slot_defs, pag
         for x1, y1, x2, y2 in get_pdf_side_guide_segments_mm(slot_defs, page_width_mm, page_height_mm, thickness_mm):
             pdf_canvas.line(x1 * mm, y1 * mm, x2 * mm, y2 * mm)
     pdf_canvas.restoreState()
+    pdf_canvas.addLiteral("EMC")
     return True
 
 
@@ -10485,6 +10507,8 @@ def get_alternate_source_for_card(
 ):
     conn = get_db_connection()
     try:
+        if image_context is None:
+            image_context = AlternateImageContext(dict(card_row or {}).get("image_scope_id"))
         repository = AlternateImageRepository(conn, image_context)
         return repository.find_enabled(card_row, face_kind)
     finally:
@@ -13204,8 +13228,7 @@ class AlternateImageEditor:
         sources = repository.list_for_card(card_uuid)
         # Match the renderer, not the source list's display sort order.
         active = repository.find_enabled(card, "front")
-        if active is None:
-            active = repository.find_enabled(card, "back")
+        back_active = repository.find_enabled(card, "back")
         custom = get_custom_card(card_uuid)
         serialized_sources = [serialize_alternate_source_row(row) for row in sources]
         serialized_active = serialize_alternate_source_row(active)
@@ -13239,6 +13262,7 @@ class AlternateImageEditor:
                 "collector_number": card["collector_number"],
                 "scryfall_id": card["scryfall_id"],
                 "is_dual_faced": int(card["is_dual_faced"] or 0) == 1,
+                "has_custom_back": bool(back_active) and not bool(card["is_dual_faced"]),
                 "face_count": int(card["face_count"] or 0),
                 "front_face_name": card["front_face_name"] or card["card_name"],
                 "back_face_name": card["back_face_name"] or "",
@@ -13252,6 +13276,7 @@ class AlternateImageEditor:
             "image_url": url_for("chaos_card_image", **url_parameters),
             "frame_template_options": get_card_export_template_options(),
             "active_source": serialized_active,
+            "active_sources": {"front": serialized_active, "back": serialize_alternate_source_row(back_active)},
             "alternate_sources": serialized_sources,
         }
 
@@ -13379,6 +13404,22 @@ class AlternateImageEditor:
             self.remove_unreferenced_files(deleted_paths)
 
     @isolation_operation
+    def use_standard_back(self, card_uuid):
+        """Keep reverse artwork in this library, but stop using it for printing."""
+        with closing(get_db_connection()) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            repository = self.repository(conn, writing=True)
+            card = conn.execute("SELECT * FROM chaos_cards WHERE card_uuid = ?", (card_uuid,)).fetchone()
+            if card is None:
+                raise LookupError("Card UUID was not found.")
+            if int(card["is_dual_faced"] or 0):
+                raise ValueError("This card has a printed back face. Disable its alternate source to restore that face.")
+            for source in repository.list_for_card(card_uuid):
+                if source["face_kind"] == "back" and source["is_enabled"]:
+                    repository.change(source["alternate_source_id"], updates={"is_enabled": 0})
+            conn.commit()
+
+    @isolation_operation
     def change(self, source_id, *, updates=None, delete=False):
         deleted_paths = []
         with closing(get_db_connection()) as conn:
@@ -13393,10 +13434,11 @@ class AlternateImageEditor:
                 for row in repository.list_for_card(card_uuid)
             ):
                 raise LookupError("Alternate source does not belong to this printing.")
-            if updates and updates.get("is_enabled") and str(card_uuid).startswith("custom-"):
-                # Choosing an older custom image must actually make it active.
+            if updates and updates.get("is_enabled"):
+                # Activating an older image must select that side only.
                 for previous in repository.list_for_card(card_uuid):
-                    if previous["alternate_source_id"] != int(source_id) and previous["is_enabled"]:
+                    same_side = (previous["face_kind"] == "back") == (source["face_kind"] == "back")
+                    if same_side and previous["alternate_source_id"] != int(source_id) and previous["is_enabled"]:
                         repository.change(previous["alternate_source_id"], updates={"is_enabled": 0})
             repository.change(source_id, updates=updates, delete=delete)
             if delete:
@@ -13667,9 +13709,9 @@ class AlternateImageEditor:
                         if (form.get("expected_source_id") != expected_id
                                 or form.get("expected_source_version") != expected_version):
                             raise RuntimeError("The image changed. Reopen Alternate Image Settings before replacing it.")
-                        for previous in repository.list_for_card(card_uuid):
-                            if previous["is_enabled"]:
-                                repository.change(previous["alternate_source_id"], updates={"is_enabled": 0})
+                    for previous in repository.list_for_card(card_uuid):
+                        if previous["is_enabled"] and (previous["face_kind"] == "back") == (face_kind == "back"):
+                            repository.change(previous["alternate_source_id"], updates={"is_enabled": 0})
                     source_id = repository.insert(values)
                     conn.commit()
                     committed = True
@@ -13819,6 +13861,14 @@ def get_chaos_pdf_card_back_source(
     card_row,
     default_card_back_key=None,
 ):
+    # A custom reverse follows the same image hierarchy as a printed back face.
+    if card_row and get_alternate_source_for_card(card_row, "back"):
+        return {
+            "source_type": "remote", "absolute_path": "",
+            "image_url": dict(card_row).get("back_image_url") or "",
+            "face_name": dict(card_row).get("back_face_name") or card_row["card_name"],
+            "is_default_back": False,
+        }
     resolved_card_back_key = normalize_card_back_key(
         default_card_back_key,
         app.static_folder,
@@ -14436,6 +14486,10 @@ def build_chaos_pdf_card_back_rendered_entry(
         "spot_foil_scope": dict(source_card_row).get("image_scope_id"),
         "spot_foil_face": "back" if source_page_kind == "back" else "front",
 
+        "fullbleed_temp_path": image_source.get("fullbleed_absolute_path") or "",
+        "source_has_real_bleed": bool(image_source.get("source_has_real_bleed")),
+        "source_bleed_mm": float(image_source.get("source_bleed_mm") or 0.0),
+
         "is_dual_faced": int(
             card_row["is_dual_faced"] or 0
         ) if card_row else 0,
@@ -14447,6 +14501,14 @@ def build_chaos_pdf_card_back_rendered_entry(
 def build_chaos_print_pages_for_card(card_row):
     if not card_row:
         return []
+
+    if not int(card_row["is_dual_faced"] or 0) and get_alternate_source_for_card(card_row, "back"):
+        return [
+            {"page_kind": "single", "image_url": card_row["image_url"] or "",
+             "face_name": card_row["card_name"], "card_name": card_row["card_name"], "card_uuid": card_row["card_uuid"]},
+            {"page_kind": "back", "image_url": "", "face_name": card_row["card_name"],
+             "card_name": card_row["card_name"], "card_uuid": card_row["card_uuid"]},
+        ]
 
     write_debug_log(
         f"CHAOS PDF EXPAND | card_name={card_row['card_name']} | "
@@ -14942,6 +15004,7 @@ def choose_no_waste_surprise_cards(
                 or len(parse_faces_json(card_row["faces_json"])) >= 2
             )
         )
+        has_own_back = has_own_back or bool(get_alternate_source_for_card(card_row, "back"))
 
         if (
             print_card_backs
@@ -16818,6 +16881,7 @@ def build_export_card_image(
         label_on_back = (
             print_export_uses_back_labels()
             and not int(card_row["is_dual_faced"] or 0)
+            and not get_alternate_source_for_card(card_row, "back")
             and not force_normal_label
         )
         # Functional reverse faces retain their usual labels; their artwork is never replaced.
@@ -17507,7 +17571,7 @@ def build_chaos_card_image_export_zip(
 
         front_relative_xml_path = f"\\Images\\{finish_folder_name}\\{front_filename}"
 
-        if back_page_entry and back_page_entry.get("image_url"):
+        if back_page_entry:
             back_filename = f"{base_filename} [Back].jpg"
             back_output_path = os.path.join(finish_output_dir, back_filename)
 
@@ -20308,7 +20372,7 @@ register_foil_workflow_routes(app, get_request_config, update_config_values)
 def load_finishing_original_artwork(card_uuid, face, context):
     """Use the same selected source as the viewer, without any finishing layers."""
     card = get_chaos_card_by_uuid(card_uuid)
-    info = get_chaos_card_image_face_context(card, face)
+    info = get_chaos_card_image_face_context(card, face, image_context=context)
     if not info:
         raise LookupError("The card artwork is no longer available.")
     source = resolve_card_image_source_for_page(card, info["page_kind"], info["image_url"], image_context=context)
@@ -22041,33 +22105,14 @@ def config_check_new_releases():
 
 # *** CARD BACK CONTROLS - Preview, Upload, and Delete Card Backs ***
 @app.route(
-    "/card-backs/custom/<filename>",
+    "/card-backs/custom/<path:filename>",
     methods=["GET"],
 )
 def card_back_custom_image(filename):
-    clean_filename = os.path.basename(
-        str(filename or "").strip()
-    )
+    option = next((item for item in list_card_back_options(app.static_folder, RUNTIME_CARD_BACK_DIR)
+                   if item["key"] == "custom:" + filename or "custom:" + filename in item.get("legacy_keys", [])), None)
 
-    if (
-        not clean_filename
-        or clean_filename != filename
-    ):
-        return (
-            "Card back image was not found.",
-            404,
-        )
-
-    option = resolve_card_back_option(
-        f"custom:{clean_filename}",
-        app.static_folder,
-        RUNTIME_CARD_BACK_DIR,
-    )
-
-    if (
-        not option
-        or option["source"] != "custom"
-    ):
+    if not option:
         return (
             "Card back image was not found.",
             404,
@@ -22125,7 +22170,7 @@ def print_export_progress():
 def card_back_label_preview():
     key = str(request.args.get("key") or "")
     option = next((item for item in list_card_back_options(app.static_folder, RUNTIME_CARD_BACK_DIR)
-                   if item["key"] == key and item.get("supports_labels")), None)
+                   if (item["key"] == key or key in item.get("legacy_keys", [])) and item.get("supports_labels")), None)
     if not option:
         return "Card back not found.", 404
     image = render_label_card_back(option, "JMP.J.0042")
@@ -22163,7 +22208,67 @@ def card_back_options():
         "options": (
             options
         ),
+        "folders": card_back_folders(options, get_request_config().get(CARD_BACK_LIBRARY_CONFIG_KEY)),
     })
+
+
+card_back_library_lock = threading.Lock()
+
+
+@app.post("/card-backs/folders")
+def card_back_folder_update():
+    try:
+        with card_back_library_lock:
+            library = load_card_back_library(get_config().get(CARD_BACK_LIBRARY_CONFIG_KEY))
+            options = list_card_back_options(app.static_folder, RUNTIME_CARD_BACK_DIR, library)
+            library = update_card_back_library(library, request.form.get("action"),
+                                               request.form.get("folder"), options,
+                                               request.form.get("card_back_key"))
+            set_config_value(CARD_BACK_LIBRARY_CONFIG_KEY, json.dumps(library))
+        options = get_serialized_card_back_options(library)
+        return jsonify(ok=True, options=options, folders=card_back_folders(options, library))
+    except ValueError as exc:
+        return jsonify(ok=False, message=str(exc)), 400
+
+
+@app.post("/card-backs/rename")
+def card_back_rename():
+    try:
+        with card_back_library_lock:
+            library = load_card_back_library(get_config().get(CARD_BACK_LIBRARY_CONFIG_KEY))
+            options = list_card_back_options(app.static_folder, RUNTIME_CARD_BACK_DIR, library)
+            library = rename_custom_card_back(library, request.form.get("card_back_key"),
+                                              request.form.get("name"), options)
+            set_config_value(CARD_BACK_LIBRARY_CONFIG_KEY, json.dumps(library))
+        options = get_serialized_card_back_options(library)
+        return jsonify(ok=True, options=options, folders=card_back_folders(options, library))
+    except ValueError as exc:
+        return jsonify(ok=False, message=str(exc)), 400
+
+
+@app.post("/card-backs/default")
+def card_back_set_default():
+    try:
+        with card_back_library_lock:
+            library = load_card_back_library(get_config().get(CARD_BACK_LIBRARY_CONFIG_KEY))
+            options = list_card_back_options(app.static_folder, RUNTIME_CARD_BACK_DIR, library)
+            key = request.form.get("card_back_key")
+            option = next((item for item in options if item["key"] == key or key in item.get("legacy_keys", [])), None)
+            if not option:
+                raise ValueError("That card back is no longer available.")
+            scope = request.form.get("scope")
+            if scope == "folder":
+                library = set_card_back_folder_default(library, option["key"], options)
+                set_config_value(CARD_BACK_LIBRARY_CONFIG_KEY, json.dumps(library))
+            elif scope == "app":
+                update_config_values({"default_card_back": option["key"], "chaos_default_card_back": option["key"]})
+            else:
+                raise ValueError("Choose an app or folder default.")
+        options = get_serialized_card_back_options(library)
+        return jsonify(ok=True, options=options, folders=card_back_folders(options, library),
+                       default_key=get_chaos_default_card_back_key(get_config()))
+    except ValueError as exc:
+        return jsonify(ok=False, message=str(exc)), 400
 
 
 @app.route(
@@ -22172,6 +22277,7 @@ def card_back_options():
 )
 def card_back_upload():
     try:
+        folder = UNASSIGNED_CARD_BACK_FOLDER
         full_bleed_3mm = (
             request.form.get(
                 "full_bleed_3mm"
@@ -22192,28 +22298,32 @@ def card_back_upload():
             )
         )
 
+        with card_back_library_lock:
+            library = load_card_back_library(get_config().get(CARD_BACK_LIBRARY_CONFIG_KEY))
+            if folder not in library["folders"]:
+                library["folders"].append(folder)
+            library["assignments"].append({"key": card_back_key, "folder": folder})
+            library = load_card_back_library(library)
+            set_config_value(CARD_BACK_LIBRARY_CONFIG_KEY, json.dumps(library))
+
         set_config_value(
             "card_back_upload_full_bleed_3mm",
             "1" if full_bleed_3mm else "0",
         )
 
-        option = resolve_card_back_option(
-            card_back_key,
-            app.static_folder,
-            RUNTIME_CARD_BACK_DIR,
-        )
+        uploaded_options = get_serialized_card_back_options(library)
+        option = next(item for item in uploaded_options if item["key"] == card_back_key)
 
         return jsonify({
             "ok": True,
             "message": "Card back uploaded.",
             "option": (
-                serialize_card_back_option(
-                    option
-                )
+                option
             ),
             "options": (
-                get_serialized_card_back_options()
+                uploaded_options
             ),
+            "folders": card_back_folders(uploaded_options, library),
         })
 
     except Exception as exc:
@@ -22236,6 +22346,14 @@ def card_back_delete():
             RUNTIME_CARD_BACK_DIR,
         )
 
+        with card_back_library_lock:
+            library = load_card_back_library(get_config().get(CARD_BACK_LIBRARY_CONFIG_KEY))
+            library["assignments"] = [item for item in library["assignments"] if item["key"] != deleted_option["key"]]
+            library["labels"] = [item for item in library["labels"] if item["key"] != deleted_option["key"]]
+            library["folder_defaults"] = [item for item in library["folder_defaults"] if item["key"] != deleted_option["key"]]
+            set_config_value(CARD_BACK_LIBRARY_CONFIG_KEY, json.dumps(library))
+        remaining_options = get_serialized_card_back_options(library)
+
         return jsonify({
             "ok": True,
             "message": (
@@ -22249,8 +22367,9 @@ def card_back_delete():
                 get_chaos_default_card_back_key()
             ),
             "options": (
-                get_serialized_card_back_options()
+                remaining_options
             ),
+            "folders": card_back_folders(remaining_options, library),
         })
 
     except FileNotFoundError as exc:
@@ -26898,6 +27017,10 @@ def attach_deckbuilder_common_context(
                 )
             ),
         )
+    )
+
+    deckbuilder_context["print_export_defaults"]["default_card_back"] = (
+        deckbuilder_context["card_back_key"]
     )
 
     return deckbuilder_context
@@ -31983,6 +32106,17 @@ def campaign_chaos_card_alternate_sources_add(card_uuid):
     payload.update(message="Alternate image source added.", alternate_source_id=source_id)
     return jsonify(payload)
 
+
+@app.route("/chaos/cards/<card_uuid>/alternate-sources/standard-back", methods=["POST"])
+@app.route("/campaign-chaos/cards/<card_uuid>/alternate-sources/standard-back", methods=["POST"])
+@alternate_image_api
+def campaign_chaos_card_standard_back(card_uuid):
+    editor = AlternateImageEditor.from_request()
+    editor.use_standard_back(card_uuid)
+    payload = editor.payload(card_uuid)
+    payload["message"] = "Standard card back restored. Your alternate back images are kept."
+    return jsonify(payload)
+
 @app.route("/chaos/cards/<card_uuid>/alternate-sources/settings", methods=["POST"])
 @app.route("/campaign-chaos/cards/<card_uuid>/alternate-sources/settings", methods=["POST"])
 @alternate_image_api
@@ -32161,14 +32295,22 @@ def get_standard_card_front_image_url(card):
 
     return ""
 
-def get_chaos_card_front_back_face_data(card_row):
+def get_chaos_card_front_back_face_data(card_row, *, image_context=None):
     if not card_row:
         return None
 
     is_dual_faced = int(card_row["is_dual_faced"] or 0) == 1
 
     if not is_dual_faced:
-        return None
+        if not get_alternate_source_for_card(card_row, "back", image_context=image_context):
+            return None
+        return {
+            "front_image_url": card_row["image_url"] or "",
+            "back_image_url": "",
+            "front_face_name": card_row["card_name"],
+            "back_face_name": card_row["card_name"],
+            "is_custom_back": True,
+        }
 
     front_image_url = (card_row["front_image_url"] or "").strip()
     back_image_url = (card_row["back_image_url"] or "").strip()
@@ -32205,6 +32347,7 @@ def get_chaos_card_front_back_face_data(card_row):
 def get_chaos_card_image_face_context(
     card_row,
     requested_face="front",
+    *, image_context=None,
 ):
     if not card_row:
         return None
@@ -32222,7 +32365,7 @@ def get_chaos_card_image_face_context(
 
     face_data = (
         get_chaos_card_front_back_face_data(
-            card_row
+            card_row, image_context=image_context,
         )
     )
 
@@ -32316,7 +32459,7 @@ def get_chaos_card_image_face_context(
     if face_data:
         return {
             "requested_face": "front",
-            "page_kind": "front",
+            "page_kind": "single" if face_data.get("is_custom_back") else "front",
 
             "image_url": (
                 face_data[
@@ -32355,7 +32498,7 @@ def get_chaos_card_image_face_context(
     }
 
 
-def get_chaos_card_face_metadata(card_uuid):
+def get_chaos_card_face_metadata(card_uuid, *, image_context=None):
     clean_card_uuid = (card_uuid or "").strip()
 
     if not clean_card_uuid:
@@ -32366,7 +32509,7 @@ def get_chaos_card_face_metadata(card_uuid):
     if not card_row:
         return None
 
-    face_data = get_chaos_card_front_back_face_data(card_row)
+    face_data = get_chaos_card_front_back_face_data(card_row, image_context=image_context)
 
     if not face_data:
         return {
@@ -32432,9 +32575,10 @@ def card_face_data():
 
     chaos_cards = {}
     standard_cards = {}
+    image_context = get_requested_image_context() if chaos_card_uuids else None
 
     for card_uuid in chaos_card_uuids:
-        metadata = get_chaos_card_face_metadata(card_uuid)
+        metadata = get_chaos_card_face_metadata(card_uuid, image_context=image_context)
 
         if metadata:
             chaos_cards[card_uuid] = metadata
@@ -32463,7 +32607,8 @@ def chaos_card_image(card_uuid):
     if not card_row:
         return ("Not found", 404)
 
-    face_data = get_chaos_card_front_back_face_data(card_row)
+    image_context = get_requested_image_context()
+    face_data = get_chaos_card_front_back_face_data(card_row, image_context=image_context)
 
     if requested_face == "back":
         if not face_data:
@@ -32475,7 +32620,7 @@ def chaos_card_image(card_uuid):
     else:
         if face_data:
             image_url = face_data["front_image_url"]
-            page_kind = "front"
+            page_kind = "single" if face_data.get("is_custom_back") else "front"
             face_name = face_data["front_face_name"] or card_row["card_name"] or ""
         else:
             image_url = (card_row["image_url"] or "").strip()
@@ -32535,7 +32680,8 @@ def chaos_card_image_preview(card_uuid):
     if not card_row:
         return ("Not found", 404)
 
-    face_data = get_chaos_card_front_back_face_data(card_row)
+    image_context = get_requested_image_context()
+    face_data = get_chaos_card_front_back_face_data(card_row, image_context=image_context)
 
     if requested_face == "back":
         if not face_data:
@@ -32547,7 +32693,7 @@ def chaos_card_image_preview(card_uuid):
     else:
         if face_data:
             image_url = face_data["front_image_url"]
-            page_kind = "front"
+            page_kind = "single" if face_data.get("is_custom_back") else "front"
             face_name = face_data["front_face_name"] or card_row["card_name"] or ""
         else:
             image_url = (card_row["image_url"] or "").strip()
@@ -32632,6 +32778,7 @@ def chaos_card_image_source(card_uuid):
         get_chaos_card_image_face_context(
             card_row,
             requested_face,
+            image_context=get_requested_image_context(),
         )
     )
 
@@ -32767,6 +32914,7 @@ def chaos_card_image_upscaled(card_uuid):
         get_chaos_card_image_face_context(
             card_row,
             requested_face,
+            image_context=get_requested_image_context(),
         )
     )
 
@@ -32857,6 +33005,7 @@ def chaos_card_image_compare(card_uuid):
         get_chaos_card_image_face_context(
             card_row,
             requested_face,
+            image_context=get_requested_image_context(),
         )
     )
 
@@ -33581,7 +33730,8 @@ def chaos_card_upscale_control(card_uuid):
 
     face_data = (
         get_chaos_card_front_back_face_data(
-            card_row
+            card_row,
+            image_context=image_context,
         )
     )
 
@@ -33602,7 +33752,8 @@ def chaos_card_upscale_control(card_uuid):
             get_chaos_card_image_face_context(
                 card_row,
                 face_name,
-            )
+            image_context=image_context,
+        )
         )
 
         if face_context:
@@ -34269,7 +34420,8 @@ def run_card_upscale_candidate_batch(
 
     face_data = (
         get_chaos_card_front_back_face_data(
-            card_row
+            card_row,
+            image_context=image_context,
         )
     )
 
@@ -34290,7 +34442,8 @@ def run_card_upscale_candidate_batch(
             get_chaos_card_image_face_context(
                 card_row,
                 face_name,
-            )
+            image_context=image_context,
+        )
         )
 
         if not face_context:
@@ -35479,7 +35632,8 @@ def get_card_upscale_batch_eligibility(
 
     face_data = (
         get_chaos_card_front_back_face_data(
-            card_row
+            card_row,
+            image_context=image_context,
         )
     )
 
@@ -35494,7 +35648,8 @@ def get_card_upscale_batch_eligibility(
             get_chaos_card_image_face_context(
                 card_row,
                 face_name,
-            )
+            image_context=image_context,
+        )
         )
 
         if not face_context:
@@ -37518,6 +37673,7 @@ def chaos_card_upscale_revert(
         get_chaos_card_image_face_context(
             card_row,
             requested_face,
+            image_context=get_requested_image_context(),
         )
     )
 

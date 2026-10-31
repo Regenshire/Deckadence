@@ -303,6 +303,8 @@ html[data-theme-scheme="dark"] .spot-card-footer [data-state="error"] { color: #
 @font-face { font-family: 'Plantin MT Pro'; src: url('../fonts/PlantinMTProSemiBdIt.TTF') format('truetype'); font-weight: 700; font-style: italic; font-display: block; }
 @font-face { font-family: 'Beleren Small Caps'; src: url('../fonts/Beleren Small Caps.ttf') format('truetype'); font-display: block; }
 @font-face { font-family: 'ProxyGlyph'; src: url('../fonts/Proxyglyph.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'LCARSGTJ2'; src: url('../fonts/LCARSGTJ2.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'LCARSGTJ3'; src: url('../fonts/LCARSGTJ3.ttf') format('truetype'); font-display: block; }
 .art-symbol-anchor { position: relative; margin: 8px 0; }
 .art-symbol-picker { position: absolute; inset: 100% auto auto 0; width: min(360px,100%); max-height: 340px; overflow: auto; padding: 12px; border: 1px solid var(--border); background: var(--panel, #202329); box-shadow: 0 10px 30px #0008; border-radius: 10px; z-index: 20; }
 .art-symbol-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(40px,1fr)); gap: 5px; margin-top: 10px; }

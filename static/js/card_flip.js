@@ -8,6 +8,22 @@
     };
 
     let pendingEnhanceTimer = null;
+    let metadataVersion = 0;
+
+    function chaosIdentifier(hostElement, value) {
+        const image = getCardImageForHost(hostElement);
+        const raw = image?.dataset.cardImageSrc || image?.src || "/chaos-card-image/" + encodeURIComponent(value);
+        const url = new URL(window.iMomirImageUrl ? window.iMomirImageUrl(raw) : raw, window.location.href);
+        const scope = new URLSearchParams();
+        for (const key of ["image_scope_id", "image_owner_kind", "image_owner_id"]) {
+            if (url.searchParams.has(key)) scope.set(key, url.searchParams.get(key));
+        }
+        return { type: "chaos", value: String(value).trim(), scope: scope.toString() };
+    }
+
+    function cacheKey(identifier) {
+        return identifier.value + "|" + (identifier.scope || "");
+    }
 
     function uniqueValues(values) {
         const seenValues = new Set();
@@ -79,10 +95,7 @@
         const standardCardHost = hostElement.closest("[data-card-key]");
 
         if (chaosCardHost && chaosCardHost.dataset.cardUuid) {
-            return {
-                type: "chaos",
-                value: String(chaosCardHost.dataset.cardUuid || "").trim()
-            };
+            return chaosIdentifier(hostElement, chaosCardHost.dataset.cardUuid);
         }
 
         if (standardCardHost && standardCardHost.dataset.cardKey) {
@@ -93,10 +106,7 @@
         }
 
         if (hostElement.dataset.cardUuid) {
-            return {
-                type: "chaos",
-                value: String(hostElement.dataset.cardUuid || "").trim()
-            };
+            return chaosIdentifier(hostElement, hostElement.dataset.cardUuid);
         }
 
         if (hostElement.dataset.cardKey) {
@@ -118,7 +128,7 @@
         }
 
         if (identifier.type === "chaos") {
-            return metadataCache.chaosCards[identifier.value] || null;
+            return metadataCache.chaosCards[cacheKey(identifier)] || null;
         }
 
         if (identifier.type === "standard") {
@@ -134,7 +144,7 @@
         }
 
         if (identifier.type === "chaos") {
-            metadataCache.chaosCards[identifier.value] = metadata || {
+            metadataCache.chaosCards[cacheKey(identifier)] = metadata || {
                 is_dual_faced: false
             };
         }
@@ -157,7 +167,7 @@
         return hosts;
     }
 
-    function collectUncachedIdentifiers(rootElement) {
+    function collectUncachedIdentifiers(rootElement, scope) {
         const chaosCardUuids = [];
         const cardKeys = [];
 
@@ -170,7 +180,7 @@
 
             const identifier = getCardIdentifier(hostElement);
 
-            if (!identifier.value || getCachedMetadata(identifier)) {
+            if (!identifier.value || getCachedMetadata(identifier) || (identifier.scope || "") !== scope) {
                 return;
             }
 
@@ -188,47 +198,53 @@
     }
 
     async function loadMetadataForRoot(rootElement) {
-        const identifiers = collectUncachedIdentifiers(rootElement);
+        const scopes = new Set(collectCandidateHosts(rootElement).map(host => getCardIdentifier(host).scope || ""));
+        const version = metadataVersion;
+        await Promise.all(Array.from(scopes, async scope => {
+            const identifiers = collectUncachedIdentifiers(rootElement, scope);
 
-        if (!identifiers.chaos_card_uuids.length && !identifiers.card_keys.length) {
-            return;
-        }
+            if (!identifiers.chaos_card_uuids.length && !identifiers.card_keys.length) {
+                return;
+            }
 
-        const response = await fetch(metadataUrl, {
-            method: "POST",
-            headers: {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "X-Requested-With": "XMLHttpRequest"
-            },
-            body: JSON.stringify(identifiers)
-        });
-
-        const payload = await response.json();
-
-        if (!response.ok || !payload.ok) {
-            throw new Error(payload.message || "Could not load card face data.");
-        }
-
-        identifiers.chaos_card_uuids.forEach(function (cardUuid) {
-            setCachedMetadata(
-                {
-                    type: "chaos",
-                    value: cardUuid
+            const response = await fetch(metadataUrl + (scope ? "?" + scope : ""), {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                    "X-Requested-With": "XMLHttpRequest"
                 },
-                (payload.chaos_cards || {})[cardUuid]
-            );
-        });
+                body: JSON.stringify(identifiers)
+            });
 
-        identifiers.card_keys.forEach(function (cardKey) {
-            setCachedMetadata(
-                {
-                    type: "standard",
-                    value: cardKey
-                },
-                (payload.cards || {})[cardKey]
-            );
-        });
+            const payload = await response.json();
+
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.message || "Could not load card face data.");
+            }
+            if (version !== metadataVersion) { scheduleEnhance(rootElement); return; }
+
+            identifiers.chaos_card_uuids.forEach(function (cardUuid) {
+                setCachedMetadata(
+                    {
+                        type: "chaos",
+                        value: cardUuid,
+                        scope: scope
+                    },
+                    (payload.chaos_cards || {})[cardUuid]
+                );
+            });
+
+            identifiers.card_keys.forEach(function (cardKey) {
+                setCachedMetadata(
+                    {
+                        type: "standard",
+                        value: cardKey
+                    },
+                    (payload.cards || {})[cardKey]
+                );
+            });
+        }));
     }
 
     function imageSrcWithoutCacheBust(src) {
@@ -518,6 +534,12 @@
     });
 
     window.iMomirCardFlip = {
+        invalidateCard: function (cardUuid) {
+            metadataVersion += 1;
+            for (const key of Object.keys(metadataCache.chaosCards)) {
+                if (key.startsWith(cardUuid + "|")) delete metadataCache.chaosCards[key];
+            }
+        },
         enhance: enhance,
         refresh: function () {
             return enhance(document);

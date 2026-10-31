@@ -11,6 +11,7 @@ import sqlite3
 from uuid import uuid4
 
 from export_selection import ExportSelection
+from card_backs import INCLUDED_CARD_BACK_ALIASES
 from backup_system import _disk_path, _is_link, _quote, _safe_name, _write_json, CHUNK_SIZE
 
 USER_RECORD_LIMIT = 16 * 1024 * 1024
@@ -207,6 +208,9 @@ class UserContentExporter:
             return [self._encode(item, field, table) for item in value]
         if not isinstance(value, str) or not value:
             return value
+        promoted = INCLUDED_CARD_BACK_ALIASES.get(value)
+        if promoted and (self.static / "img/card_backs" / promoted.split(":", 1)[1]).is_file():
+            value = promoted
         if field.endswith("card_uuid"):
             self.card_ids.add(value)
         elif field == "card_key":
@@ -219,11 +223,16 @@ class UserContentExporter:
             return None
         if field == "card_back_key" and getattr(self.selection, "scope", {}).get("kind") == "campaign":
             prefix, _, filename = value.partition(":")
-            if prefix in {"custom", "builtin"} and filename and Path(filename).name == filename:
+            if prefix in {"custom", "builtin"} and filename:
+                _safe_name(filename)
                 folder = self.root / KINDS["card_back"] if prefix == "custom" else self.static / "img/card_backs"
                 path = folder / filename
                 if prefix == "custom" or self._is_custom_file(path, "static/img/card_backs/" + filename):
                     self.asset(path, "card_back", filename)
+                    for bleed in (folder / "fullbleed" / filename, path.parent / "fullbleed" / path.name):
+                        if bleed.is_file():
+                            self.asset(bleed, "card_back", bleed.relative_to(folder).as_posix())
+                            break
             return value
         if value.startswith(("http:", "https:", "builtin:", "custom:")):
             return value
@@ -286,7 +295,11 @@ class UserContentExporter:
             for path in self._files(folder, recursive=True):
                 allowed = IMAGE_EXTENSIONS | ({".ini"} if kind == "print" else set())
                 if path.suffix.lower() in allowed and self._is_custom_file(path, path.relative_to(self.root).as_posix()):
-                    self.asset(path, kind, path.relative_to(folder).as_posix())
+                    relative = path.relative_to(folder).as_posix()
+                    promoted = INCLUDED_CARD_BACK_ALIASES.get("custom:" + relative.removeprefix("fullbleed/")) if kind == "card_back" else None
+                    if promoted and (self.static / "img/card_backs" / promoted.split(":", 1)[1]).is_file():
+                        continue
+                    self.asset(path, kind, relative)
         if self.root != self.bundle and self.selection.enabled("print_templates"):
             folder = self.bundle / KINDS["print"]
             for path in self._files(folder, recursive=True):
@@ -344,11 +357,12 @@ class UserContentExporter:
                         if token and path.suffix.lower() in {".studio3", ".svg", ".dxf", ".fcm"}:
                             cutting_entries.append({**registered.get(path.name, {"filename": path.name, "name": path.stem}), "asset": token["$asset"]})
         # Modified bundled backs become custom backs on import.
-        for path in self._files(self.static / "img/card_backs") if self.selection.enabled("card_backs") and getattr(self.selection, "scope", {}).get("kind") != "campaign" and (self.static / "img/card_backs").is_dir() else ():
+        for path in self._files(self.static / "img/card_backs", recursive=True) if self.selection.enabled("card_backs") and getattr(self.selection, "scope", {}).get("kind") != "campaign" and (self.static / "img/card_backs").is_dir() else ():
             if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS:
-                relative = "static/img/card_backs/" + path.name
+                filename = path.relative_to(self.static / "img/card_backs").as_posix()
+                relative = "static/img/card_backs/" + filename
                 if self._is_custom_file(path, relative):
-                    self.asset(path, "card_back", path.name)
+                    self.asset(path, "card_back", filename)
         return cutting_entries
 
     def collect(self):
@@ -630,7 +644,7 @@ class UserContentImporter:
             folder = self.root / KINDS[kind]
             asset_key = hashlib.sha256(name.encode()).hexdigest()[:16]
             if kind in {"card_back", "cutting", "print"}:
-                # Flat filenames remain discoverable by template/card-back registries.
+                # Preserve subfolders and keep each card back paired with its bleed.
                 original = Path(relative)
                 discriminator = asset_key
                 if kind == "card_back":
@@ -655,8 +669,8 @@ class UserContentImporter:
                 self.icon_paths[name] = mirror
             if kind == "cutting":
                 self.strings[Path(relative).name] = destination.name
-            if kind == "card_back" and "/" not in relative:
-                self.strings[info.get("back_prefix", "custom:") + Path(relative).name] = "custom:" + destination.name
+            if kind == "card_back" and "fullbleed" not in {part.lower() for part in Path(relative).parts}:
+                self.strings[info.get("back_prefix", "custom:") + relative] = "custom:" + destination.relative_to(folder).as_posix()
 
     def _install_assets(self):
         for index, (name, destination) in enumerate(self.asset_paths.items()):

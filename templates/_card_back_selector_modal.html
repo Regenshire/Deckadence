@@ -1,175 +1,107 @@
-{# *** CARD BACKS - Card Back Selection Dialog *** #}
-<div
-    id="cardBackSelectorModal"
-    class="card-back-selector-modal hidden"
-    aria-hidden="true"
-    data-options-url="{{ url_for('card_back_options') }}"
-    data-upload-url="{{ url_for('card_back_upload') }}"
-    data-delete-url="{{ url_for('card_back_delete') }}"
->
-    <div
-        class="card-back-selector-backdrop"
-        data-card-back-selector-close
-    ></div>
-
-    <div
-        class="card-back-selector-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="cardBackSelectorTitle"
-    >
-        <div class="card-back-selector-header">
-            <div>
-                <h2 id="cardBackSelectorTitle">
-                    Choose Card Back
-                </h2>
-
-                <p>
-                    Select an included card back or upload a custom image.
-                </p>
-            </div>
-
-            <button
-                type="button"
-                class="card-back-selector-close-button"
-                data-card-back-selector-close
-                aria-label="Close Card Back selector"
-                title="Close"
-            >
-                ×
-            </button>
+{# Card-back library: shared visual language with Add Cards. #}
+<div id="cardBackSelectorModal" class="card-back-selector-modal hidden" aria-hidden="true"
+     data-options-url="{{ url_for('card_back_options') }}" data-upload-url="{{ url_for('card_back_upload') }}"
+     data-delete-url="{{ url_for('card_back_delete') }}" data-folders-url="{{ url_for('card_back_folder_update') }}"
+     data-rename-url="{{ url_for('card_back_rename') }}" data-default-url="{{ url_for('card_back_set_default') }}">
+  <div class="card-back-selector-backdrop" data-card-back-selector-close></div>
+  <div class="card-back-selector-dialog" role="dialog" aria-modal="true" aria-labelledby="cardBackSelectorTitle">
+    <header class="card-back-selector-header">
+      <div><div class="card-back-eyebrow">CARD LIBRARY</div><h2 id="cardBackSelectorTitle">Choose Card Back</h2>
+        <p>Browse folders and choose a back for your cards.</p></div>
+      <div class="card-back-header-actions">
+        <button type="button" id="cardBackUploadToggle" aria-expanded="false" aria-controls="cardBackUploadPanel">↑ Upload</button>
+        <button type="button" id="cardBackMaximize" aria-pressed="false">⛶ <span>Maximize</span></button>
+        <button type="button" class="card-back-selector-close-button" data-card-back-selector-close aria-label="Close Card Back selector">×</button>
+      </div>
+    </header>
+    <div class="card-back-search-bar">
+      <label class="card-back-search"><span aria-hidden="true">⌕</span><input id="cardBackSearch" type="search" placeholder="Search card backs or folders…" aria-label="Search card backs or folders"></label>
+      <button type="button" id="cardBackFoldersToggle" aria-expanded="true" aria-controls="cardBackSidebar">☷ Folders</button>
+    </div>
+    <section id="cardBackUploadPanel" class="card-back-selector-upload-panel hidden" aria-label="Upload custom card back">
+      <label>Image<input type="file" id="cardBackSelectorUploadInput" accept="image/*"></label>
+      <p class="card-back-upload-destination">New uploads go to <strong>Uncategorized</strong>. Move them to a folder after upload.</p>
+      <label class="card-back-check"><input type="checkbox" id="cardBackSelectorUploadFullBleed">3 mm full-bleed file</label>
+      <button type="button" id="cardBackSelectorUploadButton" class="card-back-primary">Upload</button>
+    </section>
+    <div class="card-back-library-body">
+      <aside id="cardBackSidebar" class="card-back-sidebar" aria-label="Card-back folders">
+        <h3>Folders</h3><nav id="cardBackFolderList" aria-label="Browse folders"></nav>
+        <label>Source<select id="cardBackSource"><option value="all">All card backs</option><option value="builtin">Included</option><option value="custom">My uploads</option></select></label>
+        <details id="cardBackNewFolderPanel"><summary>＋ New folder</summary>
+          <form id="cardBackNewFolderForm">
+            <label>Parent folder<select id="cardBackFolderParent"><option value="">Top level</option></select></label>
+            <label>Folder name<input id="cardBackFolderName" maxlength="60" required autocomplete="off" placeholder="e.g. Fantasy"></label>
+            <button type="submit" id="cardBackCreateFolder">Create folder</button>
+          </form>
+        </details>
+        <section class="card-back-organize" aria-label="Organize selected card back">
+          <h3>Organize selected</h3><p id="cardBackOrganizeName">Select a card back.</p>
+          <label>Move to folder<select id="cardBackMoveFolder"></select></label>
+          <button type="button" id="cardBackMoveButton" disabled>Move to folder</button>
+          <button type="button" id="cardBackDeleteSelected" class="card-back-danger hidden">Delete upload…</button>
+        </section>
+      </aside>
+      <main class="card-back-results">
+        <div class="card-back-toolbar">
+          <div class="card-back-view-controls" role="group" aria-label="Card-back view"><button type="button" id="cardBackGallery" aria-pressed="true">▦ Gallery</button><button type="button" id="cardBackList" aria-pressed="false">☰ List</button></div>
+          <div class="card-back-display-controls"><label>Sort<select id="cardBackSort"><option value="name">Name A–Z</option><option value="name-desc">Name Z–A</option></select></label><label id="cardBackSizeLabel">Card size<select id="cardBackSize">{% include '_card_size_options.html' %}</select></label></div>
         </div>
-
         <div class="card-back-selector-body">
-            <div
-                id="cardBackSelectorGrid"
-                class="card-back-selector-grid"
-            ></div>
-
-            <div
-                id="cardBackSelectorEmpty"
-                class="card-back-selector-empty hidden"
-            >
-                No card back images are available.
-            </div>
-
-            <div class="card-back-selector-upload-panel">
-                <div class="card-back-selector-upload-copy">
-                    <strong>
-                        Upload Custom Card Back
-                    </strong>
-
-                    <span>
-                        The uploaded image will be saved to Deckadence and added to this selector.
-                    </span>
-                </div>
-
-                <div class="card-back-selector-upload-controls">
-                    <div class="card-back-selector-upload-inputs">
-                        <input
-                            type="file"
-                            id="cardBackSelectorUploadInput"
-                            accept="image/*"
-                        >
-
-                        <label class="card-back-selector-full-bleed-row">
-                            <span>3mm Full-Bleed File (MPCFill Bleed)</span>
-
-                            <input
-                                type="checkbox"
-                                id="cardBackSelectorUploadFullBleed"
-                            >
-                        </label>
-                    </div>
-
-                    <button
-                        type="button"
-                        id="cardBackSelectorUploadButton"
-                        class="action-button secondary-button"
-                    >
-                        Upload
-                    </button>
-                </div>
-            </div>
-
-            <div
-                id="cardBackSelectorStatus"
-                class="card-back-selector-status hidden"
-                role="status"
-            ></div>
+          <p id="cardBackResultsSummary" class="card-back-results-summary" role="status"></p>
+          <div id="cardBackSelectorGrid" class="card-back-selector-grid"></div>
+          <div id="cardBackSelectorEmpty" class="card-back-selector-empty hidden">No card backs match your search.</div>
         </div>
-
-        <div class="card-back-selector-footer">
-            <button
-                type="button"
-                class="action-button secondary-button"
-                data-card-back-selector-close
-            >
-                Cancel
-            </button>
-
-            <button
-                type="button"
-                id="cardBackSelectorApplyButton"
-                class="action-button"
-            >
-                Use Selected Card Back
-            </button>
+      </main>
+      <aside id="cardBackPreview" class="card-back-preview hidden" aria-label="Card back details">
+        <div class="card-back-preview-heading"><strong>Card back details</strong><button type="button" id="cardBackPreviewClose" aria-label="Close card back details">×</button></div>
+        <div class="card-back-preview-body">
+          <button type="button" id="cardBackPreviewEnlarge" class="card-back-preview-art" aria-label="Enlarge card back"><img id="cardBackPreviewImage" alt=""><span>Enlarge</span></button>
+          <div class="card-back-preview-details">
+            <h3 id="cardBackPreviewTitle"></h3>
+            <p id="cardBackPreviewFolder"></p>
+            <dl class="card-back-preview-facts">
+              <div><dt>Source</dt><dd id="cardBackPreviewSource"></dd></div>
+              <div><dt>Bleed</dt><dd id="cardBackPreviewBleed"></dd></div>
+            </dl>
+          </div>
         </div>
-
-        <div
-            id="cardBackDeleteConfirm"
-            class="card-back-delete-confirm hidden"
-            aria-hidden="true"
-        >
-            <div class="card-back-delete-confirm-panel">
-                <h3>
-                    Delete Custom Card Back?
-                </h3>
-
-                <p>
-                    Permanently delete
-                    <strong id="cardBackDeleteConfirmName"></strong>?
-                </p>
-
-                <p class="card-back-delete-confirm-warning">
-                    This removes the uploaded image from Deckadence.
-                    This action cannot be undone.
-                </p>
-
-                <div class="card-back-delete-confirm-actions">
-                    <button
-                        type="button"
-                        id="cardBackDeleteConfirmCancel"
-                        class="action-button secondary-button"
-                    >
-                        Cancel
-                    </button>
-
-                    <button
-                        type="button"
-                        id="cardBackDeleteConfirmButton"
-                        class="action-button card-back-delete-confirm-button"
-                    >
-                        Delete
-                    </button>
-                </div>
-            </div>
+        <div class="card-back-preview-actions">
+          <div class="card-back-default-actions">
+            <button type="button" id="cardBackSetAppDefault" title="Use this back when no deck or print override is set.">Set as app default</button>
+            <button type="button" id="cardBackSetFolderDefault" title="Show this back as the cover for its collapsed folder.">Set as folder default</button>
+          </div>
+          <p id="cardBackPreviewStatus" class="card-back-selector-status hidden" role="status" aria-live="polite"></p>
+          <button type="button" id="cardBackPreviewSelect">Select Back</button>
         </div>
+      </aside>
     </div>
-
-    <div
-        id="cardBackSelectorContextMenu"
-        class="card-back-selector-context-menu hidden"
-        role="menu"
-    >
-        <button
-            type="button"
-            id="cardBackSelectorDeleteMenuItem"
-            class="card-back-selector-context-menu-item"
-            role="menuitem"
-        >
-            Delete
-        </button>
+    <footer class="card-back-selector-footer">
+      <div class="card-back-footer-copy"><span id="cardBackSelectionSummary">No card back selected</span><div id="cardBackSelectorStatus" class="card-back-selector-status hidden" role="status" aria-live="polite"></div></div>
+      <button type="button" data-card-back-selector-close>Cancel</button><button type="button" id="cardBackSelectorApplyButton" class="card-back-primary" disabled>Use Selected Card Back</button>
+    </footer>
+    <div id="cardBackImageZoom" class="card-back-image-zoom hidden" role="dialog" aria-modal="true" aria-label="Enlarged card back" aria-hidden="true">
+      <button type="button" id="cardBackImageZoomClose" aria-label="Close enlarged card back">×</button><img id="cardBackImageZoomImage" alt="">
     </div>
+    <div id="cardBackDeleteConfirm" class="card-back-delete-confirm hidden" aria-hidden="true">
+      <div class="card-back-delete-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="cardBackDeleteTitle">
+        <h3 id="cardBackDeleteTitle">Delete Custom Card Back?</h3><p>Permanently delete <strong id="cardBackDeleteConfirmName"></strong>?</p>
+        <p class="card-back-delete-confirm-warning">This removes the uploaded image and its bleed file from Deckadence. This cannot be undone.</p>
+        <div class="card-back-delete-confirm-actions"><button type="button" id="cardBackDeleteConfirmCancel">Cancel</button><button type="button" id="cardBackDeleteConfirmButton" class="card-back-danger">Delete</button></div>
+      </div>
+    </div>
+    <div id="cardBackRenameDialog" class="card-back-delete-confirm hidden" aria-hidden="true">
+      <form id="cardBackRenameForm" class="card-back-delete-confirm-panel" role="dialog" aria-modal="true" aria-labelledby="cardBackRenameTitle">
+        <h3 id="cardBackRenameTitle">Rename Card Back</h3>
+        <label>Name<input id="cardBackRenameInput" type="text" maxlength="100" required autocomplete="off"></label>
+        <p id="cardBackRenameError" class="card-back-selector-status is-error hidden" role="alert"></p>
+        <div class="card-back-delete-confirm-actions"><button type="button" id="cardBackRenameCancel">Cancel</button><button type="submit" id="cardBackRenameSave" class="card-back-primary">Save Name</button></div>
+      </form>
+    </div>
+    <div id="cardBackSelectorContextMenu" class="card-back-selector-context-menu hidden" role="menu">
+      <button type="button" id="cardBackMoveMenuItem" role="menuitem">Move to folder…</button>
+      <button type="button" id="cardBackRenameMenuItem" role="menuitem">Rename…</button>
+      <button type="button" id="cardBackSelectorDeleteMenuItem" class="card-back-danger" role="menuitem">Delete upload…</button>
+    </div>
+  </div>
 </div>

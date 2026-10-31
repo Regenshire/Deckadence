@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from PIL import Image, ImageOps
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import (ArrayObject, BooleanObject, DecodedStreamObject,
+from pypdf.generic import (ArrayObject, BooleanObject, ContentStream, DecodedStreamObject,
                            DictionaryObject, FloatObject, NameObject, NumberObject,
                            TextStringObject)
 
@@ -20,6 +20,32 @@ from .finishing_bakes import baked_image, saved_overlay
 from .print_color import profile_bytes, convert_pdf_artwork
 
 MM = 72 / 25.4
+
+
+def _separate_cutting_guides(page, writer):
+    """Keep template guide strokes above artwork and every finishing overlay."""
+    original = page.get_contents()
+    data = original.get_data() if original is not None else b''
+    if b'/DeckadenceCuttingGuides' not in data:
+        return data, b''
+    artwork, guides, depth = [], [], 0
+    for operands, operator in ContentStream(original, writer).operations:
+        if not depth and operator in (b'BMC', b'BDC') and operands[0] == '/DeckadenceCuttingGuides':
+            depth = 1
+            guides.append((operands, operator))
+        elif depth:
+            guides.append((operands, operator))
+            if operator in (b'BMC', b'BDC'):
+                depth += 1
+            elif operator == b'EMC':
+                depth -= 1
+        else:
+            artwork.append((operands, operator))
+    def encode(operations):
+        stream = ContentStream(None, writer)
+        stream.operations = operations
+        return stream.get_data()
+    return encode(artwork), encode(guides)
 
 
 def _layer_catalog(writer, groups):
@@ -261,14 +287,15 @@ class SpotFoilPdfJob:
         return ImageReader(result.convert('RGB')), not self.separate_effect_layers
 
     def finish(self, source, allow_empty=False):
-        if not (self.include_foil or self.include_gloss or any(self.include_effects.values())) and not self.has_baked_artwork:
+        # Checked options include saved layers when present; they do not require
+        # cards to have layers. Preserve the prepared artwork (or registration
+        # for an explicitly requested mask-only job) when nothing was placed.
+        if not self.placements and not self.effect_placements and not self.has_baked_artwork:
             source.seek(0)
             writer = PdfWriter(); writer.clone_document_from_reader(PdfReader(source))
             writer.pdf_header = "%PDF-" + self.pdf_version
             output = BytesIO(); writer.write(output); output.seek(0)
             return output
-        if not self.placements and not self.effect_placements and not self.has_baked_artwork and not allow_empty:
-            raise ValueError('No saved finishing layers were found. Save a Foil Mask, Gloss, or Effect layer first, or turn off those layers in Print / Export.')
         channels = {(r['options']['spot_name'], r['options']['layer_type']) for _, r, *_ in self.placements if r['workflow_id'] != 'standard_inkjet'}
         if len({name for name, _ in channels}) != len(channels):
             raise ValueError('The same spot name is assigned to different materials. Give each ink a distinct name before exporting.')
@@ -336,8 +363,8 @@ class SpotFoilPdfJob:
             # color without depositing or knocking out the named printer ink.
             states[NameObject('/DeckadenceProcessOP')] = DictionaryObject({NameObject('/Type'):NameObject('/ExtGState'),
                 NameObject('/op'):BooleanObject(True), NameObject('/OP'):BooleanObject(True), NameObject('/OPM'):NumberObject(0)})
-            original = page.get_contents()
-            artwork_content = b'/OC /DeckadenceArtwork BDC\nq /DeckadenceProcessOP gs\n' + (original.get_data() if original is not None else b'') + b'\nQ EMC\n'
+            original, guide_content = _separate_cutting_guides(page, writer)
+            artwork_content = b'/OC /DeckadenceArtwork BDC\nq /DeckadenceProcessOP gs\n' + original + b'\nQ EMC\n'
             spot_content, gloss_content, inverse_content, inkjet_content = b'', b'', b'', b''
             for number, (_, record, slot, bleed, round_corners, radius) in enumerate(per_page.get(index, [])):
                 options = record['options']; channel = (options['spot_name'], options['layer_type'])
@@ -477,10 +504,10 @@ class SpotFoilPdfJob:
                 clip=_clip_path(slot,radius) if round_corners and not bleed else ''
                 effect_content+=(f'/OC /Deckadence{layer} BDC q /DeckadenceProcessOP gs\n{clip}'
                     f'{slot["width_mm"]*MM} 0 0 {slot["height_mm"]*MM} {slot["x_mm"]*MM} {slot["y_mm"]*MM} cm\n{name} Do\nQ EMC\n').encode('ascii')
-            stream = DecodedStreamObject(); stream.set_data(spot_content + artwork_content + effect_content + gloss_content + inverse_content + inkjet_content)
+            stream = DecodedStreamObject(); stream.set_data(spot_content + artwork_content + effect_content + gloss_content + inverse_content + inkjet_content + guide_content)
             page[NameObject('/Contents')] = writer._add_object(stream.flate_encode())
         _layer_catalog(writer, groups)
-        if ((self.include_foil and not self.inkjet) or self.include_gloss) and not self.mask_only:
+        if channels and not self.mask_only:
             convert_pdf_artwork(writer, profile_bytes(self.cmyk_profile) if self.cmyk_profile else None)
         subject = ('Standard Inkjet: editable per-card process-white overlays in RDG_WHITE. Percent Foil controls overlay opacity; the saved Foil Mask controls its shape.'
                    if self.inkjet else 'Saved card spot masks. Spot plates use the configured display colors; their names select physical inks in the RIP. White underbase is the inverse of foil visibility.')
@@ -554,8 +581,6 @@ def finish_print_pdf_merge(writer):
                 display_colors[ink] = color
             key = str(obj.get('/DeckadenceLayerId') or obj['/Name'])
             properties[name] = groups.setdefault(key, ref)
-    if not inks and not any(ref.get_object().get('/DeckadenceLayerRole') in ('effect1','effect2','baked_artwork','inkjet_white') for ref in groups.values()):
-        raise ValueError('No saved finishing layers were found in these packs. Save a Foil Mask, Gloss, or Effect layer first, or turn off those layers in Print / Export.')
     if output == 'mask_pdf' and len(inks) > 1:
         raise ValueError('Black-only mask PDFs support one ink at a time. Export workflows separately, or choose named spot layers.')
     def layer_order(ref):

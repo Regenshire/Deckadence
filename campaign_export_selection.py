@@ -108,9 +108,17 @@ def validate_campaign_archive(metadata, records_path):
             if "campaign_id" in row and row["campaign_id"] != campaign_id:
                 raise ValueError("This archive includes another campaign.")
             collect_backs(row)
+    # A referenced card back may also carry its matching 3 mm bleed master.
+    allowed_back_assets = set(card_backs)
+    for key in card_backs:
+        prefix, separator, filename = key.partition(":")
+        if separator and prefix in {"custom", "builtin"} and filename:
+            parent, _, basename = filename.rpartition("/")
+            allowed_back_assets.add(prefix + ":fullbleed/" + filename)
+            allowed_back_assets.add(prefix + ":" + (parent + "/" if parent else "") + "fullbleed/" + basename)
     if metadata.get("cutting_templates") or any(
             asset.get("kind") in {"print", "cutting"}
             or (asset.get("kind") == "card_back" and
-                asset.get("back_prefix", "custom:") + asset.get("relative", "") not in card_backs)
+                asset.get("back_prefix", "custom:") + asset.get("relative", "") not in allowed_back_assets)
             for asset in metadata.get("assets", {}).values()):
         raise ValueError("This archive includes assets outside the campaign.")

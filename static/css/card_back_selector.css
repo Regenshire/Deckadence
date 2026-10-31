@@ -1,353 +1,134 @@
-/* *** CARD BACKS - Page Styles and Layout *** */
-.card-back-selector-open-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 7px 11px;
-  border: 1px solid rgba(160, 170, 190, 0.34);
-  border-radius: 9px;
-  background: rgba(35, 38, 46, 0.96);
-  color: inherit;
-  cursor: pointer;
-}
-
-.card-back-selector-open-button:hover {
-  border-color: rgba(210, 218, 235, 0.62);
-  background: rgba(48, 52, 63, 0.98);
-}
-
-.card-back-selector-open-button.icon-only {
-  width: 38px;
-  min-width: 38px;
-  padding: 7px;
-}
-
-.card-back-selector-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 10020;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-
-.card-back-selector-modal.hidden {
-  display: none;
-}
-
-.card-back-selector-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(5, 7, 10, 0.78);
-}
-
-.card-back-selector-dialog {
-  position: relative;
-  z-index: 1;
-  width: min(1040px, 96vw);
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid rgba(160, 170, 190, 0.34);
-  border-radius: 16px;
-  background: #1b1d22;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
-}
-
-.card-back-selector-header,
-.card-back-selector-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px 18px;
-  border-bottom: 1px solid rgba(160, 170, 190, 0.18);
-}
-
-.card-back-selector-header h2 {
-  margin: 0;
-}
-
-.card-back-selector-header p {
-  margin: 5px 0 0;
-  color: rgba(230, 234, 242, 0.72);
-}
-
-.card-back-selector-footer {
-  justify-content: flex-end;
-  border-top: 1px solid rgba(160, 170, 190, 0.18);
-  border-bottom: 0;
-}
-
-.card-back-selector-close-button {
-  width: 38px;
-  height: 38px;
-  border: 0;
-  border-radius: 9px;
-  background: transparent;
-  color: inherit;
-  font-size: 28px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.card-back-selector-close-button:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.card-back-selector-body {
-  overflow-y: auto;
-  padding: 18px;
-}
-
-.card-back-selector-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 14px;
-}
-
-.card-back-selector-option {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-  min-width: 0;
-  padding: 9px;
-  border: 2px solid transparent;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.045);
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.card-back-selector-option:hover {
-  background: rgba(255, 255, 255, 0.075);
-}
-
-.card-back-selector-option.is-selected {
-  border-color: #d3ab58;
-  box-shadow: 0 0 0 2px rgba(211, 171, 88, 0.18);
-}
-
-.card-back-selector-option-image-wrap {
-  aspect-ratio: 63 / 88;
-  overflow: hidden;
-  border-radius: 8px;
-  background: #0f1115;
-}
-
-.card-back-selector-option img {
-  width: 100%;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-}
-
-.card-back-selector-option-title {
-  overflow: hidden;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.card-back-selector-option-source {
-  color: rgba(230, 234, 242, 0.62);
-  font-size: 0.82rem;
-}
-
-.card-back-selector-upload-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  margin-top: 20px;
-  padding: 14px;
-  border: 1px solid rgba(160, 170, 190, 0.22);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.035);
-}
-
-.card-back-selector-upload-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.card-back-selector-upload-copy span {
-  color: rgba(230, 234, 242, 0.68);
-}
-
-.card-back-selector-upload-controls {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
-  width: min(430px, 100%);
-}
-
-.card-back-selector-upload-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  min-width: 0;
-}
-
-.card-back-selector-upload-inputs > input[type="file"],
-.card-back-selector-full-bleed-row,
-.card-back-selector-upload-controls > .action-button {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.card-back-selector-full-bleed-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 10px 12px;
-  border: 1px solid rgba(160, 170, 190, 0.22);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.035);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.card-back-selector-full-bleed-row input {
-  width: 20px;
-  height: 20px;
-  margin: 0;
-  flex: 0 0 auto;
-  cursor: pointer;
-}
-
-.card-back-selector-status,
-.card-back-selector-empty {
-  margin-top: 14px;
-  padding: 10px 12px;
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.card-back-selector-status.is-error {
-  background: rgba(145, 38, 38, 0.28);
-}
-
-.card-back-selector-context-menu {
-  position: fixed;
-  z-index: 10040;
-  min-width: 150px;
-  padding: 6px;
-  border: 1px solid rgba(160, 170, 190, 0.34);
-  border-radius: 9px;
-  background: #202329;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.48);
-}
-
-.card-back-selector-context-menu.hidden {
-  display: none;
-}
-
-.card-back-selector-context-menu-item {
-  width: 100%;
-  padding: 9px 12px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: #f4b4b4;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.card-back-selector-context-menu-item:hover {
-  background: rgba(190, 55, 55, 0.22);
-  color: #ffd0d0;
-}
-
-.card-back-delete-confirm {
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(5, 7, 10, 0.82);
-}
-
-.card-back-delete-confirm.hidden {
-  display: none;
-}
-
-.card-back-delete-confirm-panel {
-  width: min(440px, 94%);
-  padding: 20px;
-  border: 1px solid rgba(205, 90, 90, 0.45);
-  border-radius: 14px;
-  background: #202329;
-  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.5);
-}
-
-.card-back-delete-confirm-panel h3 {
-  margin: 0 0 12px;
-}
-
-.card-back-delete-confirm-panel p {
-  margin: 0 0 12px;
-}
-
-.card-back-delete-confirm-warning {
-  color: rgba(235, 222, 222, 0.72);
-  font-size: 0.9rem;
-}
-
-.card-back-delete-confirm-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 18px;
-}
-
-.card-back-delete-confirm-button {
-  border-color: rgba(205, 70, 70, 0.68);
-  background: #9e3030;
-}
-
-.card-back-delete-confirm-button:hover {
-  background: #b83b3b;
-}
-
-@media (max-width: 700px) {
-  .card-back-selector-modal {
-    padding: 10px;
-  }
-
-  .card-back-selector-dialog {
-    width: 100%;
-    max-height: 96vh;
-  }
-
-  .card-back-selector-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .card-back-selector-upload-panel {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .card-back-selector-upload-controls {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .card-back-selector-upload-inputs {
-    width: 100%;
-    min-width: 0;
-  }
-}
+/* Card-back library. Matches the Add Cards browser's surfaces and controls. */
+.card-back-selector-open-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:7px 11px;border:1px solid var(--border,#535963);border-radius:9px;background:var(--button,#23262e);color:inherit;cursor:pointer}
+.card-back-selector-open-button.icon-only{width:38px;min-width:38px;padding:7px}
+html #cardBackSelectorModal{position:fixed;inset:0;z-index:10020;display:flex;align-items:center;justify-content:center;padding:16px;color:var(--text,#eff1f5);font:14px/1.45 'Segoe UI',Arial,sans-serif;--back-expanded:color-mix(in srgb,var(--accent,#47df80) 9%,var(--panel-2,#22262d));--back-expanded-border:color-mix(in srgb,var(--accent,#47df80) 35%,var(--border,#3b424e));--back-action-text:#fff}
+html[data-theme-scheme="dark"] #cardBackSelectorModal{--bg:#101215;--panel:#191c21;--panel-2:#22262d;--button:#292e37;--button-hover:#343b46;--border:#3b424e;--text:#eff1f5;--muted:#adb5c4;--accent:#47df80;--back-expanded:#293d4d;--back-expanded-border:#557186;--back-action-text:#082012;color-scheme:dark}
+html[data-theme-scheme="light"] #cardBackSelectorModal{--back-expanded:#e0eaf3;--back-expanded-border:#9eafbf;color-scheme:light}
+html #cardBackSelectorModal *,html #cardBackSelectorModal *::before,html #cardBackSelectorModal *::after{box-sizing:border-box}
+html #cardBackSelectorModal.hidden,html #cardBackSelectorModal :is(.hidden,[hidden]){display:none!important}
+html #cardBackSelectorModal .card-back-selector-backdrop{position:absolute;inset:0;background:#05070ac7}
+html #cardBackSelectorModal .card-back-selector-dialog{position:relative;z-index:1;width:100%;max-width:1680px;height:calc(100dvh - 32px);max-height:1180px;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);border-radius:20px;background:var(--panel);box-shadow:0 24px 70px #0007}
+html #cardBackSelectorModal.is-maximized{padding:0}
+html #cardBackSelectorModal.is-maximized .card-back-selector-dialog{max-width:none;max-height:none;height:100dvh;border-radius:0}
+html #cardBackSelectorModal button{width:auto;min-height:36px;margin:0;padding:7px 12px;border:1px solid var(--border);border-radius:7px;background:var(--button);color:var(--text);font-family:inherit;font-size:13px;font-weight:600;line-height:1.4;cursor:pointer}
+html #cardBackSelectorModal button:hover:not(:disabled){background:var(--button-hover);border-color:var(--accent)}
+html #cardBackSelectorModal button:disabled{opacity:.45;cursor:default}
+html #cardBackSelectorModal :is(button,input,select,summary):focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+html #cardBackSelectorModal button.card-back-primary{background:var(--accent);border-color:var(--accent);color:var(--back-action-text);font-weight:700;padding:9px 18px}
+html #cardBackSelectorModal button.card-back-danger{color:var(--theme-error,#f1aaaa)}
+html #cardBackSelectorModal label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted);min-width:0;margin:0}
+html #cardBackSelectorModal :is(input:not([type=checkbox]),select){width:100%;min-width:0;min-height:36px;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--panel-2);color:var(--text);font:inherit}
+html #cardBackSelectorModal input::placeholder{color:var(--muted);opacity:1}
+html #cardBackSelectorModal .card-back-selector-header{display:flex;justify-content:space-between;align-items:center;gap:20px;flex:none;padding:18px 24px;background:var(--panel-2);border-bottom:1px solid var(--border)}
+html #cardBackSelectorModal .card-back-eyebrow{color:var(--accent);font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:4px}
+html #cardBackSelectorModal h2{margin:0;font-size:24px;font-weight:700;line-height:1.3}
+html #cardBackSelectorModal .card-back-selector-header p{margin:6px 0 0;font-size:13px;color:var(--muted)}
+html #cardBackSelectorModal .card-back-header-actions{display:flex;align-items:center;gap:10px;flex:none}
+html #cardBackSelectorModal .card-back-selector-close-button{width:32px;min-height:32px;padding:0;border:0;background:transparent;color:var(--muted);font-size:28px;line-height:1}
+html #cardBackSelectorModal .card-back-search-bar{display:flex;align-items:stretch;gap:10px;flex:none;padding:12px 20px;border-bottom:1px solid var(--border)}
+html #cardBackSelectorModal .card-back-search{position:relative;flex:1}
+html #cardBackSelectorModal .card-back-search>span{position:absolute;left:14px;top:6px;font-size:24px;pointer-events:none;color:var(--muted)}
+html #cardBackSelectorModal #cardBackSearch{height:44px;padding-left:42px}
+html #cardBackSelectorModal .card-back-library-body{position:relative;display:flex;flex:1;min-height:0;overflow:hidden}
+html #cardBackSelectorModal .card-back-sidebar{flex:0 0 260px;width:260px;min-height:0;overflow:auto;scrollbar-width:thin;padding:18px 16px;border-right:1px solid var(--border);background:var(--panel)}
+html #cardBackSelectorModal h3{font-size:13px;margin:0 0 14px;font-weight:700}
+html #cardBackSelectorModal #cardBackFolderList{display:flex;flex-direction:column;gap:4px;margin-bottom:22px}
+html #cardBackSelectorModal #cardBackFolderList button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:9px 10px;border-color:transparent;background:transparent;text-align:left;font-weight:400;overflow-wrap:anywhere}
+html #cardBackSelectorModal #cardBackFolderList button[aria-current=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 9%,var(--panel-2));border-color:var(--border)}
+html #cardBackSelectorModal #cardBackFolderList small{color:var(--muted);flex:none;font-size:11px}
+html #cardBackSelectorModal .card-back-sidebar>label{margin-bottom:20px}
+html #cardBackSelectorModal .card-back-sidebar details{border-top:1px solid var(--border);padding:16px 0}
+html #cardBackSelectorModal summary{cursor:pointer;color:var(--text);font-size:13px}
+html #cardBackSelectorModal #cardBackNewFolderForm{display:grid;gap:12px;margin-top:14px}
+html #cardBackSelectorModal .card-back-organize{display:grid;gap:12px;border-top:1px solid var(--border);padding-top:18px;margin-top:2px}
+html #cardBackSelectorModal .card-back-organize :is(h3,p){margin:0}
+html #cardBackSelectorModal #cardBackOrganizeName{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+html #cardBackSelectorModal .card-back-results{display:flex;flex:1;min-width:0;min-height:0;flex-direction:column;background:var(--bg)}
+html #cardBackSelectorModal .card-back-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex:none;padding:12px 16px;border-bottom:1px solid var(--border)}
+html #cardBackSelectorModal :is(.card-back-view-controls,.card-back-display-controls){display:flex;align-items:center;gap:8px}
+html #cardBackSelectorModal .card-back-display-controls label{flex-direction:row;align-items:center;white-space:nowrap}
+html #cardBackSelectorModal .card-back-display-controls select{width:auto}
+html #cardBackSelectorModal .card-back-view-controls button[aria-pressed=true]{color:var(--accent);border-color:var(--accent);background:var(--panel)}
+html #cardBackSelectorModal .card-back-selector-body{flex:1;min-height:0;overflow:auto;scrollbar-width:thin;padding:16px}
+html #cardBackSelectorModal .card-back-results-summary{color:var(--muted);font-size:12px;margin:3px 0 18px}
+html #cardBackSelectorModal .card-back-selector-grid{display:grid;grid-template-columns:repeat(var(--back-columns,3),var(--back-card-width,190px));gap:18px 14px;align-items:start}
+html #cardBackSelectorModal .card-back-group{min-width:0;border-radius:9px;padding:0 8px 8px;position:relative}
+html #cardBackSelectorModal .card-back-group-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:36px;margin:0;padding:6px 0;font-size:13px;overflow-wrap:anywhere}
+html #cardBackSelectorModal .card-back-group-heading small{font-size:11px;font-weight:400;color:var(--muted);flex:none}
+html #cardBackSelectorModal .card-back-group.is-expanded{background:var(--back-expanded);box-shadow:inset 0 0 0 1px var(--back-expanded-border)}
+html #cardBackSelectorModal .card-back-group-items{display:grid;grid-template-columns:repeat(var(--back-span,1),minmax(0,1fr));gap:18px 14px;align-items:start}
+html #cardBackSelectorModal .card-back-tile{position:relative;min-width:0}
+html #cardBackSelectorModal .card-back-selector-option{display:flex;flex-direction:column;gap:8px;width:100%;min-width:0;padding:8px;border:1px solid var(--border);border-radius:9px;background:var(--panel-2);text-align:left;font-weight:400;overflow:hidden}
+html #cardBackSelectorModal .card-back-selector-option.is-selected{border:2px solid var(--accent);padding:7px;box-shadow:0 0 0 1px var(--accent)}
+html #cardBackSelectorModal .card-back-selector-option.is-selected::after{content:'✓';position:absolute;right:14px;top:14px;width:26px;height:26px;border-radius:6px;display:grid;place-items:center;background:var(--accent);color:var(--back-action-text);font-weight:700}
+html #cardBackSelectorModal .card-back-selector-option-image-wrap{position:relative;display:block;width:100%;aspect-ratio:63/88;border-radius:6px;overflow:hidden;background:var(--bg)}
+html #cardBackSelectorModal .card-back-selector-option img{display:block;width:100%;height:100%;object-fit:contain}
+html #cardBackSelectorModal .card-back-selector-option-title{font-size:12px;font-weight:600;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html #cardBackSelectorModal .card-back-selector-option-source{font-size:11px;color:var(--muted)}
+html #cardBackSelectorModal .card-back-group-toggle{position:absolute;right:14px;bottom:64px;z-index:1;min-height:30px;padding:5px 9px;font-size:11px;background:var(--panel);box-shadow:0 2px 6px #0003}
+html #cardBackSelectorModal .card-back-group-toggle[aria-expanded=true]{color:var(--accent);border-color:var(--accent)}
+html #cardBackSelectorModal .card-back-group:not(.is-expanded) .card-back-tile:not(:first-child){display:none}
+html #cardBackSelectorModal .card-back-group-surface{display:none}
+html #cardBackSelectorModal .card-back-group.flow-expanded{isolation:isolate;background:transparent;box-shadow:none;pointer-events:none}
+html #cardBackSelectorModal .flow-expanded :is(.card-back-tile,.card-back-group-heading){pointer-events:auto}
+html #cardBackSelectorModal .flow-expanded .card-back-group-surface{display:block;position:absolute;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none;overflow:visible}
+html #cardBackSelectorModal .card-back-group-surface path{fill:var(--back-expanded);stroke:var(--back-expanded-border);stroke-width:1}
+html #cardBackSelectorModal .card-back-folder-empty{min-height:220px;width:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;border:1px dashed var(--border);border-radius:9px;background:var(--panel);color:var(--muted);padding:24px 12px;text-align:center;font-size:12px}
+html #cardBackSelectorModal .card-back-folder-empty svg{width:48px;height:48px;fill:none;stroke:var(--muted);stroke-width:1.2}
+html #cardBackSelectorModal .card-back-selector-empty{padding:32px;text-align:center;color:var(--muted)}
+html #cardBackSelectorModal.is-list .card-back-selector-grid{display:block}
+html #cardBackSelectorModal.is-list .card-back-group{margin-bottom:14px;padding:8px 12px;border:1px solid var(--border)}
+html #cardBackSelectorModal.is-list .card-back-group-items{display:flex;flex-direction:column;gap:6px}
+html #cardBackSelectorModal.is-list .card-back-tile{width:100%}
+html #cardBackSelectorModal.is-list .card-back-selector-option{display:grid;grid-template-columns:52px minmax(0,1fr);column-gap:14px;padding:8px;align-items:center}
+html #cardBackSelectorModal.is-list .card-back-selector-option-image-wrap{grid-row:1/3}
+html #cardBackSelectorModal.is-list .card-back-selector-option-title{align-self:end;padding-right:120px}
+html #cardBackSelectorModal.is-list .card-back-selector-option-source{align-self:start}
+html #cardBackSelectorModal.is-list .card-back-selector-option.is-selected::after{left:12px;right:auto;top:12px;width:20px;height:20px}
+html #cardBackSelectorModal.is-list .card-back-group-toggle{bottom:50%;transform:translateY(50%);right:12px}
+html #cardBackSelectorModal.is-list .card-back-folder-empty{min-height:85px;flex-direction:row}
+html #cardBackSelectorModal .card-back-selector-upload-panel{display:flex;align-items:end;gap:16px;padding:16px 20px;flex:none;border-bottom:1px solid var(--border);background:var(--panel-2)}
+html #cardBackSelectorModal .card-back-selector-upload-panel>label:first-child{flex:1}
+html #cardBackSelectorModal .card-back-upload-destination{flex:0 1 260px;margin:0;font-size:12px;color:var(--muted)}
+html #cardBackSelectorModal label.card-back-check{display:flex;flex-direction:row;align-items:center;gap:8px;min-height:36px}
+html #cardBackSelectorModal input[type=checkbox]{accent-color:var(--accent);width:18px;height:18px;margin:0}
+html #cardBackSelectorModal .card-back-selector-footer{display:flex;align-items:center;gap:14px;padding:12px 20px;flex:none;border-top:1px solid var(--border);background:var(--panel-2)}
+html #cardBackSelectorModal .card-back-footer-copy{flex:1;min-width:0;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+html #cardBackSelectorModal .card-back-selector-status{margin-top:4px;color:var(--accent)}
+html #cardBackSelectorModal .card-back-selector-status.is-error{color:var(--theme-error,#f4aaaa)}
+html #cardBackSelectorModal .card-back-selector-context-menu{position:fixed;z-index:10040;min-width:180px;padding:6px;border:1px solid var(--border);border-radius:9px;background:var(--panel-2);box-shadow:0 12px 34px #0006}
+html #cardBackSelectorModal .card-back-selector-context-menu button{display:block;width:100%;text-align:left;border-color:transparent;background:transparent}
+html #cardBackSelectorModal .card-back-delete-confirm{position:absolute;inset:0;z-index:4;display:flex;align-items:center;justify-content:center;padding:20px;background:#05070ad1}
+html #cardBackSelectorModal .card-back-delete-confirm-panel{width:min(440px,100%);padding:24px;border:1px solid var(--border);border-radius:14px;background:var(--panel-2);box-shadow:0 20px 52px #0006}
+html #cardBackSelectorModal .card-back-delete-confirm-panel h3{font-size:18px}
+html #cardBackSelectorModal .card-back-delete-confirm-warning{color:var(--muted);font-size:13px}
+html #cardBackSelectorModal .card-back-delete-confirm-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+html #cardBackSelectorModal .card-back-preview{display:flex;flex-direction:column;flex:0 0 310px;width:310px;min-width:0;min-height:0;padding:16px;overflow:hidden;background:var(--panel-2);border-left:1px solid var(--border)}
+html #cardBackSelectorModal .card-back-preview-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;font-size:13px}
+html #cardBackSelectorModal #cardBackPreviewClose{background:transparent;border:0;color:var(--muted);font-size:22px;padding:0;min-height:28px;width:28px}
+html #cardBackSelectorModal .card-back-preview-body{flex:1;min-height:0;overflow:auto;scrollbar-width:thin}
+html #cardBackSelectorModal .card-back-preview-art{display:block;width:100%;padding:0;border:0;background:transparent;color:var(--muted);cursor:zoom-in;font-weight:400}
+html #cardBackSelectorModal .card-back-preview-art:hover:not(:disabled){background:transparent;border-color:transparent}
+html #cardBackSelectorModal .card-back-preview-art img{display:block;width:100%;max-height:min(34dvh,360px);object-fit:contain}
+html #cardBackSelectorModal .card-back-preview-art span{display:block;padding:8px;font-size:12px}
+html #cardBackSelectorModal .card-back-preview-details{display:flex;flex-direction:column;gap:12px;margin-top:12px;text-align:left}
+html #cardBackSelectorModal .card-back-preview h3{font-size:17px;line-height:1.35;margin:0;overflow-wrap:anywhere}
+html #cardBackSelectorModal .card-back-preview p{font-size:12px;line-height:1.5;margin:0;color:var(--muted);overflow-wrap:anywhere}
+html #cardBackSelectorModal #cardBackPreviewFolder{padding-bottom:12px;border-bottom:1px solid var(--border)}
+html #cardBackSelectorModal .card-back-preview-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;margin:0}
+html #cardBackSelectorModal .card-back-preview-facts dt{font-size:11px;color:var(--muted);margin-bottom:3px}
+html #cardBackSelectorModal .card-back-preview-facts dd{font-size:13px;margin:0;overflow-wrap:anywhere}
+html #cardBackSelectorModal .card-back-preview-actions{display:flex;flex:none;flex-direction:column;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+html #cardBackSelectorModal .card-back-default-actions{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+html #cardBackSelectorModal .card-back-default-actions button{padding:4px 0;min-height:28px;border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:400;text-align:left;text-decoration:underline;text-underline-offset:3px}
+html #cardBackSelectorModal .card-back-default-actions button:hover:not(:disabled){color:var(--accent);background:transparent}
+html #cardBackSelectorModal .card-back-default-actions button:disabled{opacity:1;text-decoration:none;cursor:default}
+html #cardBackSelectorModal #cardBackPreviewStatus{color:var(--accent)}
+html #cardBackSelectorModal #cardBackPreviewStatus.is-error{color:var(--theme-error,#f4aaaa)}
+html #cardBackSelectorModal .card-back-image-zoom{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;padding:40px;background:var(--panel)}
+html #cardBackSelectorModal .card-back-image-zoom img{width:100%;height:100%;object-fit:contain}
+html #cardBackSelectorModal #cardBackImageZoomClose{position:absolute;right:12px;top:12px;width:36px;height:36px;padding:0;font-size:26px}
+@media(max-width:1100px){html #cardBackSelectorModal .card-back-preview{flex-basis:270px;width:270px}html #cardBackSelectorModal .card-back-toolbar{flex-wrap:wrap}}
+@media(max-width:850px){html #cardBackSelectorModal .card-back-preview{position:absolute;right:0;top:0;bottom:0;width:min(310px,95%);z-index:3;box-shadow:-10px 0 25px #0004}}
+@media(max-width:900px){html #cardBackSelectorModal .card-back-sidebar{flex-basis:220px;width:220px}html #cardBackSelectorModal .card-back-display-controls{flex-wrap:wrap;justify-content:flex-end}html #cardBackSelectorModal .card-back-selector-upload-panel{flex-wrap:wrap}}
+@media(max-width:620px){html #cardBackSelectorModal{padding:0}html #cardBackSelectorModal .card-back-selector-dialog{height:100dvh;max-height:none;border-radius:0}html #cardBackSelectorModal .card-back-selector-header{padding:14px;align-items:start;gap:12px}html #cardBackSelectorModal h2{font-size:20px}html #cardBackSelectorModal .card-back-header-actions{gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:155px}html #cardBackSelectorModal #cardBackMaximize{display:none}html #cardBackSelectorModal .card-back-selector-header p{max-width:240px}html #cardBackSelectorModal .card-back-search-bar{padding:10px}html #cardBackSelectorModal .card-back-library-body{position:relative}html #cardBackSelectorModal .card-back-sidebar{position:absolute;inset:0 auto 0 0;z-index:3;width:min(280px,85%);box-shadow:12px 0 24px #0005}html #cardBackSelectorModal .card-back-toolbar{padding:10px;flex-wrap:wrap}html #cardBackSelectorModal .card-back-selector-body{padding:10px}html #cardBackSelectorModal .card-back-selector-footer{padding:10px;gap:8px;flex-wrap:wrap}html #cardBackSelectorModal .card-back-footer-copy{flex-basis:100%}html #cardBackSelectorModal .card-back-selector-footer>button:last-child{flex:1}html #cardBackSelectorModal .card-back-selector-upload-panel{padding:12px;gap:10px}html #cardBackSelectorModal .card-back-selector-upload-panel>label:first-child{flex-basis:100%}}

@@ -23,7 +23,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='mpcfill-2') }}"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='face-tabs-1') }}"
 />
 {% endblock %} {% block content %}
 <div
@@ -535,7 +535,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
   print_export_pack_ids = [] %} {% else %} {% set print_export_pack_ids =
   [pack.tracked_pack_id] %} {% endif %} {% include "_print_export_modal.html" %}
   {% include "_alternate_image_modal.html" %}
-  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='mpcfill-2') }}"></script>
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='face-tabs-1') }}"></script>
   <div
     id="campaignPackZoomOverlay"
     class="card-zoom-overlay hidden"

@@ -142,8 +142,14 @@
   const deleteDeckConfirmButton = document.getElementById(
     "deckbuilderDeleteDeckConfirmButton",
   );
-  const openPrintExportButton = document.getElementById(
-    "deckbuilderOpenPrintExportButton",
+  const printExportMenuButton = document.getElementById(
+    "deckbuilderPrintExportMenuButton",
+  );
+  const printExportMenu = document.getElementById(
+    "deckbuilderPrintExportMenu",
+  );
+  const printSelectedButton = document.getElementById(
+    "deckbuilderPrintSelectedButton",
   );
   const copyDecklistButton = document.getElementById(
     "deckbuilderCopyDecklistButton",
@@ -3043,6 +3049,24 @@
     return "";
   }
 
+  function prepareDeckbuilderPrintExport() {
+    // Read the saved deck choice after the print form resets. The selector
+    // updates this button immediately after a successful save.
+    const cardBackButton = document.getElementById("deckbuilderCardBackButton");
+    const cardBackInput = document.getElementById("printExportCardBack");
+    const cardBackKey = cardBackButton?.dataset.selectedCardBackKey;
+
+    if (cardBackInput && cardBackKey) {
+      cardBackInput.value = cardBackKey;
+    }
+
+    setDeckbuilderPrintMenuOpen(false);
+    setDeckbuilderCopyMenuOpen(false);
+    setDeckbuilderContextMenuOpen(false);
+    setLandPaletteContextMenuOpen(false);
+    hideHoverPreview();
+  }
+
   function openDeckbuilderPrintSelection(selectedCards, selectedZone) {
     const cards = Array.isArray(selectedCards) ? selectedCards : [];
 
@@ -3100,12 +3124,7 @@
         selected_card_tokens: selectionTokens,
       },
 
-      beforeOpen: function () {
-        setDeckbuilderCopyMenuOpen(false);
-        setDeckbuilderContextMenuOpen(false);
-        setLandPaletteContextMenuOpen(false);
-        hideHoverPreview();
-      },
+      beforeOpen: prepareDeckbuilderPrintExport,
     });
   }
 
@@ -5512,9 +5531,36 @@
     }
   }
 
+  function setDeckbuilderPrintMenuOpen(isOpen) {
+    if (!printExportMenu || !printExportMenuButton) {
+      return;
+    }
+
+    if (isOpen) {
+      setDeckbuilderCopyMenuOpen(false);
+      setDeckbuilderContextMenuOpen(false);
+      setLandPaletteContextMenuOpen(false);
+      hideHoverPreview();
+
+      if (printSelectedButton) {
+        printSelectedButton.disabled = !getDeckbuilderSelectedCards().length;
+        printSelectedButton.title = printSelectedButton.disabled
+          ? "Select at least one card to print or export"
+          : "Print or export only the selected cards";
+      }
+    }
+
+    printExportMenu.classList.toggle("hidden", !isOpen);
+    printExportMenuButton.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  }
+
   function setDeckbuilderCopyMenuOpen(isOpen) {
     if (!copyDecklistMenu || !copyDecklistMenuButton) {
       return;
+    }
+
+    if (isOpen) {
+      setDeckbuilderPrintMenuOpen(false);
     }
 
     copyDecklistMenu.classList.toggle("hidden", !isOpen);
@@ -6220,12 +6266,7 @@
     printUrl: printUrl,
     exportZipUrl: exportZipUrl,
 
-    beforeOpen: function () {
-      setDeckbuilderCopyMenuOpen(false);
-      setDeckbuilderContextMenuOpen(false);
-      setLandPaletteContextMenuOpen(false);
-      hideHoverPreview();
-    },
+    beforeOpen: prepareDeckbuilderPrintExport,
 
     showMessage: function (messageText, isError) {
       if (!messageText) {
@@ -6431,6 +6472,40 @@
     deleteDeckConfirmButton.addEventListener("click", deleteCurrentDeck);
   }
 
+  if (printExportMenuButton) {
+    printExportMenuButton.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      setDeckbuilderPrintMenuOpen(printExportMenu.classList.contains("hidden"));
+    });
+
+    printExportMenuButton.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setDeckbuilderPrintMenuOpen(true);
+        printSelectedButton?.focus();
+      }
+    });
+
+    printExportMenuButton.parentElement.addEventListener("focusout", function (event) {
+      if (!event.currentTarget.contains(event.relatedTarget)) {
+        setDeckbuilderPrintMenuOpen(false);
+      }
+    });
+  }
+
+  if (printSelectedButton) {
+    printSelectedButton.addEventListener("click", function (event) {
+      event.preventDefault();
+      event.stopPropagation();
+      setDeckbuilderPrintMenuOpen(false);
+      openDeckbuilderPrintSelection(
+        getDeckbuilderSelectedCards(),
+        selectedDeckbuilderZone,
+      );
+    });
+  }
+
   if (copyDecklistButton) {
     copyDecklistButton.addEventListener("click", function () {
       copyDecklist(deckbuilderCopyFormat);
@@ -6564,6 +6639,15 @@
   );
 
   document.addEventListener("click", function (event) {
+    if (
+      printExportMenu &&
+      printExportMenuButton &&
+      !printExportMenu.contains(event.target) &&
+      !printExportMenuButton.contains(event.target)
+    ) {
+      setDeckbuilderPrintMenuOpen(false);
+    }
+
     if (
       copyDecklistMenu &&
       copyDecklistMenuButton &&
@@ -6726,6 +6810,12 @@
 
       if (deckbuilderStatsModal && deckbuilderStatsModal.isOpen()) {
         deckbuilderStatsModal.close();
+        handledEscape = true;
+      }
+
+      if (printExportMenu && !printExportMenu.classList.contains("hidden")) {
+        setDeckbuilderPrintMenuOpen(false);
+        printExportMenuButton.focus();
         handledEscape = true;
       }
 

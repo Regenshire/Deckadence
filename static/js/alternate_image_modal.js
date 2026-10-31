@@ -159,6 +159,12 @@ for (const button of document.querySelectorAll(
   let customCardDeleteInProgress = false;
   let currentAlternatePayload = null;
   let replacingCustomImage = false;
+  let editingFace = "front";
+  let customBackDraft = false;
+  let faceDrafts = {};
+  const faceTabs = document.getElementById("alternateImageFaceTabs");
+  const addBackButton = document.getElementById("alternateImageAddBack");
+  const standardBackButton = document.getElementById("alternateImageStandardBack");
   const alternateFaceKind = document.getElementById("alternateImageFaceKind");
   const alternateFaceKindRow = document.getElementById(
     "alternateImageFaceKindRow",
@@ -320,6 +326,93 @@ for (const button of document.querySelectorAll(
     return currentAlternateCardName || frontFaceName || "Card";
   }
 
+  function hasTwoFaces() {
+    return Boolean(currentAlternatePayload?.card?.is_dual_faced ||
+      currentAlternatePayload?.card?.has_custom_back || customBackDraft || editingFace === "back");
+  }
+
+  function selectedActiveSource() {
+    return currentAlternatePayload?.active_sources?.[editingFace] ||
+      (editingFace === "front" ? currentAlternatePayload?.active_source : null);
+  }
+
+  function captureFaceDraft() {
+    faceDrafts[editingFace] = {
+      sourceType: alternateSourceType.value, file: alternateFileInput.files[0] || null,
+      url: alternateExternalUrlInput.value, path: alternateLocalPathInput.value,
+      bleed: alternateRemoveBleedInput.checked, template: alternateExportFrameTemplate.value,
+      sourceName: alternateSourceNameInput.value, notes: alternateNotesInput.value,
+      replacing: replacingCustomImage,
+    };
+  }
+
+  function restoreFaceDraft() {
+    alternateFileInput.value = "";
+    alternateExternalUrlInput.value = "";
+    alternateLocalPathInput.value = "";
+    alternateSourceNameInput.value = "";
+    alternateNotesInput.value = "";
+    alternateSourceType.value = "uploaded_file";
+    const draft = faceDrafts[editingFace];
+    if (draft) {
+      alternateSourceType.value = draft.sourceType;
+      alternateExternalUrlInput.value = draft.url;
+      alternateLocalPathInput.value = draft.path;
+      alternateSourceNameInput.value = draft.sourceName;
+      alternateNotesInput.value = draft.notes;
+      alternateRemoveBleedInput.checked = draft.bleed;
+      alternateExportFrameTemplate.value = draft.template;
+      if (draft.file) {
+        const transfer = new DataTransfer();
+        transfer.items.add(draft.file);
+        alternateFileInput.files = transfer.files;
+      }
+      if (draft.replacing) alternateReplaceButton?.click();
+    }
+    updateAlternateSourceFieldVisibility();
+    updateAlternateImagePreview();
+  }
+
+  function selectEditingFace(face) {
+    if (!currentAlternatePayload || alternateMutationPending || (face === "back" && !hasTwoFaces())) return;
+    if (face === editingFace) return;
+    captureFaceDraft();
+    editingFace = face;
+    showAlternateMessage("", false);
+    renderAlternateSources(currentAlternatePayload);
+    restoreFaceDraft();
+  }
+
+  alternateOverlay?.querySelectorAll("[data-alternate-face]").forEach(button => {
+    button.addEventListener("click", () => selectEditingFace(button.dataset.alternateFace));
+  });
+  faceTabs?.addEventListener("keydown", event => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key) || alternateMutationPending) return;
+    event.preventDefault();
+    const face = event.key === "Home" ? "front" : event.key === "End" ? "back" : editingFace === "front" ? "back" : "front";
+    selectEditingFace(face);
+    document.getElementById(face === "front" ? "alternateImageFrontTab" : "alternateImageBackTab").focus();
+  });
+  addBackButton?.addEventListener("click", () => {
+    if (!currentAlternatePayload || alternateMutationPending) return;
+    customBackDraft = true;
+    selectEditingFace("back");
+  });
+  standardBackButton?.addEventListener("click", async () => {
+    if (!currentAlternatePayload || alternateMutationPending) return;
+    if (currentAlternatePayload.card.has_custom_back) {
+      const payload = await saveAlternateChange(
+        "/chaos/cards/" + encodeURIComponent(currentAlternateCardUuid) + "/alternate-sources/standard-back", {},
+      );
+      if (!payload) return;
+    }
+    captureFaceDraft();
+    customBackDraft = false;
+    editingFace = "front";
+    renderAlternateSources(currentAlternatePayload);
+    restoreFaceDraft();
+  });
+
   function getAlternateFaceLabel(faceKind) {
     const cleanFaceKind = String(faceKind || "single")
       .trim()
@@ -395,11 +488,12 @@ for (const button of document.querySelectorAll(
 
       emptyTitle.className = "alternate-active-source-title";
 
-      emptyTitle.textContent = card?.custom_card ? "Custom Card / Original Image" : "Scryfall / Default Image";
+      emptyTitle.textContent = editingFace === "back" && !card?.is_dual_faced ? "Not assigned" :
+        card?.custom_card ? "Custom Card / Original Image" : "Scryfall / Default Image";
 
       alternateActiveSource.appendChild(emptyTitle);
 
-      if (card?.custom_card) {
+      if (card?.custom_card && editingFace === "front") {
         const meta = document.createElement("div");
         meta.className = "alternate-active-source-meta";
         meta.textContent = [
@@ -547,6 +641,12 @@ for (const button of document.querySelectorAll(
       ? alternateSourceType.value
       : "uploaded_file";
 
+    if (alternateAddButton) {
+      alternateAddButton.disabled = sourceType === "uploaded_file"
+        ? !alternateFileInput?.files?.length
+        : !String(sourceType === "external_url" ? alternateExternalUrlInput?.value : alternateLocalPathInput?.value).trim();
+    }
+
     if (sourceType === "uploaded_file") {
       const selectedFile =
         alternateFileInput &&
@@ -585,6 +685,11 @@ for (const button of document.querySelectorAll(
 
     releaseAlternatePreviewObjectUrl();
 
+    if (editingFace === "back" && !currentAlternatePayload?.card?.is_dual_faced && !selectedActiveSource()) {
+      showAlternatePreviewPlaceholder("Add a back image. Your front stays unchanged.", "Choose an image for this side.");
+      return;
+    }
+
     const currentPreviewUrl = getCurrentAlternatePreviewUrl();
 
     if (currentPreviewUrl) {
@@ -622,7 +727,7 @@ for (const button of document.querySelectorAll(
   }
 
   function configureAlternateImageFaceKindOptions(card) {
-    const isDualFaced = Boolean(card && card.is_dual_faced);
+    const isDualFaced = hasTwoFaces();
 
     const frontFaceName =
       card && card.front_face_name ? String(card.front_face_name) : "Front";
@@ -633,24 +738,24 @@ for (const button of document.querySelectorAll(
     if (alternateFaceKindRow) {
       alternateFaceKindRow.classList.toggle(
         "alternate-image-field-hidden",
-        !isDualFaced,
+        true,
       );
     }
 
     if (alternateFaceKindSingleOption) {
       alternateFaceKindSingleOption.textContent = "Single";
 
-      alternateFaceKindSingleOption.disabled = isDualFaced;
+      alternateFaceKindSingleOption.disabled = Boolean(card.is_dual_faced);
 
-      alternateFaceKindSingleOption.hidden = isDualFaced;
+      alternateFaceKindSingleOption.hidden = Boolean(card.is_dual_faced);
     }
 
     if (alternateFaceKindFrontOption) {
       alternateFaceKindFrontOption.textContent = "Front - " + frontFaceName;
 
-      alternateFaceKindFrontOption.disabled = !isDualFaced;
+      alternateFaceKindFrontOption.disabled = !card.is_dual_faced;
 
-      alternateFaceKindFrontOption.hidden = !isDualFaced;
+      alternateFaceKindFrontOption.hidden = !card.is_dual_faced;
     }
 
     if (alternateFaceKindBackOption) {
@@ -662,8 +767,41 @@ for (const button of document.querySelectorAll(
     }
 
     if (alternateFaceKind) {
-      alternateFaceKind.value = isDualFaced ? "front" : "single";
+      alternateFaceKind.value = editingFace === "back" ? "back" : card.is_dual_faced ? "front" : "single";
     }
+
+    document.getElementById("alternateImageSides").classList.remove("hidden");
+    document.getElementById("alternateImageSidesTitle").textContent = card.is_dual_faced ? "Double-sided card" : isDualFaced ? "Custom double-sided" : "Standard card back";
+    document.getElementById("alternateImageSidesCaption").textContent = card.is_dual_faced ? "Manage the artwork for each printed face." : isDualFaced ? "Front and back are images of the same card." : "Add different artwork or a translation to the reverse.";
+    addBackButton.classList.toggle("hidden", isDualFaced);
+    standardBackButton.classList.toggle("hidden", !isDualFaced || Boolean(card.is_dual_faced));
+    document.getElementById("alternateImageCustomBackBadge").classList.toggle("hidden", !isDualFaced || Boolean(card.is_dual_faced));
+    faceTabs.classList.toggle("hidden", !isDualFaced);
+    document.getElementById("alternateImageFacePair").classList.toggle("hidden", !isDualFaced);
+    document.getElementById("alternateImageSidesNote").classList.toggle("hidden", !isDualFaced);
+    alternateOverlay.querySelectorAll("[data-alternate-face]").forEach(button => {
+      button.setAttribute(button.getAttribute("role") === "tab" ? "aria-selected" : "aria-pressed", String(button.dataset.alternateFace === editingFace));
+    });
+    document.getElementById("alternateImageFacePanel").setAttribute("aria-labelledby", editingFace === "front" ? "alternateImageFrontTab" : "alternateImageBackTab");
+    const label = editingFace === "back" ? "Back" : "Front";
+    document.getElementById("alternateImagePreviewHeading").textContent = label + " Preview";
+    document.getElementById("alternateImageActiveHeading").textContent = "Active Source" + (isDualFaced ? " · " + label : "");
+    document.getElementById("alternateImageSourcesHeading").textContent = "Alternate Sources" + (isDualFaced ? " · " + label : "");
+    const backReady = Boolean(card.is_dual_faced || currentAlternatePayload.active_sources?.back);
+    document.getElementById("alternateImageFrontTabCaption").textContent = card.front_face_name || "Current artwork";
+    document.getElementById("alternateImageBackTabCaption").textContent = backReady ? (card.back_face_name || "Custom artwork") : "Image needed";
+    document.getElementById("alternateImageBackSummary").textContent = backReady ? (card.back_face_name || "Custom artwork") : "Image needed";
+    for (const face of ["front", "back"]) {
+      const image = document.getElementById(face === "front" ? "alternateImageFrontThumb" : "alternateImageBackThumb");
+      image.classList.toggle("hidden", face === "back" && !backReady);
+      if (face === "front" || backReady) {
+        const url = new URL(window.iMomirImageUrl(currentImagePreviewUrl), window.location.href);
+        url.searchParams.set("face", face);
+        url.searchParams.set("v", currentImagePreviewVersion);
+        image.src = url.toString();
+      } else image.removeAttribute("src");
+    }
+    document.getElementById("alternateImageBackThumbEmpty").classList.toggle("hidden", backReady);
   }
 
   function updateAlternateSourceFieldVisibility() {
@@ -798,6 +936,7 @@ for (const button of document.querySelectorAll(
 
   function refreshCardImages(cardUuid, alternateState, imageUrl) {
     if (!cardUuid) return;
+    window.iMomirCardFlip?.invalidateCard?.(cardUuid);
     const url = new URL(
       imageUrl || currentImagePreviewUrl ||
         "/chaos-card-image/" + encodeURIComponent(cardUuid),
@@ -933,6 +1072,10 @@ for (const button of document.querySelectorAll(
     currentImageScopeToken = null;
     currentAlternatePayload = null;
     replacingCustomImage = false;
+    editingFace = "front";
+    customBackDraft = false;
+    faceDrafts = {};
+    for (const id of ["alternateImageSides", "alternateImageFaceTabs", "alternateImageFacePair", "alternateImageCustomBackBadge"]) document.getElementById(id)?.classList.add("hidden");
     alternateReplaceButton?.classList.add("hidden");
     alternateCancelReplaceButton?.classList.add("hidden");
     alternateDeleteCustomRow?.classList.add("hidden");
@@ -1028,13 +1171,15 @@ for (const button of document.querySelectorAll(
       );
     }
 
-    const sources = payload.alternate_sources || [];
-    const activeSource = payload.active_source;
+    const sources = (payload.alternate_sources || []).filter(source =>
+      (source.face_kind === "back") === (editingFace === "back"));
+    const activeSource = selectedActiveSource();
     const card = payload.card || {};
     const isCustomCard = Boolean(card.custom_card);
+    const isCustomFront = isCustomCard && editingFace === "front";
     alternateDeleteCustomRow?.classList.toggle("hidden", !isCustomCard);
     alternateOverlay.classList.toggle("alternate-image-custom-editor", isCustomCard);
-    const isDualFaced = Boolean(card.is_dual_faced);
+    const isDualFaced = hasTwoFaces();
 
     configureAlternateImageFaceKindOptions(card);
 
@@ -1047,33 +1192,35 @@ for (const button of document.querySelectorAll(
       activeSource ? activeSource.export_frame_template || "auto" : "auto",
     );
 
-    const hideSourceComposer = sources.length > 0 && !isDualFaced;
+    const hideSourceComposer = isCustomFront || (sources.length > 0 && !isDualFaced);
 
     if (alternateSourceComposer) {
       alternateSourceComposer.classList.toggle("hidden", hideSourceComposer);
     }
 
-    setAlternateInputLocked(Boolean(activeSource) && !isDualFaced);
+    setAlternateInputLocked(isCustomFront || (Boolean(activeSource) && !isDualFaced));
     if (alternateRemoveBleedInput && activeSource) {
       alternateRemoveBleedInput.checked = Boolean(activeSource.remove_bleed);
       alternateRemoveBleedInput.disabled = !isCustomCard && !isDualFaced;
       alternateRemoveBleedInput.readOnly = false;
+    } else if (alternateRemoveBleedInput) {
+      alternateRemoveBleedInput.checked = false;
     }
     if (alternateSaveFrameButton) {
-      alternateSaveFrameButton.textContent = isCustomCard ? "Save Changes" : "Update";
-      alternateSaveFrameButton.classList.toggle("secondary-button", !isCustomCard);
+      alternateSaveFrameButton.textContent = isCustomFront ? "Save Changes" : "Update";
+      alternateSaveFrameButton.classList.toggle("secondary-button", !isCustomFront);
     }
     if (alternateAddButton) {
-      alternateAddButton.textContent = isCustomCard ? "Save Image" : "Add Alternate Source";
+      alternateAddButton.textContent = editingFace === "back" ? "Add Back Image" : isCustomFront ? "Save Image" : "Add Alternate Source";
     }
-    alternateReplaceButton?.classList.toggle("hidden", !isCustomCard);
+    alternateReplaceButton?.classList.toggle("hidden", !isCustomFront);
     alternateCancelReplaceButton?.classList.add("hidden");
 
     if (alternateAddButton && hideSourceComposer) {
       alternateAddButton.classList.add("hidden");
     }
 
-    renderActiveAlternateSources(sources, card);
+    renderActiveAlternateSources(activeSource ? [activeSource] : [], card);
 
     updateAlternateImagePreview();
 
@@ -1088,11 +1235,13 @@ for (const button of document.querySelectorAll(
       emptyRow.className = "alternate-source-empty";
 
       const emptyTitle = document.createElement("strong");
-      emptyTitle.textContent = "No alternate sources yet";
+      emptyTitle.textContent = editingFace === "back" ? "No back sources yet" : "No alternate sources yet";
 
       const emptyText = document.createElement("span");
       emptyText.textContent =
-        payload.card?.custom_card
+        editingFace === "back" && !card.is_dual_faced
+          ? "Upload an image, enter a URL, or browse MPCFill."
+          : payload.card?.custom_card
           ? "Deckadence is currently using the original custom card artwork or its upscaled image."
           : "Deckadence is currently using a Scryfall base or upscaled image.";
 
@@ -1266,8 +1415,8 @@ for (const button of document.querySelectorAll(
   }
 
   async function saveAlternateFrameTemplate() {
-    if (currentAlternatePayload?.card?.custom_card) {
-      const active = currentAlternatePayload.active_source;
+    if (currentAlternatePayload?.card?.custom_card && editingFace === "front") {
+      const active = selectedActiveSource();
       const payload = await saveAlternateChange(
         "/chaos/cards/" + encodeURIComponent(currentAlternateCardUuid) + "/alternate-sources/settings",
         {
@@ -1280,7 +1429,7 @@ for (const button of document.querySelectorAll(
           }),
         },
       );
-      if (payload) closeAlternateModal();
+      if (payload && !hasTwoFaces()) closeAlternateModal();
       return;
     }
     if (!currentActiveAlternateSourceId || !alternateExportFrameTemplate)
@@ -1296,7 +1445,7 @@ for (const button of document.querySelectorAll(
         }),
       },
     );
-    if (payload) closeAlternateModal();
+    if (payload && !hasTwoFaces()) closeAlternateModal();
   }
 
   if (alternateFoilInput) {
@@ -1311,7 +1460,7 @@ for (const button of document.querySelectorAll(
   }
 
   alternateReplaceButton?.addEventListener("click", function () {
-    if (alternateMutationPending || !currentAlternatePayload?.card?.custom_card) return;
+    if (alternateMutationPending || !currentAlternatePayload?.card?.custom_card || editingFace !== "front") return;
     replacingCustomImage = true;
     alternateSourceComposer?.classList.remove("hidden");
     setAlternateInputLocked(false);
@@ -1503,14 +1652,11 @@ for (const button of document.querySelectorAll(
     const version = alternateModalVersion;
     const cardUuid = currentAlternateCardUuid;
     const card = currentAlternatePayload.card || {};
-    const faces = Array.from(alternateFaceKind.options)
-      .filter(option => !option.hidden && !option.disabled)
-      .map(option => ({ value: option.value, label: option.textContent.trim() }));
     window.DeckadenceMpcFill?.open({
       cardName: currentAlternateCardName,
       cardType: /token/i.test(card.type_line || card.card_type || "") ? "TOKEN" : "CARD",
-      faces: card.is_dual_faced ? faces.filter(face => face.value !== "single") : [{ value: "single", label: "Card" }],
-      face: card.is_dual_faced ? (alternateFaceKind.value === "back" ? "back" : "front") : "single",
+      faces: hasTwoFaces() ? [{ value: card.is_dual_faced ? "front" : "single", label: "Front" }, { value: "back", label: "Back" }] : [{ value: "single", label: "Card" }],
+      face: alternateFaceKind.value,
       scope: currentAlternatePayload.image_scope.is_isolated ? "This collection only" : "Shared image library",
       parent: alternateOverlay,
       returnFocus: mpcFillButton,
@@ -1518,6 +1664,7 @@ for (const button of document.querySelectorAll(
         if (version !== alternateModalVersion || cardUuid !== currentAlternateCardUuid || alternateMutationPending)
           throw new Error("The card changed. Reopen MPCFill from the image picker.");
         const formData = new FormData();
+        selectEditingFace(face === "back" ? "back" : "front");
         formData.set("mpcfill_key", key);
         formData.set("face_kind", face);
         formData.set("export_frame_template", alternateExportFrameTemplate?.value || "auto");
@@ -1526,6 +1673,8 @@ for (const button of document.querySelectorAll(
           { body: formData },
         );
         if (!payload) throw new Error(alternateMessage.textContent || "The artwork could not be applied.");
+        delete faceDrafts[editingFace];
+        restoreFaceDraft();
         if (alternateRemoveBleedInput) alternateRemoveBleedInput.checked = true;
         return payload;
       },
@@ -1544,7 +1693,7 @@ for (const button of document.querySelectorAll(
     alternateForm.addEventListener("submit", async function (event) {
       event.preventDefault();
       if (!currentAlternateCardUuid || alternateMutationPending) return;
-      if (currentAlternatePayload?.card?.custom_card && !replacingCustomImage) {
+      if (currentAlternatePayload?.card?.custom_card && editingFace === "front" && !replacingCustomImage) {
         await saveAlternateFrameTemplate();
         return;
       }
@@ -1552,8 +1701,8 @@ for (const button of document.querySelectorAll(
       const formData = new FormData(alternateForm);
       if (replacingCustomImage) {
         formData.set("replace_current", "1");
-        formData.set("expected_source_id", currentAlternatePayload.active_source?.alternate_source_id ?? "");
-        formData.set("expected_source_version", currentAlternatePayload.active_source?.updated_at_utc || "");
+        formData.set("expected_source_id", selectedActiveSource()?.alternate_source_id ?? "");
+        formData.set("expected_source_version", selectedActiveSource()?.updated_at_utc || "");
       }
       const payload = await saveAlternateChange(
         "/chaos/cards/" +
@@ -1562,7 +1711,10 @@ for (const button of document.querySelectorAll(
         { body: formData },
       );
       if (!payload) return;
+      delete faceDrafts[editingFace];
+      const currentFoil = alternateFoilInput?.checked;
       alternateForm.reset();
+      if (alternateFoilInput) alternateFoilInput.checked = currentFoil;
       applyRememberedAlternateRemoveBleed();
 
       if (alternateSourceType) {
@@ -1577,7 +1729,7 @@ for (const button of document.querySelectorAll(
       renderAlternateSources(payload);
       updateAlternateImagePreview();
 
-      if (!payload.card.is_dual_faced) {
+      if (!hasTwoFaces()) {
         closeAlternateModal();
       }
     });
@@ -1611,7 +1763,7 @@ for (const button of document.querySelectorAll(
   }
 
   if (alternateFaceKind) {
-    alternateFaceKind.addEventListener("change", updateAlternateImagePreview);
+    alternateFaceKind.addEventListener("change", () => selectEditingFace(alternateFaceKind.value === "back" ? "back" : "front"));
   }
 
   if (alternatePreviewImage) {

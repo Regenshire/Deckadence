@@ -75,6 +75,11 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
           ></div>
 
           <span
+            id="alternateImageCustomBackBadge"
+            class="alternate-image-custom-back-badge hidden"
+          >Custom back</span>
+
+          <span
             id="alternateImageIsolationBadge"
             class="alternate-image-isolation-badge hidden"
           >
@@ -90,12 +95,28 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
         data-help-id="alternate-image-status"
       ></div>
 
-      <div class="alternate-image-main-layout">
+      <section id="alternateImageSides" class="alternate-image-sides hidden" aria-label="Card sides">
+        <div><strong id="alternateImageSidesTitle">Standard card back</strong>
+          <p id="alternateImageSidesCaption">Add different artwork or a translation to the reverse.</p></div>
+        <button type="button" id="alternateImageAddBack" class="action-button secondary-button">Add custom back</button>
+        <button type="button" id="alternateImageStandardBack" class="alternate-image-text-button hidden">Use standard back</button>
+      </section>
+
+      <div id="alternateImageFaceTabs" class="alternate-image-face-tabs hidden" role="tablist" aria-label="Editing side">
+        <button type="button" id="alternateImageFrontTab" role="tab" aria-selected="true" aria-controls="alternateImageFacePanel" data-alternate-face="front">
+          <i class="fa-regular fa-file-image" aria-hidden="true"></i><strong>Front</strong><span id="alternateImageFrontTabCaption">Current artwork</span>
+        </button>
+        <button type="button" id="alternateImageBackTab" role="tab" aria-selected="false" aria-controls="alternateImageFacePanel" data-alternate-face="back">
+          <i class="fa-regular fa-copy" aria-hidden="true"></i><strong>Back</strong><span id="alternateImageBackTabCaption">Image needed</span>
+        </button>
+      </div>
+
+      <div id="alternateImageFacePanel" class="alternate-image-main-layout" role="tabpanel" aria-labelledby="alternateImageFrontTab">
         <aside
           class="alternate-image-preview-panel"
           data-help-id="alternate-image-preview"
         >
-          <div class="alternate-image-preview-heading">Image Preview</div>
+          <div id="alternateImagePreviewHeading" class="alternate-image-preview-heading">Front Preview</div>
 
           <div class="alternate-image-preview-frame">
             <img
@@ -119,6 +140,10 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
           >
             Current card image
           </div>
+          <div id="alternateImageFacePair" class="alternate-image-face-pair hidden" aria-label="Card face previews">
+            <button type="button" data-alternate-face="front"><img id="alternateImageFrontThumb" alt="Front"><span><strong>Front</strong><small id="alternateImageFrontSummary">Current artwork</small></span></button>
+            <button type="button" data-alternate-face="back"><img id="alternateImageBackThumb" alt="Back"><span id="alternateImageBackThumbEmpty" class="alternate-image-thumb-empty">+</span><span><strong>Back</strong><small id="alternateImageBackSummary">Image needed</small></span></button>
+          </div>
         </aside>
 
         <div class="alternate-image-management-column">
@@ -126,7 +151,7 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
             class="alternate-active-source-card"
             data-help-id="alternate-image-active-source"
           >
-            <div class="alternate-active-source-label">Active Source</div>
+            <div id="alternateImageActiveHeading" class="alternate-active-source-label">Active Source</div>
 
             <div
               id="alternateImageActiveSource"
@@ -141,7 +166,7 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
             data-help-id="alternate-image-source-list"
           >
             <div class="alternate-image-section-header">
-              <h3>Alternate Sources</h3>
+              <h3 id="alternateImageSourcesHeading">Alternate Sources</h3>
             </div>
 
             <div
@@ -355,6 +380,7 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
                 Update
               </button>
             </div>
+            <p id="alternateImageSidesNote" class="alternate-image-sides-note hidden">Front and back will print as one card.</p>
             <div id="alternateImageDeleteCustomRow" class="custom-card-delete-actions hidden">
               <button type="button" id="alternateImageDeleteCustomButton"
                       class="action-button secondary-button campaign-danger-button">

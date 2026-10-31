@@ -19,7 +19,7 @@ unselected_outpaint_bounds = preparation.unselected_outpaint_bounds
 from .local_mirror import local_mirror, LocalMirrorError, MODELS
 
 FONTS = ('Beleren Proxy','Plantin MT Pro','Beleren Small Caps','ProxyGlyph',
-         'Georgia','Arial','Times New Roman','Courier New')
+         'LCARSGTJ2','LCARSGTJ3','Georgia','Arial','Times New Roman','Courier New')
 
 
 def detect_outpaint_bounds(source,bounds,cancel,progress):

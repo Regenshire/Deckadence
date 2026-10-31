@@ -18,7 +18,7 @@
 
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/deckbuilder.css', v='builder-ux-2') }}"
+  href="{{ url_for('static', filename='css/deckbuilder.css', v='builder-print-selected-1') }}"
 />
 <link
   rel="stylesheet"
@@ -34,7 +34,7 @@
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='mpcfill-2') }}"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='face-tabs-1') }}"
 />
 <link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='gallery-feedback-5') }}">
 {% endblock %} {% block content %} {% set player = deckbuilder.human_player %}
@@ -219,15 +219,43 @@
         </button>
         {% endif %}
 
-        <button
-          type="button"
-          id="deckbuilderOpenPrintExportButton"
-          class="action-button deckbuilder-action-button"
-          title="Print or Export Deck"
-          aria-label="Print or Export Deck"
-        >
-          Print / Export
-        </button>
+        <div class="deckbuilder-print-split">
+          <button
+            type="button"
+            id="deckbuilderOpenPrintExportButton"
+            class="action-button deckbuilder-print-main-button"
+            title="Print or Export Deck"
+            aria-label="Print or Export Deck"
+          >
+            Print / Export
+          </button>
+
+          <button
+            type="button"
+            id="deckbuilderPrintExportMenuButton"
+            class="action-button deckbuilder-print-menu-button"
+            aria-label="Choose print or export options"
+            title="Choose print or export options"
+            aria-expanded="false"
+            aria-controls="deckbuilderPrintExportMenu"
+          >
+            ▾
+          </button>
+
+          <div
+            id="deckbuilderPrintExportMenu"
+            class="deckbuilder-print-menu hidden"
+          >
+            <button
+              type="button"
+              id="deckbuilderPrintSelectedButton"
+              class="deckbuilder-print-menu-item"
+              disabled
+            >
+              Print Selected
+            </button>
+          </div>
+        </div>
 
         <div class="deckbuilder-copy-split">
           <button
@@ -1361,7 +1389,7 @@
 
   {% include "_custom_card_modal.html" %}
   {% include "_alternate_image_modal.html" %}
-  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='mpcfill-2') }}"></script>
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='face-tabs-1') }}"></script>
   {% include "_deck_image_generator.html" %} {% include
   "_moxfield_sync_modal.html" %}
 
@@ -1555,8 +1583,8 @@
 <script src="{{ url_for('static', filename='js/moxfield_sync.js') }}"></script>
 
 <script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
-<script src="{{ url_for('static', filename='js/card_flip.js', v='shared-flip-2') }}"></script>
-<script src="{{ url_for('static', filename='js/deckbuilder.js', v='builder-auto-groups-4') }}"></script>
+<script src="{{ url_for('static', filename='js/card_flip.js', v='custom-backs-1') }}"></script>
+<script src="{{ url_for('static', filename='js/deckbuilder.js', v='builder-print-card-back-1') }}"></script>
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}

@@ -1,5 +1,6 @@
 # *** PRINT TEMPLATES - Load Templates and Calculate Page Layouts ***
 import configparser
+import math
 import os
 import re
 import threading
@@ -1348,11 +1349,19 @@ def _read_rendering_settings(
             "corner_radius_mm": 0.0,
             "round_the_corners": False,
             "draw_row_cut_lines": False,
+            "row_cut_line_width_mm": None,
             "draw_side_guide_lines": False,
             "uses_fixed_inner_margin": False,
         }
 
+    row_cut_line_width_mm = _get_optional_float(parser, "Rendering", "Row_Cut_Line_Width_mm")
+    if row_cut_line_width_mm is not None and (
+        not math.isfinite(row_cut_line_width_mm) or row_cut_line_width_mm <= 0
+    ):
+        raise ValueError("[Rendering] Row_Cut_Line_Width_mm must be a positive finite number or blank.")
+
     return {
+        "row_cut_line_width_mm": row_cut_line_width_mm,
         "add_edge_bleed_border": (
             _get_bool(
                 parser,

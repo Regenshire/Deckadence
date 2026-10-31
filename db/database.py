@@ -610,6 +610,10 @@ class AlternateImageRepository:
         normalized_face = (face_kind or "single").strip().lower()
         if normalized_face not in {"single", "front", "back"}:
             normalized_face = "single"
+        # Single is a legacy front image, never a replacement for the reverse.
+        fallback_face = "front" if normalized_face == "single" else "single"
+        if normalized_face == "back":
+            fallback_face = "back"
 
         identities = []
         if card.get("card_uuid"):
@@ -630,7 +634,7 @@ class AlternateImageRepository:
                 FROM {self._table}
                 WHERE {self._scope_filter}is_enabled = 1
                   AND {identity_sql}
-                  AND face_kind IN (?, 'single')
+                  AND face_kind IN (?, ?)
                 ORDER BY
                     CASE WHEN face_kind = ? THEN 0 ELSE 1 END,
                     alternate_source_id DESC
@@ -638,6 +642,7 @@ class AlternateImageRepository:
                 """,
                 self._scope_parameters + identity_parameters + (
                     normalized_face,
+                    fallback_face,
                     normalized_face,
                 ),
             ).fetchone()

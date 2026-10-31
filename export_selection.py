@@ -136,11 +136,14 @@ class ExportSelection:
 
     def includes_table(self, table):
         return (table == "chaos_pack_art" and (self.enabled("custom_sets") or self.enabled("packs"))
+                or table == "app_config" and self.enabled("card_backs") and not getattr(self, "scope", None)
                 or self.enabled(self.group(table)) or bool(self.required.get(table))
                 or table in self.PACKS and bool(self.required.get("tracked_chaos_packs")))
 
     # *** EXPORT FILTERS - Check Which Records to Include ***
     def allows(self, table, row):
+        if table == "app_config" and row.get("config_key") == "card_back_library":
+            return self.enabled("config_settings") or self.enabled("card_backs") and not getattr(self, "scope", None)
         if table == "custom_cards":
             # Original artwork is a catalogue dependency even when alternate
             # images are excluded from a deck/set/pack export.

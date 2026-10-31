@@ -1,5 +1,7 @@
 # *** CARD BACKS - Select, Upload, and Draw Card Backs ***
 import os
+import json
+import re
 from collections import Counter
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps
@@ -16,6 +18,168 @@ BUILTIN_CARD_BACK_PREFIX = "builtin:"
 CUSTOM_CARD_BACK_PREFIX = "custom:"
 
 CUSTOM_CARD_BACK_FULLBLEED_DIRNAME = "fullbleed"
+CARD_BACK_LIBRARY_CONFIG_KEY = "card_back_library"
+UNASSIGNED_CARD_BACK_FOLDER = "Uncategorized"
+DEFAULT_CARD_BACK_FOLDERS = ("Deckadence", "Classic", "Trek", UNASSIGNED_CARD_BACK_FOLDER)
+# Retain selections made before Classic Dots became part of the included library.
+INCLUDED_CARD_BACK_ALIASES = {"custom:Classic_Dots.png": "builtin:02 - Classic Dots.png"}
+BUILTIN_CARD_BACK_FOLDERS = {"02 - Classic Dots.png": "Classic"}
+
+
+def normalize_card_back_name(value):
+    if not isinstance(value, str) or not value.strip() or len(value.strip()) > 100 or re.search(r'[\x00-\x1f\x7f]', value):
+        raise ValueError("Enter a card-back name of 1–100 characters.")
+    return value.strip()
+
+
+def normalize_card_back_folder(value):
+    """Library folders are independent of asset keys, so moving a back is safe."""
+    if not isinstance(value, str):
+        raise ValueError("Choose a valid folder name.")
+    parts = [part.strip() for part in value.split("/")]
+    if (not 1 <= len(parts) <= 4 or len(value) > 180 or
+            any(not part or len(part) > 60 or part in {".", ".."} or
+                re.search(r'[\\<>:"|?*\x00-\x1f]', part) for part in parts)):
+        raise ValueError("Use folder names of 1–60 characters, with up to four levels.")
+    return "/".join(parts)
+
+
+def load_card_back_library(value=None):
+    if isinstance(value, str):
+        if len(value) > 1_000_000:
+            raise ValueError("The card-back folder library is too large.")
+        try:
+            value = json.loads(value) if value else {}
+        except ValueError as exc:
+            raise ValueError("The saved card-back folder library could not be read.") from exc
+    value = value or {}
+    if not isinstance(value, dict):
+        raise ValueError("Invalid card-back folder library.")
+    folders, assignments, labels = value.get("folders", []), value.get("assignments", []), value.get("labels", [])
+    defaults = value.get("folder_defaults", [])
+    if not isinstance(folders, list) or len(folders) > 200 or not isinstance(assignments, list) or len(assignments) > 10000 or not isinstance(labels, list) or len(labels) > 10000 or not isinstance(defaults, list) or len(defaults) > 200:
+        raise ValueError("Invalid card-back folder library.")
+    names = {name.casefold(): name for name in DEFAULT_CARD_BACK_FOLDERS}
+    def add(value):
+        path = normalize_card_back_folder(value)
+        parent = []
+        for part in path.split("/"):
+            proposed = "/".join([*parent, part])
+            path = names.setdefault(proposed.casefold(), proposed)
+            parent = path.split("/")
+        return path
+    for name in folders:
+        add(name)
+    entries = {}
+    for item in assignments:
+        if not isinstance(item, dict) or not isinstance(item.get("key"), str) or not item["key"].startswith((BUILTIN_CARD_BACK_PREFIX, CUSTOM_CARD_BACK_PREFIX)):
+            raise ValueError("Invalid card-back folder assignment.")
+        entries[item["key"]] = add(item.get("folder"))
+    folder_defaults = {}
+    for item in defaults:
+        if not isinstance(item, dict) or not isinstance(item.get("key"), str) or not item["key"].startswith((BUILTIN_CARD_BACK_PREFIX, CUSTOM_CARD_BACK_PREFIX)):
+            raise ValueError("Invalid folder default card back.")
+        folder_defaults[add(item.get("folder"))] = item["key"]
+    if len(names) > 200:
+        raise ValueError("Use at most 200 card-back folders.")
+    custom_labels = {}
+    for item in labels:
+        if not isinstance(item, dict) or not isinstance(item.get("key"), str) or not item["key"].startswith((CUSTOM_CARD_BACK_PREFIX, BUILTIN_CARD_BACK_PREFIX)):
+            raise ValueError("Invalid custom card-back name.")
+        custom_labels[item["key"]] = normalize_card_back_name(item.get("label"))
+    return {"folders": sorted(names.values(), key=card_back_folder_sort_key),
+            "assignments": [{"key": key, "folder": folder} for key, folder in entries.items()],
+            "labels": [{"key": key, "label": label} for key, label in custom_labels.items()],
+            "folder_defaults": [{"folder": folder, "key": key} for folder, key in folder_defaults.items()]}
+
+
+def card_back_folder_sort_key(path):
+    parts = path.split("/")
+    root = parts[0]
+    rank = DEFAULT_CARD_BACK_FOLDERS.index(root) if root in DEFAULT_CARD_BACK_FOLDERS else len(DEFAULT_CARD_BACK_FOLDERS)
+    return (rank, *[part.casefold() for part in parts])
+
+
+def card_back_folders(options, library=None):
+    library = load_card_back_library(library)
+    defaults = {"Deckadence": DEFAULT_CARD_BACK_KEY}
+    defaults.update({item["folder"]: item["key"] for item in library["folder_defaults"]})
+    def default_key(path):
+        cards = [option for option in options if option["folder"] == path]
+        preferred = defaults.get(path)
+        return next((option["key"] for option in cards if option["key"] == preferred or preferred in option.get("legacy_keys", [])), cards[0]["key"] if cards else "")
+    names = set(library["folders"])
+    for option in options:
+        parts = option["folder"].split("/")
+        names.update("/".join(parts[:i]) for i in range(1, len(parts) + 1))
+    return [{"path": path, "name": path.rsplit("/", 1)[-1],
+             "parent": path.rpartition("/")[0],
+             "default_key": default_key(path),
+             "count": sum(option["folder"] == path for option in options),
+             "total_count": sum(option["folder"] == path or option["folder"].startswith(path + "/") for option in options)}
+            for path in sorted(names, key=card_back_folder_sort_key)]
+
+
+def update_card_back_library(value, action, folder, options, key=None):
+    library = load_card_back_library(value)
+    path = normalize_card_back_folder(folder)
+    existing = {item["path"].casefold(): item["path"] for item in card_back_folders(options, library)}
+    if action == "create":
+        if path.casefold() in existing:
+            raise ValueError("A folder with that name already exists.")
+        if len(existing) >= 200:
+            raise ValueError("Use at most 200 card-back folders.")
+        library["folders"].append(path)
+    elif action == "move":
+        if path.casefold() not in existing:
+            raise ValueError("Choose an existing destination folder.")
+        if not any(option["key"] == key for option in options):
+            raise ValueError("That card back is no longer available.")
+        library["assignments"] = [item for item in library["assignments"] if item["key"] != key]
+        library["assignments"].append({"key": key, "folder": existing[path.casefold()]})
+        library["folder_defaults"] = [item for item in library["folder_defaults"] if item["key"] != key or item["folder"] == existing[path.casefold()]]
+    else:
+        raise ValueError("Choose a valid folder action.")
+    return load_card_back_library(library)
+
+
+def set_card_back_folder_default(value, key, options):
+    library = load_card_back_library(value)
+    option = next((item for item in options if item["key"] == key), None)
+    if not option:
+        raise ValueError("That card back is no longer available.")
+    folder = option["folder"]
+    library["folder_defaults"] = [item for item in library["folder_defaults"] if item["folder"] != folder]
+    library["folder_defaults"].append({"folder": folder, "key": key})
+    return load_card_back_library(library)
+
+
+def rename_custom_card_back(value, key, name, options):
+    library = load_card_back_library(value)
+    option = next((item for item in options if item["key"] == key), None)
+    if not option or option["source"] != "custom":
+        raise ValueError("Only custom uploaded card backs can be renamed.")
+    name = normalize_card_back_name(name)
+    library["labels"] = [item for item in library["labels"] if item["key"] != key]
+    library["labels"].append({"key": key, "label": name})
+    return load_card_back_library(library)
+
+
+def _card_back_files(root):
+    """Find real images in subfolders, excluding bleed masters and linked paths."""
+    real_root = os.path.realpath(root)
+    def inside(path):
+        try:
+            return os.path.commonpath([real_root, os.path.realpath(path)]) == real_root
+        except ValueError:
+            return False
+    for directory, folders, files in os.walk(root, followlinks=False):
+        folders[:] = sorted(name for name in folders if not name.startswith(".") and
+                            name.casefold() != "fullbleed" and not os.path.islink(os.path.join(directory, name)) and inside(os.path.join(directory, name)))
+        for name in sorted(files, key=str.casefold):
+            path = os.path.join(directory, name)
+            if not name.startswith(".") and _is_supported_image_filename(name) and inside(path) and not os.path.islink(path):
+                yield os.path.relpath(path, root).replace("\\", "/"), path
 
 LABEL_CARD_BACKS = {
     "10 - Deckadence Label Back - White.png": ("Deckadence - White", "#51452f"),
@@ -37,7 +201,7 @@ def resolve_label_card_back_option(raw_key, static_dir, runtime_card_back_dir):
     if not options:
         raise ValueError("No label-compatible card backs are available.")
     fallback = next((option for option in options if option["key"] == DEFAULT_LABEL_CARD_BACK_KEY), options[0])
-    return next((option for option in options if option["key"] == raw_key), fallback)
+    return next((option for option in options if option["key"] == raw_key or raw_key in option.get("legacy_keys", [])), fallback)
 
 
 def sample_card_back_border_color(image):
@@ -232,87 +396,58 @@ def _remove_known_card_back_bleed(
 
 
 # *** CARD BACK CHOICES - List and Select Card Backs ***
-def list_card_back_options(static_dir, runtime_card_back_dir):
-    options = []
+def list_card_back_options(static_dir, runtime_card_back_dir, library=None):
+    library = load_card_back_library(library)
+    assignments = {item["key"]: item["folder"] for item in library["assignments"]}
+    labels = {item["key"]: item["label"] for item in library["labels"]}
     builtin_dir = get_builtin_card_back_dir(static_dir)
-
-    if os.path.isdir(builtin_dir):
-        for filename in sorted(os.listdir(builtin_dir), key=str.casefold):
-            absolute_path = os.path.join(builtin_dir, filename)
-
-            if not os.path.isfile(absolute_path):
+    aliases = {old: new for old, new in INCLUDED_CARD_BACK_ALIASES.items()
+               if os.path.isfile(os.path.join(builtin_dir, new.split(":", 1)[1]))}
+    options = []
+    for source, root in (("builtin", get_builtin_card_back_dir(static_dir)), ("custom", runtime_card_back_dir)):
+        for filename, absolute_path in _card_back_files(root):
+            key = source + ":" + filename
+            if key in aliases:
                 continue
-
-            if not _is_supported_image_filename(filename):
-                continue
-
-            label_info = LABEL_CARD_BACKS.get(filename)
-            fullbleed_path = os.path.join(builtin_dir, "fullbleed", filename)
-            has_bleed = bool(label_info and os.path.isfile(fullbleed_path))
+            legacy_keys = [old for old, new in aliases.items() if new == key]
+            basename = filename.rsplit("/", 1)[-1]
+            label_info = LABEL_CARD_BACKS.get(basename) if source == "builtin" else None
+            fullbleed_path = os.path.join(root, "fullbleed", *filename.split("/"))
+            if not os.path.isfile(fullbleed_path):
+                fullbleed_path = os.path.join(os.path.dirname(absolute_path), "fullbleed", basename)
+            has_bleed = False
+            if os.path.isfile(fullbleed_path):
+                try:
+                    has_bleed = os.path.commonpath([os.path.realpath(root), os.path.realpath(fullbleed_path)]) == os.path.realpath(root)
+                except ValueError:
+                    pass
+            folder = filename.rpartition("/")[0]
+            if not folder:
+                folder = UNASSIGNED_CARD_BACK_FOLDER if source == "custom" else "Trek" if "Star Trek Back" in basename else "Deckadence"
+                if source == "builtin":
+                    folder = BUILTIN_CARD_BACK_FOLDERS.get(filename, folder)
+            folder = next((assignments[old] for old in legacy_keys if old in assignments), folder)
+            try:
+                folder = normalize_card_back_folder(folder)
+            except ValueError:
+                folder = "Deckadence"
+            label = label_info[0] if label_info else re.sub(r"^\d+\s*-\s*", "", os.path.splitext(basename)[0]).replace("_", " ")
+            if source == "custom":
+                label = labels.get(key, label)
             options.append({
-                "key": f"{BUILTIN_CARD_BACK_PREFIX}{filename}",
-                "filename": filename,
-                "label": label_info[0] if label_info else os.path.splitext(filename)[0],
-                "source": "builtin",
+                "key": key, "filename": filename, "label": label, "source": source,
+                "legacy_keys": legacy_keys,
+                "folder": assignments.get(key, folder),
                 "absolute_path": absolute_path,
                 "fullbleed_absolute_path": fullbleed_path if has_bleed else "",
                 "print_master_absolute_path": fullbleed_path if has_bleed else absolute_path,
                 "source_has_real_bleed": has_bleed,
-                "source_bleed_mm": 3.0 if has_bleed else 0.0,
+                "source_bleed_mm": CUSTOM_CARD_BACK_FULLBLEED_MM if has_bleed else 0.0,
                 "supports_labels": True,
                 "label_style": "insert_panel" if label_info else "border_bar",
                 "label_color": label_info[1] if label_info else "",
                 "label_font_path": os.path.join(static_dir, "fonts", "Gotham-Medium.otf"),
             })
-
-    if os.path.isdir(runtime_card_back_dir):
-        for filename in sorted(os.listdir(runtime_card_back_dir), key=str.casefold):
-            absolute_path = os.path.join(runtime_card_back_dir, filename)
-
-            if not os.path.isfile(absolute_path):
-                continue
-
-            if not _is_supported_image_filename(filename):
-                continue
-
-            fullbleed_absolute_path = os.path.join(
-                get_custom_card_back_fullbleed_dir(
-                    runtime_card_back_dir
-                ),
-                filename,
-            )
-
-            source_has_real_bleed = os.path.isfile(
-                fullbleed_absolute_path
-            )
-
-            options.append({
-                "key": f"{CUSTOM_CARD_BACK_PREFIX}{filename}",
-                "filename": filename,
-                "label": os.path.splitext(filename)[0].replace("_", " "),
-                "source": "custom",
-                "absolute_path": absolute_path,
-                "fullbleed_absolute_path": (
-                    fullbleed_absolute_path
-                    if source_has_real_bleed
-                    else ""
-                ),
-                "print_master_absolute_path": (
-                    fullbleed_absolute_path
-                    if source_has_real_bleed
-                    else absolute_path
-                ),
-                "source_has_real_bleed": source_has_real_bleed,
-                "source_bleed_mm": (
-                    CUSTOM_CARD_BACK_FULLBLEED_MM
-                    if source_has_real_bleed
-                    else 0.0
-                ),
-                "supports_labels": True,
-                "label_style": "border_bar",
-                "label_font_path": os.path.join(static_dir, "fonts", "Gotham-Medium.otf"),
-            })
-
     return options
 
 
@@ -330,16 +465,20 @@ def _find_card_back_option(raw_key, static_dir, runtime_card_back_dir):
 
     if clean_key in option_by_key:
         return option_by_key[clean_key]
+    for option in options:
+        if clean_key in option.get("legacy_keys", []):
+            return option
 
     # Compatibility for a plain filename value if one was saved manually or
     # by an older development build before source prefixes were introduced.
-    basename = os.path.basename(clean_key)
-
-    for prefix in (BUILTIN_CARD_BACK_PREFIX, CUSTOM_CARD_BACK_PREFIX):
-        legacy_key = f"{prefix}{basename}"
-
-        if legacy_key in option_by_key:
-            return option_by_key[legacy_key]
+    prefix, separator, name = clean_key.partition(":")
+    source = prefix if separator and prefix in {"builtin", "custom"} else None
+    name = name if source else clean_key
+    if "/" not in name and "\\" not in name:
+        matches = [option for option in options if option["filename"].rsplit("/", 1)[-1] == name
+                   and (not source or option["source"] == source)]
+        if len(matches) == 1:
+            return matches[0]
 
     return None
 
@@ -605,8 +744,8 @@ def delete_custom_card_back(
 
     if (
         not custom_filename
-        or custom_filename
-        != os.path.basename(custom_filename)
+        or "\\" in custom_filename
+        or any(part in {"", ".", "..", "fullbleed"} for part in custom_filename.split("/"))
     ):
         raise ValueError(
             "The custom card back filename is invalid."
