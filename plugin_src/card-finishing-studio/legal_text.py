@@ -137,18 +137,24 @@ def detect_lines(image):
             protected.append(record)
     # Recognition can split off a tiny trademark prefix. Only join a literal
     # legal marker on the same baseline, immediately beside an accepted notice.
+    # OCR boxes can slightly overlap even when the printed glyphs are separate.
     for record in protected[:]:
-        if not re.fullmatch(r'[™®©Ⓒ&\s.]*|(?:TM)[™®©Ⓒ&\s.]*', record['text'], re.I):
+        if (not re.fullmatch(r'[™®©Ⓒ&\s.]*|(?:TM)[™®©Ⓒ&\s.]*', record['text'], re.I)
+                or not legal_geometry(record['points'], width, height, min_width=.005)):
             continue
         xs, ys = zip(*record['points'])
         for line in accepted:
             lx, ly = zip(*line['points'])
-            if (0 <= min(lx)-max(xs) <= width*.025 and min(xs) >= width*.54
-                    and min(ys) >= height*.928 and max(ys) <= height*.987
-                    and max(ys)-min(ys) <= height*.021
+            overlap = min((max(xs)-min(xs))*.4, (max(ys)-min(ys))*.75)
+            gap = min(lx)-max(xs)
+            if (-overlap <= gap <= width*.025 and min(xs) < min(lx)
+                    and (gap >= 0 or record['confidence'] >= .65)
                     and abs((min(ys)+max(ys))-(min(ly)+max(ly))) < height*.008):
-                line['points'] = [[min(xs), min(min(ys),min(ly))], [max(lx), min(min(ys),min(ly))],
-                                  [max(lx), max(max(ys),max(ly))], [min(xs), max(max(ys),max(ly))]]
+                points = [[min(xs), min(min(ys),min(ly))], [max(lx), min(min(ys),min(ly))],
+                          [max(lx), max(max(ys),max(ly))], [min(xs), max(max(ys),max(ly))]]
+                if not legal_geometry(points, width, height):
+                    continue
+                line['points'] = points
                 protected.remove(record)
                 break
     return accepted, protect_stats(protected)
