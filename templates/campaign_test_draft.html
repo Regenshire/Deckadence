@@ -87,8 +87,8 @@
                     type="button"
                     id="campaignTestDraftStatsButton"
                     class="campaign-test-draft-icon-button"
-                    title="Stats"
-                    aria-label="Stats"
+                    title="Analysis"
+                    aria-label="Analysis"
                 >
                     <i class="fa-solid fa-chart-simple"></i>
                 </button>
@@ -585,31 +585,8 @@
         </div>
     </div>
 
-    <div id="campaignTestDraftStatsModal" class="campaign-add-pack-modal hidden" aria-hidden="true">
-        <div id="campaignTestDraftStatsBackdrop" class="campaign-add-pack-backdrop"></div>
-
-        <div class="campaign-add-pack-dialog campaign-test-draft-stats-dialog" role="dialog" aria-modal="true" aria-labelledby="campaignTestDraftStatsTitle">
-            <div class="campaign-add-pack-header">
-                <div>
-                    <h2 id="campaignTestDraftStatsTitle" class="campaign-add-pack-title">Draft Stats</h2>
-                    <p class="campaign-add-pack-subtitle">
-                        View stats for the current pack during drafting, or the full draft pool after the draft is complete.
-                    </p>
-                </div>
-
-                <button
-                    type="button"
-                    id="campaignTestDraftStatsCloseButton"
-                    class="campaign-add-pack-close-button"
-                    aria-label="Close Draft Stats"
-                >
-                    ×
-                </button>
-            </div>
-
-            <div id="campaignTestDraftStatsBody" class="campaign-test-draft-stats-body"></div>
-        </div>
-    </div>
+    {% include "_stats_modal.html" %}
+    <script src="{{ url_for('static', filename='js/stats_modal.js', v='analysis-multicolor-3') }}"></script>
 
     <div id="campaignTestDraftVirtualUsersModal" class="campaign-add-pack-modal hidden" aria-hidden="true">
         <div id="campaignTestDraftVirtualUsersBackdrop" class="campaign-add-pack-backdrop"></div>
@@ -619,7 +596,7 @@
                 <div>
                     <h2 id="campaignTestDraftVirtualUsersTitle" class="campaign-add-pack-title campaign-test-draft-virtual-title">Virtual Users</h2>
                     <p class="campaign-add-pack-subtitle">
-                        Review virtual drafter picks by player, including pack/pick order and draft stats.
+                        Review virtual drafter picks by player, including pack/pick order and card analysis.
                     </p>
                 </div>
 
@@ -673,10 +650,9 @@
                     <button
                         type="button"
                         id="campaignTestDraftVirtualStatsToggleButton"
-                        class="campaign-test-draft-zone-view-button campaign-test-draft-zone-view-button-active"
-                        title="Toggle Stats"
-                        aria-label="Toggle Virtual User Stats"
-                        aria-pressed="true"
+                        class="campaign-test-draft-zone-view-button"
+                        title="Analyze virtual drafter pool"
+                        aria-label="Analyze virtual drafter pool"
                     >
                         <i class="fa-solid fa-chart-simple"></i>
                     </button>
@@ -714,15 +690,6 @@
             </div>
 
             <div id="campaignTestDraftVirtualSummary" class="campaign-test-draft-virtual-summary"></div>
-
-            <section id="campaignTestDraftVirtualStatsPanel" class="campaign-test-draft-virtual-stats-panel">
-                <div class="campaign-test-draft-virtual-section-title-row">
-                    <h3>Stats</h3>
-                    <span>Current virtual drafter pool</span>
-                </div>
-
-                <div id="campaignTestDraftVirtualStatsBody" class="campaign-test-draft-stats-body"></div>
-            </section>
 
             <div class="campaign-test-draft-virtual-section-title-row campaign-test-draft-virtual-selected-title-row">
                 <h3>Selected Cards</h3>
@@ -823,10 +790,6 @@
     const zoomBackdrop = document.getElementById("campaignTestDraftZoomBackdrop");
     const zoomImage = document.getElementById("campaignTestDraftZoomImage");
     const statsButton = document.getElementById("campaignTestDraftStatsButton");
-    const statsModal = document.getElementById("campaignTestDraftStatsModal");
-    const statsBackdrop = document.getElementById("campaignTestDraftStatsBackdrop");
-    const statsCloseButton = document.getElementById("campaignTestDraftStatsCloseButton");
-    const statsBody = document.getElementById("campaignTestDraftStatsBody");
 
     const virtualUsersButton = document.getElementById("campaignTestDraftVirtualUsersButton");
     const virtualUsersModal = document.getElementById("campaignTestDraftVirtualUsersModal");
@@ -841,8 +804,6 @@
     const virtualGridViewButton = document.getElementById("campaignTestDraftVirtualGridViewButton");
     const virtualStackViewButton = document.getElementById("campaignTestDraftVirtualStackViewButton");
     const virtualSummary = document.getElementById("campaignTestDraftVirtualSummary");
-    const virtualStatsPanel = document.getElementById("campaignTestDraftVirtualStatsPanel");
-    const virtualStatsBody = document.getElementById("campaignTestDraftVirtualStatsBody");
     const virtualSelectedCount = document.getElementById("campaignTestDraftVirtualSelectedCount");
     const virtualCards = document.getElementById("campaignTestDraftVirtualCards");
     const deckList = document.getElementById("campaignTestDraftDeckList");
@@ -1192,242 +1153,42 @@
         return "Other";
     }
 
-        function getStatsDisplayLabel(groupTitle, rawKey) {
-        const cleanTitle = String(groupTitle || "").trim().toLowerCase();
-        const cleanKey = String(rawKey || "").trim();
-        const normalizedKey = cleanKey.toLowerCase();
-
-        if (cleanTitle === "rarity") {
-            const rarityLabels = {
-                "common": "Common",
-                "uncommon": "Uncommon",
-                "rare": "Rare",
-                "mythic": "Mythic"
-            };
-
-            return rarityLabels[normalizedKey] || cleanKey;
-        }
-
-        if (cleanTitle === "color") {
-            const colorLabels = {
-                "white": "White",
-                "blue": "Blue",
-                "black": "Black",
-                "red": "Red",
-                "green": "Green",
-                "multicolor": "Multicolor",
-                "colorless": "Colorless",
-                "w": "White",
-                "u": "Blue",
-                "b": "Black",
-                "r": "Red",
-                "g": "Green",
-                "m": "Multicolor",
-                "c": "Colorless"
-            };
-
-            return colorLabels[normalizedKey] || cleanKey;
-        }
-
-        return cleanKey;
-    }
-
-    function getStatsSortRank(groupTitle, rawKey) {
-        const cleanTitle = String(groupTitle || "").trim().toLowerCase();
-        const normalizedKey = String(rawKey || "").trim().toLowerCase();
-
-        if (cleanTitle === "rarity") {
-            const rarityOrder = {
-                "common": 1,
-                "uncommon": 2,
-                "rare": 3,
-                "mythic": 4
-            };
-
-            return rarityOrder[normalizedKey] || 999;
-        }
-
-        if (cleanTitle === "color") {
-            const colorOrder = {
-                "white": 1,
-                "w": 1,
-                "blue": 2,
-                "u": 2,
-                "black": 3,
-                "b": 3,
-                "red": 4,
-                "r": 4,
-                "green": 5,
-                "g": 5,
-                "multicolor": 6,
-                "m": 6,
-                "colorless": 7,
-                "c": 7
-            };
-
-            return colorOrder[normalizedKey] || 999;
-        }
-
-        return 999;
-    }
-
-    function getStatsSortedKeys(groupTitle, counts) {
-        return Object.keys(counts || {}).sort(function (a, b) {
-            const aRank = getStatsSortRank(groupTitle, a);
-            const bRank = getStatsSortRank(groupTitle, b);
-
-            if (aRank !== bRank) {
-                return aRank - bRank;
+    let analysisSource = "draft";
+    const draftAnalysis = window.DeckadenceAnalysis.init({
+        context: () => analysisSource === "virtual" ? "Deck" : isDraftComplete() ? "Set" : "Pack",
+        defaultCount: "copies",
+        allowFiltered: false,
+        getSubtitle: () => analysisSource === "virtual"
+            ? (lastVirtualUsersPayload?.selected_player?.display_name || "Virtual drafter") + " · Draft pool"
+            : isDraftComplete() ? "Full draft pool" : "Current draft pack",
+        beforeOpen: hidePickedCardHoverPreview,
+        getCards: async () => {
+            if (analysisSource === "virtual") return lastVirtualUsersPayload?.picked_cards || [];
+            if (isDraftComplete() && fullStatsUrl) {
+                const response = await fetch(fullStatsUrl, {headers: {Accept: "application/json"}});
+                const payload = await response.json();
+                if (!response.ok || !payload.ok) throw new Error(payload.message || "Could not load the full draft pool.");
+                return payload.analysis_cards || [];
             }
-
-            const aNumber = parseFloat(a);
-            const bNumber = parseFloat(b);
-
-            if (Number.isFinite(aNumber) && Number.isFinite(bNumber)) {
-                return aNumber - bNumber;
-            }
-
-            return String(a).localeCompare(String(b));
-        });
-    }
-
-    function renderGroupedStatsPanel(options) {
-        if (!statsBody) {
-            return;
-        }
-
-        const totalLabel = options.totalLabel || "Cards";
-        const totalCount = options.totalCount || 0;
-        const rarityCounts = options.rarityCounts || {};
-        const typeCounts = options.typeCounts || {};
-        const manaCounts = options.manaCounts || {};
-        const colorCounts = options.colorCounts || {};
-        const extraSummary = options.extraSummary || "";
-
-        function renderGroup(title, counts) {
-            const keys = getStatsSortedKeys(title, counts);
-
-            if (!keys.length) {
-                return "";
-            }
-
-            return (
-                '<div class="campaign-test-draft-stat-group">' +
-                    '<h3>' + escapeHtml(title) + '</h3>' +
-                    keys.map(function (key) {
-                        return '<div class="campaign-test-draft-stat-row"><span>' + escapeHtml(getStatsDisplayLabel(title, key)) + '</span><strong>' + escapeHtml(counts[key]) + '</strong></div>';
-                    }).join("") +
-                '</div>'
-            );
-        }
-
-        statsBody.innerHTML =
-            '<div class="campaign-test-draft-stats-summary">' +
-                '<div class="campaign-test-draft-stat-total"><span>' + escapeHtml(totalLabel) + '</span><strong>' + escapeHtml(totalCount) + '</strong></div>' +
-                extraSummary +
-            '</div>' +
-            '<div class="campaign-test-draft-stats-grid">' +
-                renderGroup("Rarity", rarityCounts) +
-                renderGroup("Type", typeCounts) +
-                renderGroup("Mana Value", manaCounts) +
-                renderGroup("Color", colorCounts) +
-            '</div>';
-    }
-
-    function renderStats() {
-        if (!statsBody) {
-            return;
-        }
-
-        const cards = getVisibleCardElements();
-        const rarityCounts = {};
-        const typeCounts = {};
-        const manaCounts = {};
-
-        cards.forEach(function (cardElement) {
-            const rarity = cardElement.dataset.cardRarity || "unknown";
-            const primaryType = getPrimaryType(cardElement.dataset.cardTypeLine || "");
-            const manaValue = cardElement.dataset.cardManaValue || "—";
-
-            rarityCounts[rarity] = (rarityCounts[rarity] || 0) + 1;
-            typeCounts[primaryType] = (typeCounts[primaryType] || 0) + 1;
-            manaCounts[manaValue] = (manaCounts[manaValue] || 0) + 1;
-        });
-
-        renderGroupedStatsPanel({
-            totalLabel: "Current Pack Cards",
-            totalCount: cards.length,
-            rarityCounts: rarityCounts,
-            typeCounts: typeCounts,
-            manaCounts: manaCounts,
-            colorCounts: {}
-        });
-    }
-
-    async function renderFullDraftStats() {
-        if (!fullStatsUrl) {
-            renderStats();
-            return;
-        }
-
-        const response = await fetch(fullStatsUrl, {
-            method: "GET",
-            headers: {
-                "Accept": "application/json",
-                "X-Requested-With": "XMLHttpRequest"
-            }
-        });
-
-        const payload = await response.json();
-
-        if (!response.ok || !payload.ok) {
-            throw new Error(payload.message || "Could not load full draft stats.");
-        }
-
-        renderGroupedStatsPanel({
-            totalLabel: "Full Draft Cards",
-            totalCount: payload.total_cards || 0,
-            rarityCounts: payload.rarity_counts || {},
-            typeCounts: payload.type_counts || {},
-            manaCounts: payload.mana_counts || {},
-            colorCounts: payload.color_counts || {},
-            extraSummary:
-                '<div class="campaign-test-draft-stat-total">' +
-                    '<span>Total Packs</span><strong>' + escapeHtml(payload.total_packs || 0) + '</strong>' +
-                '</div>'
-        });
-    }
-
-    function openStatsModal() {
-        if (!statsModal) {
-            return;
-        }
-
-        statsModal.classList.remove("hidden");
-        statsModal.setAttribute("aria-hidden", "false");
-
-        if (isDraftComplete()) {
-            renderFullDraftStats().catch(showDraftAjaxError);
-        } else {
-            renderStats();
-        }
-    }
-
-    function closeStatsModal() {
-        if (!statsModal) {
-            return;
-        }
-
-        statsModal.classList.add("hidden");
-        statsModal.setAttribute("aria-hidden", "true");
-    }
+            return getCardElements().map(card => ({
+                cardUuid: card.dataset.cardUuid,
+                cardName: card.dataset.cardName,
+                typeLine: card.dataset.cardTypeLine,
+                manaValue: card.dataset.cardManaValue,
+                manaCost: card.dataset.cardManaCost,
+                colorIdentity: card.dataset.cardColorIdentity,
+                entryId: card.dataset.draftTestPackCardId,
+            }));
+        },
+    });
+    function openStatsModal() { analysisSource = "draft"; draftAnalysis.open(); }
+    function closeStatsModal() { draftAnalysis.close(); }
 
     let virtualUsersViewMode = "list";
     let virtualUsersSortMode = "pick-asc";
     let draftCardSize = "auto";
     try { draftCardSize = localStorage.getItem("deckadence.testDraft.cardSize") || "auto"; } catch (_) {}
     let virtualUsersMaximized = false;
-    let virtualStatsVisible = true;
     let lastVirtualUsersPayload = null;
 
     function getVirtualUsersUrl(playerId) {
@@ -1450,65 +1211,6 @@
 
     function getVirtualCardPrimaryType(typeLine) {
         return getPrimaryType(typeLine);
-    }
-
-    function buildVirtualCardStats(cards) {
-        const rarityCounts = {};
-        const typeCounts = {};
-        const manaCounts = {};
-
-        (cards || []).forEach(function (card) {
-            const rarity = card.rarity || "unknown";
-            const primaryType = getVirtualCardPrimaryType(card.type_line || "");
-            const manaValue = card.mana_value !== null && card.mana_value !== undefined
-                ? String(card.mana_value)
-                : "—";
-
-            rarityCounts[rarity] = (rarityCounts[rarity] || 0) + 1;
-            typeCounts[primaryType] = (typeCounts[primaryType] || 0) + 1;
-            manaCounts[manaValue] = (manaCounts[manaValue] || 0) + 1;
-        });
-
-        return {
-            rarityCounts: rarityCounts,
-            typeCounts: typeCounts,
-            manaCounts: manaCounts,
-        };
-    }
-
-    function renderVirtualStats(cards) {
-        if (!virtualStatsBody) {
-            return;
-        }
-
-        const stats = buildVirtualCardStats(cards || []);
-
-        function renderGroup(title, counts) {
-            const keys = getStatsSortedKeys(title, counts);
-
-            if (!keys.length) {
-                return "";
-            }
-
-            return (
-                '<div class="campaign-test-draft-stat-group">' +
-                    '<h3>' + escapeHtml(title) + '</h3>' +
-                    keys.map(function (key) {
-                        return '<div class="campaign-test-draft-stat-row"><span>' + escapeHtml(getStatsDisplayLabel(title, key)) + '</span><strong>' + escapeHtml(counts[key]) + '</strong></div>';
-                    }).join("") +
-                '</div>'
-            );
-        }
-
-        virtualStatsBody.innerHTML =
-            '<div class="campaign-test-draft-stats-summary">' +
-                '<div class="campaign-test-draft-stat-total"><span>Selected Cards</span><strong>' + escapeHtml((cards || []).length) + '</strong></div>' +
-            '</div>' +
-            '<div class="campaign-test-draft-stats-grid">' +
-                renderGroup("Rarity", stats.rarityCounts) +
-                renderGroup("Type", stats.typeCounts) +
-                renderGroup("Mana Value", stats.manaCounts) +
-            '</div>';
     }
 
     function renderVirtualPlayerOptions(payload) {
@@ -1729,7 +1431,6 @@
             }
         }
 
-        renderVirtualStats(pickedCards);
 
         if (virtualSelectedCount) {
             virtualSelectedCount.textContent = String(pickedCards.length);
@@ -1920,20 +1621,6 @@
 
         if (virtualUsersViewMode === "stack") {
             buildVirtualStackColumns();
-        }
-    }
-
-    function setVirtualStatsVisible(isVisible) {
-        virtualStatsVisible = Boolean(isVisible);
-
-        if (virtualStatsPanel) {
-            virtualStatsPanel.classList.toggle("hidden", !virtualStatsVisible);
-        }
-
-        if (virtualStatsToggleButton) {
-            virtualStatsToggleButton.classList.toggle("campaign-test-draft-zone-view-button-active", virtualStatsVisible);
-            virtualStatsToggleButton.setAttribute("aria-pressed", virtualStatsVisible ? "true" : "false");
-            virtualStatsToggleButton.title = virtualStatsVisible ? "Hide Stats" : "Show Stats";
         }
     }
 
@@ -3099,13 +2786,7 @@
         statsButton.addEventListener("click", openStatsModal);
     }
 
-    if (statsBackdrop) {
-        statsBackdrop.addEventListener("click", closeStatsModal);
-    }
 
-    if (statsCloseButton) {
-        statsCloseButton.addEventListener("click", closeStatsModal);
-    }
 
     if (virtualUsersButton) {
         virtualUsersButton.addEventListener("click", openVirtualUsersModal);
@@ -3151,7 +2832,8 @@
 
     if (virtualStatsToggleButton) {
         virtualStatsToggleButton.addEventListener("click", function () {
-            setVirtualStatsVisible(!virtualStatsVisible);
+            analysisSource = "virtual";
+            draftAnalysis.open();
         });
     }
 
@@ -3268,7 +2950,7 @@
             return;
         }
 
-        if (statsModal && !statsModal.classList.contains("hidden")) {
+        if (draftAnalysis.isOpen()) {
             closeStatsModal();
         }
     });

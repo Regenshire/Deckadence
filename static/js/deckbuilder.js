@@ -1560,6 +1560,10 @@
   function getDeckbuilderStatsCardsForSharedModal() {
     return getDeckbuilderCards(deckList).map(function (cardElement) {
       return {
+        cardUuid: cardElement.dataset.cardUuid,
+        entryId: cardElement.dataset.deckCardId || cardElement.dataset.draftTestPickId,
+        filtered: deckbuilderCardMatchesDeckFilters(cardElement),
+        manaCost: cardElement.dataset.cardManaCost || "",
         cardName: String(cardElement.dataset.cardName || "").trim(),
         colorIdentity: parseDeckbuilderColorIdentity(
           cardElement.dataset.cardColorIdentity || "[]",
@@ -6225,10 +6229,8 @@
 
   const deckbuilderStatsModal = window.iMomirStatsModal.init({
     openButtonId: "deckbuilderStatsButton",
-    title: "Deck Stats",
-    subtitle: "Stats for the current main deck only.",
-    totalLabel: "Deck Cards",
-    averageManaValueExcludesLands: true,
+    context: "Deck",
+    getSubtitle: () => (document.getElementById("deckbuilderDeckNameInput")?.value || "Deck") + " · Main deck",
 
     beforeOpen: function () {
       hideHoverPreview();
@@ -6239,26 +6241,6 @@
 
     getCards: getDeckbuilderStatsCardsForSharedModal,
 
-    getSummaryItems: function (stats) {
-      return [
-        {
-          label: "Deck Cards",
-          value: stats.totalCards,
-        },
-        {
-          label: "Lands",
-          value: stats.landCount,
-        },
-        {
-          label: "Creatures",
-          value: stats.creatureCount,
-        },
-        {
-          label: "Average MV",
-          value: stats.averageManaValue.toFixed(1),
-        },
-      ];
-    },
   });
 
   const deckbuilderPrintExportModal = window.iMomirPrintExportModal.init({

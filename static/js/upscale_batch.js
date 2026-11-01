@@ -31,6 +31,7 @@
   let holofoilWrap = null;
   let holofoilSelect = null;
   let holofoilEnabled = false;
+  let legalTextControl = null;
 
   let replaceWrap = null;
   let replaceCheckbox = null;
@@ -264,6 +265,10 @@
     body.appendChild(inputWrap);
     body.appendChild(modelWrap);
     body.appendChild(holofoilWrap);
+    legalTextControl = window.LegalTextOptions.create({id: 'batchLegalReplacement'});
+    legalTextControl.field.classList.add('imomir-batch-upscale-model-wrap', 'hidden');
+    legalTextControl.select.classList.add('imomir-batch-upscale-model-select');
+    body.appendChild(legalTextControl.field);
     body.appendChild(replaceWrap);
     body.appendChild(alternateWrap);
     body.appendChild(progressWrap);
@@ -470,6 +475,8 @@
 
   // *** UPSCALER MODELS - Load Available Choices ***
   async function loadBatchModels() {
+    legalTextControl.field.classList.add('hidden');
+    legalTextControl.setDisabled(true);
     modelSelect.innerHTML = "";
     modelSelect.disabled = true;
     holofoilEnabled = false;
@@ -535,6 +542,9 @@
       }
 
       holofoilEnabled = Boolean(data.holofoil_stamp_enabled);
+      legalTextControl.setMetadata(data.legal_text);
+      legalTextControl.field.classList.remove('hidden');
+      legalTextControl.setDisabled(false);
 
       const defaultHolofoilReplacement = String(
         data.holofoil_stamp_replacement_default || "none",
@@ -639,6 +649,7 @@
   }
 
   function setProgressMode() {
+    legalTextControl.field.classList.add('hidden');
     inputWrap.classList.add("hidden");
 
     modelWrap.classList.add("hidden");
@@ -796,6 +807,7 @@
     saveAlternateSettings();
 
     payload.holofoil_emblem_options = window.HolofoilOptions.value(holofoilSelect);
+    Object.assign(payload, legalTextControl.payload());
     payload.holofoil_stamp_replacement = holofoilEnabled
       ? String(holofoilSelect.value || "none")
           .trim()

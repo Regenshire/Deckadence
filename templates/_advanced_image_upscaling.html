@@ -157,6 +157,21 @@
                     -->
                 </div>
 
+                <section id="upscalingLegalTextSettings" class="legal-text-settings">
+                    <h3>Legal disclaimer replacement</h3>
+                    <p>Keep, remove, or replace small legal text in the lower-right corner. Background color and texture are restored from nearby pixels; custom text matches the original ink and alignment. Uncertain detections are left unchanged.</p>
+                    <div data-legal-control></div>
+                    <div data-legal-custom hidden>
+                        <label for="upscalingLegalCustomText">Custom proxy text</label>
+                        <textarea id="upscalingLegalCustomText" rows="2" maxlength="100" spellcheck="false">PROXY • NOT FOR SALE</textarea>
+                        <small>One or two short lines, up to 100 characters. Text must fit the detected legal area.</small>
+                        <div class="legal-text-example"><span>PROXY CARD</span><span data-legal-example></span></div>
+                        <small>Example layout; colors are matched to each card.</small>
+                    </div>
+                    <button type="button" class="action-button secondary-button" data-legal-save>Save legal text defaults</button>
+                    <p role="status">Loading legal text settings…</p>
+                </section>
+
                 <section class="upscaling-maintenance-section">
                     <div class="upscaling-maintenance-section-header">
                         <div class="upscaling-maintenance-section-title">

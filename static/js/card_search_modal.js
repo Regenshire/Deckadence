@@ -362,6 +362,10 @@
 
   function initCardSearchModal(config) {
     config = config || {};
+    const imagePicker = typeof config.onSelectImage === "function";
+    const imageFaceField = getElement("customDraftImageFaceField");
+    const imageFaceSelect = getElement("customDraftImageFace");
+    let imageFaceCardUuid = "";
 
     const searchInput = getElement("customDraftCardSearchInput");
     const searchButton = getElement("customDraftCardSearchButton");
@@ -370,6 +374,8 @@
     const searchOverlay = getElement("customDraftCardSearchOverlay");
     const closeButton = getElement("customDraftCardSearchCloseButton");
     const maximizeButton = getElement("customDraftCardSearchMaximizeButton");
+    const switchSelectedPrintingsButton = getElement("customDraftSwitchSelectedPrintings");
+    let switchSelectedPrintings = false;
     const doneButton = getElement("customDraftCardSearchDoneButton");
     const moreOptionsButton = getElement("customDraftMoreOptionsButton");
     const moreOptionsMenu = getElement("customDraftMoreOptionsMenu");
@@ -380,6 +386,7 @@
     const addedCountLabel = getElement("customDraftSearchAddedCount");
     const seeAnyPrinting = getElement("customDraftSeeAnyPrinting");
     let addedThisSession = 0;
+    let switchedThisSession = 0;
     let searchOpener = null;
     let zoomOpener = null;
     let importedSearchCards = null;
@@ -425,8 +432,10 @@
     function updateAdvancedFilterCount() {
       const tags = window.DeckadenceCardTags?.values("search");
       const count = [searchManaOperatorFilter, searchManaValueFilter,
-        searchYearStartFilter, searchYearEndFilter, searchExcludeAddedFilter]
+        searchYearStartFilter, searchYearEndFilter, searchExcludeAddedFilter,
+        searchFullArtFilter, searchTextlessFilter, searchMultiplePrintingsFilter]
         .filter(field => field?.value).length + (searchDigitalFilter?.value !== "exclude" ? 1 : 0)
+        + getSelectedMultiSelectValues(searchFrameEffectsFilter).length
         + (tags?.include.length || 0) + (tags?.exclude.length || 0);
       const label = getElement("customDraftAdvancedFilterCount");
       if (label) label.textContent = count ? " (" + count + ")" : "";
@@ -434,7 +443,16 @@
 
     function recordAdded(count = 1) {
       addedThisSession += count;
-      if (addedCountLabel) addedCountLabel.textContent = addedThisSession + " card" + (addedThisSession === 1 ? "" : "s") + " added";
+      if (addedCountLabel) addedCountLabel.textContent = addedThisSession + " card" + (addedThisSession === 1 ? "" : "s") + " added" +
+        (switchedThisSession ? " · " + switchedThisSession + " printing" + (switchedThisSession === 1 ? "" : "s") + " switched" : "");
+    }
+
+    function setSwitchSelectedPrintings(enabled) {
+      switchSelectedPrintings = Boolean(enabled && !activeChangePrintingState && typeof config.getExistingPrintingTarget === "function");
+      switchSelectedPrintingsButton?.setAttribute("aria-checked", String(switchSelectedPrintings));
+      const stateLabel = switchSelectedPrintingsButton?.querySelector(".card-search-switch-state");
+      if (stateLabel) stateLabel.textContent = switchSelectedPrintings ? "On" : "Off";
+      syncPrintingSelections();
     }
 
     function searchArtworkUrl(raw, fullSize = false) {
@@ -455,12 +473,50 @@
     );
     const searchTypeFilter = getElement("customDraftSearchTypeFilter");
     const searchSetCodeFilter = getElement("customDraftSearchSetCodeFilter");
+    const recentSetsSelect = getElement("customDraftRecentSets");
+    const recentSetsField = getElement("customDraftRecentSetsField");
+    const recentSetsStorageKey = "deckadence.cardSearch.recentSets";
+    let recentSets = [];
+
+    function normalizeRecentSetValue(value) {
+      return typeof value === "string" ? [...new Set(value.split(",").map(code => code.trim().toUpperCase()).filter(Boolean))].join(", ") : "";
+    }
+
+    function renderRecentSets() {
+      if (!recentSetsSelect) return;
+      recentSetsSelect.replaceChildren(new Option("Recent sets…", ""));
+      recentSets.forEach(value => recentSetsSelect.add(new Option(value, value)));
+      recentSetsField?.classList.toggle("hidden", !recentSets.length);
+    }
+
+    function loadRecentSets() {
+      try {
+        const saved = JSON.parse(window.localStorage.getItem(recentSetsStorageKey) || "[]");
+        if (Array.isArray(saved)) recentSets = [...new Set(saved.map(normalizeRecentSetValue).filter(value => value && value.length <= 1000))].slice(0, 10);
+      } catch (_) {
+        // Keep this session's history when browser storage is unavailable.
+      }
+      renderRecentSets();
+    }
+
+    function rememberSearchSets(value) {
+      const normalized = normalizeRecentSetValue(value);
+      if (!normalized || normalized.length > 1000) return;
+      loadRecentSets();
+      recentSets = [normalized, ...recentSets.filter(item => item !== normalized)].slice(0, 10);
+      try { window.localStorage.setItem(recentSetsStorageKey, JSON.stringify(recentSets)); } catch (_) {}
+      renderRecentSets();
+    }
     const searchSortSelect = getElement("customDraftSearchSortSelect");
     const searchYearStartFilter = getElement(
       "customDraftSearchYearStartFilter",
     );
     const searchYearEndFilter = getElement("customDraftSearchYearEndFilter");
     const searchDigitalFilter = getElement("customDraftSearchDigitalFilter");
+    const searchFrameEffectsFilter = getElement("customDraftSearchFrameEffectsFilter");
+    const searchFullArtFilter = getElement("customDraftSearchFullArtFilter");
+    const searchTextlessFilter = getElement("customDraftSearchTextlessFilter");
+    const searchMultiplePrintingsFilter = getElement("customDraftSearchMultiplePrintingsFilter");
     const searchExcludeAddedFilter = getElement(
       "customDraftSearchExcludeAddedFilter",
     );
@@ -693,10 +749,10 @@
           activeChangePrintingState?.currentCardUuid === card.card_uuid) return;
       if (selectedCards.has(card.card_uuid)) selectedCards.delete(card.card_uuid);
       else {
-        if (activeChangePrintingState) selectedCards.clear();
-        // Custom sets accept one printing per name; choosing another replaces
-        // the pending choice, without changing any card already in the set.
-        if (config.addAllResultsUrl) {
+        if (activeChangePrintingState || imagePicker) selectedCards.clear();
+        // Replacement mode chooses one target per name. Collections may also
+        // accept several different printings of the same card in an Add batch.
+        if ((config.addAllResultsUrl && !config.allowMultiplePrintings) || switchSelectedPrintings) {
           for (const [uuid, selected] of selectedCards) {
             if (String(selected.card_name).toLowerCase() === String(card.card_name).toLowerCase()) selectedCards.delete(uuid);
           }
@@ -704,6 +760,18 @@
         selectedCards.set(card.card_uuid, card);
       }
       syncPrintingSelections();
+      if (imagePicker && selectedCards.has(card.card_uuid)) showSelectedImagePreview();
+    }
+
+    function showSelectedImagePreview() {
+      const card = [...selectedCards.values()][0];
+      if (!imagePicker || !card) return;
+      const row = [...searchResults.querySelectorAll(".custom-draft-card-search-row")]
+        .find(item => item.searchCard?.card_uuid === card.card_uuid);
+      if (row) showCardPreview(row.querySelector("img"));
+      const url = new URL(searchArtworkUrl(card.image_src, true), location.href);
+      url.searchParams.set("face", card.is_dual_faced ? imageFaceSelect.value : "front");
+      getElement("customDraftPreviewImage").src = url.href;
     }
     function syncPrintingSelections() {
       searchResults.querySelectorAll(".custom-draft-card-search-row").forEach(row => {
@@ -724,6 +792,15 @@
       selectedButton.textContent = selectionBusy ? (activeChangePrintingState || switchingPreviewPrinting ? "Switching…" : "Adding…") :
         activeChangePrintingState ? "Use selected printing" : "Add selected" + (selectedCards.size ? " (" + selectedCards.size + ")" : "");
       clearSelectionButton.classList.toggle("hidden", !selectedCards.size);
+      if (selectionBusy && switchSelectedPrintings) selectedButton.textContent = "Updating…";
+      if (imagePicker) {
+        selectedButton.textContent = selectionBusy ? "Saving back…" : "Use as Back";
+        const selected = [...selectedCards.values()][0];
+        if (imageFaceCardUuid !== selected?.card_uuid) imageFaceSelect.value = "front";
+        imageFaceCardUuid = selected?.card_uuid || "";
+        imageFaceField.classList.toggle("hidden", !selected?.is_dual_faced);
+        imageFaceSelect.disabled = selectionBusy;
+      }
       clearSelectionButton.disabled = selectionBusy;
       const previewSelect = getElement("customDraftPreviewSelect");
       if (previewCard) {
@@ -836,6 +913,7 @@
       searchOverlay.querySelector(".card-search-controls").inert = busy;
       searchOverlay.querySelector(".card-search-header-actions").inert = busy;
       doneButton.disabled = busy || closing;
+      if (switchSelectedPrintingsButton) switchSelectedPrintingsButton.disabled = busy;
       updateAddAllResultsButtonState();
       syncPrintingSelections();
     }
@@ -843,6 +921,19 @@
       if (selectionBusy || !selectedCards.size) return;
       const cards = [...selectedCards.values()];
       setSelectionBusy(true);
+      if (imagePicker) {
+        let saved = false;
+        try {
+          await config.onSelectImage(cards[0], cards[0].is_dual_faced ? imageFaceSelect.value : "front");
+          saved = true;
+        } catch (error) {
+          setSearchStatus(error.message || "The back image could not be saved.", true);
+        } finally {
+          setSelectionBusy(false);
+        }
+        if (saved) close();
+        return;
+      }
       let failed = 0;
       try {
         for (const card of cards) {
@@ -854,13 +945,36 @@
             break;
           }
           if (isSearchCardAlreadyAdded(card)) { selectedCards.delete(card.card_uuid); continue; }
-          if (await addCard(card.card_uuid, button)) selectedCards.delete(card.card_uuid);
+          if (await applySearchPrinting(card, button)) selectedCards.delete(card.card_uuid);
           else failed++;
         }
       } finally {
         setSelectionBusy(false);
-        if (failed) setSearchStatus(failed + " printing" + (failed === 1 ? " was" : "s were") + " not added. Your remaining selections are kept.", true);
+        if (failed) setSearchStatus(failed + " printing" + (failed === 1 ? " was" : "s were") + " not " + (switchSelectedPrintings ? "updated" : "added") + ". Your remaining selections are kept.", true);
       }
+    }
+
+    async function applySearchPrinting(card, button) {
+      const switchError = switchSelectedPrintings && config.getPrintingSwitchError?.(card);
+      if (switchError) { setSearchStatus(switchError, true); showMessage(switchError, true); return false; }
+      // Resolve against the current set each time, including changes made earlier
+      // in this batch. Cards that have no existing entry still use the Add path.
+      const target = switchSelectedPrintings ? config.getExistingPrintingTarget(card) : null;
+      if (target) {
+        const switched = await changeCardPrinting(card.card_uuid, button, {
+          changeState: target, card: card, keepOpen: true,
+        });
+        if (switched) { switchedThisSession++; recordAdded(0); }
+        return switched;
+      }
+      return addCard(card.card_uuid, button);
+    }
+
+    async function applySingleSearchPrinting(card, button) {
+      if (selectionBusy) return;
+      setSelectionBusy(true);
+      try { return await applySearchPrinting(card, button); }
+      finally { setSelectionBusy(false); }
     }
     function showCardPreview(image) {
       const row = image.closest(".custom-draft-card-search-row");
@@ -869,6 +983,11 @@
       if (!previewCard) return;
       previewOpener = image;
       getElement("customDraftPreviewImage").src = searchArtworkUrl(previewCard.image_src, true);
+      if (imagePicker && previewCard.is_dual_faced && selectedCards.has(previewCard.card_uuid)) {
+        const url = new URL(getElement("customDraftPreviewImage").src);
+        url.searchParams.set("face", imageFaceSelect.value);
+        getElement("customDraftPreviewImage").src = url.href;
+      }
       getElement("customDraftPreviewImage").alt = previewCard.card_name;
       getElement("customDraftPreviewTitle").textContent = previewCard.card_name;
       getElement("customDraftPreviewMeta").textContent = [previewCard.set_name, previewCard.set_code].filter(Boolean).join(" · ");
@@ -923,7 +1042,7 @@
       getElement("customDraftPreviewSelect").addEventListener("click", () => togglePrintingSelection(previewCard));
       getElement("customDraftPreviewSwitch").addEventListener("click", switchPreviewPrinting);
       getElement("customDraftPreviewEnlarge").addEventListener("click", () => {
-        if (previewCard) openModalImageZoom(searchArtworkUrl(previewCard.image_src, true), previewCard.card_name);
+        if (previewCard) openModalImageZoom(getElement("customDraftPreviewImage").src, previewCard.card_name);
       });
       filtersToggle.addEventListener("click", () => {
         finishSidebarResize(); sidebar.classList.toggle("hidden");
@@ -1114,7 +1233,7 @@
     }
 
     function isSearchCardAlreadyAdded(card, existingLookup) {
-      if (activeChangePrintingState) {
+      if (activeChangePrintingState || imagePicker) {
         return false;
       }
 
@@ -1610,6 +1729,10 @@
         (searchInput && (searchInput.value || "").trim()) ||
         getSelectedMultiSelectValues(searchRarityFilter).length > 0 ||
         getSelectedMultiSelectValues(searchColorFilter).length > 0 ||
+        getSelectedMultiSelectValues(searchFrameEffectsFilter).length > 0 ||
+        Boolean(searchFullArtFilter?.value) ||
+        Boolean(searchTextlessFilter?.value) ||
+        Boolean(searchMultiplePrintingsFilter?.value) ||
         (searchManaOperatorFilter &&
           (searchManaOperatorFilter.value || "").trim()) ||
         (searchManaValueFilter && (searchManaValueFilter.value || "").trim()) ||
@@ -1675,6 +1798,11 @@
       if (searchDigitalFilter && searchDigitalFilter.value) {
         params.set("digital", searchDigitalFilter.value);
       }
+
+      getSelectedMultiSelectValues(searchFrameEffectsFilter).forEach(value => params.append("frame_effects", value));
+      if (searchFullArtFilter?.value) params.set("full_art", searchFullArtFilter.value);
+      if (searchTextlessFilter?.value) params.set("textless", searchTextlessFilter.value);
+      if (searchMultiplePrintingsFilter?.value) params.set("multiple_printings", searchMultiplePrintingsFilter.value);
 
       if (searchExcludeAddedFilter && searchExcludeAddedFilter.value) {
         params.set("exclude_added", searchExcludeAddedFilter.value);
@@ -1971,7 +2099,10 @@
       actionButton.className =
         "action-button secondary-button custom-draft-card-add-button";
 
-      if (activeChangePrintingState) {
+      if (imagePicker) {
+        actionButton.textContent = "Select";
+        actionButton.addEventListener("click", () => togglePrintingSelection(card));
+      } else if (activeChangePrintingState) {
         const isCurrentPrinting =
           card.card_uuid === activeChangePrintingState.currentCardUuid;
 
@@ -1986,7 +2117,7 @@
         actionButton.disabled = alreadyAdded;
 
         actionButton.addEventListener("click", async function () {
-          await addCard(card.card_uuid, actionButton);
+          await applySingleSearchPrinting(card, actionButton);
         });
       }
 
@@ -2274,7 +2405,7 @@
         if (expanded && seeAnyPrinting?.checked) loadAllPrintings(groupElement);
       });
       header.append(imageWrap, main, addedPill, toggle);
-      if (!activeChangePrintingState) {
+      if (!activeChangePrintingState && !imagePicker) {
         const add = document.createElement("button");
         add.type = "button";
         add.className = "action-button secondary-button card-search-group-add";
@@ -2285,7 +2416,7 @@
           if (!rowButton || rowButton.disabled) return;
           add.disabled = true;
           add.textContent = "Adding…";
-          await addCard(row.dataset.cardUuid, rowButton);
+          await applySingleSearchPrinting(row.searchCard, rowButton);
           filterSearchResults();
         });
         header.appendChild(add);
@@ -2344,6 +2475,9 @@
 
       const selectedRarities = getSelectedMultiSelectValues(searchRarityFilter);
       const selectedColors = getSelectedMultiSelectValues(searchColorFilter);
+      const selectedFrameEffects = getSelectedMultiSelectValues(searchFrameEffectsFilter);
+      const fullArtValue = searchFullArtFilter?.value || "";
+      const textlessValue = searchTextlessFilter?.value || "";
       const manaOperator = searchManaOperatorFilter
         ? (searchManaOperatorFilter.value || "").trim()
         : "";
@@ -2392,6 +2526,10 @@
           const typeMatches =
             !typeValue || rowTypeLine.indexOf(typeValue) !== -1;
           const digitalMatches = rowMatchesDigitalFilter(row, digitalValue);
+          const frameEffects = row.searchCard?.frame_effects || [];
+          const frameMatches = !selectedFrameEffects.length || selectedFrameEffects.some(value => frameEffects.includes(value));
+          const fullArtMatches = !fullArtValue || row.searchCard?.full_art === (fullArtValue === "yes");
+          const textlessMatches = !textlessValue || row.searchCard?.textless === (textlessValue === "yes");
           const excludeAddedMatches =
             excludeAddedValue !== "exclude" ||
             !row.classList.contains("custom-draft-card-search-row-disabled");
@@ -2403,6 +2541,9 @@
             manaMatches &&
             typeMatches &&
             digitalMatches &&
+            frameMatches &&
+            fullArtMatches &&
+            textlessMatches &&
             excludeAddedMatches;
 
           if (matchesFilters && groupElement.matchingCardUuids.has(row.dataset.cardUuid)) {
@@ -2418,6 +2559,10 @@
           }
         });
 
+        // Server searches already count every matching page. Imported lists are
+        // complete in memory, so count their locally filtered printings here.
+        if (importedSearchCards && ((searchMultiplePrintingsFilter?.value === "only" && matchingVisibleCount < 2) ||
+            (searchMultiplePrintingsFilter?.value === "exclude" && matchingVisibleCount > 1))) matchingVisibleCount = 0;
         groupElement.classList.toggle("hidden", matchingVisibleCount === 0);
         if (matchingVisibleCount) visibleGroups++;
         visiblePrintings += matchingVisibleCount;
@@ -2491,6 +2636,7 @@
 
       const requestedPage = page || 1;
       cardSearchController = new AbortController();
+      const searchedSets = searchSetCodeFilter?.value || "";
 
       searchButton.disabled = true;
       searchButton.classList.add("action-button-loading");
@@ -2517,6 +2663,7 @@
         }
 
         if (revision !== cardSearchRevision) return;
+        if (!activeChangePrintingState) rememberSearchSets(searchedSets);
         currentSearchPage = payload.page || 1;
         currentSearchTotalPages = payload.total_pages || 1;
 
@@ -2850,8 +2997,7 @@
           throw new Error(payload.message || "Failed to add card.");
         }
 
-        // Sets allow one printing per name. A rejected alternative must not
-        // appear as an added printing or enter the client-side added cache.
+        // A rejected add must not enter the client-side added cache.
         if (payload.inserted === false && !payload.card && config.addAllResultsUrl) {
           button.classList.remove("action-button-loading");
           button.disabled = false;
@@ -3117,12 +3263,17 @@
         "Add Cards",
         "Search by card name, set, color identity, rarity, mana value, year, spell type, EDHREC rank, or saltiness.",
       );
+      config.onClose?.();
     }
 
     function openAddCards() {
       if (selectionBusy || closing) return;
       activeChangePrintingState = null;
+      loadRecentSets();
       addedThisSession = 0;
+      switchedThisSession = 0;
+      setSwitchSelectedPrintings(false);
+      switchSelectedPrintingsButton?.classList.toggle("hidden", typeof config.getExistingPrintingTarget !== "function");
       recordAdded(0);
       addedCountLabel?.classList.remove("hidden");
 
@@ -3152,6 +3303,14 @@
         config.getAddSubtitle?.() || (config.addAllResultsUrl ? "Choose cards for your custom set" : "Add cards to your deck’s sideboard"),
       );
 
+      if (imagePicker) {
+        addedCountLabel?.classList.add("hidden");
+        moreOptionsButton?.closest(".card-search-more-wrap")?.classList.add("hidden");
+        searchExcludeAddedFilter?.closest("label")?.classList.add("hidden");
+        setModalTitle("Choose Back from Cards", "Select a printing to use as the back image.");
+        doneButton.textContent = "Cancel";
+      }
+
       open();
     }
 
@@ -3162,6 +3321,9 @@
       if (!activeChangePrintingState) {
         return;
       }
+
+      setSwitchSelectedPrintings(false);
+      switchSelectedPrintingsButton?.classList.add("hidden");
 
       resetModalResultsForModeChange();
       addedCountLabel?.classList.add("hidden");
@@ -3182,6 +3344,10 @@
 
       clearMultiSelectValues(searchRarityFilter);
       clearMultiSelectValues(searchColorFilter);
+      clearMultiSelectValues(searchFrameEffectsFilter);
+      if (searchFullArtFilter) searchFullArtFilter.value = "";
+      if (searchTextlessFilter) searchTextlessFilter.value = "";
+      if (searchMultiplePrintingsFilter) searchMultiplePrintingsFilter.value = "";
 
       if (searchManaOperatorFilter) {
         searchManaOperatorFilter.value = "";
@@ -3238,6 +3404,10 @@
 
       clearMultiSelectValues(searchRarityFilter);
       clearMultiSelectValues(searchColorFilter);
+      clearMultiSelectValues(searchFrameEffectsFilter);
+      if (searchFullArtFilter) searchFullArtFilter.value = "";
+      if (searchTextlessFilter) searchTextlessFilter.value = "";
+      if (searchMultiplePrintingsFilter) searchMultiplePrintingsFilter.value = "";
 
       if (searchManaOperatorFilter) {
         searchManaOperatorFilter.value = "";
@@ -3290,6 +3460,19 @@
     }
 
     function bindEvents() {
+      imageFaceSelect?.addEventListener("change", () => {
+        showSelectedImagePreview();
+        imageFaceSelect.focus({preventScroll: true});
+      });
+      switchSelectedPrintingsButton?.addEventListener("click", () => {
+        if (!selectionBusy) setSwitchSelectedPrintings(!switchSelectedPrintings);
+      });
+      recentSetsSelect?.addEventListener("change", () => {
+        if (!recentSetsSelect.value || !searchSetCodeFilter) return;
+        searchSetCodeFilter.value = recentSetsSelect.value;
+        recentSetsSelect.value = "";
+        searchSetCodeFilter.focus();
+      });
       searchOverlay.addEventListener("click", event => {
         if (!closing) return;
         event.preventDefault();
@@ -3399,6 +3582,9 @@
         searchYearEndFilter,
         searchDigitalFilter,
         searchExcludeAddedFilter,
+        searchFullArtFilter,
+        searchTextlessFilter,
+        searchMultiplePrintingsFilter,
         searchPageSizeSelect,
       ].forEach(function (searchFilterElement) {
         if (!searchFilterElement) {
@@ -3473,8 +3659,26 @@
         });
       }
 
-      bindMultiSelect(searchRarityFilter, filterSearchResults);
-      bindMultiSelect(searchColorFilter, filterSearchResults);
+      const refreshLocalSearchFilters = () => {
+        if (searchMultiplePrintingsFilter?.value && !importedSearchCards) runCardSearch(1);
+        else filterSearchResults();
+      };
+      bindMultiSelect(searchRarityFilter, refreshLocalSearchFilters);
+      bindMultiSelect(searchColorFilter, refreshLocalSearchFilters);
+      const refreshPrintingFilters = () => {
+        updateAdvancedFilterCount();
+        if (importedSearchCards) filterSearchResults();
+        else runCardSearch(1);
+      };
+      bindMultiSelect(searchFrameEffectsFilter, refreshPrintingFilters);
+      searchFullArtFilter?.addEventListener("change", refreshPrintingFilters);
+      searchTextlessFilter?.addEventListener("change", refreshPrintingFilters);
+      searchMultiplePrintingsFilter?.addEventListener("change", refreshPrintingFilters);
+      [searchSetCodeFilter, searchYearStartFilter, searchYearEndFilter].forEach(field => {
+        field?.addEventListener("change", () => {
+          if (searchMultiplePrintingsFilter?.value && !importedSearchCards) runCardSearch(1);
+        });
+      });
 
       [
         searchManaOperatorFilter,
@@ -3484,8 +3688,10 @@
         searchExcludeAddedFilter,
       ].forEach(function (filterElement) {
         if (filterElement) {
-          filterElement.addEventListener("input", filterSearchResults);
-          filterElement.addEventListener("change", filterSearchResults);
+          filterElement.addEventListener("input", () => {
+            if (!searchMultiplePrintingsFilter?.value || importedSearchCards) filterSearchResults();
+          });
+          filterElement.addEventListener("change", refreshLocalSearchFilters);
         }
       });
 
@@ -3548,4 +3754,25 @@
   window.iMomirCardSearchModal = {
     init: initCardSearchModal,
   };
+
+  // A separate document keeps the underlying Add Cards search and selection intact.
+  if (document.body.dataset.cardImagePicker === "true" && window.parent !== window) {
+    const bridge = window.parent.iMomirAlternateImage?.cardPicker;
+    if (bridge) {
+      for (const name of ["data-theme", "data-theme-scheme"]) {
+        const value = window.parent.document.documentElement.getAttribute(name);
+        if (value) document.documentElement.setAttribute(name, value);
+      }
+      window.iMomirImageUrl = raw => bridge.imageUrl(raw);
+      const picker = initCardSearchModal({
+        searchUrl: "/card-library/search",
+        onSelectImage: (card, face) => bridge.select(window, card, face),
+        onClose: () => bridge.close(window),
+      });
+      picker.openAddCards();
+      bridge.ready(window);
+      getElement("customDraftCardSearchInput").value = new URL(location.href).searchParams.get("q") || "";
+      picker.runSearch(1);
+    }
+  }
 })();

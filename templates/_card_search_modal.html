@@ -1,4 +1,19 @@
-{# Shared by deck and custom-set Add Cards / Change Printing. #}
+{# Shared by collection editing and the standalone card image picker. #}
+{% if card_image_picker %}
+<!doctype html>
+<html lang="en" data-theme-scheme="dark">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Choose Back from Cards</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v='reminder-badge-1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/card_sizes.css', v='tracking-tags-controls-3') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='card-back-picker-1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/themes.css', v='theme-surfaces-20') }}">
+  <script>window.DeckadenceDisplaySettings = {{ {'cardSizePercentages': global_card_size_percentages} | tojson }};</script>
+  <script src="{{ url_for('static', filename='js/card_sizes.js', v='4') }}"></script>
+</head>
+<body class="card-image-picker-page" data-card-image-picker="true">
+{% endif %}
 <div id="customDraftCardSearchOverlay" class="custom-draft-card-search-overlay hidden" aria-hidden="true" data-card-finishing="off">
   <div class="custom-draft-card-search-window" role="dialog" aria-modal="true" aria-labelledby="customDraftSearchTitle">
     <div class="custom-draft-card-search-window-header">
@@ -11,6 +26,9 @@
             <button type="button" id="customDraftCreateCardButton" role="menuitem"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="14" height="18" rx="2"/><path d="M8 8h6M8 16h3m6-6v8m-4-4h8"/></svg><span><strong>Upload Custom Card</strong><small>Add an existing custom card image</small></span></button>
           </div>
         </div>
+        <button type="button" id="customDraftSwitchSelectedPrintings" class="card-search-switch hidden" role="switch" aria-checked="false" aria-label="Switch Selected Printings" title="When on, Add selected replaces existing cards with your chosen printings and adds new cards.">
+          <span>Switch Selected Printings</span><span class="card-search-switch-track" aria-hidden="true"></span><span class="card-search-switch-state" aria-hidden="true">Off</span>
+        </button>
         <button type="button" id="customDraftCardSearchMaximizeButton" class="card-search-icon-button card-search-window-size-button" aria-label="Maximize card search" aria-pressed="false" title="Maximize">
           <svg class="card-search-maximize-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></svg>
           <svg class="card-search-restore-icon hidden" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h12v12h-4M9 7V3"/><rect x="3" y="7" width="14" height="14" rx="1"/></svg>
@@ -36,6 +54,7 @@
 <input aria-describedby="customDraftSearchSetCodeHelp" autocomplete="off" class="custom-draft-filter-input" id="customDraftSearchSetCodeFilter" maxlength="1000" placeholder="Any set" title="Enter one set code or a comma-separated list. Matches any listed set." type="text"/>
 <small class="card-search-sr-only" id="customDraftSearchSetCodeHelp">Separate multiple codes with commas.</small>
 </label>
+          <label id="customDraftRecentSetsField" class="custom-draft-filter-field hidden"><span class="card-search-sr-only">Recent sets</span><select class="custom-draft-filter-input" id="customDraftRecentSets" aria-label="Recent sets"><option value="">Recent sets…</option></select></label>
           <label class="card-search-printing-scope" title="Find cards using the search filters, then show every printing from all sets when expanded."><input type="checkbox" id="customDraftSeeAnyPrinting" aria-describedby="customDraftSeeAnyPrintingHelp" /><span>See any printing</span></label>
           <span id="customDraftSeeAnyPrintingHelp" class="card-search-sr-only">Search filters choose the cards. Expand a card to load all its printings, including other sets.</span>
 <div class="custom-draft-filter-field custom-draft-multi-select" data-placeholder="Any" id="customDraftSearchRarityFilter">
@@ -159,11 +178,42 @@
 <option value="only">Digital Only</option>
 </select>
 </label>
+<div class="custom-draft-filter-field custom-draft-multi-select" data-placeholder="Any" id="customDraftSearchFrameEffectsFilter">
+<span>Frame Effects</span>
+<button aria-expanded="false" aria-haspopup="true" class="custom-draft-multi-select-button" type="button" aria-label="Frame Effects">
+<span class="custom-draft-multi-select-label">Any</span><span class="custom-draft-multi-select-chevron">▾</span>
+</button>
+<div class="custom-draft-multi-select-menu hidden">
+{% for value, label in card_frame_effect_options() %}
+<label><input type="checkbox" value="{{ value }}"/><span>{{ label }}</span></label>
+{% else %}
+<span>No frame effects in the library</span>
+{% endfor %}
+</div>
+</div>
+<label class="custom-draft-filter-field">
+<span>Full Art</span>
+<select class="custom-draft-filter-input" id="customDraftSearchFullArtFilter">
+<option value="">Any</option><option value="yes">Yes</option><option value="no">No</option>
+</select>
+</label>
+<label class="custom-draft-filter-field">
+<span>Textless</span>
+<select class="custom-draft-filter-input" id="customDraftSearchTextlessFilter">
+<option value="">Any</option><option value="yes">Yes</option><option value="no">No</option>
+</select>
+</label>
 <label class="custom-draft-filter-field">
 <span>Exclude Added Cards</span>
 <select class="custom-draft-filter-input" id="customDraftSearchExcludeAddedFilter">
 <option selected="" value="">No</option>
 <option value="exclude">Exclude</option>
+</select>
+</label>
+<label class="custom-draft-filter-field" title="Counts printings matching the current search filters, across all result pages.">
+<span>Multiple Printings</span>
+<select class="custom-draft-filter-input" id="customDraftSearchMultiplePrintingsFilter">
+<option value="">All</option><option value="only">Only</option><option value="exclude">Exclude</option>
 </select>
 </label><div data-tag-filter="search"></div></div>
 
@@ -240,6 +290,9 @@
         <div class="card-search-feedback"><span id="customDraftSearchAddedCount">0 cards added</span><div id="customDraftCardSearchStatus" class="custom-draft-card-search-status hidden" role="status" aria-live="polite"></div></div>
         <button type="button" id="customDraftAddAllResultsButton" class="card-search-quiet-button hidden" disabled>Add All Results to Set</button>
         <button type="button" id="customDraftClearSelectionButton" class="card-search-quiet-button hidden">Clear selection</button>
+        <label id="customDraftImageFaceField" class="card-search-image-face hidden">Image to use
+          <select id="customDraftImageFace"><option value="front">Front</option><option value="back">Back</option></select>
+        </label>
         <button type="button" id="customDraftAddSelectedButton" class="action-button" disabled>Add selected</button>
         <button type="button" id="customDraftCardSearchDoneButton" class="action-button secondary-button">Done</button>
       </div>
@@ -270,3 +323,9 @@
 <div id="customDraftBulkImportStatus" class="custom-draft-card-search-status hidden" role="status" aria-live="polite"></div>
 </div></div>
 </div>
+{% if card_image_picker %}
+<script src="{{ url_for('static', filename='js/card_search_modal.js', v='set-printings-1') }}"></script>
+<script src="{{ url_for('static', filename='js/dialog_focus.js', v='overlay-performance-2') }}"></script>
+</body>
+</html>
+{% endif %}

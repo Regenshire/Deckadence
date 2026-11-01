@@ -565,8 +565,8 @@
     },
 
     "deckbuilder-stats": {
-      title: "Deck Stats",
-      body: "Open statistics and summary information for the current deck.",
+      title: "Deck Analysis",
+      body: "Explore your main deck's color balance, mana curves, card types, subtypes, and EDHREC ranks.",
     },
 
     "deckbuilder-list-view": {

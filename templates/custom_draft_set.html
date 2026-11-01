@@ -24,10 +24,10 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='face-tabs-1') }}"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='card-back-picker-1') }}"
 />
-<link rel="stylesheet" href="{{ url_for('static', filename='css/custom_draft_set_theme.css') }}?v=filter-checkboxes-8">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='gallery-feedback-5') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/custom_draft_set_theme.css') }}?v=collections-1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='card-back-picker-1') }}">
 {% endblock %} {% block content %}
 <div class="screen screen-wide">
   <div class="page-panel custom-set-heading">
@@ -339,7 +339,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 
         <div class="custom-draft-card-list-header-actions">
           <div class="custom-draft-card-count">
-            {{ custom_set_cards|length }} card(s)
+            {{ custom_set_cards|sum(attribute='quantity') }} copies · {{ custom_set_cards|length }} printings
           </div>
 
           <button
@@ -357,9 +357,8 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
             type="button"
             id="customDraftSelectedPrintExportButton"
             class="custom-draft-header-icon-button"
-            title="Print / Export Selected Cards"
-            aria-label="Print / Export Selected Cards"
-            disabled
+            title="Print / Export Main Cards"
+            aria-label="Print / Export Main Cards"
           >
             Print / Export
           </button>
@@ -410,8 +409,8 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
             type="button"
             id="customDraftStatsToggleButton"
             class="custom-draft-header-icon-button"
-            title="Show Stats"
-            aria-label="Show Stats"
+            title="Set Analysis"
+            aria-label="Set Analysis"
             aria-pressed="false"
           >
             <svg
@@ -641,6 +640,16 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
         </div>
       </div>
 
+      <div class="custom-draft-collection-tabs" role="tablist" aria-label="Set card collections">
+        <button type="button" role="tab" id="customDraftMainTab" data-card-section="main" aria-selected="true" aria-controls="customDraftCollectionBody">Main Cards <span data-section-count="main">0</span></button>
+        <button type="button" role="tab" id="customDraftLandsTab" data-card-section="lands" aria-selected="false" aria-controls="customDraftCollectionBody" tabindex="-1">Basic Lands <span data-section-count="lands">0</span></button>
+        <button type="button" role="tab" id="customDraftTokensTab" data-card-section="tokens" aria-selected="false" aria-controls="customDraftCollectionBody" tabindex="-1">Tokens <span data-section-count="tokens">0</span></button>
+      </div>
+      <div class="custom-draft-collection-heading">
+        <div><h3 id="customDraftCollectionTitle">Main Cards</h3><p id="customDraftCollectionSummary" aria-live="polite"></p></div>
+        <label class="chaos-card-size-control" for="customDraftCardSizeSelect"><span>Zoom</span><select id="customDraftCardSizeSelect">{% include "_card_size_options.html" %}</select></label>
+      </div>
+      <div id="customDraftCollectionBody" role="tabpanel" aria-labelledby="customDraftMainTab">
       <div
         id="customDraftCurrentCardTools"
         class="custom-draft-current-card-tools"
@@ -947,8 +956,6 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
                 <option value="edhrec_rank_worst">EDHREC Rank Worst</option>
                 <option value="edhrec_salt_high">EDHREC Salt High</option>
                 <option value="edhrec_salt_low">EDHREC Salt Low</option>
-                <option value="price_high">Price High</option>
-                <option value="price_low">Price Low</option>
               </select>
             </label>
 
@@ -1134,6 +1141,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
         ></div>
       </div>
 
+      <div id="customDraftCardFamilies" class="custom-draft-card-families" aria-label="Filter by card name" hidden></div>
       <div
         id="customDraftCurrentCardEmpty"
         class="card-placeholder custom-draft-set-empty{% if custom_set_cards %} hidden{% endif %}"
@@ -1150,6 +1158,10 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
           class="custom-draft-current-card-row"
           hidden
           data-custom-set-card-id="{{ card.custom_set_card_id }}"
+          data-quantity="{{ card.quantity }}"
+          data-card-section="{{ card.card_section }}"
+          data-layout="{{ card.layout or '' }}"
+          data-quantity-update-url="{{ url_for('custom_draft_set_cards_update_quantity', set_code=custom_set.set_code, custom_set_card_id=card.custom_set_card_id) }}"
           data-card-uuid="{{ card.card_uuid }}"
           data-card-search="{{ (card.card_name ~ ' ' ~ card.card_set_code ~ ' ' ~ (card.collector_number or '') ~ ' ' ~ (card.rarity or '') ~ ' ' ~ (card.type_line or '') ~ ' ' ~ (card.color_identity_json or '') ~ ' ' ~ (card.mana_value|string if card.mana_value is not none else ''))|lower }}"
           data-rarity="{{ (card.rarity or '')|lower }}"
@@ -1356,9 +1368,6 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
                 >Salt {{ "%.2f"|format(card.edhrec_saltiness) if
                 card.edhrec_saltiness is not none else "?" }}</span
               >
-              {% if global_price_source != 'none' %}
-              <button type="button" class="card-price-trigger" data-card-prices data-price-card-uuid="{{ card.card_uuid }}" data-price-finish="{{ 'foil' if card.sheet_is_foil else 'normal' }}" data-price-source="{{ global_price_source }}" aria-label="Show card prices">—</button>
-              {% endif %}
               <span
                 class="custom-draft-color-identity"
                 data-color-json="{{ card.color_identity_json or '[]' }}"
@@ -1458,6 +1467,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
           class="custom-draft-card-search-status"
         ></div>
       </div>
+      </div>
     </div>
   </form>
 
@@ -1505,10 +1515,8 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 
   {% set print_export_subject_label = "custom draft set" %} {% include
   "_print_export_modal.html" %}
-  {% set stats_modal_title = "Set Card Stats" %} {% set stats_modal_subtitle =
-  "Stats for the currently visible filtered cards." %} {% include
-  "_stats_modal.html" %} {% include "_custom_card_modal.html" %} {% include "_alternate_image_modal.html" %}
-  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='face-tabs-1') }}"></script>
+  {% include "_stats_modal.html" %} {% include "_custom_card_modal.html" %} {% include "_alternate_image_modal.html" %}
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='card-back-picker-1') }}"></script>
 
   <div
     id="customDraftCardZoomOverlay"
@@ -1529,13 +1537,13 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
 <script src="{{ url_for('static', filename='js/custom_card_modal.js', v='2') }}"></script>
-<script src="{{ url_for('static', filename='js/card_search_modal.js', v='gallery-scroll-6') }}"></script>
+<script src="{{ url_for('static', filename='js/card_search_modal.js', v='set-printings-1') }}"></script>
 <script src="{{ url_for('static', filename='js/print_export_modal.js', v='tracking-tags-1') }}"></script>
 
-<script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/stats_modal.js', v='analysis-multicolor-3') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='custom-backs-1') }}"></script>
-<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=preview-feedback-3"></script>
+<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=collections-1"></script>
 {% endblock %} {% block page_scripts_after_app %}
-<script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
-<script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
+<script src="{{ url_for('static', filename='js/image_compare.js', v='legal-1') }}"></script>
+<script src="{{ url_for('static', filename='js/upscale_batch.js', v='legal-1') }}"></script>
 {% endblock %}

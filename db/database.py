@@ -2,6 +2,7 @@
 import os
 import sqlite3
 import json
+import re
 import logging
 import hashlib
 import threading
@@ -12,7 +13,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
-from paths import DATABASE_PATH, ALTERNATE_SOURCE_DIR, RUNTIME_BASE_DIR
+from paths import DATABASE_PATH, ALTERNATE_SOURCE_DIR, RUNTIME_BASE_DIR, ALL_PRINTINGS_PATH
 from settings import (
     CHAOS_BATCH_REPEAT_REPLACEMENT_CHANCES,
     DATABASE_BUSY_TIMEOUT_SECONDS,
@@ -615,41 +616,31 @@ class AlternateImageRepository:
         if normalized_face == "back":
             fallback_face = "back"
 
-        identities = []
-        if card.get("card_uuid"):
-            identities.append(("card_uuid = ?", (card["card_uuid"],)))
-        if (card.get("set_code") and card.get("collector_number")
-                and not str(card.get("card_uuid") or "").startswith("custom-")):
-            identities.append((
-                "COALESCE(card_uuid, '') NOT LIKE 'custom-%' AND "
-                "UPPER(COALESCE(set_code, '')) = UPPER(?) "
-                "AND LOWER(COALESCE(collector_number, '')) = LOWER(?)",
-                (card["set_code"], card["collector_number"]),
-            ))
+        # Set/collector numbers can collide between cards and tokens. Never
+        # borrow another printing's artwork when this card has no source.
+        card_uuid = str(card.get("card_uuid") or "").strip()
+        if not card_uuid:
+            return None
 
-        for identity_sql, identity_parameters in identities:
-            row = self.connection.execute(
-                f"""
-                SELECT *
-                FROM {self._table}
-                WHERE {self._scope_filter}is_enabled = 1
-                  AND {identity_sql}
-                  AND face_kind IN (?, ?)
-                ORDER BY
-                    CASE WHEN face_kind = ? THEN 0 ELSE 1 END,
-                    alternate_source_id DESC
-                LIMIT 1
-                """,
-                self._scope_parameters + identity_parameters + (
-                    normalized_face,
-                    fallback_face,
-                    normalized_face,
-                ),
-            ).fetchone()
-            if row is not None:
-                return row
-
-        return None
+        return self.connection.execute(
+            f"""
+            SELECT *
+            FROM {self._table}
+            WHERE {self._scope_filter}is_enabled = 1
+              AND card_uuid = ?
+              AND face_kind IN (?, ?)
+            ORDER BY
+                CASE WHEN face_kind = ? THEN 0 ELSE 1 END,
+                alternate_source_id DESC
+            LIMIT 1
+            """,
+            self._scope_parameters + (
+                card_uuid,
+                normalized_face,
+                fallback_face,
+                normalized_face,
+            ),
+        ).fetchone()
 
     def list_for_card(self, card_uuid):
         clean_card_uuid = (card_uuid or "").strip()
@@ -660,23 +651,11 @@ class AlternateImageRepository:
             f"""
             SELECT a.*
             FROM {self._table} AS a
-            WHERE {self._scope_filter}(
-                a.card_uuid = ? OR EXISTS (
-                    SELECT 1 FROM chaos_cards AS c
-                    WHERE c.card_uuid = ?
-                      AND c.card_uuid NOT LIKE 'custom-%'
-                      AND COALESCE(a.card_uuid, '') NOT LIKE 'custom-%'
-                      AND COALESCE(c.set_code, '') <> ''
-                      AND COALESCE(c.collector_number, '') <> ''
-                      AND UPPER(COALESCE(a.set_code, '')) = UPPER(c.set_code)
-                      AND LOWER(COALESCE(a.collector_number, '')) =
-                          LOWER(c.collector_number)
-                )
-            )
+            WHERE {self._scope_filter}a.card_uuid = ?
             ORDER BY a.is_enabled DESC, a.priority ASC,
                      a.alternate_source_id DESC
             """,
-            self._scope_parameters + (clean_card_uuid, clean_card_uuid),
+            self._scope_parameters + (clean_card_uuid,),
         ).fetchall()
 
     def enabled_card_uuids(self, card_uuids, *, remove_bleed_only=False):
@@ -694,17 +673,7 @@ class AlternateImageRepository:
                     SELECT 1 FROM {self._table} AS a
                     WHERE {self._scope_filter}a.is_enabled = 1
                       AND (? = 0 OR a.remove_bleed = 1)
-                      AND (
-                        a.card_uuid = c.card_uuid OR (
-                            c.card_uuid NOT LIKE 'custom-%'
-                            AND COALESCE(a.card_uuid, '') NOT LIKE 'custom-%'
-                            AND COALESCE(c.set_code, '') <> ''
-                            AND COALESCE(c.collector_number, '') <> ''
-                            AND UPPER(COALESCE(a.set_code, '')) = UPPER(c.set_code)
-                            AND LOWER(COALESCE(a.collector_number, '')) =
-                                LOWER(c.collector_number)
-                        )
-                      )
+                      AND a.card_uuid = c.card_uuid
                   )
                 """,
                 tuple(batch) + self._scope_parameters + (int(remove_bleed_only),),
@@ -867,15 +836,6 @@ class AlternateImageIsolationService:
                 SELECT a.*
                 FROM alternate_sources AS a
                 JOIN members AS m ON a.card_uuid = m.card_uuid
-                UNION
-                SELECT a.*
-                FROM alternate_sources AS a
-                JOIN members AS m
-                  ON UPPER(COALESCE(a.set_code, '')) = UPPER(m.set_code)
-                 AND LOWER(COALESCE(a.collector_number, '')) =
-                     LOWER(m.collector_number)
-                WHERE COALESCE(m.set_code, '') <> ''
-                  AND COALESCE(m.collector_number, '') <> ''
                 ORDER BY alternate_source_id
                 """,
                 parameters,
@@ -1442,6 +1402,9 @@ def initialize_database():
             frame_version TEXT,
             security_stamp TEXT,
             border_color TEXT,
+            frame_effects_json TEXT,
+            is_full_art INTEGER,
+            is_textless INTEGER,
             colors_json TEXT,
             color_identity_json TEXT,
             edhrec_rank INTEGER,
@@ -1458,6 +1421,9 @@ def initialize_database():
     ensure_column_exists(cursor, "chaos_cards", "edhrec_rank", "INTEGER")
     ensure_column_exists(cursor, "chaos_cards", "edhrec_saltiness", "REAL")
     ensure_column_exists(cursor, "chaos_cards", "promo_types_json", "TEXT")
+    ensure_column_exists(cursor, "chaos_cards", "frame_effects_json", "TEXT")
+    ensure_column_exists(cursor, "chaos_cards", "is_full_art", "INTEGER")
+    ensure_column_exists(cursor, "chaos_cards", "is_textless", "INTEGER")
 
     from db.custom_cards import initialize_custom_cards
     initialize_custom_cards(cursor)
@@ -1859,6 +1825,7 @@ def initialize_database():
 
     ensure_column_exists(cursor, "custom_draft_set_cards", "sheet_is_foil", "INTEGER NOT NULL DEFAULT 0")
     ensure_column_exists(cursor, "custom_draft_set_cards", "foil_type", "TEXT NOT NULL DEFAULT ''")
+    ensure_column_exists(cursor, "custom_draft_set_cards", "quantity", "INTEGER NOT NULL DEFAULT 1 CHECK(quantity BETWEEN 1 AND 999)")
     ensure_column_exists(cursor, "tracked_chaos_pack_cards", "foil_type", "TEXT NOT NULL DEFAULT ''")
 
     cursor.execute(
@@ -2099,6 +2066,97 @@ def get_import_metadata():
         metadata[row["metadata_key"]] = row["metadata_value"]
 
     return metadata
+
+
+def mtgjson_card_frame_metadata(card):
+    """Store optional MTGJSON treatment fields; absent flags mean false."""
+    effects = card.get("frameEffects")
+    effects = [value for value in effects if isinstance(value, str)] if isinstance(effects, list) else []
+    return json.dumps(effects), int(card.get("isFullArt") is True), int(card.get("isTextless") is True)
+
+
+def backfill_card_frame_metadata():
+    """Upgrade existing printings from the local MTGJSON download without replacing cards."""
+    try:
+        source_stat = os.stat(ALL_PRINTINGS_PATH)
+        source_version = f"1:{source_stat.st_mtime_ns}:{source_stat.st_size}"
+        metadata_key = "card_frame_metadata_backfill_source"
+        with closing(get_db_connection()) as conn:
+            previous = conn.execute(
+                "SELECT metadata_value FROM import_metadata WHERE metadata_key = ?", (metadata_key,),
+            ).fetchone()
+            if previous and previous[0] == source_version:
+                return 0
+            wanted = {row[0] for row in conn.execute("""
+                SELECT card_uuid FROM chaos_cards
+                WHERE (frame_effects_json IS NULL OR is_full_art IS NULL OR is_textless IS NULL)
+                  AND card_uuid NOT IN (SELECT card_uuid FROM custom_cards)
+            """)}
+        if not wanted:
+            return 0
+
+        with open(ALL_PRINTINGS_PATH, encoding="utf-8") as source:
+            payload = json.load(source)
+        all_sets = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(all_sets, dict) or not all_sets:
+            raise ValueError("AllPrintings.json has no set data")
+        updates = []
+        for set_data in all_sets.values():
+            if not isinstance(set_data, dict):
+                continue
+            for kind in ("cards", "tokens"):
+                cards = set_data.get(kind)
+                if not isinstance(cards, list):
+                    continue
+                for card in cards:
+                    if isinstance(card, dict) and card.get("uuid") in wanted:
+                        updates.append((*mtgjson_card_frame_metadata(card), card["uuid"]))
+        del payload, all_sets
+
+        with closing(get_db_connection()) as conn, conn:
+            cursor = conn.executemany("""
+                UPDATE chaos_cards SET
+                    frame_effects_json = COALESCE(frame_effects_json, ?),
+                    is_full_art = COALESCE(is_full_art, ?),
+                    is_textless = COALESCE(is_textless, ?)
+                WHERE card_uuid = ?
+                  AND card_uuid NOT IN (SELECT card_uuid FROM custom_cards)
+                  AND (frame_effects_json IS NULL OR is_full_art IS NULL OR is_textless IS NULL)
+            """, updates)
+            updated_count = cursor.rowcount
+            # Do not reparse a large download every launch for unmatched printings.
+            conn.execute("""
+                INSERT INTO import_metadata (metadata_key, metadata_value) VALUES (?, ?)
+                ON CONFLICT(metadata_key) DO UPDATE SET metadata_value = excluded.metadata_value
+            """, (metadata_key, source_version))
+        return updated_count
+    except (OSError, ValueError) as exc:
+        logging.getLogger(__name__).warning("Card frame metadata upgrade skipped: %s", exc)
+        return 0
+
+
+def get_card_frame_effect_options():
+    """Offer the effects present in the imported library, including future values."""
+    labels = {
+        "extendedart": "Extended Art", "etched": "Etched", "fullart": "Full Art",
+        "inverted": "Inverted", "legendary": "Legendary", "nyxtouched": "Nyx Touched",
+        "showcase": "Showcase", "shatteredglass": "Shattered Glass", "snow": "Snow",
+        "colorshifted": "Color Shifted", "companion": "Companion", "devoid": "Devoid",
+        "draft": "Draft", "miracle": "Miracle", "tombstone": "Tombstone",
+        "enchantment": "Enchantment", "sunmoondfc": "Sun/Moon Double-Faced",
+        "convertdfc": "Convert Double-Faced", "fandfc": "Fan Double-Faced",
+        "mooneldrazidfc": "Moon/Eldrazi Double-Faced", "compasslanddfc": "Compass/Land Double-Faced",
+        "originpwdfc": "Origins Planeswalker Double-Faced", "waxingandwaningmoondfc": "Waxing/Waning Moon",
+        "showcaselegendary": "Legendary Showcase", "upsidedowndfc": "Upside Down Double-Faced",
+    }
+    with closing(get_db_connection()) as conn:
+        effects = [row[0] for row in conn.execute("""
+            SELECT DISTINCT effect.value FROM chaos_cards cc,
+                json_each(COALESCE(cc.frame_effects_json, '[]')) effect
+            WHERE effect.type = 'text' AND effect.value <> ''
+        """)]
+    return sorted(((effect, labels.get(effect, effect.replace("_", " ").title())) for effect in effects),
+                  key=lambda option: option[1].lower())
 
 
 def is_card_database_ready():
@@ -3739,6 +3797,16 @@ def generate_custom_draft_set_pack_cards(set_code, booster_name, batch_card_name
     return generated_cards
 
 # *** CUSTOM SET CARDS - List and Search Cards ***
+def get_custom_draft_card_section(card):
+    """Classify the actual printing, independently of any alternate artwork."""
+    type_line = str(card["type_line"] or "").lower()
+    layout = str(card["layout"] or "").lower() if "layout" in card.keys() else ""
+    if layout in {"token", "double_faced_token", "emblem"} or re.search(r"\b(token|emblem)\b", type_line):
+        return "tokens"
+    types = re.split(r"\s+[—–-]\s+| // ", type_line, maxsplit=1)[0].split()
+    return "lands" if "basic" in types and "land" in types else "main"
+
+
 def get_custom_draft_set_card_rows(set_code, search_text=""):
     clean_set_code = normalize_custom_draft_set_code(set_code)
     clean_search_text = str(search_text or "").strip().lower()
@@ -3754,6 +3822,7 @@ def get_custom_draft_set_card_rows(set_code, search_text=""):
             cdsc.special_category_index,
             cdsc.sheet_is_foil,
             cdsc.foil_type,
+            cdsc.quantity,
             cdsc.sort_name,
             cdsc.added_at_utc,
 
@@ -3762,6 +3831,7 @@ def get_custom_draft_set_card_rows(set_code, search_text=""):
             cc.collector_number,
             cc.rarity,
             cc.type_line,
+            cc.layout,
             cc.mana_cost,
             cc.mana_value,
             cc.colors_json,
@@ -3858,9 +3928,12 @@ def get_custom_draft_set_card_rows(set_code, search_text=""):
     rows = cursor.fetchall()
 
     try:
-        return AlternateImageRepository.for_owner(
+        cards = AlternateImageRepository.for_owner(
             conn, "set", clean_set_code
         ).decorate_cards(rows)
+        for card in cards:
+            card["card_section"] = get_custom_draft_card_section(card)
+        return cards
     finally:
         conn.close()
 
@@ -3941,6 +4014,10 @@ def search_chaos_cards_for_custom_draft_set(
     exact_card_name=None,
     include_tags=None,
     exclude_tags=None,
+    frame_effects_filter="",
+    full_art_filter="",
+    textless_filter="",
+    multiple_printings_filter="",
 ):
     clean_set_code = normalize_custom_draft_set_code(set_code)
     clean_search_text = str(search_text or "").strip().lower()
@@ -4000,6 +4077,17 @@ def search_chaos_cards_for_custom_draft_set(
     clean_sort_option = str(sort_option or "name_asc").strip().lower()
     clean_digital_filter = str(digital_filter or "").strip().lower()
     clean_exclude_added_filter = str(exclude_added_filter or "").strip().lower()
+    raw_frame_effects = frame_effects_filter if isinstance(frame_effects_filter, (list, tuple, set)) else str(frame_effects_filter or "").split(",")
+    clean_frame_effects = sorted({str(value).strip().lower() for value in raw_frame_effects if str(value).strip()})
+    clean_full_art_filter = str(full_art_filter or "").strip().lower()
+    clean_textless_filter = str(textless_filter or "").strip().lower()
+    if clean_full_art_filter not in {"yes", "no"}:
+        clean_full_art_filter = ""
+    if clean_textless_filter not in {"yes", "no"}:
+        clean_textless_filter = ""
+    clean_multiple_printings_filter = str(multiple_printings_filter or "").strip().lower()
+    if clean_multiple_printings_filter not in {"only", "exclude"}:
+        clean_multiple_printings_filter = ""
 
     if clean_digital_filter not in {"exclude", "only"}:
         clean_digital_filter = ""
@@ -4070,6 +4158,10 @@ def search_chaos_cards_for_custom_draft_set(
         parsed_year_end is not None,
         clean_digital_filter == "only",
         clean_exclude_added_filter == "exclude",
+        clean_frame_effects,
+        clean_full_art_filter,
+        clean_textless_filter,
+        clean_multiple_printings_filter,
     ])
 
     if not has_any_filter:
@@ -4080,6 +4172,18 @@ def search_chaos_cards_for_custom_draft_set(
 
     where_clauses = []
     params = [clean_set_code]
+
+    if clean_frame_effects:
+        placeholders = ",".join("?" for _ in clean_frame_effects)
+        where_clauses.append(
+            "EXISTS (SELECT 1 FROM json_each(COALESCE(cc.frame_effects_json, '[]')) effect "
+            f"WHERE LOWER(effect.value) IN ({placeholders}))"
+        )
+        params.extend(clean_frame_effects)
+    for column, value in (("is_full_art", clean_full_art_filter), ("is_textless", clean_textless_filter)):
+        if value:
+            where_clauses.append(f"cc.{column} = ?")
+            params.append(1 if value == "yes" else 0)
 
     for tag_ids, excluded in ((include_tags, False), (exclude_tags, True)):
         for tag_id in tag_ids:
@@ -4312,11 +4416,8 @@ def search_chaos_cards_for_custom_draft_set(
                 NOT EXISTS (
                     SELECT 1
                     FROM custom_draft_set_cards existing_cdsc
-                    JOIN chaos_cards existing_cc
-                        ON existing_cc.card_uuid = existing_cdsc.card_uuid
                     WHERE existing_cdsc.set_code = ?
-                      AND LOWER(TRIM(COALESCE(existing_cc.card_name, ''))) =
-                          LOWER(TRIM(COALESCE(cc.card_name, '')))
+                      AND existing_cdsc.card_uuid = cc.card_uuid
                 )
                 """
             )
@@ -4350,6 +4451,28 @@ def search_chaos_cards_for_custom_draft_set(
     where_sql = ""
     if where_clauses:
         where_sql = "WHERE " + " AND ".join(where_clauses)
+
+    # Count matching printings across the complete filtered search, before pagination.
+    matching_names_sql = ""
+    if clean_multiple_printings_filter:
+        count_rule = "> 1" if clean_multiple_printings_filter == "only" else "= 1"
+        matching_names_sql = f"""
+            WITH matching_names AS (
+                SELECT LOWER(TRIM(cc.card_name)) AS card_name
+                FROM chaos_cards cc
+                LEFT JOIN sets s ON s.set_code = cc.set_code
+                LEFT JOIN card_prices cp ON cp.card_uuid = cc.card_uuid
+                LEFT JOIN custom_draft_set_cards cdsc
+                    ON cdsc.card_uuid = cc.card_uuid AND cdsc.set_code = ?
+                {where_sql}
+                GROUP BY LOWER(TRIM(cc.card_name))
+                HAVING COUNT(DISTINCT cc.card_uuid) {count_rule}
+            )
+        """
+        where_sql += (" AND " if where_sql else "WHERE ") + (
+            "LOWER(TRIM(cc.card_name)) IN (SELECT card_name FROM matching_names)"
+        )
+        params = params + params
 
     order_exact_params = []
     search_rank_sql = ""
@@ -4464,6 +4587,7 @@ def search_chaos_cards_for_custom_draft_set(
     count_where_params = list(params)
     cursor.execute(
         f"""
+        {matching_names_sql}
         SELECT COUNT(*)
         FROM chaos_cards cc
         LEFT JOIN sets s
@@ -4482,6 +4606,7 @@ def search_chaos_cards_for_custom_draft_set(
 
     cursor.execute(
         f"""
+        {matching_names_sql}
         SELECT
             cc.card_uuid,
             cc.card_name,
@@ -4503,6 +4628,9 @@ def search_chaos_cards_for_custom_draft_set(
                 cp.tcgplayer_etched_price
             ) AS sort_price,
             cc.is_dual_faced,
+            cc.frame_effects_json,
+            cc.is_full_art,
+            cc.is_textless,
             CASE
                 WHEN cdsc.custom_set_card_id IS NULL THEN 0
                 ELSE 1
@@ -4513,13 +4641,6 @@ def search_chaos_cards_for_custom_draft_set(
                     FROM alternate_sources alt
                     WHERE alt.is_enabled = 1
                       AND alt.card_uuid = cc.card_uuid
-                )
-                OR EXISTS (
-                    SELECT 1
-                    FROM alternate_sources alt
-                    WHERE alt.is_enabled = 1
-                      AND UPPER(COALESCE(alt.set_code, '')) = UPPER(COALESCE(cc.set_code, ''))
-                      AND LOWER(COALESCE(alt.collector_number, '')) = LOWER(COALESCE(cc.collector_number, ''))
                 )
                 THEN 1
                 ELSE 0
@@ -4532,22 +4653,7 @@ def search_chaos_cards_for_custom_draft_set(
                     WHERE up.is_current = 1
                       AND up.quality_status = 'accepted'
                       AND up.face_kind IN ('single', 'front')
-                      AND (
-                            (
-                                COALESCE(up.card_uuid, '') <> ''
-                                AND up.card_uuid = cc.card_uuid
-                            )
-                         OR (
-                                COALESCE(up.scryfall_id, '') <> ''
-                                AND up.scryfall_id = cc.scryfall_id
-                            )
-                         OR (
-                                UPPER(COALESCE(up.set_code, '')) =
-                                    UPPER(COALESCE(cc.set_code, ''))
-                                AND LOWER(COALESCE(up.collector_number, '')) =
-                                    LOWER(COALESCE(cc.collector_number, ''))
-                            )
-                      )
+                      AND up.card_uuid = cc.card_uuid
                 )
                 THEN 1
                 ELSE 0
@@ -4559,17 +4665,6 @@ def search_chaos_cards_for_custom_draft_set(
                     FROM alternate_sources alt
                     WHERE alt.is_enabled = 1
                       AND alt.card_uuid = cc.card_uuid
-                    ORDER BY
-                        alt.priority ASC,
-                        alt.alternate_source_id DESC
-                    LIMIT 1
-                ),
-                (
-                    SELECT alt.remove_bleed
-                    FROM alternate_sources alt
-                    WHERE alt.is_enabled = 1
-                      AND UPPER(COALESCE(alt.set_code, '')) = UPPER(COALESCE(cc.set_code, ''))
-                      AND LOWER(COALESCE(alt.collector_number, '')) = LOWER(COALESCE(cc.collector_number, ''))
                     ORDER BY
                         alt.priority ASC,
                         alt.alternate_source_id DESC
@@ -4775,6 +4870,9 @@ def search_chaos_cards_for_custom_draft_import_list(set_code, import_items, limi
                 cp.tcgplayer_etched_price
             ) AS sort_price,
             cc.is_dual_faced,
+            cc.frame_effects_json,
+            cc.is_full_art,
+            cc.is_textless,
             CASE
                 WHEN cdsc.custom_set_card_id IS NULL THEN 0
                 ELSE 1
@@ -5174,17 +5272,13 @@ def add_card_to_custom_draft_set(set_code, card_uuid, *, is_foil=False):
     cursor.execute(
         """
         SELECT 1
-        FROM custom_draft_set_cards cdsc
-        JOIN chaos_cards existing_cc
-            ON existing_cc.card_uuid = cdsc.card_uuid
-        WHERE cdsc.set_code = ?
-          AND LOWER(TRIM(COALESCE(existing_cc.card_name, ''))) =
-              LOWER(TRIM(COALESCE(?, '')))
+        FROM custom_draft_set_cards
+        WHERE set_code = ? AND card_uuid = ?
         LIMIT 1
         """,
         (
             clean_set_code,
-            card_row["card_name"] or "",
+            clean_card_uuid,
         ),
     )
 
@@ -5194,7 +5288,7 @@ def add_card_to_custom_draft_set(set_code, card_uuid, *, is_foil=False):
         return {
             "ok": True,
             "inserted": False,
-            "message": "A printing of this card is already in this custom set.",
+            "message": "This printing is already in this custom set. Adjust its quantity in the card list to add copies.",
         }
 
     cursor.execute(
@@ -5233,6 +5327,20 @@ def add_card_to_custom_draft_set(set_code, card_uuid, *, is_foil=False):
         "inserted": inserted,
         "message": "Card added." if inserted else "Card is already in this custom set.",
     }
+
+def update_custom_draft_set_card_quantity(set_code, custom_set_card_id, quantity):
+    if isinstance(quantity, bool) or not isinstance(quantity, int) or not 1 <= quantity <= 999:
+        raise ValueError("Quantity must be a whole number from 1 to 999.")
+    clean_set_code = normalize_custom_draft_set_code(set_code)
+    with closing(get_db_connection()) as conn, conn:
+        updated = conn.execute(
+            "UPDATE custom_draft_set_cards SET quantity = ? WHERE set_code = ? AND custom_set_card_id = ?",
+            (quantity, clean_set_code, custom_set_card_id),
+        ).rowcount
+        if not updated:
+            raise ValueError("Custom set card row was not found.")
+    return {"ok": True, "quantity": quantity, "message": "Quantity saved."}
+
 
 def update_custom_draft_set_card_printing(set_code, custom_set_card_id, new_card_uuid):
     clean_set_code = normalize_custom_draft_set_code(set_code)

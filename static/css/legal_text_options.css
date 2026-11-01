@@ -1,0 +1,48 @@
+.legal-text-dialog textarea, .legal-text-settings textarea {
+  box-sizing: border-box; width: 100%; resize: vertical; min-height: 76px;
+  padding: 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel-2); color: var(--text); font: 400 15px/1.5 Arial, sans-serif;
+}
+.legal-text-dialog textarea:focus-visible, .legal-text-settings textarea:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.legal-text-dialog .save-defaults { margin-top: 20px; }
+.legal-text-dialog label[for] { margin-bottom: 8px; }
+.legal-text-example {
+  display: flex; align-items: end; justify-content: space-between; gap: 24px;
+  min-height: 58px; margin: 18px 0 8px; padding: 16px 20px; border-radius: 0 0 16px 16px;
+  border-top: 3px solid #64625a; background: #151412; color: #dedcd5;
+}
+.legal-text-example > span { font: 500 9px/1.4 Arial,sans-serif; letter-spacing: .07em; }
+.legal-text-example output, .legal-text-example [data-legal-example] {
+  float: none; color: inherit; white-space: pre-wrap; overflow-wrap: anywhere;
+  text-align: right; font: 400 12px/1.25 Georgia,serif;
+}
+.legal-text-settings { padding: 18px; border: 1px solid var(--border); border-radius: 14px; }
+.legal-text-settings h3 { margin: 0 0 6px; font-size: 16px; }
+.legal-text-settings p, .legal-text-settings small { color: var(--muted); font-size: 13px; line-height: 1.5; }
+.legal-text-settings [data-legal-custom] { margin-top: 16px; }
+.legal-text-settings [data-legal-custom] > label { display: block; margin-bottom: 8px; }
+.legal-text-settings [hidden] { display: none !important; }
+.legal-text-settings .legal-text-field select { width: 100%; min-width: 0; }
+.legal-text-settings [data-legal-save] { margin-top: 14px; }
+.legal-text-field select {
+  box-sizing: border-box; min-height: 42px; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel-2); color: var(--text); font: 400 14px/1.4 Arial,sans-serif;
+}
+html[data-theme] .imomir-upscale-controls {
+  grid-template-columns: minmax(220px, 1.3fr) minmax(200px, .85fr) minmax(240px, 1fr) auto;
+}
+html[data-theme] .imomir-upscale-controls-no-holofoil {
+  grid-template-columns: minmax(220px, 1.3fr) minmax(240px, 1fr) auto;
+}
+@media (max-width: 1150px) {
+  html[data-theme] .imomir-upscale-controls,
+  html[data-theme] .imomir-upscale-controls-no-holofoil { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .imomir-upscale-controls > .action-button { grid-column: auto; justify-self: end; }
+}
+@media (max-width: 550px) {
+  html[data-theme] .imomir-upscale-controls,
+  html[data-theme] .imomir-upscale-controls-no-holofoil { grid-template-columns: minmax(0, 1fr); }
+}

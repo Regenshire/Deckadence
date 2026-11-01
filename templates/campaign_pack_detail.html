@@ -23,7 +23,7 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='face-tabs-1') }}"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='card-back-picker-1') }}"
 />
 {% endblock %} {% block content %}
 <div
@@ -69,6 +69,9 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
     </div>
   </div>
   <div class="pack-card-toolbar chaos-pack-view-header-actions">
+    <button type="button" id="packAnalysisButton" class="action-button secondary-button chaos-pack-view-back-button" aria-label="Pack Analysis">
+      <i class="fa-solid fa-chart-column" aria-hidden="true"></i> Analysis
+    </button>
     <label class="chaos-card-size-control" for="packDetailSortSelect">
       <span>Sort</span>
       <select id="packDetailSortSelect">
@@ -535,7 +538,8 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
   print_export_pack_ids = [] %} {% else %} {% set print_export_pack_ids =
   [pack.tracked_pack_id] %} {% endif %} {% include "_print_export_modal.html" %}
   {% include "_alternate_image_modal.html" %}
-  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='face-tabs-1') }}"></script>
+  {% include "_stats_modal.html" %}
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='card-back-picker-1') }}"></script>
   <div
     id="campaignPackZoomOverlay"
     class="card-zoom-overlay hidden"
@@ -549,8 +553,9 @@ pack.pack_tracking_code }}{% endblock %} {% block page_styles %}
 </div>
 
 <script src="{{ url_for('static', filename='js/print_export_modal.js', v='tracking-tags-1') }}"></script>
+<script src="{{ url_for('static', filename='js/stats_modal.js', v='analysis-multicolor-3') }}"></script>
 <script src="{{ url_for('static', filename='js/campaign_pack_detail.js', v='mpcfill-best-1') }}"></script>
 {% endblock %} {% block page_scripts_after_app %}
-<script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
-<script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
+<script src="{{ url_for('static', filename='js/image_compare.js', v='legal-1') }}"></script>
+<script src="{{ url_for('static', filename='js/upscale_batch.js', v='legal-1') }}"></script>
 {% endblock %}

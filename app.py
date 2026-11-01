@@ -9,6 +9,10 @@ from user_backup_system import recover_interrupted_import
 recover_interrupted_import()
 
 from upscaling.emblems import FOIL_COLORS, render_custom_svg, catalog, resolve_options, emblem_position, deckadance_position
+from upscaling.legal_text import (
+    resolve_legal_options, legal_settings, require_legal_runtime,
+    apply_legal_text, register_legal_text_routes,
+)
 
 import copy
 import csv
@@ -291,6 +295,9 @@ from db.database import (
     get_config,
     get_db_connection,
     get_import_metadata,
+    get_card_frame_effect_options,
+    mtgjson_card_frame_metadata,
+    backfill_card_frame_metadata,
     get_selected_set_codes,
     initialize_database,
     is_card_database_ready,
@@ -307,6 +314,7 @@ from db.database import (
     update_custom_draft_set_card_category,
     update_custom_draft_set_card_foil,
     update_custom_draft_set_card_printing,
+    update_custom_draft_set_card_quantity,
     update_custom_draft_set_card_back_key,
     update_tracked_pack_card_foil,
     upsert_custom_draft_set,
@@ -532,6 +540,7 @@ pack_art_jobs = PackArtJobs(label_renderer=lambda code, name, label, **options:
         base_color=options.get('base_color'), set_name=name,
     ))
 app.secret_key = APP_SECRET_KEY
+app.add_template_global(get_card_frame_effect_options, "card_frame_effect_options")
 
 from ui.updates import register_update_routes
 from update_system import resolve_server_port
@@ -3514,9 +3523,12 @@ def import_chaos_cards_from_all_printings():
                     color_identity_json,
                     edhrec_rank,
                     edhrec_saltiness,
-                    promo_types_json
+                    promo_types_json,
+                    frame_effects_json,
+                    is_full_art,
+                    is_textless
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     card_uuid,
@@ -3549,6 +3561,7 @@ def import_chaos_cards_from_all_printings():
                     edhrec_rank,
                     edhrec_saltiness,
                     json.dumps(safe_list(card_obj.get("promoTypes"))),
+                    *mtgjson_card_frame_metadata(card_obj),
                 ),
             )
 
@@ -17184,6 +17197,7 @@ def get_custom_draft_set_print_cards(set_code, selected_card_ids=None):
             "foil_type": card["foil_type"] or "",
         }
         for card in custom_set_cards
+        for _ in range(int(card["quantity"]))
         if (card["card_uuid"] or "").strip()
     ]
 
@@ -17233,7 +17247,8 @@ def build_custom_draft_set_image_export_rows(set_code, selected_card_ids=None):
 
     export_rows = []
 
-    for card_index, card in enumerate(custom_set_cards, start=1):
+    print_copies = (card for card in custom_set_cards for _ in range(int(card["quantity"])))
+    for card_index, card in enumerate(print_copies, start=1):
         export_rows.append({
             "tracked_pack_id": 0,
             "pack_tracking_code": pack_tracking_code,
@@ -20369,6 +20384,7 @@ def card_tracking_clear_printed():
 
 register_cutter_routes(app, get_request_config, update_config_values)
 register_foil_workflow_routes(app, get_request_config, update_config_values)
+register_legal_text_routes(app, get_config, update_config_values)
 def load_finishing_original_artwork(card_uuid, face, context):
     """Use the same selected source as the viewer, without any finishing layers."""
     card = get_chaos_card_by_uuid(card_uuid)
@@ -26666,8 +26682,19 @@ def campaign_chaos_test_draft_full_stats(draft_test_id):
     if not stats_result.get("ok"):
         return jsonify(stats_result), 400
 
+    # The shared Analysis module needs individual entries, including duplicate
+    # copies, so every view and drilldown uses the same population.
+    with closing(get_db_connection()) as conn:
+        analysis_cards = [dict(row) for row in conn.execute(
+            """SELECT draft_test_pack_card_id AS entryId, card_uuid, card_name,
+                      type_line, mana_value, mana_cost, color_identity_json
+               FROM draft_test_pack_cards WHERE draft_test_id = ?
+               ORDER BY draft_test_pack_card_id""", (draft_test_id,)
+        )]
+
     return jsonify({
         "ok": True,
+        "analysis_cards": analysis_cards,
         "total_cards": stats_result.get("total_cards", 0),
         "total_packs": stats_result.get("total_packs", 0),
         "rarity_counts": stats_result.get("rarity_counts", {}),
@@ -30392,6 +30419,10 @@ def deckbuilder_cards_search(deck_id):
         include_tags=get_tracking_tag_query_values("include_tag"),
         exclude_tags=get_tracking_tag_query_values("exclude_tag"),
         exclude_deck_id=deck_id,
+        frame_effects_filter=request.args.getlist("frame_effects"),
+        full_art_filter=request.args.get("full_art") or "",
+        textless_filter=request.args.get("textless") or "",
+        multiple_printings_filter=request.args.get("multiple_printings") or "",
         page=page,
         page_size=page_size,
     )
@@ -32554,6 +32585,32 @@ def get_standard_card_face_metadata(card_key):
     }
 
 
+@app.route("/card-analysis-data", methods=["POST"])
+def card_analysis_data():
+    """Read printing metadata in batches for the shared Analysis module."""
+    payload = request.get_json(silent=True)
+    card_uuids = payload.get("card_uuids") if isinstance(payload, dict) else None
+    if (not isinstance(card_uuids, list) or len(card_uuids) > 500
+            or any(not isinstance(value, str) or not value.strip()
+                   or len(value) > 128 for value in card_uuids)):
+        return jsonify(ok=False, message="Supply up to 500 card identifiers."), 400
+
+    card_uuids = list(dict.fromkeys(value.strip() for value in card_uuids))
+    cards = {}
+    if card_uuids:
+        with closing(get_db_connection()) as conn:
+            placeholders = ",".join("?" for _ in card_uuids)
+            rows = conn.execute(
+                f"""SELECT card_uuid, card_name, type_line, mana_value, mana_cost,
+                           color_identity_json, layout, edhrec_rank, faces_json
+                    FROM chaos_cards WHERE card_uuid IN ({placeholders})""",
+                card_uuids,
+            ).fetchall()
+            for row in rows:
+                cards[row["card_uuid"]] = dict(row)
+    return jsonify(ok=True, cards=cards)
+
+
 @app.route("/card-face-data", methods=["POST"])
 def card_face_data():
     payload = request.get_json(silent=True) or {}
@@ -33667,6 +33724,7 @@ def upscaling_model_options():
 
     return jsonify({
         "ok": True,
+        "legal_text": legal_settings(get_request_config()),
         "holofoil_stamp_enabled": (
             is_upscaling_holofoil_stamp_enabled()
         ),
@@ -33844,6 +33902,7 @@ def chaos_card_upscale_control(card_uuid):
             get_upscaling_holofoil_stamp_default_replacement()
         ),
 
+        "legal_text": legal_settings(get_request_config()),
         "plugins": plugin_results,
 
         "run_url": url_for(
@@ -34117,6 +34176,7 @@ def build_upscale_candidate_response(
             else {}
         ),
 
+        "legal_text": plugin_result.get("legal_text", {}),
         "accept_url": url_for(
             "upscaled_candidate_accept",
             upscaled_image_id=(
@@ -34345,6 +34405,8 @@ def run_card_upscale_candidate_batch(
     requested_face="front",
     holofoil_stamp_replacement=None,
     holofoil_emblem_options=None,
+    legal_text_replacement=None,
+    legal_custom_text=None,
     progress_callback=None,
     image_context=None,
 ):
@@ -34402,6 +34464,8 @@ def run_card_upscale_candidate_batch(
     resolved_emblem_options = resolve_options(
         get_config(), holofoil_emblem_options, resolved_holofoil_stamp_replacement,
     )
+    legal_options = resolve_legal_options(get_config(), legal_text_replacement, legal_custom_text)
+    require_legal_runtime(legal_options)
 
     clean_requested_face = str(
         requested_face
@@ -34854,6 +34918,12 @@ def run_card_upscale_candidate_batch(
                 plugin_result_by_face[
                     face_name
                 ]
+            )
+
+            if legal_options['replacement'] != 'none':
+                report_progress("Legal text", f"Matching the legal footer on {face_name}...", 86)
+            plugin_result['legal_text'] = apply_legal_text(
+                prepared_face['output_path'], legal_options, source_path=prepared_face['source_path'],
             )
 
             bleed_result = {
@@ -35411,6 +35481,8 @@ def chaos_card_upscale_run(card_uuid):
                     requested_face
                 ),
                 holofoil_emblem_options=payload.get("holofoil_emblem_options"),
+                legal_text_replacement=payload.get("legal_text_replacement"),
+                legal_custom_text=payload.get("legal_custom_text"),
                 holofoil_stamp_replacement=(
                     payload.get(
                         "holofoil_stamp_replacement"
@@ -35836,33 +35908,7 @@ def get_next_upscale_batch_card_uuids(
                 SELECT 1
                 FROM alternate_sources alt
                 WHERE alt.is_enabled = 1
-                  AND (
-                        alt.card_uuid = cc.card_uuid
-                        OR (
-                            UPPER(
-                                COALESCE(
-                                    alt.set_code,
-                                    ''
-                                )
-                            ) = UPPER(
-                                COALESCE(
-                                    cc.set_code,
-                                    ''
-                                )
-                            )
-                            AND LOWER(
-                                COALESCE(
-                                    alt.collector_number,
-                                    ''
-                                )
-                            ) = LOWER(
-                                COALESCE(
-                                    cc.collector_number,
-                                    ''
-                                )
-                            )
-                        )
-                      )
+                  AND alt.card_uuid = cc.card_uuid
               )
         """
 
@@ -35888,40 +35934,7 @@ def get_next_upscale_batch_card_uuids(
                                   ui.alternate_source_id
                         )
                       )
-                  AND (
-                        ui.card_uuid = cc.card_uuid
-                        OR (
-                            COALESCE(
-                                ui.scryfall_id,
-                                ''
-                            ) <> ''
-                            AND ui.scryfall_id = cc.scryfall_id
-                        )
-                        OR (
-                            UPPER(
-                                COALESCE(
-                                    ui.set_code,
-                                    ''
-                                )
-                            ) = UPPER(
-                                COALESCE(
-                                    cc.set_code,
-                                    ''
-                                )
-                            )
-                            AND LOWER(
-                                COALESCE(
-                                    ui.collector_number,
-                                    ''
-                                )
-                            ) = LOWER(
-                                COALESCE(
-                                    cc.collector_number,
-                                    ''
-                                )
-                            )
-                        )
-                      )
+                  AND ui.card_uuid = cc.card_uuid
               )
         """
 
@@ -36030,40 +36043,7 @@ def get_next_existing_upscale_card_uuids(
                 FROM upscaled_images ui
                 WHERE ui.is_current = 1
                   AND ui.quality_status = 'accepted'
-                  AND (
-                        ui.card_uuid = cc.card_uuid
-                        OR (
-                            COALESCE(
-                                ui.scryfall_id,
-                                ''
-                            ) <> ''
-                            AND ui.scryfall_id = cc.scryfall_id
-                        )
-                        OR (
-                            UPPER(
-                                COALESCE(
-                                    ui.set_code,
-                                    ''
-                                )
-                            ) = UPPER(
-                                COALESCE(
-                                    cc.set_code,
-                                    ''
-                                )
-                            )
-                            AND LOWER(
-                                COALESCE(
-                                    ui.collector_number,
-                                    ''
-                                )
-                            ) = LOWER(
-                                COALESCE(
-                                    cc.collector_number,
-                                    ''
-                                )
-                            )
-                        )
-                      )
+                  AND ui.card_uuid = cc.card_uuid
               )
         ORDER BY
             cc.card_name COLLATE NOCASE ASC,
@@ -36380,6 +36360,8 @@ def run_upscaling_batch_job(
     replace_existing=False,
     holofoil_stamp_replacement=None,
     holofoil_emblem_options=None,
+    legal_text_replacement=None,
+    legal_custom_text=None,
     image_owner=None,
     include_alternate_images=False,
     alternate_image_max_bytes=(
@@ -36417,6 +36399,8 @@ def run_upscaling_batch_job(
         completed_count = 0
         failed_count = 0
         skipped_count = 0
+        legal_applied_count = 0
+        legal_kept_count = 0
 
         for index, card_uuid in enumerate(
             card_uuids,
@@ -36519,6 +36503,8 @@ def run_upscaling_batch_job(
                         ),
                         requested_face="front",
                         holofoil_emblem_options=holofoil_emblem_options,
+                        legal_text_replacement=legal_text_replacement,
+                        legal_custom_text=legal_custom_text,
                         holofoil_stamp_replacement=(
                             holofoil_stamp_replacement
                         ),
@@ -36543,6 +36529,14 @@ def run_upscaling_batch_job(
                 accept_upscaled_candidates(
                     candidate_ids
                 )
+
+                for record in run_result['candidate_records']:
+                    legal_result = record['plugin_result'].get('legal_text', {})
+                    if legal_result.get('replacement', 'none') != 'none':
+                        if legal_result.get('applied'):
+                            legal_applied_count += 1
+                        else:
+                            legal_kept_count += 1
 
                 completed_count += 1
 
@@ -36597,6 +36591,9 @@ def run_upscaling_batch_job(
                 f"Accepted {completed_count}, "
                 f"skipped {skipped_count}, "
                 f"failed {failed_count}."
+                + (f" Legal text updated on {legal_applied_count} face(s); "
+                   f"kept unchanged on {legal_kept_count} face(s)."
+                   if legal_applied_count + legal_kept_count else "")
             ),
             processed_cards=(
                 total_cards
@@ -36763,6 +36760,8 @@ def upscaling_batch_start():
         )
 
         resolve_options(get_config(), payload.get("holofoil_emblem_options"), holofoil_stamp_replacement)
+        legal_options = resolve_legal_options(get_config(), payload.get("legal_text_replacement"), payload.get("legal_custom_text"))
+        require_legal_runtime(legal_options)
 
     except ValueError as exc:
         return jsonify({
@@ -36994,6 +36993,8 @@ def upscaling_batch_start():
                 alternate_image_max_bytes
             ),
             "holofoil_emblem_options": payload.get("holofoil_emblem_options"),
+            "legal_text_replacement": legal_options['replacement'],
+            "legal_custom_text": legal_options['custom_text'],
             "holofoil_stamp_replacement": (
                 holofoil_stamp_replacement
             ),
@@ -38248,6 +38249,8 @@ def custom_draft_set_print(set_code):
         return "Custom draft set was not found.", 404
 
     selected_card_ids = get_custom_draft_selected_card_ids_from_form()
+    if request.form.get("custom_set_selection_required") == "1" and not selected_card_ids:
+        return "Choose at least one printing to print.", 400
     cards = get_custom_draft_set_print_cards(
         clean_set_code,
         selected_card_ids=selected_card_ids,
@@ -38318,6 +38321,8 @@ def custom_draft_set_export_zip(set_code):
 
     try:
         selected_card_ids = get_custom_draft_selected_card_ids_from_form()
+        if request.form.get("custom_set_selection_required") == "1" and not selected_card_ids:
+            return "Choose at least one printing to export.", 400
         export_rows = build_custom_draft_set_image_export_rows(
             clean_set_code,
             selected_card_ids=selected_card_ids,
@@ -39171,6 +39176,10 @@ def serialize_custom_draft_card_search_result(row):
         "edhrec_rank": row["edhrec_rank"],
         "edhrec_saltiness": row["edhrec_saltiness"],
         "sort_price": row["sort_price"],
+        "frame_effects": json.loads(row["frame_effects_json"] or "[]") if "frame_effects_json" in row_keys else [],
+        "full_art": bool(row["is_full_art"]) if "is_full_art" in row_keys and row["is_full_art"] is not None else None,
+        "textless": bool(row["is_textless"]) if "is_textless" in row_keys and row["is_textless"] is not None else None,
+        "is_dual_faced": bool(row["is_dual_faced"]) if "is_dual_faced" in row_keys else False,
         "already_in_set": int(row["already_in_set"] or 0) == 1,
         "has_alternate_source": has_alternate_source,
         "alternate_remove_bleed": alternate_remove_bleed,
@@ -39217,6 +39226,10 @@ def card_printings_search_response(set_code, card_uuid):
 def serialize_custom_draft_current_card_result(row):
     return {
         "custom_set_card_id": int(row["custom_set_card_id"]),
+        "quantity": int(row["quantity"]),
+        "card_section": row["card_section"],
+        "layout": row["layout"] or "",
+        "quantity_update_url": url_for("custom_draft_set_cards_update_quantity", set_code=row["custom_set_code"], custom_set_card_id=row["custom_set_card_id"]),
         "card_uuid": row["card_uuid"] or "",
         "card_name": row["card_name"] or "",
         "card_set_code": row["card_set_code"] or "",
@@ -39390,6 +39403,27 @@ def custom_draft_set_cards_import_list_add_most_recent(set_code):
 @app.route("/custom-draft-sets/<path:set_code>/cards/search", methods=["GET"])
 def custom_draft_set_cards_search(set_code):
     clean_set_code = normalize_custom_draft_set_code(set_code)
+    if not get_custom_draft_set(clean_set_code):
+        return jsonify({
+            "ok": False,
+            "message": "Custom draft set was not found.",
+            "results": [],
+        }), 404
+    return card_library_search_response(clean_set_code)
+
+
+@app.get("/card-image-picker")
+def card_image_picker():
+    return render_template("_card_search_modal.html", card_image_picker=True)
+
+
+@app.get("/card-library/search")
+def card_library_search():
+    return card_library_search_response("__CARD_IMAGE_PICKER__")
+
+
+def card_library_search_response(clean_set_code):
+    """Shared discovery filters for collection editing and image selection."""
     search_text = (request.args.get("q") or "").strip()
 
     try:
@@ -39406,13 +39440,6 @@ def custom_draft_set_cards_search(set_code):
         page_size = 10
     if page_size > 1000:
         page_size = 1000
-
-    if not get_custom_draft_set(clean_set_code):
-        return jsonify({
-            "ok": False,
-            "message": "Custom draft set was not found.",
-            "results": [],
-        }), 404
 
     if request.args.get("printing_card_uuid"):
         return card_printings_search_response(clean_set_code, request.args["printing_card_uuid"])
@@ -39433,6 +39460,10 @@ def custom_draft_set_cards_search(set_code):
         exclude_added_filter=request.args.get("exclude_added") or "",
         include_tags=get_tracking_tag_query_values("include_tag"),
         exclude_tags=get_tracking_tag_query_values("exclude_tag"),
+        frame_effects_filter=request.args.getlist("frame_effects"),
+        full_art_filter=request.args.get("full_art") or "",
+        textless_filter=request.args.get("textless") or "",
+        multiple_printings_filter=request.args.get("multiple_printings") or "",
         page=page,
         page_size=page_size,
     )
@@ -39487,6 +39518,10 @@ def custom_draft_set_cards_add_all_results(set_code):
                 exclude_added_filter=request.args.get("exclude_added") or "",
                 include_tags=get_tracking_tag_query_values("include_tag"),
                 exclude_tags=get_tracking_tag_query_values("exclude_tag"),
+                frame_effects_filter=request.args.getlist("frame_effects"),
+                full_art_filter=request.args.get("full_art") or "",
+                textless_filter=request.args.get("textless") or "",
+                multiple_printings_filter=request.args.get("multiple_printings") or "",
                 page=search_page,
                 page_size=search_page_size,
             )
@@ -39581,6 +39616,16 @@ def custom_draft_set_cards_add(set_code):
         **result,
         "card": added_card,
     })
+
+@app.route("/custom-draft-sets/<path:set_code>/cards/<int:custom_set_card_id>/quantity", methods=["POST"])
+def custom_draft_set_cards_update_quantity(set_code, custom_set_card_id):
+    payload = request.get_json(silent=True)
+    try:
+        quantity = payload.get("quantity") if isinstance(payload, dict) else None
+        return jsonify(update_custom_draft_set_card_quantity(set_code, custom_set_card_id, quantity))
+    except ValueError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+
 
 @app.route("/custom-draft-sets/<path:set_code>/cards/<int:custom_set_card_id>/printing", methods=["POST"])
 def custom_draft_set_cards_update_printing(set_code, custom_set_card_id):
@@ -39799,6 +39844,7 @@ def open_startup_browser(url):
 if __name__ == "__main__":
     initialize_database()
     backfill_finish_metadata()
+    backfill_card_frame_metadata()
     ensure_draft_testing_schema()
     from db.pack_simulator import repair_simulator_tracking_codes
     repair_simulator_tracking_codes()

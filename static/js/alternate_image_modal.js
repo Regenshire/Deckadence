@@ -225,6 +225,9 @@ for (const button of document.querySelectorAll(
   let currentImagePreviewVersion = "";
   let alternateModalVersion = 0;
   let alternateMutationPending = false;
+  let cardPickerOverlay = null;
+  let cardPickerBusy = false;
+  const browseCardsButton = document.getElementById("alternateImageBrowseCardsButton");
 
   function alternateRequestUrl(path, writing) {
     const url = new URL(path, window.location.href);
@@ -1067,12 +1070,13 @@ for (const button of document.querySelectorAll(
   }
 
   function openAlternateModal(cardUuid, cardName, options) {
-    if (alternateMutationPending) return;
+    if (alternateMutationPending || cardPickerOverlay) return;
     alternateModalVersion += 1;
     currentImageScopeToken = null;
     currentAlternatePayload = null;
     replacingCustomImage = false;
     editingFace = "front";
+    browseCardsButton?.classList.add("hidden");
     customBackDraft = false;
     faceDrafts = {};
     for (const id of ["alternateImageSides", "alternateImageFaceTabs", "alternateImageFacePair", "alternateImageCustomBackBadge"]) document.getElementById(id)?.classList.add("hidden");
@@ -1134,7 +1138,7 @@ for (const button of document.querySelectorAll(
   }
 
   function closeAlternateModal() {
-    if (alternateMutationPending) return;
+    if (alternateMutationPending || cardPickerOverlay) return;
     alternateModalVersion += 1;
     currentImageScopeToken = null;
     if (!alternateOverlay) {
@@ -1177,6 +1181,7 @@ for (const button of document.querySelectorAll(
     const card = payload.card || {};
     const isCustomCard = Boolean(card.custom_card);
     const isCustomFront = isCustomCard && editingFace === "front";
+    browseCardsButton?.classList.toggle("hidden", editingFace !== "back");
     alternateDeleteCustomRow?.classList.toggle("hidden", !isCustomCard);
     alternateOverlay.classList.toggle("alternate-image-custom-editor", isCustomCard);
     const isDualFaced = hasTwoFaces();
@@ -1240,7 +1245,7 @@ for (const button of document.querySelectorAll(
       const emptyText = document.createElement("span");
       emptyText.textContent =
         editingFace === "back" && !card.is_dual_faced
-          ? "Upload an image, enter a URL, or browse MPCFill."
+          ? "Upload an image, enter a URL, or browse cards or MPCFill."
           : payload.card?.custom_card
           ? "Deckadence is currently using the original custom card artwork or its upscaled image."
           : "Deckadence is currently using a Scryfall base or upscaled image.";
@@ -1643,6 +1648,88 @@ for (const button of document.querySelectorAll(
     openAlternateModal(cardUuid || "", cardName || "", options || {});
   };
 
+  browseCardsButton?.addEventListener("click", function () {
+    if (!currentAlternatePayload || alternateMutationPending || cardPickerOverlay || editingFace !== "back") return;
+    const version = alternateModalVersion;
+    const targetUuid = currentAlternateCardUuid;
+    const overlay = document.createElement("div");
+    overlay.className = "alternate-image-card-picker";
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.setAttribute("aria-label", "Choose Back from Cards");
+    const frame = document.createElement("iframe");
+    frame.title = "Choose Back from Cards";
+    frame.tabIndex = 0;
+    const url = new URL("/card-image-picker", location.href);
+    url.searchParams.set("q", currentAlternateCardName);
+    frame.src = url.href;
+    const loading = document.createElement("div");
+    loading.className = "alternate-image-card-picker-loading";
+    const loadingText = document.createElement("p");
+    loadingText.textContent = "Opening card library…";
+    loadingText.setAttribute("role", "status");
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "action-button secondary-button";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", () => window.iMomirAlternateImage.cardPicker?.close(frame.contentWindow));
+    loading.append(loadingText, cancel);
+    overlay.append(frame, loading);
+    cardPickerOverlay = overlay;
+    alternateOverlay.inert = true;
+    window.iMomirAlternateImage.cardPicker = {
+      imageUrl: raw => window.iMomirImageUrl(raw),
+      ready: function (source) {
+        if (source !== frame.contentWindow) return;
+        loading.remove();
+        frame.focus();
+      },
+      close: function (source) {
+        if (source !== frame.contentWindow || cardPickerBusy) return;
+        overlay.remove();
+        cardPickerOverlay = null;
+        window.iMomirAlternateImage.cardPicker = null;
+        alternateOverlay.inert = false;
+        browseCardsButton.focus({preventScroll: true});
+      },
+      select: async function (source, card, face) {
+        if (source !== frame.contentWindow || cardPickerBusy || alternateMutationPending ||
+            version !== alternateModalVersion || targetUuid !== currentAlternateCardUuid || editingFace !== "back")
+          throw new Error("The card changed. Reopen Browse Cards from the Back screen.");
+        cardPickerBusy = true;
+        try {
+          // Copy the selected artwork so later edits to that card do not change this back.
+          const imageUrl = new URL(window.iMomirImageUrl("/chaos-card-image/" + encodeURIComponent(card.card_uuid)), location.href);
+          imageUrl.searchParams.set("face", face === "back" ? "back" : "front");
+          const response = await fetch(imageUrl);
+          if (!response.ok) throw new Error("The selected card image could not be loaded. Try another printing.");
+          const blob = await response.blob();
+          if (!blob.type.startsWith("image/")) throw new Error("The selected printing did not return an image.");
+          if (version !== alternateModalVersion || targetUuid !== currentAlternateCardUuid)
+            throw new Error("The card changed. Reopen Browse Cards from the Back screen.");
+          const formData = new FormData();
+          formData.set("source_type", "uploaded_file");
+          formData.set("face_kind", "back");
+          formData.set("source_name", "Card Library · " + card.card_name + " · " + card.set_code + " #" + card.collector_number + (face === "back" ? " · Back" : ""));
+          const extension = blob.type === "image/png" ? "png" : blob.type === "image/webp" ? "webp" : "jpg";
+          formData.set("alternate_image_file", blob, "card-back." + extension);
+          formData.set("export_frame_template", alternateExportFrameTemplate?.value || "auto");
+          const payload = await saveAlternateChange(
+            "/chaos/cards/" + encodeURIComponent(targetUuid) + "/alternate-sources/add",
+            { body: formData },
+          );
+          if (!payload) throw new Error(alternateMessage.textContent || "The back image could not be saved.");
+          delete faceDrafts.back;
+          restoreFaceDraft();
+          if (alternateRemoveBleedInput) alternateRemoveBleedInput.checked = false;
+        } finally {
+          cardPickerBusy = false;
+        }
+      },
+    };
+    document.body.appendChild(overlay);
+  });
+
   const mpcFillButton = document.getElementById("alternateImageMpcFillButton");
   mpcFillButton?.addEventListener("click", function () {
     if (!currentAlternatePayload || alternateMutationPending) {
@@ -1796,6 +1883,7 @@ for (const button of document.querySelectorAll(
   document.addEventListener("keydown", function (event) {
     if (
       event.key === "Escape" &&
+      !cardPickerOverlay &&
       !window.DeckadenceMpcFill?.isOpen() &&
       alternateOverlay &&
       !alternateOverlay.classList.contains("hidden")

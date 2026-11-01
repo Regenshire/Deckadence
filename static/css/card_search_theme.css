@@ -31,6 +31,17 @@ html #customDraftCardSearchOverlay .custom-draft-card-search-window-header {
 html #customDraftCardSearchOverlay h2 { font-size:23px; line-height:1.25; margin:0; color:var(--text); }
 html #customDraftCardSearchOverlay .page-subtitle { margin:6px 0 0; color:var(--muted); font-size:13px; }
 html #customDraftCardSearchOverlay .card-search-header-actions { position:relative; display:flex; align-items:center; gap:8px; flex:none; }
+html #customDraftCardSearchOverlay .card-search-switch { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:8px 10px; border:1px solid var(--border); border-radius:7px; background:var(--button); color:var(--text); font-size:12px; line-height:1.3; cursor:pointer; }
+html #customDraftCardSearchOverlay .card-search-switch:hover:not(:disabled) { background:var(--button-hover); }
+html #customDraftCardSearchOverlay .card-search-switch-track { position:relative; flex:none; width:32px; height:18px; border-radius:10px; background:var(--muted); }
+html #customDraftCardSearchOverlay .card-search-switch-track::after { content:""; position:absolute; top:3px; left:3px; width:12px; height:12px; border-radius:50%; background:#fff; transition:transform .15s ease; }
+html #customDraftCardSearchOverlay .card-search-switch[aria-checked="true"] .card-search-switch-track { background:#15803d; }
+html #customDraftCardSearchOverlay .card-search-switch[aria-checked="true"] .card-search-switch-track::after { transform:translateX(14px); }
+html #customDraftCardSearchOverlay .card-search-switch-state { min-width:18px; font-weight:700; }
+@media(max-width:1050px) {
+  html #customDraftCardSearchOverlay .custom-draft-card-search-window-header { flex-wrap:wrap; }
+  html #customDraftCardSearchOverlay .card-search-header-actions { flex-wrap:wrap; justify-content:flex-end; margin-left:auto; max-width:100%; }
+}
 html #customDraftCardSearchOverlay button { font-family:inherit; }
 html #customDraftCardSearchOverlay :is(button,input,select,textarea,[role="button"]):focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 html #customDraftCardSearchOverlay .action-button { width:auto; min-width:88px; min-height:38px; margin:0; padding:8px 18px; border-radius:8px; font-size:14px; line-height:1.3; }
@@ -319,4 +330,21 @@ html #customDraftCardSearchOverlay .custom-draft-card-search-zoom-image { width:
   html #customDraftCardSearchOverlay .card-search-footer { gap:8px; padding:10px; }
   html #customDraftCardSearchOverlay .card-search-feedback { flex-basis:100%; }
   html #customDraftCardSearchOverlay .card-search-results-info { padding:8px 12px; gap:6px; font-size:11px; }
+}
+html:has(body.card-image-picker-page), body.card-image-picker-page {
+  background: transparent;
+  margin: 0;
+}
+
+html #customDraftCardSearchOverlay .card-search-image-face {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+html #customDraftCardSearchOverlay .card-search-image-face select {
+  width: 85px;
+  padding: 6px 10px;
 }

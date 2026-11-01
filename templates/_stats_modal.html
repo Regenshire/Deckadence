@@ -1,52 +1,84 @@
-{# *** CARD STATISTICS - Statistics Dialog *** #}
-<div
-    id="statsModal"
-    class="campaign-add-pack-modal hidden"
-    aria-hidden="true"
->
-    <div id="statsBackdrop" class="campaign-add-pack-backdrop"></div>
-
-    <div class="campaign-add-pack-dialog stats-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="statsModalTitle">
-        <div class="campaign-add-pack-header">
-            <div>
-                <h2 id="statsModalTitle" class="campaign-add-pack-title">
-                    {{ stats_modal_title|default("Stats") }}
-                </h2>
-
-                <p id="statsModalSubtitle" class="campaign-add-pack-subtitle">
-                    {{ stats_modal_subtitle|default("Review card statistics.") }}
-                </p>
-            </div>
-
-            <button
-                type="button"
-                id="statsCloseButton"
-                class="campaign-add-pack-close-button"
-                aria-label="Close Stats"
-            >
-                ×
-            </button>
+{# Shared Set / Pack / Deck Analysis. All data is supplied by the host page. #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/stats_modal.css', v='analysis-multicolor-4') }}">
+<div id="statsModal" class="analysis-modal hidden" aria-hidden="true" data-cards-url="{{ url_for('card_analysis_data') }}">
+  <div id="statsBackdrop" class="an-backdrop"></div>
+<section class="an-window" role="dialog" aria-modal="true" aria-labelledby="an-title" aria-describedby="an-source">
+      <header class="an-header">
+        <div class="an-heading"><div class="an-eyebrow">ANALYSIS</div><h2 id="an-title">Analysis</h2><p id="an-source"></p></div>
+        <div class="an-header-actions"><button class="an-button an-window-toggle" type="button" aria-pressed="false"><i class="fa-solid fa-expand" aria-hidden="true"></i><span>Maximize</span></button><button type="button" class="an-icon-button an-close" aria-label="Close analysis"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+      </header>
+      <div class="an-overview">
+      <div class="an-scopebar">
+        <div class="an-field"><label for="an-scope">Analyze</label><select id="an-scope"><option value="all">Entire set</option><option value="filtered">Current filtered cards</option></select></div>
+        <div class="an-field"><label for="an-count">Count</label><select id="an-count"><option value="unique">Unique card names</option><option value="copies">Copies</option></select></div>
+      </div>
+      <div id="an-summary" class="an-summary" aria-live="polite"></div>
+      </div>
+      <nav class="an-tabs" aria-label="Analysis views"><button type="button" data-tab="balance" aria-pressed="true">Balance</button><button type="button" data-tab="types" aria-pressed="false">Types &amp; subtypes</button><button type="button" data-tab="rank" aria-pressed="false">EDHREC</button></nav>
+      <div class="an-body">
+<div id="an-status" class="an-status" role="status" hidden><span id="an-status-message"></span><button id="an-retry" type="button" class="an-button" hidden>Retry</button></div>
+<p id="an-data-note" class="an-data-note" hidden></p>
+        <div class="an-view" data-view="balance">
+          <section class="an-options" aria-label="Color analysis options">
+            <div class="an-options-title"><i class="fa-solid fa-sliders" aria-hidden="true"></i><span>Color analysis</span></div>
+            <button type="button" class="an-switch" id="an-lands" role="switch" aria-checked="false"><span>Include lands</span><span class="an-switch-track" aria-hidden="true"></span><b>Off</b></button>
+            <button type="button" class="an-switch" id="an-multi" role="switch" aria-checked="false"><span>Include multicolor in each color</span><span class="an-switch-track" aria-hidden="true"></span><b>Off</b></button>
+          </section>
+          <p class="an-method" id="an-method"></p>
+          <div class="an-balance-grid">
+            <section class="an-panel an-colors-panel">
+              <div class="an-panel-heading"><div><h3>Color balance</h3><p id="an-color-subtitle">Nonland color identity</p></div><span class="an-panel-meta" id="an-color-n"></span></div>
+              <div class="an-color-head"><span>Color identity</span><span>Cards / share</span><span>Avg MV</span></div>
+              <div id="an-color-rows"></div>
+              <div class="an-land-row" id="an-land-row"></div>
+            </section>
+            <section class="an-panel an-curves-panel">
+              <div class="an-panel-heading"><div><h3>Mana curves by color</h3><p>Nonlands only · same scale across rows</p></div><div class="an-segments" aria-label="Mana curve units"><button type="button" data-unit="count" aria-pressed="true">Cards</button><button type="button" data-unit="share" aria-pressed="false">%</button></div></div>
+              <div class="an-curve-scroll"><div class="an-curve-axis"><span>Mana value</span><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7+</span></div>
+              <div id="an-curve-rows"></div></div>
+            </section>
+            <section class="an-panel an-multicolor-panel">
+              <div class="an-panel-heading"><div><h3>Multicolor breakdown</h3><p>Exact color identities · nonland cards</p></div></div>
+              <div id="an-combo-sizes" class="an-combo-sizes" aria-label="Number of colors">
+                <button type="button" data-combo-size="all" aria-pressed="true">All</button>
+                <button type="button" data-combo-size="2" aria-pressed="false">2 colors <span></span></button>
+                <button type="button" data-combo-size="3" aria-pressed="false">3 colors <span></span></button>
+                <button type="button" data-combo-size="4" aria-pressed="false">4 colors <span></span></button>
+                <button type="button" data-combo-size="5" aria-pressed="false">5 colors <span></span></button>
+              </div>
+              <p class="an-combo-method">Bar length = cards · colored segments = casting-cost pips</p>
+              <div id="an-combos" class="an-combo-groups"></div>
+              <section id="an-multicolor-summary" class="an-multicolor-summary" aria-labelledby="an-multicolor-summary-title"></section>
+              <div class="an-combo-total" id="an-combo-total"></div>
+              <p class="an-panel-foot an-pip-note">Front-face costs; both halves for split cards. Generic and colorless mana are omitted. Hybrid pips split evenly between their colors.</p>
+            </section>
+            <section class="an-panel an-type-overview">
+              <div class="an-panel-heading"><div><h3>Card types</h3><p>Lands have their own category</p></div><button class="an-text-button" type="button" data-go="types">Explore <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></button></div>
+              <div id="an-type-bars"></div><p class="an-panel-foot">Spells with multiple types appear in each matching type.</p>
+            </section>
+            <section class="an-panel an-total-curve-panel">
+              <div class="an-panel-heading"><div><h3>Overall mana curve</h3><p>Nonlands · creatures and other spells</p></div><span class="an-total-curve-n"></span></div>
+              <div class="an-curve-legend"><span><b class="an-creature-swatch"></b>Creatures</span><span><b class="an-other-swatch"></b>Other spells</span></div>
+              <div id="an-total-curve" class="an-total-curve"></div>
+              <p class="an-panel-foot">Mana value · select a bucket to inspect its cards.</p>
+            </section>
+          </div>
         </div>
-
-        <div class="custom-draft-set-stats-panel stats-modal-panel">
-            <div id="statsSummaryGrid" class="custom-draft-set-stats-summary"></div>
-
-            <div class="custom-draft-set-stats-grid">
-                <div class="custom-draft-set-stats-card">
-                    <h3>Mana Value Distribution</h3>
-                    <div id="statsManaDistribution" class="custom-draft-stat-bar-list"></div>
-                </div>
-
-                <div class="custom-draft-set-stats-card">
-                    <h3>Color Identity</h3>
-                    <div id="statsColorDistribution" class="custom-draft-stat-pill-list"></div>
-                </div>
-
-                <div class="custom-draft-set-stats-card">
-                    <h3>Card Types</h3>
-                    <div id="statsTypeDistribution" class="custom-draft-stat-row-list"></div>
-                </div>
-            </div>
+        <div class="an-view" data-view="types" hidden>
+          <div class="an-section-intro"><div><h3>What does each color get?</h3><p>Compare card types, then look for support within a subtype.</p></div><span class="an-small-tag">Nonland colors · multicolor separate</span></div>
+          <section class="an-panel"><div class="an-panel-heading"><div><h3>Card types by color</h3><p>Each cell opens its matching cards.</p></div></div><div class="an-table-wrap" id="an-types-matrix"></div><p class="an-panel-foot">A spell can have several card types. Lands appear only in the land category below.</p></section>
+          <div class="an-subtype-layout">
+            <section class="an-panel"><div class="an-panel-heading"><div><h3>Subtype support</h3><p>Counts across the current analysis scope</p></div><select id="an-subtype-type" aria-label="Subtype family"><option>Creature</option><option>Artifact</option><option>Enchantment</option><option>Land</option><option>Instant</option><option>Sorcery</option><option>Planeswalker</option><option>Battle</option><option>Kindred</option></select></div><div id="an-subtype-bars"></div></section>
+            <section class="an-panel"><div class="an-panel-heading"><div><h3 id="an-subtype-title">Human by color</h3><p id="an-subtype-subtitle">Choose a subtype to compare its distribution.</p></div></div><div id="an-subtype-colors"></div><div class="an-subtype-metrics" id="an-subtype-metrics"></div></section>
+          </div>
         </div>
-    </div>
+        <div class="an-view" data-view="rank" hidden>
+          <div class="an-section-intro"><div><h3>Popularity across colors</h3><p>EDHREC ranks are popularity context, not a power score.</p></div><span class="an-small-tag">Nonlands · unique names</span></div>
+          <section class="an-panel"><div class="an-panel-heading"><div><h3>EDHREC rank distribution</h3><p>Lower ranks are more popular. Unranked cards stay visible.</p></div></div><div class="an-rank-legend"><span><b style="background:var(--an-blue)"></b>Top 1,000</span><span><b style="background:var(--an-teal)"></b>1,001–5,000</span><span><b style="background:var(--an-rank-muted)"></b>5,001+</span><span><b class="an-unranked-mark"></b>Unranked</span></div><div id="an-rank-rows"></div><p class="an-panel-foot">Median uses ranked cards only. Each unique nonland card name counts once.</p></section>
+          <section class="an-panel an-ranked-list"><div class="an-panel-heading"><div><h3>Most popular cards</h3><p id="an-rank-list-note">Within the current scope</p></div><select id="an-rank-color" aria-label="Color for ranked cards"><option value="all">All colors</option><option value="W">White</option><option value="U">Blue</option><option value="B">Black</option><option value="R">Red</option><option value="G">Green</option><option value="M">Multicolor</option><option value="C">Colorless</option><option value="N">Unknown</option></select></div><div id="an-ranked-cards"></div></section>
+        </div>
+        <section id="an-inspector" class="an-panel an-inspector" hidden aria-live="polite"><div class="an-panel-heading"><div><div class="an-eyebrow">MATCHING CARDS</div><h3 id="an-inspector-title"></h3><p id="an-inspector-count"></p></div><button type="button" class="an-icon-button" id="an-inspector-close" aria-label="Close matching cards"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div><div id="an-inspector-cards"></div><nav id="an-inspector-pagination" class="an-pagination" aria-label="Analysis card pages" hidden><button id="an-inspector-prev" type="button" class="an-button">Previous</button><span id="an-inspector-page"></span><button id="an-inspector-next" type="button" class="an-button">Next</button></nav></section>
+      </div>
+      <footer class="an-footer"><span id="an-footer-scope">Entire set · unique card names</span><span class="an-footer-hint">Select a color, bar, or bucket to inspect cards</span><button type="button" class="an-button an-done">Done</button></footer>
+    </section>
 </div>

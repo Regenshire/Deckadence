@@ -5,6 +5,7 @@
   let modelSelect = null;
   let holofoilStampSelect = null;
   let holofoilStampEnabled = false;
+  let legalTextControl = null;
   let runButton = null;
 
   let sourceLabelElement = null;
@@ -896,6 +897,8 @@
     foilField.appendChild(foilLabel);
     foilField.appendChild(holofoilStampSelect.closest(".holofoil-select-wrap"));
     controls.appendChild(foilField);
+    legalTextControl = window.LegalTextOptions.create({id: 'imageCompareLegalReplacement'});
+    controls.appendChild(legalTextControl.field);
     controls.appendChild(runButton);
 
     const grid = document.createElement("div");
@@ -1242,6 +1245,7 @@
     runButton.disabled = isBusy;
     modelSelect.disabled = isBusy;
     holofoilStampSelect.disabled = isBusy || !holofoilStampEnabled;
+    legalTextControl.setDisabled(isBusy);
     acceptButton.disabled = isBusy;
     discardButton.disabled = isBusy;
     revertButton.disabled = isBusy;
@@ -1554,6 +1558,17 @@
         ? "Emblem applied" : "Emblem not applied");
     }
 
+    const legal = output.legal_text;
+    if (legal && legal.replacement !== 'none') {
+      const messages = {
+        replaced: 'Custom proxy text applied', removed: 'Legal text removed',
+        not_detected: 'Legal kept: no confident disclaimer match',
+        unsupported_layout: 'Legal kept: unsupported card layout',
+        uncertain_background: 'Legal kept: uncertain lettering or nearby content',
+        text_does_not_fit: 'Legal kept: shorten the custom proxy text',
+      };
+      metaParts.push(messages[legal.reason] || 'Legal text kept');
+    }
     outputMeta.textContent = ["Click image to inspect", ...metaParts].join(" • ");
   }
 
@@ -1573,6 +1588,7 @@
     populateModels(data);
 
     holofoilStampEnabled = Boolean(data.holofoil_stamp_enabled);
+    legalTextControl.setMetadata(data.legal_text);
 
     const defaultHolofoilReplacement = String(
       data.holofoil_stamp_replacement_default || "none",
@@ -1708,6 +1724,7 @@
           face: currentData.face,
           run_id: activeRunId,
           holofoil_emblem_options: window.HolofoilOptions.value(holofoilStampSelect),
+          ...legalTextControl.payload(),
           holofoil_stamp_replacement: holofoilStampEnabled
             ? holofoilStampSelect.value || "none"
             : "none",

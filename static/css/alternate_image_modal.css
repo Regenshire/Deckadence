@@ -520,6 +520,43 @@
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.alternate-image-library-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.alternate-image-source-selection-with-mpcfill:has(#alternateImageBrowseCardsButton:not(.hidden)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.alternate-image-card-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 10100;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.alternate-image-card-picker iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+}
+
+.alternate-image-card-picker-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: var(--panel);
+  color: var(--text);
+}
+
 .alternate-image-mpcfill-button {
   display: inline-flex;
   align-items: center;

@@ -204,6 +204,12 @@
     "iMomir.customDraftSet.currentCards.viewMode";
 
   let currentCardViewMode = "list";
+  let currentCardSection = "main";
+  let currentCardFamily = "";
+  const sectionLabels = {main: "Main Cards", lands: "Basic Lands", tokens: "Tokens"};
+  const cardSizeSelect = document.getElementById("customDraftCardSizeSelect");
+  const cardSizeStorageKey = "iMomir.customDraftSet.currentCards.cardSize";
+  const pendingQuantityUpdates = new Set();
   let currentCardGridNeedsRender = true;
 
   let currentCardRowsCache = null;
@@ -1450,6 +1456,10 @@
     row.className = "custom-draft-current-card-row";
     row.hidden = true;
     row.dataset.customSetCardId = customSetCardId;
+    row.dataset.quantity = String(card.quantity || 1);
+    row.dataset.cardSection = card.card_section || "main";
+    row.dataset.layout = card.layout || "";
+    row.dataset.quantityUpdateUrl = card.quantity_update_url || "";
     row.dataset.cardUuid = cardUuid;
     row.dataset.cardSearch = buildCurrentCardSearchTextFromCard(card);
     row.dataset.rarity = String(rarity).toLowerCase();
@@ -1563,7 +1573,6 @@
       "<span>Salt " +
         escapeHtml(formatCurrentCardNumber(card.edhrec_saltiness, 2)) +
         "</span>",
-      '<span data-current-price></span>',
       '<span class="custom-draft-color-identity" data-color-json="' +
         escapeHtml(colorIdentityJson) +
         '">Color Identity: ' +
@@ -1601,7 +1610,6 @@
       "</div>",
     ].join("");
 
-    row.querySelector("[data-current-price]")?.replaceWith(window.DeckadencePrices.create(card));
     return row;
   }
 
@@ -1655,6 +1663,11 @@
   function bindCurrentCardRowControls(row) {
     if (!row) {
       return;
+    }
+
+    const titleRow = row.querySelector(".custom-draft-current-card-title-row");
+    if (titleRow && !titleRow.querySelector(".custom-draft-card-quantity")) {
+      titleRow.appendChild(createCardQuantityControl(row));
     }
 
     const checkbox = row.querySelector(".custom-draft-current-card-checkbox");
@@ -1836,6 +1849,9 @@
 
     row.dataset.cardUuid = cardUuid;
     row.dataset.cardSearch = buildCurrentCardSearchTextFromCard(card);
+    row.dataset.quantity = String(card.quantity || 1);
+    row.dataset.cardSection = card.card_section || "main";
+    row.dataset.layout = card.layout || "";
     row.dataset.rarity = String(rarity).toLowerCase();
     row.dataset.colorIdentity = String(colorIdentityJson).toLowerCase();
     row.dataset.manaValue = manaValue;
@@ -1948,7 +1964,6 @@
       });
 
 
-      metaWrap.appendChild(window.DeckadencePrices.create(card));
 
       const colorSpan = document.createElement("span");
       colorSpan.className = "custom-draft-color-identity";
@@ -1981,7 +1996,8 @@
     invalidateCurrentCardRowsCache();
     invalidateCurrentCardGridCard(row);
 
-    row.querySelector("[data-current-price]")?.replaceWith(window.DeckadencePrices.create(card));
+    syncCardQuantityControls(row);
+    updateCurrentCardCountBadge();
     return row;
   }
 
@@ -2353,7 +2369,7 @@
         return;
       }
 
-      nameCounts[cardName] = (nameCounts[cardName] || 0) + 1;
+      nameCounts[cardName] = (nameCounts[cardName] || 0) + getCardQuantity(row);
     });
 
     return nameCounts;
@@ -2510,8 +2526,13 @@
   }
 
   function getCustomDraftStatsCardsForSharedModal() {
-    return getCurrentFilteredCardRows().map(function (row) {
+    const filteredRows = new Set(getCurrentFilteredCardRows());
+    return getCurrentCardRows().map(function (row) {
       return {
+        cardUuid: row.dataset.cardUuid,
+        entryId: row.dataset.customSetCardId,
+        quantity: getCardQuantity(row),
+        filtered: filteredRows.has(row),
         cardName: String(
           row.dataset.displayCardName || row.dataset.cardName || "",
         ).trim(),
@@ -2523,12 +2544,6 @@
           .toLowerCase(),
       };
     });
-  }
-
-  function updateSetStatsRollout() {
-    if (customDraftStatsModal && customDraftStatsModal.isOpen()) {
-      customDraftStatsModal.refresh();
-    }
   }
 
   // *** COPY CARDS - Build and Copy Card Lists ***
@@ -2547,7 +2562,7 @@
   }
 
   function buildVisibleCardExportText(copyFormat) {
-    const visibleRows = getVisibleCurrentCardRows();
+    const visibleRows = getCurrentFilteredCardRows();
     const cleanCopyFormat = String(copyFormat || "simple")
       .trim()
       .toLowerCase();
@@ -2562,6 +2577,7 @@
         const frontCardName = getFrontCardNameForExport(cardName);
         const setCode = (row.dataset.setCode || "").trim().toUpperCase();
         const collectorNumber = (row.dataset.collectorNumber || "").trim();
+        const quantity = getCardQuantity(row) + " ";
 
         if (!frontCardName) {
           return "";
@@ -2569,17 +2585,17 @@
 
         if (cleanCopyFormat === "detailed") {
           if (setCode && collectorNumber) {
-            return "1 " + cardName + " (" + setCode + ") " + collectorNumber;
+            return quantity + cardName + " (" + setCode + ") " + collectorNumber;
           }
 
           if (setCode) {
-            return "1 " + cardName + " (" + setCode + ")";
+            return quantity + cardName + " (" + setCode + ")";
           }
 
-          return "1 " + cardName;
+          return quantity + cardName;
         }
 
-        return "1 " + frontCardName;
+        return quantity + frontCardName;
       })
       .filter(Boolean)
       .join("\n");
@@ -2759,16 +2775,153 @@
   }
 
   function updateCurrentCardCountBadge() {
-    const count = getCurrentCardRows().length;
+    const allRows = getCurrentCardRows();
+    const count = countCardCopies(allRows);
     document.querySelectorAll('[data-custom-set-card-count]').forEach(label => { label.textContent = String(count); });
-    const empty = document.getElementById("customDraftCurrentCardEmpty");
-    if (empty) empty.classList.toggle("hidden", count > 0);
+    document.querySelectorAll("[data-section-count]").forEach(label => {
+      label.textContent = String(countCardCopies(allRows.filter(row => row.dataset.cardSection === label.dataset.sectionCount)));
+    });
     if (!currentCardCountBadge) {
       return;
     }
 
     currentCardCountBadge.textContent =
-      String(count) + " card(s)";
+      count + " copies · " + allRows.length + " printings";
+  }
+
+  function getCardQuantity(row) {
+    return Math.max(1, Math.min(999, Number(row.dataset.quantity) || 1));
+  }
+
+  function countCardCopies(rows) {
+    return rows.reduce((count, row) => count + getCardQuantity(row), 0);
+  }
+
+  function createCardQuantityControl(row) {
+    const control = document.createElement("div");
+    control.className = "custom-draft-card-quantity";
+    control.innerHTML = '<button type="button" data-quantity-step="-1">−</button><input type="number" min="1" max="999" step="1"><button type="button" data-quantity-step="1">+</button>';
+    const input = control.querySelector("input");
+    input.addEventListener("change", () => saveCardQuantity(row, Number(input.value)));
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter") { event.preventDefault(); input.blur(); }
+    });
+    control.querySelectorAll("button").forEach(button => button.addEventListener("click", () => {
+      saveCardQuantity(row, getCardQuantity(row) + Number(button.dataset.quantityStep));
+    }));
+    updateCardQuantityControl(row, control);
+    return control;
+  }
+
+  function updateCardQuantityControl(row, control) {
+    const quantity = getCardQuantity(row);
+    const label = (row.dataset.displayCardName || "card") + " · " + row.dataset.setCode + " #" + row.dataset.collectorNumber;
+    const busy = pendingQuantityUpdates.has(row);
+    const input = control.querySelector("input");
+    input.value = quantity;
+    input.disabled = busy;
+    input.setAttribute("aria-label", "Copies of " + label);
+    control.title = "Copies of " + label;
+    control.setAttribute("aria-busy", String(busy));
+    control.querySelectorAll("button").forEach(button => {
+      const step = Number(button.dataset.quantityStep);
+      button.disabled = busy || (step < 0 ? quantity <= 1 : quantity >= 999);
+      button.setAttribute("aria-label", (step < 0 ? "Remove one copy of " : "Add one copy of ") + label);
+    });
+  }
+
+  function syncCardQuantityControls(row) {
+    [row, currentCardGridCardCache.get(row)].filter(Boolean).forEach(host => {
+      host.dataset.quantity = row.dataset.quantity;
+      host.querySelectorAll(".custom-draft-card-quantity").forEach(control => updateCardQuantityControl(row, control));
+    });
+  }
+
+  async function saveCardQuantity(row, quantity) {
+    if (pendingQuantityUpdates.has(row)) return;
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 999) {
+      syncCardQuantityControls(row);
+      showUiMessage("Quantity must be a whole number from 1 to 999.", true);
+      return;
+    }
+    if (quantity === getCardQuantity(row)) return;
+    pendingQuantityUpdates.add(row);
+    syncCardQuantityControls(row);
+    try {
+      const response = await fetch(row.dataset.quantityUpdateUrl, {
+        method: "POST", headers: {"Content-Type": "application/json", Accept: "application/json"},
+        body: JSON.stringify({quantity}),
+      });
+      const payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.message || "Could not save quantity.");
+      row.dataset.quantity = String(payload.quantity);
+      updateCurrentCardCountBadge();
+      filterCurrentCards({preservePage: true});
+    } catch (error) {
+      showUiMessage(error.message || "Could not save quantity.", true);
+    } finally {
+      pendingQuantityUpdates.delete(row);
+      syncCardQuantityControls(row);
+      updateCurrentSelectionState();
+    }
+  }
+
+  function applyCurrentCardSize() {
+    if (!cardSizeSelect || !currentCardGrid) return;
+    const sizes = window.DeckadenceCardSizes;
+    const size = sizes.normalize(cardSizeSelect.value);
+    // Auto retains the existing responsive grid and its deliberate spacing.
+    currentCardGrid.style.gridTemplateColumns = size === "auto" ? "" :
+      `repeat(auto-fill, minmax(0, min(100%, ${sizes.pixels(size)}px)))`;
+    deferVisibleCurrentCardImages();
+  }
+
+  function updateCollectionSummary() {
+    const allRows = getCurrentCardRows();
+    const sectionRows = allRows.filter(row => row.dataset.cardSection === currentCardSection);
+    const rows = getCurrentFilteredCardRows();
+    document.getElementById("customDraftCollectionTitle").textContent = sectionLabels[currentCardSection];
+    document.getElementById("customDraftCollectionSummary").textContent =
+      countCardCopies(rows) + " copies · " + rows.length + " printings" +
+      (rows.length !== sectionRows.length ? " shown of " + sectionRows.length : "") + " · " +
+      ({main: "Includes nonbasic lands.", lands: "Each artwork has its own quantity.", tokens: "Printed separately from the main set."})[currentCardSection];
+    const empty = document.getElementById("customDraftCurrentCardEmpty");
+    empty.classList.toggle("hidden", rows.length > 0);
+    empty.textContent = sectionRows.length ? "No printings match these filters." : "No " + sectionLabels[currentCardSection].toLowerCase() + " have been added yet.";
+    const families = document.getElementById("customDraftCardFamilies");
+    families.hidden = currentCardSection === "main" || !sectionRows.length;
+    const names = [...new Set(sectionRows.map(row => row.dataset.displayCardName))].sort((a,b) => a.localeCompare(b));
+    if (currentCardFamily && !names.includes(currentCardFamily)) currentCardFamily = "";
+    const signature = JSON.stringify([currentCardSection, currentCardFamily, sectionRows.map(row => [row.dataset.customSetCardId, row.dataset.displayCardName, row.dataset.quantity])]);
+    if (families.dataset.signature !== signature) {
+      families.dataset.signature = signature;
+      families.replaceChildren();
+      if (!families.hidden) ["", ...names].forEach(name => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = name || "All";
+        button.setAttribute("aria-pressed", String(currentCardFamily === name));
+        button.addEventListener("click", () => { currentCardFamily = name; clearCurrentCardSelection(); filterCurrentCards(); });
+        families.appendChild(button);
+      });
+    }
+    updateCurrentSelectionState();
+  }
+
+  function setCurrentCardSection(section) {
+    if (!sectionLabels[section] || currentCardSection === section) return;
+    currentCardSection = section;
+    currentCardFamily = "";
+    clearCurrentCardSelection();
+    document.querySelectorAll(".custom-draft-collection-tabs [data-card-section]").forEach(button => {
+      const active = button.dataset.cardSection === section;
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+      if (active) document.getElementById("customDraftCollectionBody").setAttribute("aria-labelledby", button.id);
+    });
+    filterCurrentCards();
+    if (currentCardList) currentCardList.scrollTop = 0;
+    if (currentCardGrid) currentCardGrid.scrollTop = 0;
   }
 
   function invalidateCurrentCardRowsCache() {
@@ -2828,6 +2981,7 @@
     cardElement.dataset.cardUuid = cardUuid;
     cardElement.dataset.cardName = cardName;
     cardElement.dataset.customSetCardId = row.dataset.customSetCardId || "";
+    cardElement.dataset.quantity = row.dataset.quantity || "1";
     cardElement.dataset.isFoil = isFoil ? "1" : "0";
     cardElement.dataset.foilType = row.dataset.foilType || "";
 
@@ -2881,6 +3035,7 @@
     const nameDiv = document.createElement("div");
     nameDiv.className = "chaos-pack-view-name custom-draft-grid-card-name";
     nameDiv.textContent = cardName;
+    nameDiv.title = cardName + " · " + row.dataset.setCode + " #" + row.dataset.collectorNumber;
 
     nameRow.appendChild(selectLabel);
     nameRow.appendChild(nameDiv);
@@ -2965,9 +3120,7 @@
       metaRow.appendChild(upscaleButton);
     }
 
-    const priceButton = window.DeckadencePrices.create({card_uuid:cardUuid, is_foil:isFoil, prices:row.querySelector('[data-card-prices]')?._deckadencePrices});
-    priceButton.classList.add('chaos-pack-view-price', 'custom-draft-grid-card-meta-text');
-    metaRow.appendChild(priceButton);
+    metaRow.appendChild(createCardQuantityControl(row));
 
     infoWrap.appendChild(nameRow);
     infoWrap.appendChild(metaRow);
@@ -3173,6 +3326,7 @@
 
   function updateCurrentCardViewContainers() {
     const useGridView = currentCardViewMode === "grid";
+    if (cardSizeSelect) cardSizeSelect.closest("label").hidden = !useGridView;
 
     if (currentCardList) {
       currentCardList.classList.toggle(
@@ -3366,7 +3520,7 @@
     const start = (currentCardPage - 1) * pageSize + 1;
     const end = Math.min(currentCardPage * pageSize, filteredCount);
     const paginationText =
-      "Showing " + start + "–" + end + " of " + filteredCount + " card(s).";
+      "Showing " + start + "–" + end + " of " + filteredCount + " printings · " + countCardCopies(getCurrentFilteredCardRows()) + " copies";
 
     paginationStatuses.forEach(function (paginationStatus) {
       paginationStatus.textContent = paginationText;
@@ -3401,7 +3555,6 @@
     );
     applyCurrentCardPagination();
     updateCurrentSelectionState();
-    updateSetStatsRollout();
 
     if (scrollToPageStart && currentCardPaginationBar) {
       window.requestAnimationFrame(function () {
@@ -3450,6 +3603,13 @@
 
     clearCustomDraftPrintExportSelectedInputs();
 
+    const scoped = document.createElement("input");
+    scoped.type = "hidden";
+    scoped.name = "custom_set_selection_required";
+    scoped.value = "1";
+    scoped.className = "custom-draft-selected-print-export-input";
+    printExportForm.appendChild(scoped);
+
     (selectedCardIds || []).forEach(function (cardId) {
       const hiddenInput = document.createElement("input");
 
@@ -3463,26 +3623,47 @@
   }
 
   function openSelectedPrintExportModal() {
-    const selectedCardIds = getSelectedCustomSetCardIds();
-
-    if (!selectedCardIds.length) {
-      showUiMessage("Select at least one card to print or export.", true);
+    if (pendingQuantityUpdates.size) {
+      showUiMessage("Please wait for quantities to finish saving.", false);
       return;
     }
-
-    closeVisibleCardCopyMenu();
-
-    document
-      .querySelectorAll(".custom-draft-multi-select")
-      .forEach(function (containerElement) {
-        closeCustomDraftMultiSelect(containerElement);
-      });
-
-    setCustomDraftPrintExportSelectedInputs(selectedCardIds);
-
-    if (customDraftPrintExportModal) {
-      customDraftPrintExportModal.open();
+    const all = getCurrentCardRows();
+    const selected = Array.from(selectedCurrentCardRows.values());
+    const filtered = getCurrentFilteredCardRows();
+    if (!selected.length && !filtered.length) {
+      showUiMessage("There are no cards to print in this view.", true);
+      return;
     }
+    closeVisibleCardCopyMenu();
+    const scopes = {selected, filtered, ...Object.fromEntries(Object.keys(sectionLabels).map(section => [section, all.filter(row => row.dataset.cardSection === section)])), all};
+    const defaultScope = selected.length ? "selected" : filtered.length === scopes[currentCardSection].length ? currentCardSection : "filtered";
+    customDraftPrintExportModal.open({beforeOpen: () => {
+      const form = document.getElementById("printExportForm");
+      let controls = document.getElementById("customDraftPrintScope");
+      if (!controls) {
+        controls = document.createElement("div");
+        controls.id = "customDraftPrintScope";
+        controls.className = "custom-draft-print-scope";
+        form.prepend(controls);
+      }
+      controls.innerHTML = '<label for="customDraftPrintScopeSelect">Cards to print / export</label><select id="customDraftPrintScopeSelect"></select><p aria-live="polite"></p>';
+      const select = controls.querySelector("select");
+      const labels = {selected: "Selected printings", filtered: "Filtered " + sectionLabels[currentCardSection], ...sectionLabels, all: "Entire set (all collections)"};
+      Object.entries(scopes).forEach(([key, rows]) => {
+        if ((key === "selected" && !rows.length) || (key === "filtered" && defaultScope !== "filtered")) return;
+        const option = new Option(labels[key] + " · " + countCardCopies(rows) + " copies", key);
+        option.disabled = !rows.length;
+        select.add(option);
+      });
+      const applyScope = () => {
+        const rows = scopes[select.value] || [];
+        setCustomDraftPrintExportSelectedInputs(rows.map(row => row.dataset.customSetCardId));
+        controls.querySelector("p").textContent = countCardCopies(rows) + " copies from " + rows.length + " printings. Saved quantities are included.";
+      };
+      select.value = defaultScope;
+      select.addEventListener("change", applyScope);
+      applyScope();
+    }});
   }
 
   function isCurrentCardRowSelected(row) {
@@ -3555,7 +3736,7 @@
     }
 
     if (selectedCardCountLabel) {
-      selectedCardCountLabel.textContent = selectedCount + " selected";
+      selectedCardCountLabel.textContent = selectedCount + " selected" + (selectedCount ? " · " + countCardCopies(Array.from(selectedCurrentCardRows.values())) + " copies" : "");
     }
 
     if (bulkApplySpecialSlotButton) {
@@ -3583,7 +3764,7 @@
     }
 
     if (selectedPrintExportButton) {
-      selectedPrintExportButton.disabled = selectedCount === 0;
+      selectedPrintExportButton.disabled = pendingQuantityUpdates.size > 0 || (selectedCount === 0 && getCurrentFilteredCardRows().length === 0);
       selectedPrintExportButton.classList.toggle(
         "custom-draft-header-icon-button-active",
         selectedCount > 0,
@@ -3592,13 +3773,13 @@
         "title",
         selectedCount > 0
           ? "Print / Export " + selectedCount + " selected card(s)"
-          : "Print / Export Selected Cards",
+          : "Print / Export " + sectionLabels[currentCardSection],
       );
       selectedPrintExportButton.setAttribute(
         "aria-label",
         selectedCount > 0
           ? "Print / Export " + selectedCount + " selected card(s)"
-          : "Print / Export Selected Cards",
+          : "Print / Export " + sectionLabels[currentCardSection],
       );
     }
   }
@@ -3722,6 +3903,10 @@
 
     let rows = getCurrentCardRows();
 
+    if (currentCardFamily && !rows.some(row => row.dataset.cardSection === currentCardSection && row.dataset.displayCardName === currentCardFamily)) {
+      currentCardFamily = "";
+    }
+
     if (currentCardSortDirty || currentCardSortValue !== sortValue) {
       rows = sortCardRows(rows, sortValue);
       currentCardRowsCache = rows;
@@ -3731,7 +3916,7 @@
 
     const duplicateCardNameCounts =
       duplicateValue === "duplicates_only"
-        ? getCurrentCardNameCounts(rows)
+        ? getCurrentCardNameCounts(rows.filter(row => row.dataset.cardSection === currentCardSection))
         : null;
 
     const filteredRows = [];
@@ -3776,6 +3961,8 @@
       const digitalMatches = rowMatchesDigitalFilter(row, digitalValue);
 
       const isFilterVisible =
+        row.dataset.cardSection === currentCardSection &&
+        (!currentCardFamily || row.dataset.displayCardName === currentCardFamily) &&
         (!window.DeckadenceCardTags || window.DeckadenceCardTags.matches(row, "custom-set")) &&
         textMatches &&
         rarityMatches &&
@@ -3799,7 +3986,7 @@
     if (options.preservePage !== true) currentCardPage = 1;
 
     applyCurrentCardPagination();
-    updateSetStatsRollout();
+    updateCollectionSummary();
   }
 
   function renderCurrentCardColorIdentityLabel(row) {
@@ -3934,9 +4121,8 @@
 
   const customDraftStatsModal = window.iMomirStatsModal.init({
     openButtonId: "customDraftStatsToggleButton",
-    title: "Set Card Stats",
-    subtitle: "Stats for the currently visible filtered cards.",
-    totalLabel: "Matching Cards",
+    context: "Set",
+    getSubtitle: () => document.querySelector('[name="set_name"]')?.value || "Custom draft set",
 
     beforeOpen: function () {
       closeVisibleCardCopyMenu();
@@ -3952,7 +4138,7 @@
   });
 
   const customDraftPrintExportModal = window.iMomirPrintExportModal.init({
-    openButtonId: "customDraftOpenPrintExportButton",
+    openButtonId: "customDraftPrintScopeOpenButton",
     printUrl: printUrl,
     exportZipUrl: exportZipUrl,
 
@@ -3989,12 +4175,25 @@
     },
 
     getExistingCardLookup: getCurrentSetCardLookup,
+    allowMultiplePrintings: true,
+
+    getPrintingSwitchError: function (card) {
+      const name = String(card.card_name || "").trim().toLowerCase();
+      const matches = getCurrentCardRows().filter(row => row.dataset.cardName === name);
+      if (matches.some(row => row.dataset.cardUuid === card.card_uuid)) return "This printing is already in the set. Adjust its quantity in the card list.";
+      if (matches.length > 1 && matches.filter(isCurrentCardRowSelected).length !== 1) {
+        return "Select one existing printing of " + card.card_name + " in the Set Card List before switching it, or turn Switch Selected Printings off to add another artwork.";
+      }
+      return "";
+    },
 
     getExistingPrintingTarget: function (card) {
       const name = String(card.card_name || "").trim().toLowerCase();
       if (!name || !currentCardList) return null;
-      const matches = Array.from(currentCardList.querySelectorAll(".custom-draft-current-card-row"))
+      let matches = Array.from(currentCardList.querySelectorAll(".custom-draft-current-card-row"))
         .filter(row => String(row.dataset.displayCardName || row.dataset.cardName || "").trim().toLowerCase() === name);
+      const selectedMatches = matches.filter(isCurrentCardRowSelected);
+      if (selectedMatches.length === 1) matches = selectedMatches;
       // A direct replacement needs one unambiguous set entry, including rows
       // hidden by the current set's filters or virtualized card grid.
       if (matches.length !== 1 || matches[0].dataset.cardUuid === card.card_uuid) return null;
@@ -4171,6 +4370,8 @@
     );
   }
 
+  openPrintExportButton?.addEventListener("click", openSelectedPrintExportModal);
+
   document.getElementById("customDraftMpcFillBestButton")?.addEventListener("click",()=>{
     window.DeckadenceMpcFillBatch?.open(getSelectedCustomSetCardUuids(), {sourceLabel:"Set selection"});
   });
@@ -4244,8 +4445,8 @@
   });
 
   if (statsToggleButton) {
-    statsToggleButton.setAttribute("aria-label", "Show Stats");
-    statsToggleButton.setAttribute("title", "Show Stats");
+    statsToggleButton.setAttribute("aria-label", "Set Analysis");
+    statsToggleButton.setAttribute("title", "Set Analysis");
     statsToggleButton.setAttribute("aria-pressed", "false");
   }
 
@@ -4262,6 +4463,7 @@
 
   if (clearFiltersButton) {
     clearFiltersButton.addEventListener("click", function () {
+      currentCardFamily = "";
       window.DeckadenceCardTags?.reset("custom-set");
       if (currentFilterInput) {
         currentFilterInput.value = "";
@@ -4752,6 +4954,19 @@
       : "list";
 
   bindCurrentCardControls();
+  document.querySelectorAll(".custom-draft-collection-tabs [data-card-section]").forEach((button, index, buttons) => {
+    button.addEventListener("click", () => setCurrentCardSection(button.dataset.cardSection));
+    button.addEventListener("keydown", event => {
+      const next = event.key === "ArrowRight" ? (index + 1) % buttons.length : event.key === "ArrowLeft" ? (index + buttons.length - 1) % buttons.length : event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : -1;
+      if (next >= 0) { event.preventDefault(); buttons[next].click(); buttons[next].focus(); }
+    });
+  });
+  if (cardSizeSelect) {
+    cardSizeSelect.value = String(window.DeckadenceCardSizes.normalize(getClientSetting(cardSizeStorageKey, "auto")));
+    cardSizeSelect.addEventListener("change", () => { setClientSetting(cardSizeStorageKey, cardSizeSelect.value); applyCurrentCardSize(); });
+    applyCurrentCardSize();
+  }
+  updateCurrentCardCountBadge();
   clearCurrentCardSelection();
   filterCurrentCards();
 

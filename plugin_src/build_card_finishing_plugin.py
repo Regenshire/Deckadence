@@ -22,7 +22,7 @@ PLUGIN_ID = "card-finishing-studio"
 ASSET_NAME = "deckadence-card-finishing-studio.zip"
 REQUIRED = {
     "deckadence-plugin.json", "plugin.py", "requirements.txt",
-    "frame_detection.py", "text_detection.py", "text_repair.py",
+    "frame_detection.py", "text_detection.py", "text_repair.py", "legal_text.py",
     "generation_worker.py", "generation_runtime.py", "generation_dependencies.py", "generation_storage.py",
     "generation_models.json", "generation_packages.json", "generation_prompts.json",
     "generation_analyzer.json", "generation_outpaint.json",

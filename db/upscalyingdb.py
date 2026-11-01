@@ -480,79 +480,12 @@ def get_current_upscaled_image_for_card(
         face_kind
     )
 
-    card_uuid = str(
-        _row_value(
-            card_row,
-            "card_uuid",
-            "",
-        )
-        or ""
-    ).strip()
+    # Match the same identity used by accept/revert/delete. Tokens can share
+    # a parent set and collector number with an unrelated ordinary card;
+    # those fields are not a usable identity, even when unique IDs are missing.
+    identity_where, identity_parameters = _build_upscaled_identity_where(card_row)
 
-    scryfall_id = str(
-        _row_value(
-            card_row,
-            "scryfall_id",
-            "",
-        )
-        or ""
-    ).strip()
-
-    set_code = str(
-        _row_value(
-            card_row,
-            "set_code",
-            "",
-        )
-        or ""
-    ).strip()
-
-    collector_number = str(
-        _row_value(
-            card_row,
-            "collector_number",
-            "",
-        )
-        or ""
-    ).strip()
-
-    identity_conditions = []
-    identity_parameters = []
-
-    if card_uuid:
-        identity_conditions.append(
-            "card_uuid = ?"
-        )
-        identity_parameters.append(
-            card_uuid
-        )
-
-    if scryfall_id:
-        identity_conditions.append(
-            "scryfall_id = ?"
-        )
-        identity_parameters.append(
-            scryfall_id
-        )
-
-    if set_code and collector_number and not card_uuid.startswith("custom-"):
-        identity_conditions.append(
-            """
-            (
-                COALESCE(card_uuid, '') NOT LIKE 'custom-%'
-                AND UPPER(COALESCE(set_code, '')) = UPPER(?)
-                AND LOWER(COALESCE(collector_number, '')) = LOWER(?)
-            )
-            """
-        )
-        identity_parameters.extend(
-            [
-                set_code,
-                collector_number,
-            ]
-        )
-
-    if not identity_conditions:
+    if not identity_where:
         return None
 
     source_where_sql, source_parameters = (
@@ -572,10 +505,6 @@ def get_current_upscaled_image_for_card(
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    where_identity_sql = " OR ".join(
-        identity_conditions
-    )
-
     cursor.execute(
         f"""
         SELECT *
@@ -585,7 +514,7 @@ def get_current_upscaled_image_for_card(
           {source_filter_sql}
           AND face_kind IN (?, 'single')
           AND (
-              {where_identity_sql}
+              {identity_where}
           )
         ORDER BY
             CASE
@@ -645,41 +574,6 @@ def _build_upscaled_identity_where(
         return (
             "scryfall_id = ?",
             [scryfall_id],
-        )
-
-    set_code = str(
-        _row_value(
-            card_row,
-            "set_code",
-            "",
-        )
-        or ""
-    ).strip()
-
-    collector_number = str(
-        _row_value(
-            card_row,
-            "collector_number",
-            "",
-        )
-        or ""
-    ).strip()
-
-    if set_code and collector_number:
-        return (
-            """
-            UPPER(COALESCE(set_code, ''))
-                = UPPER(?)
-            AND
-            LOWER(COALESCE(
-                collector_number,
-                ''
-            )) = LOWER(?)
-            """,
-            [
-                set_code,
-                collector_number,
-            ],
         )
 
     return "", []

@@ -12,7 +12,7 @@
 >
 <link
     rel="stylesheet"
-    href="{{ url_for('static', filename='css/alternate_image_modal.css', v='face-tabs-1') }}"
+    href="{{ url_for('static', filename='css/alternate_image_modal.css', v='card-back-picker-1') }}"
 >
 {% endblock %}
 
@@ -29,6 +29,7 @@
             </div>
 
             <div class="chaos-pack-view-header-actions">
+                <button type="button" id="packAnalysisButton" class="action-button secondary-button chaos-pack-view-back-button" aria-label="Pack Analysis"><i class="fa-solid fa-chart-column" aria-hidden="true"></i> Analysis</button>
                 {% if global_mpcfill_ready and cards %}<button type="button" class="action-button secondary-button mpcf-batch-launch" data-mpcfill-pack-best title="Auto Select MPCFill Best" aria-label="Auto Select MPCFill Best"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></button>{% endif %}
                 <a
                     class="action-button secondary-button chaos-pack-view-back-button"
@@ -97,7 +98,9 @@
         {% endfor %}
     </div>
     {% include "_alternate_image_modal.html" %}
-    <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='face-tabs-1') }}"></script>
+    {% include "_stats_modal.html" %}
+    <script src="{{ url_for('static', filename='js/stats_modal.js', v='analysis-multicolor-3') }}"></script>
+    <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='card-back-picker-1') }}"></script>
 
     <div id="chaosPackViewZoomOverlay" class="card-zoom-overlay hidden" aria-hidden="true">
         <div id="chaosPackViewZoomBackdrop" class="card-zoom-backdrop"></div>

@@ -34,9 +34,9 @@
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='face-tabs-1') }}"
+  href="{{ url_for('static', filename='css/alternate_image_modal.css', v='card-back-picker-1') }}"
 />
-<link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='gallery-feedback-5') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='card-back-picker-1') }}">
 {% endblock %} {% block content %} {% set player = deckbuilder.human_player %}
 
 <div
@@ -525,8 +525,8 @@
             type="button"
             id="deckbuilderStatsButton"
             class="campaign-test-draft-zone-view-button"
-            title="Deck Stats"
-            aria-label="Deck Stats"
+            title="Deck Analysis"
+            aria-label="Deck Analysis"
             data-help-id="deckbuilder-stats"
           >
             <i class="fa-solid fa-chart-column"></i>
@@ -1363,8 +1363,7 @@
     {% endif %}
   </div>
 
-  {% set stats_modal_title = "Deck Stats" %} {% set stats_modal_subtitle =
-  "Stats for the current main deck only." %} {% include "_stats_modal.html" %}
+  {% include "_stats_modal.html" %}
   {% set print_export_defaults = deckbuilder.print_export_defaults %} {% set
   print_export_subject_label = "deck" %} {% set
   print_export_include_sideboard_option = true %} {% set
@@ -1389,7 +1388,7 @@
 
   {% include "_custom_card_modal.html" %}
   {% include "_alternate_image_modal.html" %}
-  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='face-tabs-1') }}"></script>
+  <script src="{{ url_for('static', filename='js/alternate_image_modal.js', v='card-back-picker-1') }}"></script>
   {% include "_deck_image_generator.html" %} {% include
   "_moxfield_sync_modal.html" %}
 
@@ -1578,18 +1577,18 @@
 
 <script src="{{ url_for('static', filename='js/custom_draft_search_phrases.js') }}"></script>
 <script src="{{ url_for('static', filename='js/custom_card_modal.js', v='2') }}"></script>
-<script src="{{ url_for('static', filename='js/card_search_modal.js', v='builder-destination-1') }}"></script>
+<script src="{{ url_for('static', filename='js/card_search_modal.js', v='card-back-picker-1') }}"></script>
 <script src="{{ url_for('static', filename='js/print_export_modal.js', v='tracking-tags-1') }}"></script>
 <script src="{{ url_for('static', filename='js/moxfield_sync.js') }}"></script>
 
-<script src="{{ url_for('static', filename='js/stats_modal.js') }}"></script>
+<script src="{{ url_for('static', filename='js/stats_modal.js', v='analysis-multicolor-3') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='custom-backs-1') }}"></script>
-<script src="{{ url_for('static', filename='js/deckbuilder.js', v='builder-print-card-back-1') }}"></script>
+<script src="{{ url_for('static', filename='js/deckbuilder.js', v='analysis-snapshot-2') }}"></script>
 
 {% endblock %} {% block page_scripts_after_app %} {% if
 global_card_upscaling_control_enabled %}
-<script src="{{ url_for('static', filename='js/image_compare.js', v='viewport-2') }}"></script>
-<script src="{{ url_for('static', filename='js/upscale_batch.js', v='settings-1') }}"></script>
+<script src="{{ url_for('static', filename='js/image_compare.js', v='legal-1') }}"></script>
+<script src="{{ url_for('static', filename='js/upscale_batch.js', v='legal-1') }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/deck_image_generator.js') }}"></script>
 {% endblock %}

@@ -255,12 +255,18 @@ preview_set_code = ( (pack.set_code | default('', true)) if pack is defined and
                 />
               </label>
             </div>
+              <div class="alternate-image-library-buttons">
+              <button type="button" id="alternateImageBrowseCardsButton" class="alternate-image-mpcfill-button hidden">
+                <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
+                <span>Browse Cards</span>
+              </button>
               {% if global_mpcfill_ready %}
               <button type="button" id="alternateImageMpcFillButton" class="alternate-image-mpcfill-button">
                 <i class="fa-solid fa-images" aria-hidden="true"></i>
                 <span>Browse MPCFill</span>
               </button>
               {% endif %}
+              </div>
             </div>
 
             <div class="alternate-image-settings-stack">

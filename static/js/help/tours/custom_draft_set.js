@@ -248,9 +248,9 @@
 
         target: "#customDraftStatsToggleButton",
 
-        title: "Set Stats",
+        title: "Set Analysis",
 
-        body: "Stats gives you a quick view of the set's colors, rarities, mana values, card types, and other useful totals.",
+        body: "Analysis compares colors, mana curves, card types, subtypes, and EDHREC ranks. Analyze the entire set or the cards matching your current filters.",
       },
 
       {
