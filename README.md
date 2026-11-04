@@ -10,6 +10,14 @@ Deckadence is a self-hosted local web application for creating, managing, printi
 
 Deckadence runs on your own PC and opens in a web browser. Your Deckadence database, settings, custom sets, decks, cached images, and generated files are stored locally with the application. No account or hosted Deckadence service is required. You can also open Deckadence from a phone, tablet, or another computer on the same local network.
 
+## Version 3.4.0: Legal Text Replacement
+
+Single-card and bulk upscaling now offer **None / Keep Legal**, **Remove**, and **Replace with Custom Proxy Text**. Set the default proxy text in Settings or edit it using the gear beside the replacement option. Processing applies to both faces of double-sided cards.
+
+The bundled **Card Finishing Studio 1.4.0** processor handles modern footer notices and centered classic-frame notices, including the number on the classic legal line. It preserves illustrator credits and power/toughness, matches replacement ink and alignment, and restores the surrounding background texture. Detection also handles split trademark symbols, distorted upscaled lettering, and the publisher's `mtgstory.com` footer.
+
+These improvements are delivered by the Deckadence application and its bundled Studio source. The CPU, NVIDIA, and AMD upscaler packages remain at **1.0.0**; their inference code and models are unchanged. Card Finishing Studio AI detection must be installed to use legal-text replacement.
+
 ## What Deckadence Can Do
 
 - **Build custom sets, cubes, and drafts.** Create custom draft sets and chaos draft pools that use cards from any set.
@@ -167,8 +175,8 @@ python3 -m PyInstaller --noconfirm --clean \
 
 python3 -B update_system.py package \
   --root .dev_prompts/ai_work/release-dist/Deckadence \
-  --output .dev_prompts/ai_work/Deckadence_v3.3.2_macOS_arm64.zip \
-  --version 3.3.2 --platform macos-arm64
+  --output .dev_prompts/ai_work/Deckadence_v3.4.0_macOS_arm64.zip \
+  --version 3.4.0 --platform macos-arm64
 ```
 
 For Linux, use `--platform linux-x86_64` and an archive ending in `_Linux_x86_64.tar.gz`. For Windows, use `--platform windows-x86_64` and `_Windows.zip`. Change the version for each release. The packager rejects unexpected files in the release folder to prevent shipping user data, and creates:

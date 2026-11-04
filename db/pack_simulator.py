@@ -191,6 +191,9 @@ def import_simulator_metadata(all_sets):
             conn.executemany('INSERT INTO simulator_boxes VALUES (?,?,?,?,?)', boxes)
             conn.executemany('INSERT INTO simulator_product_details VALUES (?,?,?,?)', details)
             conn.executemany('INSERT INTO simulator_sealed_products VALUES (?,?,?,?,?,?,?)', products)
+            from db.secret_lair import import_products, sync_price_products
+            import_products(conn, all_sets)
+            sync_price_products(conn)
     return {'booster_rules': len(rules), 'boxes': len(boxes), 'sealed_products': len(products)}
 
 

@@ -22,17 +22,24 @@ def sheet_label(name):
 
 
 def get_catalog():
-    with closing(get_db_connection()) as conn:
+    with closing(get_db_connection()) as conn, conn:
         ensure_simulator_schema(conn)
+        from secret_lair_sync import ensure_sync_schema
+        ensure_sync_schema(conn)
         rows = conn.execute('''SELECT v.set_code,v.booster_name,s.set_name,s.release_date,s.set_type
             FROM chaos_booster_variants v JOIN sets s ON s.set_code=v.set_code
             WHERE v.booster_weight>0 GROUP BY v.set_code,v.booster_name
             ORDER BY s.release_date DESC,s.set_name,v.booster_name''').fetchall()
+        from modes.secret_lair import catalog
+        drops = catalog(conn)
     return [{**dict(row), 'label': BOOSTER_LABELS[row['booster_name']]}
-            for row in rows if row['booster_name'] in BOOSTER_LABELS]
+            for row in rows if row['booster_name'] in BOOSTER_LABELS] + drops
 
 
 def load_product(set_code, booster_name):
+    if set_code == 'SLD' and booster_name.startswith('secret-lair-'):
+        from modes.secret_lair import load
+        return load(booster_name)
     with closing(get_db_connection()) as conn:
         ensure_simulator_schema(conn)
         variants = [dict(r) for r in conn.execute('''SELECT booster_index,booster_weight FROM chaos_booster_variants
@@ -131,6 +138,9 @@ def draw_sheet(sheet, count):
 
 
 def open_product(product):
+    if product.get('product_kind') == 'secret_lair':
+        from modes.secret_lair import open_drop
+        return open_drop(product)
     variant = choose_weighted_row(product['variants'], 'booster_weight')
     cards = []
     for name, count in variant['contents'].items():
@@ -143,6 +153,9 @@ def open_product(product):
 
 
 def describe_product(product):
+    if product.get('product_kind') == 'secret_lair':
+        from modes.secret_lair import describe
+        return describe(product)
     total_weight = sum(v['booster_weight'] for v in product['variants'])
     slots = []
     for name, sheet in product['sheets'].items():

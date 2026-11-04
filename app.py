@@ -577,7 +577,8 @@ from ui.card_prices import register_card_price_routes
 register_card_price_routes(app, lambda: get_request_config())
 from ui.pack_simulator import register_pack_simulator_routes
 register_pack_simulator_routes(app, lambda: get_request_config(),
-                               lambda config: get_print_export_defaults_from_config(config))
+                               lambda config: get_print_export_defaults_from_config(config),
+                               lambda *args, **kwargs: build_custom_draft_set_pack_art_image_bytes(*args, **kwargs))
 
 DECK_ART_RENDERER = DeckArtRenderer(
     static_root=app.static_folder,
@@ -3380,8 +3381,11 @@ def import_chaos_cards_from_all_printings():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # User-created printings are not part of the imported card database.
-    cursor.execute("DELETE FROM chaos_cards WHERE card_uuid NOT IN (SELECT card_uuid FROM custom_cards)")
+    # Custom and official announcement printings must survive database refreshes
+    # so saved openings can still display and print before vendor IDs exist.
+    cursor.execute('''DELETE FROM chaos_cards WHERE card_uuid NOT IN (SELECT card_uuid FROM custom_cards)
+        AND card_uuid NOT IN (SELECT json_extract(j.value,'$.uuid') FROM secret_lair_sources s,
+            json_each(s.payload_json,'$.announced_cards') j WHERE json_extract(j.value,'$.uuid') IS NOT NULL)''')
 
     uuid_lookup = {}
 
@@ -10437,10 +10441,11 @@ def build_custom_draft_set_pack_art_image_bytes(
     release_date="",
     base_color=None,
     set_name=None,
+    artwork_bytes=None,
 ):
     if pack_style != "custom":
         icon_bytes = None
-        icon_path = get_pack_label_set_icon_path(set_code, fallback_set_code=icon_fallback_set_code)
+        icon_path = get_pack_label_set_icon_path(set_code, fallback_set_code=icon_fallback_set_code) if not artwork_bytes else None
         if icon_path:
             design = PackFaceComposer.design(set_code, release_date, pack_style, base_color)
             tint = (44, 77, 91) if design['style'] in {'vintage', 'specialty'} else (222, 211, 176)
@@ -10455,7 +10460,7 @@ def build_custom_draft_set_pack_art_image_bytes(
         )
         return composer.from_label(set_name or pack_display_name, set_code or "", booster_name or "Booster Pack",
                                    release_date=release_date, style=pack_style, base_color=base_color,
-                                   icon_bytes=icon_bytes)
+                                   icon_bytes=icon_bytes, artwork_bytes=artwork_bytes)
     title_card_bytes = build_chaos_pack_title_card_image_bytes(
         pack_display_name,
         set_code=set_code,
@@ -39848,6 +39853,8 @@ if __name__ == "__main__":
     ensure_draft_testing_schema()
     from db.pack_simulator import repair_simulator_tracking_codes
     repair_simulator_tracking_codes()
+    from secret_lair_sync import secret_lair_sync
+    secret_lair_sync.start()
     ensure_deck_schema()
     ensure_upscaling_schema()
     ensure_help_schema()

@@ -1738,6 +1738,31 @@ html[data-theme="green-mana"] .sim-product-dialog .sim-product-results .campaign
 .sim-rarity-toggle:focus-within { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 .sim-product-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.sim-lair-updates { padding: 12px 20px; border-bottom: 1px solid var(--border-color, #667085); }
+.sim-lair-updates summary { cursor: pointer; }
+.sim-lair-updates[hidden] { display: none; }
+.sim-product-foil { --card-art-radius: 14px; overflow: hidden; }
+.sim-product-foil .campaign-add-pack-search-info { position: relative; z-index: 4; }
+.sim-product-foil.card-effects .card-effect-rainbow { opacity: .24; animation: sim-product-shimmer 9s ease-in-out infinite alternate; }
+.sim-product-sparkles {
+  position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background: radial-gradient(circle, #fff 0 1px, transparent 2px) 13px 9px / 109px 67px,
+              radial-gradient(ellipse 1px 4px, #f1e7ff 80%, transparent) 36px 31px / 173px 79px,
+              radial-gradient(ellipse 4px 1px, #f1e7ff 80%, transparent) 36px 31px / 173px 79px;
+  opacity: .55; animation: sim-product-sparkle 4s ease-in-out infinite alternate;
+}
+@keyframes sim-product-shimmer { from { background-position: 15% 40%; } to { background-position: 85% 60%; } }
+@keyframes sim-product-sparkle { from { opacity: .25; } to { opacity: .8; } }
+@media (prefers-reduced-motion: reduce) {
+  .sim-product-foil.card-effects .card-effect-rainbow, .sim-product-sparkles { animation: none; }
+}
+.sim-lair-schedule { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.sim-lair-schedule label { display: inline-flex; align-items: center; gap: 6px; }
+.sim-lair-schedule input[type="number"] { width: 72px; }
+.sim-lair-schedule fieldset { display: flex; flex-wrap: wrap; gap: 10px; }
+.sim-lair-schedule [hidden] { display: none; }
+.sim-lair-notice { padding: 12px 16px; border-left: 3px solid var(--accent, #8174a8); background: var(--panel-2); color: var(--text); }
+.sim-lair-updates > button { margin: 8px 18px 0 0; }
 .sim-product-actions .sim-rarity-toggle { min-height: 46px; padding: 10px 16px; font-size: 14px; margin: 0; box-sizing: border-box; }
 @media (max-width: 480px) {
   .sim-product-actions { gap: 8px; }

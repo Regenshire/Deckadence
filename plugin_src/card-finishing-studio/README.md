@@ -6,6 +6,23 @@ the shipped prompt dictionary, model/package definitions, and license notices.
 It requires a matching Deckadence application; the Studio interface, effects,
 and application integration are part of Deckadence, not a standalone program.
 
+## Version 1.4.0
+
+Adds the legal-text processor used by Deckadence 3.4.0 for single-card and bulk
+upscaling. Users can keep the original notice, remove it, or replace it with
+custom proxy text. The processor supports modern lower-right footers and
+centered classic-frame footers, including their legal-line numbers, while
+protecting illustrator credits and power/toughness.
+
+This release includes source-confirmed recovery for distorted OCR, handling for
+split and overlapping trademark symbols, and recognition of the `mtgstory.com`
+publisher footer. Replacement text follows the original ink color and layout;
+classic-frame cleanup uses nearby frame texture. Uncertain matches leave the
+image unchanged.
+
+Update the Deckadence application to receive the controls and processing
+integration. Existing upscaler inference packages and model weights are unchanged.
+
 ## Build
 
 From the repository root on Windows (Windows PowerShell 5.1 or PowerShell 7):

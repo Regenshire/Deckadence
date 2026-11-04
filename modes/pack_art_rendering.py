@@ -150,10 +150,11 @@ class PackFaceComposer:
                             artwork=art, logo=logo.crop(box))
 
     def from_label(self, set_name, set_code, product_label, *, release_date='', style='auto',
-                   base_color=None, icon_bytes=None):
+                   base_color=None, icon_bytes=None, artwork_bytes=None):
         """Offline fallback with an optional cached set symbol and no app branding."""
         return self._render(set_name, set_code, product_label, release_date, style, base_color,
-                            icon=read_image(icon_bytes) if icon_bytes else None)
+                            icon=read_image(icon_bytes) if icon_bytes else None,
+                            artwork=read_image(artwork_bytes) if artwork_bytes else None)
 
     def _render(self, name, code, label, release_date, style, base_color, artwork=None, logo=None, icon=None):
         design = self.design(code, release_date, style, base_color)
@@ -209,7 +210,22 @@ class PackFaceComposer:
             icon_box = (38, 212, 362, 365)
         else:
             if artwork:
-                face.alpha_composite(ImageOps.fit(artwork, (380,602), Image.Resampling.LANCZOS), (10,46))
+                if code == 'SLD':
+                    # Artwork bounds match the user's marked reference, mapped
+                    # from its five-pixel top crop back to this 400x694 wrapper.
+                    top, bottom = 114, 559
+                    picture = ImageOps.fit(artwork, (380, bottom - top), Image.Resampling.LANCZOS)
+                    mask = Image.new('L', picture.size)
+                    mask_draw = ImageDraw.Draw(mask)
+                    fade = round(face.height * .12)
+                    for y in range(picture.height):
+                        amount = min(1, y / fade, (picture.height - 1 - y) / fade)
+                        opacity = round(255 * amount * amount * (3 - 2 * amount))
+                        mask_draw.line((0, y, picture.width - 1, y), fill=opacity)
+                    picture.putalpha(ImageChops.multiply(picture.getchannel('A'), mask))
+                    face.alpha_composite(picture, ((face.width - picture.width) // 2, top))
+                else:
+                    face.alpha_composite(ImageOps.fit(artwork, (380,602), Image.Resampling.LANCZOS), (10,46))
             # A dark lower fade keeps the real set logo readable over illustration.
             overlay = Image.new('RGBA', (400, 694))
             od = ImageDraw.Draw(overlay)
@@ -217,7 +233,8 @@ class PackFaceComposer:
                 opacity = max(0, round(225*(y-400)/210), round(140*(180-y)/132))
                 od.line((10,y,389,y), fill=(7,10,19,min(235,opacity)))
             face = Image.alpha_composite(face, overlay)
-            self._magic(face, (74, 105, 326, 177), release_date=release_date)
+            logo_offset = round(face.height * .03) if code == 'SLD' else 0
+            self._magic(face, (74, 105 - logo_offset, 326, 177 - logo_offset), release_date=release_date)
             if 'Collector' in label:
                 stripe = Image.new('RGBA', (572,32), color+(255,))
                 self._text(stripe, label.upper(), (8,0,564,32), '#ffffff', 17, 'Gotham-Medium.otf')

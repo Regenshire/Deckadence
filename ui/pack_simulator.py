@@ -4,8 +4,10 @@ import sqlite3
 from contextlib import closing
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
+from functools import lru_cache
+from io import BytesIO
 
-from flask import jsonify, render_template, request, url_for
+from flask import jsonify, render_template, request, url_for, send_file, abort
 
 from db.pack_simulator import get_opening, list_openings, reveal_cards, save_opening, simulator_pack_key
 from db.database import get_db_connection, get_custom_draft_sets, bulk_add_cards_to_custom_draft_set
@@ -17,7 +19,12 @@ from modes.chaos import (get_chaos_pack_art_info, get_chaos_pack_art_image_src,
 from modes.pack_simulator import get_catalog, load_product, describe_product, open_product, public_card, open_included_cards
 
 
-def register_pack_simulator_routes(app, get_config, get_print_defaults=None):
+def register_pack_simulator_routes(app, get_config, get_print_defaults=None, render_pack_art=None):
+    def pack_art(code, booster):
+        if code == 'SLD' and booster.startswith('secret-lair-'):
+            return url_for('pack_simulator_secret_lair_art', product_id=booster.removeprefix('secret-lair-'), v=7)
+        return get_chaos_pack_art_image_src(get_chaos_pack_art_info(code, booster, app.static_folder)['image_path'])
+
     def box_art(code, booster, image_type=None):
         key = 'draft' if booster == 'default' else booster
         path = product_art_relpath(code, image_type or key + '_box', app.static_folder)
@@ -38,9 +45,10 @@ def register_pack_simulator_routes(app, get_config, get_print_defaults=None):
         opening['box_image_src'] = box_art(opening['set_code'], opening['booster_name'], opening.get('image_type')) if opening.get('box_id') else None
         if opening['box_image_src']:
             opening['product_image_src'] = opening['box_image_src']
+        elif opening.get('product_kind') == 'secret_lair':
+            opening['product_image_src'] = pack_art(opening['set_code'], opening['booster_name'])
         for pack in opening['packs']:
-            pack['image_src'] = get_chaos_pack_art_image_src(get_chaos_pack_art_info(
-                pack['set_code'], pack['booster_name'], app.static_folder)['image_path'])
+            pack['image_src'] = pack_art(pack['set_code'], pack['booster_name'])
             for card in pack['cards']:
                 card['image_src'] = url_for('chaos_card_image', card_uuid=card['card_uuid'])
                 if card['is_dual_faced']:
@@ -67,22 +75,92 @@ def register_pack_simulator_routes(app, get_config, get_print_defaults=None):
         try:
             products = get_catalog()
             for product in products:
-                product['image_src'] = get_chaos_pack_art_image_src(get_chaos_pack_art_info(
-                    product['set_code'], product['booster_name'], app.static_folder)['image_path'])
+                product['image_src'] = pack_art(product['set_code'], product['booster_name'])
             return jsonify(ok=True, products=products)
         except sqlite3.Error as exc:
             return failure(exc)
+
+    @lru_cache(maxsize=128)
+    def secret_lair_art(name, edition, release_date, style, artwork_bytes, art_crop):
+        from modes.secret_lair import display_name
+        title = display_name(name).removeprefix('Secret Lair - ')
+        label = 'Secret Lair · ' + edition.replace('-', ' ').title()
+        if artwork_bytes and art_crop == 'card':
+            from modes.pack_art_rendering import read_image, png_bytes
+            artwork = read_image(artwork_bytes)
+            # Use the illustration area from the official reveal, keeping card
+            # rules and promotional banner text off the package.
+            artwork_bytes = png_bytes(artwork.crop((round(artwork.width * .08), round(artwork.height * .13),
+                                                   round(artwork.width * .92), round(artwork.height * .54))))
+        if render_pack_art:
+            return render_pack_art(title, set_code='SLD', booster_name=label, pack_style=style,
+                                   release_date=release_date, set_name=title, artwork_bytes=artwork_bytes)
+        from modes.pack_art_rendering import PackFaceComposer
+        from pathlib import Path
+        root = Path(app.static_folder)
+        return PackFaceComposer(root / 'img/pack_art/_fallback/packback.png', root / 'fonts').from_label(
+            title, 'SLD', label, release_date=release_date, style=style, artwork_bytes=artwork_bytes)
+
+    @app.get('/api/pack-simulator/secret-lair/<uuid:product_id>/art')
+    def pack_simulator_secret_lair_art(product_id):
+        from db.secret_lair import records
+        from modes.secret_lair import artwork_candidates
+        style = request.args.get('style', 'modern')
+        if style not in {'modern', 'vintage', 'specialty'}:
+            abort(400)
+        with closing(get_db_connection()) as conn:
+            found = records(conn, str(product_id))
+            candidates = artwork_candidates(conn, found[0]) if found else []
+        if not found:
+            abort(404)
+        record = found[0]
+        from secret_lair_sync import secret_lair_sync
+        artwork, crop = None, None
+        for url, crop in candidates[:3]:
+            artwork = secret_lair_sync.artwork(url)
+            if artwork:
+                break
+        data = secret_lair_art(record['name'], record['edition'], record['release_date'], style, artwork, crop)
+        response = send_file(BytesIO(data), mimetype='image/png', max_age=3600 if artwork else 0)
+        if not artwork:
+            # A temporary download failure must not stick as an icon for an hour.
+            response.cache_control.no_store = True
+        return response
 
     @app.get('/api/pack-simulator/product')
     def pack_simulator_product():
         try:
             code, booster = product_identity()
             product = describe_product(load_product(code, booster))
-            art = get_chaos_pack_art_info(code, booster, app.static_folder)
-            product['image_src'] = get_chaos_pack_art_image_src(art['image_path'])
+            product['image_src'] = pack_art(code, booster)
             for box in product['boxes']:
                 box['image_src'] = box_art(code, booster, box.get('image_type'))
             return jsonify(ok=True, product=product)
+        except (ValueError, sqlite3.Error) as exc:
+            return failure(exc)
+
+    @app.route('/api/pack-simulator/secret-lair/sync', methods=['GET', 'POST', 'PUT'])
+    def pack_simulator_secret_lair_sync():
+        from secret_lair_sync import secret_lair_sync
+        try:
+            if request.method == 'PUT':
+                state = secret_lair_sync.configure(request.get_json(silent=True))
+            else:
+                if request.method == 'POST':
+                    secret_lair_sync.request_refresh()
+                state = secret_lair_sync.status()
+            return jsonify(ok=True, **state)
+        except (ValueError, sqlite3.Error) as exc:
+            return failure(exc)
+
+    @app.put('/api/pack-simulator/secret-lair/<uuid:product_id>/correction')
+    def pack_simulator_secret_lair_correction(product_id):
+        from db.secret_lair import ensure_schema, set_correction
+        try:
+            with closing(get_db_connection()) as conn, conn:
+                ensure_schema(conn)
+                set_correction(conn, str(product_id), request.get_json(silent=True))
+            return jsonify(ok=True)
         except (ValueError, sqlite3.Error) as exc:
             return failure(exc)
 
@@ -90,6 +168,13 @@ def register_pack_simulator_routes(app, get_config, get_print_defaults=None):
     def pack_simulator_pool():
         try:
             product = load_product(*product_identity())
+            if product.get('product_kind') == 'secret_lair':
+                from modes.secret_lair import pool
+                cards, fixed = pool(product, request.args.get('sheet', ''))
+                for card in cards:
+                    card['image_src'] = url_for('chaos_card_image', card_uuid=card['card_uuid'])
+                    card['back_image_src'] = url_for('chaos_card_image', card_uuid=card['card_uuid'], face='back') if card['is_dual_faced'] else None
+                return jsonify(ok=True, cards=cards, fixed=fixed)
             sheet = product['sheets'].get(request.args.get('sheet'))
             if not sheet:
                 raise ValueError('Choose a slot to browse its card pool.')
@@ -132,7 +217,7 @@ def register_pack_simulator_routes(app, get_config, get_print_defaults=None):
             code = str(data.get('set_code') or '').strip().upper()
             booster = str(data.get('booster_name') or '').strip().lower()
             if not any(p['set_code'] == code and p['booster_name'] == booster for p in get_catalog()):
-                raise ValueError('Choose an available booster from the product list.')
+                raise ValueError('Choose an available product from the product list.')
             product = load_product(code, booster)
             count = data.get('count', 1)
             if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 36:
@@ -172,8 +257,9 @@ def register_pack_simulator_routes(app, get_config, get_print_defaults=None):
             payload = {'name': name, 'release_date': product.get('release_date', ''), 'set_code': code, 'booster_name': booster, 'packs': packs,
                        'card_count': index, 'cost': cost, 'box_id': data.get('box_id'),
                        'image_type': box.get('image_type') if box else None,
-                       'count': count, 'product_image_src': get_chaos_pack_art_image_src(
-                           get_chaos_pack_art_info(code, booster, app.static_folder)['image_path'])}
+                       'count': count, 'product_image_src': pack_art(code, booster)}
+            if product.get('product_kind') == 'secret_lair':
+                payload.update(product_kind='secret_lair', product_id=product['product_id'])
             opening = save_opening(opening_id, payload)
             return jsonify(ok=True, opening=serialize(opening))
         except (ValueError, sqlite3.Error) as exc:

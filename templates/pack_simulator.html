@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="/static/css/chaos_draft.css">
 <link rel="stylesheet" href="/static/css/basic_chaos_theme.css?v=3">
 <link rel="stylesheet" href="/static/css/sets_theme.css?v=3">
-<link rel="stylesheet" href="/static/css/pack_simulator.css?v=22">
+<link rel="stylesheet" href="/static/css/pack_simulator.css?v=secret-lair-2">
 <script src="/static/js/pack_opening.js?v=4"></script>
 {% endblock %}
 {# Page Content #}
@@ -24,7 +24,7 @@
       <div class="chaos-draft-header-copy"><div class="campaign-stage-eyebrow" id="productType">Your next pack</div><h2 class="page-title" id="productName">Choose a product</h2></div>
       <div class="sim-product-actions">
       <label class="action-button secondary-button sim-rarity-toggle"><input type="checkbox" id="excludeLowRarity" role="switch"><span>Exclude Low Rarity</span></label>
-      <button type="button" id="chooseProduct" class="action-button secondary-button"><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Select Product</button>
+      <button type="button" id="chooseProduct" class="action-button secondary-button" disabled><i class="fa-solid fa-layer-group" aria-hidden="true"></i> Select Product</button>
       </div>
     </div></div>
     <div class="chaos-draft-spinner-shell" id="packStage"><div class="chaos-draft-spinner-window sim-pack-stage">
@@ -49,14 +49,29 @@
         <div class="sim-pack-navigation" id="packNavigation" hidden><button class="sim-icon" id="previousPack" aria-label="Previous pack">‹</button><select id="packPosition" aria-label="Pack to view"></select><button class="sim-icon" id="nextPack" aria-label="Next pack">›</button><button class="sim-text-button" id="openRest">Open remaining packs</button></div>
         <button id="revealPack" class="sim-text-button" hidden>Reveal this pack</button><label class="sim-all-toggle" id="allCardsLabel" hidden><input id="showAllCards" type="checkbox"> All opened cards</label>
       </div>
+      <p id="bonusNotice" class="sim-lair-notice" role="status" hidden></p>
       <div id="chaosDraftInlineViewPanel" class="page-panel chaos-pack-inline-view-panel"><div id="previewCards" class="chaos-pack-inline-grid"></div></div>
     </section>
   </div>
   <div id="simPriceCache" hidden></div>
 
   <dialog id="productDialog" class="sim-dialog sim-product-dialog sets-page" aria-labelledby="productDialogTitle">
-    <header class="sim-dialog-header"><div><div class="campaign-stage-eyebrow">Choose your next opening</div><h2 id="productDialogTitle">Find a pack</h2></div><button class="sim-icon" data-close aria-label="Close product selection">×</button></header>
-    <div class="sets-compact-filters sim-find-filters"><label>Search<input id="productSearch" type="search" placeholder="Set name, code, or booster…" autocomplete="off"></label><label>Booster type<select id="boosterFilter"><option value="">All boosters</option></select></label><label>Sort<select id="productSort"><option value="recent">Newest first</option><option value="name">Set name</option></select></label></div>
+    <header class="sim-dialog-header"><div><div class="campaign-stage-eyebrow">Choose your next opening</div><h2 id="productDialogTitle">Find a product</h2></div><button class="sim-icon" data-close aria-label="Close product selection">×</button></header>
+    <div class="sets-compact-filters sim-find-filters"><label>Search<input id="productSearch" type="search" placeholder="Secret Lair name, set, or booster…" autocomplete="off"></label><label>Product type<select id="boosterFilter"><option value="">All products</option></select></label><label>Sort<select id="productSort"><option value="recent">Newest first</option><option value="name">Product name</option></select></label></div>
+    <details id="secretLairUpdates" class="sim-lair-updates" hidden><summary>Secret Lair updates</summary>
+      <p class="sim-muted">Discover announcements before every printing or bonus is known. Updates run in the background while Deckadence is open. Missed scheduled checks run when the app next opens, if enabled below. Times use this computer’s local timezone.</p>
+      <div class="sim-lair-schedule">
+        <label><input id="lairEnabled" type="checkbox"> Automatic updates</label>
+        <label><input id="lairStartup" type="checkbox"> Refresh stale data on startup</label>
+        <label>Schedule<select id="lairMode"><option value="interval">Every N hours</option><option value="weekdays">Selected weekdays</option></select></label>
+        <label id="lairHoursField">Hours<input id="lairHours" type="number" min="1" max="720" value="72"></label>
+        <fieldset id="lairDays"><legend>Check on</legend>{% for day in ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}<label><input type="checkbox" value="{{ loop.index0 }}"> {{ day }}</label>{% endfor %}</fieldset>
+        <label id="lairTimeField">Local time<input id="lairTime" type="time" value="09:00"></label>
+      </div>
+      <button id="lairSaveSchedule" class="sim-text-button" type="button">Save schedule</button>
+      <button id="lairRefresh" class="sim-text-button" type="button">Refresh now</button>
+      <p id="lairSyncStatus" class="sim-muted" role="status"></p>
+    </details>
     <div class="sim-product-body"><div><p id="productCount" class="sim-muted"></p><div id="productResults" class="sim-product-results"></div></div>
       <aside class="sim-selection"><img id="selectionArt" src="/static/img/pack_art/_fallback/booster_default.png" alt=""><h3 id="selectionName">Choose a product</h3><p id="selectionType" class="sim-muted">Collector Booster</p>
         <label class="sim-field">Open<select id="openingSize"><option value="packs">Packs</option></select></label>
@@ -103,4 +118,4 @@
 {% set print_export_subject_label = "opening" %}
 {% include "_print_export_modal.html" %}
 {% endblock %}
-{% block page_scripts_after_app %}<script src="{{ url_for('static', filename='js/print_export_modal.js', v='tracking-tags-1') }}"></script><script src="/static/js/profit_effects.js?v=1"></script><script src="/static/js/pack_formation.js?v=1"></script><script src="/static/js/pack_simulator.js?v=tracking-tags-1"></script>{% endblock %}
+{% block page_scripts_after_app %}<script src="{{ url_for('static', filename='js/print_export_modal.js', v='tracking-tags-1') }}"></script><script src="/static/js/profit_effects.js?v=1"></script><script src="/static/js/pack_formation.js?v=1"></script><script src="/static/js/pack_simulator.js?v=secret-lair-2"></script>{% endblock %}

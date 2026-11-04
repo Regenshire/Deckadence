@@ -114,12 +114,12 @@
       host.append(" ", b);
     }
   }
-  async function api(path, data, timeout = 15000) {
+  async function api(path, data, timeout = 15000, method) {
     const ctl = new AbortController(),
       timer = setTimeout(() => ctl.abort(), timeout);
     try {
       const r = await fetch("/api/pack-simulator/" + path, {
-        method: data === undefined ? "GET" : "POST",
+        method: method || (data === undefined ? "GET" : "POST"),
         cache: "no-store",
         signal: ctl.signal,
         ...(data === undefined
@@ -247,7 +247,7 @@
         ? "Open product"
         : quantity > 1
           ? "Open first pack"
-          : "Open pack";
+          : selected?.product_kind === "secret_lair" ? "Open drop" : "Open pack";
   }
   // *** PRODUCT SELECTION - Choose a Product and Opening Size ***
   function updateProduct() {
@@ -266,6 +266,9 @@
     $("productDescription").textContent = box
       ? `${count} packs · ${box.name}`
       : `${quantity} ${selected.label.toLowerCase()}${quantity === 1 ? "" : "s"} · ${selected.min_cards === selected.max_cards ? selected.min_cards : selected.min_cards + "–" + selected.max_cards} cards per pack`;
+    if (selected.product_kind === "secret_lair")
+      $("productDescription").textContent = selected.unavailable_reason ||
+        `${quantity} Secret Lair${quantity === 1 ? "" : "s"} · ${selected.min_cards === selected.max_cards ? selected.min_cards : selected.min_cards + "–" + selected.max_cards} cards each`;
     window.DeckadenceSealedEffects?.setBox(
       $("packArtworkButton"),
       Boolean(box),
@@ -321,7 +324,7 @@
       if (rev !== selectionRevision) return;
       candidate = full;
       $("openingSize").replaceChildren(
-        option("packs", "Packs"),
+        option("packs", full.product_kind === "secret_lair" ? "Secret Lairs" : "Packs"),
         ...full.boxes.map((b) => option(b.id, b.name)),
       );
       if (selected && productKey(selected) === productKey(full) && boxId)
@@ -344,9 +347,10 @@
     $("quantityField").hidden = Boolean(box);
     $("individualBoxChoice").hidden = !box;
     $("packQuantity").disabled = Boolean(box);
-    $("useProduct").disabled = !candidate || Boolean(box?.unavailable_reason);
+    $("useProduct").disabled = !candidate || candidate.unavailable || Boolean(box?.unavailable_reason);
     $("selectionSummary").textContent =
       box?.unavailable_reason ||
+      candidate?.unavailable_reason ||
       (box
         ? box.packs
             .map(
@@ -355,18 +359,45 @@
             )
             .join(" · ")
         : candidate
-          ? `${candidate.min_cards === candidate.max_cards ? candidate.min_cards : candidate.min_cards + "–" + candidate.max_cards} cards per pack`
+          ? `${candidate.min_cards === candidate.max_cards ? candidate.min_cards : candidate.min_cards + "–" + candidate.max_cards} cards per ${candidate.product_kind === "secret_lair" ? "Secret Lair" : "pack"}.`
           : "");
+    if (candidate?.bonus_summary)
+      $("selectionSummary").textContent += " " + candidate.bonus_summary;
+  }
+  function matchesProductType(p) {
+    const type = $("boosterFilter").value;
+    return p.product_kind === "secret_lair" ? type === "secret_lair" : !type || p.booster_name === type;
+  }
+  function releaseLabel(p) {
+    if (!p.release_date) return "Release date to be announced";
+    const date = new Date(p.release_date + "T12:00:00");
+    return Number.isNaN(date.getTime()) ? p.release_date : date.toLocaleDateString(undefined, {month: "short", day: "numeric", year: "numeric"});
+  }
+  function changeProductType() {
+    store("productType", $("boosterFilter").value);
+    const secretLair = $("boosterFilter").value === "secret_lair";
+    $("secretLairUpdates").hidden = !secretLair;
+    if (secretLair) loadSecretLairStatus();
+    else { clearTimeout(lairPoll); $("secretLairUpdates").open = false; }
+    if (!candidate || !matchesProductType(candidate)) {
+      ++selectionRevision;
+      candidate = null;
+      $("selectionName").textContent = "Choose a product";
+      $("selectionType").textContent = "";
+      $("selectionArt").src = "/static/img/pack_art/_fallback/booster_default.png";
+      $("openingSize").replaceChildren(option("packs", secretLair ? "Secret Lairs" : "Packs"));
+      updateSelectionSize();
+    }
+    renderProducts();
   }
   function renderProducts() {
     const terms = $("productSearch")
         .value.toLowerCase()
         .split(/\s+/)
-        .filter(Boolean),
-      type = $("boosterFilter").value;
+        .filter(Boolean);
     const choices = catalog.filter(
       (p) =>
-        (!type || p.booster_name === type) &&
+        matchesProductType(p) &&
         terms.every((t) =>
           (p.set_name + " " + p.set_code + " " + p.label + " " + p.release_date)
             .toLowerCase()
@@ -377,7 +408,7 @@
       $("productSort").value === "name"
         ? a.set_name.localeCompare(b.set_name)
         : (b.release_date || "").localeCompare(a.release_date || "") ||
-          a.set_name.localeCompare(b.set_name),
+          a.set_name.localeCompare(b.set_name) || a.label.localeCompare(b.label),
     );
     $("productCount").textContent = `${choices.length} matching products`;
     $("productResults").replaceChildren(
@@ -403,7 +434,7 @@
           node("div", p.set_name, "campaign-add-pack-search-title"),
           node(
             "div",
-            `${p.label} · ${p.set_code} · ${p.release_date?.slice(0, 4) || ""}`,
+            `${p.label} · ${p.product_kind === "secret_lair" ? releaseLabel(p) : p.set_code + " · " + (p.release_date?.slice(0, 4) || "")}`,
             "campaign-add-pack-search-meta",
           ),
         );
@@ -416,6 +447,13 @@
           ),
         );
         b.onclick = () => chooseCandidate(p);
+        if (p.product_kind === "secret_lair" && p.is_foil) {
+          b.classList.add("sim-product-foil");
+          window.DeckadenceCardEffects?.attach(b, {finish: "foil"});
+          const sparkles = node("span", undefined, "sim-product-sparkles");
+          sparkles.setAttribute("aria-hidden", "true");
+          b.append(sparkles);
+        }
         return b;
       }),
     );
@@ -426,16 +464,19 @@
   }
   $("chooseProduct").onclick = () => {
     $("productSearch").value = "";
-    $("boosterFilter").value = "";
+    $("boosterFilter").value = stored("productType", "");
+    if (!$("boosterFilter").value) $("boosterFilter").value = "";
+    $("productSort").value = stored("productSort", "recent");
+    if (!$("productSort").value) $("productSort").value = "recent";
     $("revealIndividually").checked = stored("individualReveal", false);
     $("openIndividualPack").checked = stored("individualBox", false);
-    renderProducts();
-    if (selected) chooseCandidate(selected);
+    changeProductType();
+    if (selected && matchesProductType(selected)) chooseCandidate(selected);
     $("productDialog").showModal();
   };
   $("productSearch").oninput = renderProducts;
-  $("boosterFilter").onchange = renderProducts;
-  $("productSort").onchange = renderProducts;
+  $("boosterFilter").onchange = changeProductType;
+  $("productSort").onchange = () => { store("productSort", $("productSort").value); renderProducts(); };
   $("openingSize").onchange = updateSelectionSize;
   $("useProduct").onclick = () => {
     if (!candidate || !$("packQuantity").reportValidity()) return;
@@ -519,7 +560,7 @@
     $("saveButton").hidden = false;
     $("simulatorPrintExport").hidden = false;
     if (!fresh) $("packStage").hidden = true;
-    $("openingHeading").textContent = "Pack contents";
+    $("openingHeading").textContent = result.product_kind === "secret_lair" ? "Drop contents" : "Pack contents";
     const url = new URL(location.href);
     url.searchParams.set("opening", result.id);
     history.replaceState(null, "", url);
@@ -583,9 +624,13 @@
     const summaryCards = (combinedOpening() ? cards() : currentPack().cards).filter(includeRarity);
     const shown = summaryCards.filter((c) => revealed.has(c.index));
     $("singlePackSummary").textContent =
-      `${shown.length} / ${summaryCards.length} cards · ${shown.filter((c) => c.rarity === "mythic").length} mythics · ${shown.filter((c) => c.rarity === "rare").length} rares`;
+      `${shown.length} / ${summaryCards.length} cards` + raritySummary(shown);
     $("revealPack").hidden = summaryCards.every((c) => revealed.has(c.index));
     setOpenLabel();
+  }
+  function raritySummary(cards) {
+    if (cards.some((c) => !c.rarity)) return "";
+    return ` · ${cards.filter((c) => c.rarity === "mythic").length} mythics · ${cards.filter((c) => c.rarity === "rare").length} rares`;
   }
   const orderedPacks = new Map();
   // *** CARD DISPLAY - Sort and Show Pack Cards ***
@@ -657,6 +702,12 @@
   }
   function renderPack() {
     if (!opening) return;
+    const notices = (combinedOpening() ? opening.packs : [currentPack()])
+      .flatMap((p) => p.bonus_status || []).map((s) => s.note ||
+        (s.kind === "unresolved" ? "Bonus unresolved. No bonus card was simulated." :
+         s.odds === "estimated" ? "Bonus odds are simulation estimates." : "Documented bonus distribution."));
+    $("bonusNotice").textContent = [...new Set(notices)].join(" ");
+    $("bonusNotice").hidden = !notices.length;
     $("previewCards").replaceChildren(
       ...displayedCards().map((c) => cardTile(c, revealed.has(c.index))),
     );
@@ -727,6 +778,8 @@
       );
     name.title = shown ? card.card_name : "";
     const meta = node("div", undefined, "chaos-pack-inline-meta-row");
+    if (inPool && card.odds && Number.isFinite(card.draw_chance))
+      meta.append(node("span", `${(card.draw_chance * 100).toFixed(2)}% · ${card.odds === "estimated" ? "estimate" : "source distribution"}`, "sim-small"));
     if (shown) {
       if (source !== "none") {
         const host = node("button", undefined, "chaos-pack-inline-price");
@@ -1435,7 +1488,7 @@
       list = summary.list,
       expected = summary.expected;
     $("detailStats").textContent =
-      `${summary.packCount} pack${summary.packCount === 1 ? "" : "s"} · ${list.length} / ${expected} cards revealed · ${list.filter((c) => c.rarity === "mythic").length} mythics · ${list.filter((c) => c.rarity === "rare").length} rares`;
+      `${summary.packCount} pack${summary.packCount === 1 ? "" : "s"} · ${list.length} / ${expected} cards revealed` + raritySummary(list);
     $("marketValues").replaceChildren(
       ...Object.entries(vendors).map(([v, label]) => {
         const values = pullValues(list, v),
@@ -1626,7 +1679,7 @@
           node("strong", slot.label),
           node(
             "small",
-            `${slot.foil ? "Foil" : "Nonfoil"} · ${slot.pool_count} cards · ${Math.round(slot.chance * 1000) / 10}% chance`,
+            slot.note || `${slot.foil ? "Foil" : "Nonfoil"} · ${slot.pool_count} cards · ${Math.round(slot.chance * 1000) / 10}% chance`,
           ),
         );
         b.append(
@@ -1682,14 +1735,14 @@
           c.card_name.toLowerCase().includes(search),
       );
     $("slotDescription").textContent =
-      `${list.length} cards · ${activeSlot.foil ? "Foil" : "Nonfoil"} · Slot appears in ${Math.round(activeSlot.chance * 1000) / 10}% of packs`;
+      activeSlot.note || `${list.length} cards · ${activeSlot.foil ? "Foil" : "Nonfoil"} · Slot appears in ${Math.round(activeSlot.chance * 1000) / 10}% of packs`;
     $("poolCards").replaceChildren(
       ...list.slice(0, poolLimit).map((c) => cardTile(c, true, true)),
     );
     $("poolMore").hidden = list.length <= poolLimit;
     if (!list.length)
       $("poolCards").append(
-        node("p", "No cards match these filters.", "sim-muted"),
+        node("p", activeSlot.unresolved ? "Bonus unresolved. No card will be invented or drawn." : "No cards match these filters.", "sim-muted"),
       );
   }
   $("packLayoutButton").onclick = showLayout;
@@ -1887,6 +1940,82 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) requestSealed();
   });
+  function rebuildProductFilter() {
+    const current = $("boosterFilter").value;
+    $("boosterFilter").replaceChildren(option("", "All products"),
+      ...[...new Map(catalog.filter((p) => p.product_kind !== "secret_lair")
+        .map((p) => [p.booster_name, p.label]))].map(([v, label]) => option(v, label)),
+      option("secret_lair", "Secret Lair"));
+    $("boosterFilter").value = current;
+  }
+  async function reloadCatalog() {
+    catalog = (await api("catalog")).products;
+    productCache.clear();
+    rebuildProductFilter();
+    renderProducts();
+    if (candidate && matchesProductType(candidate)) await chooseCandidate(candidate);
+  }
+  function scheduleFields() {
+    const weekdays = $("lairMode").value === "weekdays";
+    $("lairDays").hidden = $("lairTimeField").hidden = !weekdays;
+    $("lairHoursField").hidden = weekdays;
+  }
+  $("lairMode").onchange = scheduleFields;
+  let lairPoll = null;
+  function renderSyncState(state, populate = false) {
+    if (populate) {
+      const s = state.schedule;
+      $("lairEnabled").checked = s.enabled;
+      $("lairStartup").checked = s.startup;
+      $("lairMode").value = s.mode;
+      $("lairHours").value = s.hours;
+      $("lairTime").value = s.at;
+      $("lairDays").querySelectorAll("input").forEach((el) => { el.checked = s.days.includes(Number(el.value)); });
+      scheduleFields();
+    }
+    $("lairRefresh").disabled = state.running;
+    const last = state.sources.find((s) => s.source === "refresh")?.succeeded_at;
+    $("lairSyncStatus").textContent = state.running ? "Updating Secret Lairs in the background…" :
+      (last ? "Last updated: " + new Date(last * 1000).toLocaleString() + "." : "Refresh now to check for new Secret Lairs.") +
+      (state.sources.some((s) => s.error) ? " Some updates could not be downloaded; previously available products are still usable." : "");
+  }
+  async function pollSecretLair() {
+    clearTimeout(lairPoll);
+    if ($("boosterFilter").value !== "secret_lair") return;
+    try {
+      const state = await api("secret-lair/sync");
+      renderSyncState(state);
+      if (state.running && $("boosterFilter").value === "secret_lair") lairPoll = setTimeout(pollSecretLair, 2500);
+      else await reloadCatalog();
+    } catch (e) { $("lairSyncStatus").textContent = e.message; $("lairRefresh").disabled = false; }
+  }
+  async function loadSecretLairStatus() {
+    try {
+      const state = await api("secret-lair/sync");
+      renderSyncState(state, true);
+      if (state.running) { clearTimeout(lairPoll); lairPoll = setTimeout(pollSecretLair, 2500); }
+    } catch (e) { $("lairSyncStatus").textContent = e.message; }
+  }
+  $("lairRefresh").onclick = async () => {
+    $("lairRefresh").disabled = true;
+    $("lairSyncStatus").textContent = "Starting background refresh…";
+    try {
+      await api("secret-lair/sync", {});
+      clearTimeout(lairPoll);
+      lairPoll = setTimeout(pollSecretLair, 1500);
+    } catch (e) { $("lairSyncStatus").textContent = e.message; $("lairRefresh").disabled = false; }
+  };
+  $("lairSaveSchedule").onclick = async () => {
+    try {
+      const state = await api("secret-lair/sync", {
+        enabled: $("lairEnabled").checked, startup: $("lairStartup").checked,
+        mode: $("lairMode").value, hours: Number($("lairHours").value), at: $("lairTime").value,
+        days: [...$("lairDays").querySelectorAll("input:checked")].map((el) => Number(el.value)),
+      }, 15000, "PUT");
+      renderSyncState(state);
+      $("lairSyncStatus").textContent = "Update schedule saved.";
+    } catch (e) { $("lairSyncStatus").textContent = e.message; }
+  };
   async function start() {
     const saved = new URL(location.href).searchParams.get("opening");
     const results = await Promise.allSettled([
@@ -1897,12 +2026,7 @@
     ]);
     if (results[0].status === "fulfilled") {
       catalog = results[0].value.products;
-      $("boosterFilter").replaceChildren(
-        option("", "All boosters"),
-        ...[...new Map(catalog.map((p) => [p.booster_name, p.label]))].map(
-          ([v, label]) => option(v, label),
-        ),
-      );
+      rebuildProductFilter();
     } else status(results[0].reason.message, start);
     if (results[1].status === "fulfilled" && results[1].value) {
       await useOpening(results[1].value.opening);
@@ -1913,8 +2037,9 @@
         catalog.find(
           (p) => p.set_code === choice.set && p.booster_name === choice.booster,
         ) ||
-        catalog.find((p) => p.release_date <= today) ||
-        catalog[0];
+        catalog.find((p) => p.product_kind !== "secret_lair" && p.release_date <= today) ||
+        catalog.find((p) => p.product_kind !== "secret_lair");
+      if (!p) { $("chooseProduct").disabled = false; setBusy(false); return; }
       try {
         selected = await getProduct(p);
         boxId = selected.boxes.some((b) => b.id === choice.box)
