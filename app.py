@@ -6338,6 +6338,59 @@ def apply_rounded_corner_mask(image, radius_px, matte_rgb=(0, 0, 0)):
     return matte_image
 
 
+def extend_pdf_card_corners(image, radius_px):
+    """Continue each local card edge through its rounded cutout before bleed.
+
+    Sample just inside the curved edge to avoid transparent/scan fringes.
+    Only the four cutouts change; the finished card's interior stays intact.
+    """
+    import numpy as np
+
+    source = image.convert("RGB")
+    width, height = source.size
+    radius = min(max(0, int(round(radius_px))), width // 2, height // 2)
+    if radius <= 0:
+        return source
+
+    # Work on small corner patches, not a full-resolution float image. The
+    # same map is mirrored for the other three corners, sampling their own art.
+    size = radius + 1
+    mask = Image.new("L", (size, size), 0)
+    ImageDraw.Draw(mask).ellipse((0, 0, radius * 2, radius * 2), fill=255)
+    missing = np.asarray(mask) == 0
+    y, x = np.mgrid[:size, :size]
+    dx, dy = x - radius, y - radius
+    distance = np.maximum(1.0, np.hypot(dx, dy))
+    sample_radius = max(0, radius - 2)
+    sample_x = radius + dx * sample_radius / distance
+    sample_y = radius + dy * sample_radius / distance
+    x0 = np.floor(sample_x).astype(int).clip(0, radius)
+    y0 = np.floor(sample_y).astype(int).clip(0, radius)
+    x1, y1 = np.minimum(x0 + 1, radius), np.minimum(y0 + 1, radius)
+    wx = (sample_x - x0)[..., None]
+    wy = (sample_y - y0)[..., None]
+
+    result = source.copy()
+    for right, bottom in ((False, False), (True, False), (False, True), (True, True)):
+        left, top = (width - size if right else 0), (height - size if bottom else 0)
+        patch = np.array(source.crop((left, top, left + size, top + size)))
+        if right:
+            patch = patch[:, ::-1]
+        if bottom:
+            patch = patch[::-1]
+        # Bilinear sampling follows local artwork without a single flat matte
+        # color or stair-stepped nearest-neighbor streaks in full-art corners.
+        sampled = ((1 - wy) * ((1 - wx) * patch[y0, x0] + wx * patch[y0, x1])
+                   + wy * ((1 - wx) * patch[y1, x0] + wx * patch[y1, x1]))
+        patch[missing] = np.rint(sampled[missing]).clip(0, 255).astype(np.uint8)
+        if bottom:
+            patch = patch[::-1]
+        if right:
+            patch = patch[:, ::-1]
+        result.paste(Image.fromarray(patch), (left, top))
+    return result
+
+
 def build_white_blank_card_image(width_px, height_px, radius_px=0):
     base_image = Image.new("RGB", (width_px, height_px), (255, 255, 255))
 
@@ -6847,6 +6900,8 @@ def draw_processed_image_into_slot(
         else 0
     )
 
+    fill_card_corners = get_request_print_scope() == "chaos"
+
     slot_cache_key = None
     slot_image_bytes = None
 
@@ -6860,6 +6915,7 @@ def draw_processed_image_into_slot(
             finished_height_px,
             bool(add_edge_bleed_border),
             radius_px,
+            fill_card_corners,
             bool(round_the_corners),
             rotation_degrees,
             bool(preserve_real_source_bleed),
@@ -6933,11 +6989,14 @@ def draw_processed_image_into_slot(
                 )
 
                 if radius_px > 0 and not round_the_corners:
-                    image = apply_rounded_corner_mask(
-                        image,
-                        radius_px,
-                        matte_rgb=(0, 0, 0),
-                    )
+                    if fill_card_corners:
+                        image = extend_pdf_card_corners(image, radius_px)
+                    else:
+                        image = apply_rounded_corner_mask(
+                            image,
+                            radius_px,
+                            matte_rgb=(0, 0, 0),
+                        )
 
                 if add_edge_bleed_border:
                     bleed_left_px = max(
@@ -7267,7 +7326,7 @@ def build_pdf_rendered_entry_with_template(
         ),
 
         # PDF slot rendering owns corner cleanup as well as bleed. For
-        # ordinary cards it rounds the finished 63 x 88 mm card before
+        # ordinary cards it extends the finished card's corner artwork before
         # adding bleed; real full-bleed sources keep their existing edges.
         skip_card_corner_radius=True,
         normal_text_fill_rgb_override=(

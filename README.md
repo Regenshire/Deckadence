@@ -10,6 +10,12 @@ Deckadence is a self-hosted local web application for creating, managing, printi
 
 Deckadence runs on your own PC and opens in a web browser. Your Deckadence database, settings, custom sets, decks, cached images, and generated files are stored locally with the application. No account or hosted Deckadence service is required. You can also open Deckadence from a phone, tablet, or another computer on the same local network.
 
+## Version 3.4.1: Cutting Templates and PDF Corners
+
+Corrected the A4 9-card cutting templates to **Vertical** and the Letter 8-card cutting template to **Horizontal**, including their download filenames.
+
+Card Print PDFs now extend each card's nearby edge artwork into rounded corner cutouts before adding bleed, replacing the solid black corner fill. Momir printing, real source bleed, and templates that explicitly clip to rounded corners retain their existing behavior.
+
 ## Version 3.4.0: Legal Text Replacement
 
 Single-card and bulk upscaling now offer **None / Keep Legal**, **Remove**, and **Replace with Custom Proxy Text**. Set the default proxy text in Settings or edit it using the gear beside the replacement option. Processing applies to both faces of double-sided cards.
@@ -175,8 +181,8 @@ python3 -m PyInstaller --noconfirm --clean \
 
 python3 -B update_system.py package \
   --root .dev_prompts/ai_work/release-dist/Deckadence \
-  --output .dev_prompts/ai_work/Deckadence_v3.4.0_macOS_arm64.zip \
-  --version 3.4.0 --platform macos-arm64
+  --output .dev_prompts/ai_work/Deckadence_v3.4.1_macOS_arm64.zip \
+  --version 3.4.1 --platform macos-arm64
 ```
 
 For Linux, use `--platform linux-x86_64` and an archive ending in `_Linux_x86_64.tar.gz`. For Windows, use `--platform windows-x86_64` and `_Windows.zip`. Change the version for each release. The packager rejects unexpected files in the release folder to prevent shipping user data, and creates:

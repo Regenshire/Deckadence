@@ -1,21 +1,21 @@
 {
   "cutting_templates": {
-    "Silhouette_A4_Horizontal_9_Card.studio3": {
+    "Silhouette_A4_Vertical_9_Card.studio3": {
       "description": "Advanced A4 9 card magic layout",
-      "filename": "Silhouette_A4_Horizontal_9_Card.studio3",
-      "name": "A4 - Horizontal - 9 Card Template",
+      "filename": "Silhouette_A4_Vertical_9_Card.studio3",
+      "name": "A4 - Vertical - 9 Card Template",
       "print_template": "silhouette-a4-vertical-9"
     },
-    "Silhouette_A4_Horizontal_9_Card_GreenBlade.studio3": {
+    "Silhouette_A4_Vertical_9_Card_GreenBlade.studio3": {
       "description": "This is an Advanced A4 9 card magic layout template intended for use with the Green Blade and high quality thick card stock such as Cody's 313 Blue Core.",
-      "filename": "Silhouette_A4_Horizontal_9_Card_GreenBlade.studio3",
-      "name": "A4 - Horizontal - 9 Card Green Blade Template",
+      "filename": "Silhouette_A4_Vertical_9_Card_GreenBlade.studio3",
+      "name": "A4 - Vertical - 9 Card Green Blade Template",
       "print_template": "silhouette-a4-vertical-9"
     },
-    "Silhouette_Letter_Vertical_8_Card.studio3": {
-      "description": "standard Letter template for vertical 8 card layouts",
-      "filename": "Silhouette_Letter_Vertical_8_Card.studio3",
-      "name": "Letter - Vertical - 8 Card Template",
+    "Silhouette_Letter_Horizontal_8_Card.studio3": {
+      "description": "standard Letter template for horizontal 8 card layouts",
+      "filename": "Silhouette_Letter_Horizontal_8_Card.studio3",
+      "name": "Letter - Horizontal - 8 Card Template",
       "print_template": "silhouette-letter-horizontal-8"
     }
   },
@@ -166,9 +166,9 @@
     "static/sil/Silhouette_A4_Horizontal_9_Card_GreenBlade.studio3": "d3e1bc0d657646189966b50ba096e7a34fa9a8fb27b0343fa128291cd96e4938",
     "static/sil/Silhouette_A4_Horizontal_9_Card_GreenBlade_90d.studio3": "1fda1240deec69b1eaa8205d5479c4109bf8f26ecb39f0b67f192162e3044a7c",
     "static/sil/Silhouette_Legal_Vertical_8_Card.studio3": "4729ceec905a6e7dfa5f699669103130ec0e640b29542c26eeb358c17cabef0f",
-    "static/sil/Studio3/Silhouette_A4_Horizontal_9_Card.studio3": "87d850439d4e7a2ed46150f9ef07f0625094abea243ec3a004b17070e7a65c25",
-    "static/sil/Studio3/Silhouette_A4_Horizontal_9_Card_GreenBlade.studio3": "bd3519db139ce95d3a78c194b5f61a5b735e74e92bc6eac6cbf04ab8d135424a",
-    "static/sil/Studio3/Silhouette_Letter_Vertical_8_Card.studio3": "4729ceec905a6e7dfa5f699669103130ec0e640b29542c26eeb358c17cabef0f",
-    "static/sil/Studio3/templates.json": "9c785c4e4c19f249c661dd9cecda418a0e9d83f94182dd19b827a4f3fbbd8393"
+    "static/sil/Studio3/Silhouette_A4_Vertical_9_Card.studio3": "87d850439d4e7a2ed46150f9ef07f0625094abea243ec3a004b17070e7a65c25",
+    "static/sil/Studio3/Silhouette_A4_Vertical_9_Card_GreenBlade.studio3": "bd3519db139ce95d3a78c194b5f61a5b735e74e92bc6eac6cbf04ab8d135424a",
+    "static/sil/Studio3/Silhouette_Letter_Horizontal_8_Card.studio3": "4729ceec905a6e7dfa5f699669103130ec0e640b29542c26eeb358c17cabef0f",
+    "static/sil/Studio3/templates.json": "53c28de06c14a84f981c45dbd54be84ce82eeb37569e86b2bc220f2cd9e693cf"
   }
 }
