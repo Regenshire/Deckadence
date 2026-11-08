@@ -165,6 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (zoom) screen.querySelector('.result-panel').append(zoom);
             initializeResultFaces();
             history.replaceState(null, '', url);
+            screen.dispatchEvent(new Event('momir:card-changed'));
             window.dispatchEvent(new Event('resize'));
         } catch (error) {
             if (window.iMomirToast) window.iMomirToast.error('Could not draw a card. Please try again.');

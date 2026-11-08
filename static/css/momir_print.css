@@ -1,0 +1,127 @@
+/* Momir's card document, independent of the shared sheet printer.
+   Single-card presets retain the single-image structure used in June 2026;
+   the sheet stays in document flow so its dimensions include its content. */
+.momir-print-document {
+    margin: 0;
+    padding: 0;
+    background: white;
+    color: #111827;
+    font: 14px/1.5 Arial, sans-serif;
+}
+
+.momir-print-sheet {
+    position: relative;
+    width: var(--print-width);
+    height: var(--print-height);
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: white;
+    break-inside: avoid;
+}
+
+.momir-print-sheet .print-card-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    object-fit: fill;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+/* Custom Momir sheets still support slots, but slots belong to their sheet,
+   never to a fixed browser viewport or to every printed page. */
+.momir-print-sheet .print-template-registration-background {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+}
+.momir-print-sheet .print-template-slot {
+    position: absolute;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: white;
+}
+.momir-print-sheet .print-template-slot-image {
+    position: absolute;
+    left: var(--slot-image-left, 0);
+    top: var(--slot-image-top, 0);
+    width: var(--slot-image-width, 100%);
+    height: var(--slot-image-height, 100%);
+    transform-origin: top left;
+    transform: var(--slot-image-transform, none);
+    object-fit: fill;
+}
+.momir-print-sheet .print-sheet {
+    position: absolute;
+    left: var(--sheet-offset-x, 0mm);
+    top: var(--sheet-offset-y, 0mm);
+    width: var(--sheet-width, var(--print-width));
+    height: var(--sheet-height, var(--print-height));
+}
+.momir-print-sheet.print-mode-grayscale .print-card-image {
+    -webkit-filter: grayscale(100%) contrast(1.08) brightness(1.02);
+    filter: grayscale(100%) contrast(1.08) brightness(1.02);
+}
+.momir-print-sheet.print-mode-monochrome .print-card-image {
+    -webkit-filter: grayscale(100%) contrast(2.35) brightness(1.05);
+    filter: grayscale(100%) contrast(2.35) brightness(1.05);
+}
+.momir-print-crop > .print-card-image { position: relative; }
+.momir-print-crop .print-card-image {
+    width: 110%;
+    height: 106.8%;
+    left: -5%;
+    top: -3.4%;
+}
+.momir-print-document .print-return-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 14px 12px;
+}
+.momir-print-document .print-return-button {
+    min-height: 46px;
+    padding: 10px 18px;
+    border: 1px solid #cfd5df;
+    border-radius: 12px;
+    background: #f3f5f8;
+    color: #111827;
+    font: inherit;
+}
+.momir-print-document .print-now-button { background: #1f6feb; color: white; }
+.momir-print-document .print-return-button:disabled { opacity: .6; }
+.momir-print-help { flex-basis: 100%; margin: 0; }
+
+@media print {
+    html,
+    body.momir-print-document,
+    body.momir-card-print {
+        display: block !important;
+        position: static !important;
+        width: var(--print-width) !important;
+        height: var(--print-height) !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        background: white !important;
+    }
+    .momir-print-document .print-return-bar,
+    body.momir-card-print > :not(#momirPrintRoot) { display: none !important; }
+    #momirPrintRoot {
+        display: block !important;
+        position: static !important;
+        width: var(--print-width);
+        height: var(--print-height);
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+    }
+}

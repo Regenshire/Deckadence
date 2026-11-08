@@ -3,8 +3,9 @@
 %} {% block page_styles %}
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/deck_roulette.css') }}"
+  href="{{ url_for('static', filename='css/deck_roulette.css', v='shared-spin-1') }}"
 />
+<link rel="stylesheet" href="{{ url_for('static', filename='css/spin_logo.css', v='arcane-1') }}" />
 {% endblock %} {% block content %}
 <div
   class="screen screen-wide"
@@ -202,6 +203,7 @@
           type="button"
           id="deckRouletteSpinButton"
           class="chaos-draft-spin-cta"
+          data-spin-logo
           aria-label="Spin Deck Roulette"
           {%
           if
@@ -211,19 +213,7 @@
           endif
           %}
         >
-          <span class="chaos-draft-spin-logo" aria-hidden="true">
-            <img
-              src="{{ url_for('static', filename='img/Logos/spinlogo_D.svg') }}"
-              alt=""
-              class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-base"
-            />
-
-            <img
-              src="{{ url_for('static', filename='img/Logos/spinlogo_spinning.svg') }}"
-              alt=""
-              class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-rotor"
-            />
-          </span>
+          {% include "_spin_logo.html" %}
         </button>
       </div>
 
@@ -325,5 +315,6 @@
   </div>
 </div>
 {% endblock %} {% block page_scripts_after_app %}
+<script src="{{ url_for('static', filename='js/spin_logo.js', v='arcane-1') }}"></script>
 <script src="{{ url_for('static', filename='js/deck_roulette.js', v='roulette-filters-2') }}"></script>
 {% endblock %}

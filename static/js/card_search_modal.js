@@ -559,6 +559,7 @@
 
     const clientAddedCardUuidLookup = new Set();
     const clientAddedPrintingKeyLookup = new Set();
+    const clientAddedCardNameLookup = new Set();
     const switchedPrintingAddedStates = new Map();
 
     function updateAddAllResultsButtonState() {
@@ -596,6 +597,8 @@
     const selectedCards = new Map();
     let galleryView = true;
     let selectionBusy = false;
+    const pendingCardUpdates = [];
+    let pendingSearchPage = null;
     let switchingPreviewPrinting = false;
     let previewCard = null;
     let previewOpener = null;
@@ -635,11 +638,11 @@
       if (anchor.focused) anchor.toggle.focus({preventScroll:true});
     }
     function scheduleGalleryLayout() {
-      if (layoutFrame || closing || searchOverlay.classList.contains("hidden")) return;
+      if (selectionBusy || layoutFrame || closing || searchOverlay.classList.contains("hidden")) return;
       layoutFrame = requestAnimationFrame(() => { layoutFrame = 0; layoutGallery(); });
     }
     function layoutGallery() {
-      if (searchOverlay.classList.contains("hidden") || !searchResults.clientWidth) return;
+      if (selectionBusy || searchOverlay.classList.contains("hidden") || !searchResults.clientWidth) return;
       const style = getComputedStyle(searchResults);
       const available = Math.max(1, searchResults.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight));
       const size = window.DeckadenceCardSizes.normalize(cardSizeSelect.value);
@@ -889,6 +892,7 @@
       clientAddedPrintingKeyLookup.delete(previous.printingKey || "");
       clientAddedCardUuidLookup.add(card.card_uuid);
       clientAddedPrintingKeyLookup.add(getSearchCardPrintingKey(card));
+      clientAddedCardNameLookup.add(String(card.card_name || "").trim().toLowerCase());
       // Update both rendered and cached records so toggling "See any printing"
       // cannot bring back a stale Added border for the printing just replaced.
       const records = new Set([card, previewCard, ...(importedSearchCards || []), ...selectedCards.values()]);
@@ -907,16 +911,69 @@
       refreshSearchResultAddedStates();
       filterSearchResults();
     }
+    function applyCardUpdate(update) {
+      if (selectionBusy) pendingCardUpdates.push(update);
+      else update(false);
+    }
+
     function setSelectionBusy(busy) {
+      if (selectionBusy === busy) return;
       selectionBusy = busy;
+      if (busy) {
+        // Late search/printing responses must not replace the selected rows
+        // while the batch is saving. Coalesce any requested search until after it.
+        if (cardSearchController) pendingSearchPage = currentSearchPage || 1;
+        ++cardSearchRevision;
+        cardSearchController?.abort();
+        cardSearchController = null;
+        abortPrintingRequests();
+        if (layoutFrame) cancelAnimationFrame(layoutFrame);
+        layoutFrame = 0;
+        searchButton.disabled = false;
+        searchButton.classList.remove("action-button-loading");
+        searchButton.textContent = "Search";
+      }
       workspace.inert = busy;
       searchOverlay.querySelector(".card-search-controls").inert = busy;
       searchOverlay.querySelector(".card-search-header-actions").inert = busy;
       doneButton.disabled = busy || closing;
       if (switchSelectedPrintingsButton) switchSelectedPrintingsButton.disabled = busy;
       updateAddAllResultsButtonState();
-      syncPrintingSelections();
+      if (busy) {
+        syncPrintingSelections();
+      } else {
+        const updates = pendingCardUpdates.splice(0);
+        try {
+          updates.forEach(update => update(Boolean(config.onCardBatchComplete)));
+        } finally {
+          if (updates.length) config.onCardBatchComplete?.();
+          refreshSearchResultAddedStates();
+          filterSearchResults();
+          const page = pendingSearchPage;
+          pendingSearchPage = null;
+          if (page !== null && !searchOverlay.classList.contains("hidden")) runCardSearch(page);
+          else if (seeAnyPrinting?.checked && !searchOverlay.classList.contains("hidden")) {
+            searchResults.querySelectorAll(".custom-draft-card-search-group-expanded:not(.hidden)").forEach(group => {
+              if (!group.allPrintingCards) loadAllPrintings(group);
+            });
+          }
+        }
+      }
     }
+
+    function createPendingAddButton(card) {
+      // Selections can span result pages. Saving an off-page card needs its
+      // identity and an action button, not another image or rendered printing.
+      const row = document.createElement("div");
+      row.className = "custom-draft-card-search-row";
+      row.dataset.cardUuid = card.card_uuid;
+      row.dataset.cardName = String(card.card_name || "").trim().toLowerCase();
+      row.dataset.printingKey = getSearchCardPrintingKey(card);
+      const button = document.createElement("button");
+      row.appendChild(button);
+      return button;
+    }
+
     async function addSelectedPrintings() {
       if (selectionBusy || !selectedCards.size) return;
       const cards = [...selectedCards.values()];
@@ -935,17 +992,22 @@
         return;
       }
       let failed = 0;
+      const existingLookup = getExistingCardLookup();
+      const resultRows = new Map([...searchResults.querySelectorAll(".custom-draft-card-search-row")]
+        .map(row => [row.dataset.cardUuid, row]));
       try {
-        for (const card of cards) {
-          const row = [...searchResults.querySelectorAll(".custom-draft-card-search-row")]
-            .find(item => item.dataset.cardUuid === card.card_uuid) || createSearchResultPrintingRow(card);
-          const button = row.querySelector(".custom-draft-card-add-button");
+        for (const [index, card] of cards.entries()) {
+          selectedButton.textContent = (switchSelectedPrintings ? "Updating" : "Adding") + " " + (index + 1) + " of " + cards.length + "…";
+          const button = resultRows.get(card.card_uuid)?.querySelector(".custom-draft-card-add-button") || createPendingAddButton(card);
           if (activeChangePrintingState) {
             await changeCardPrinting(card.card_uuid, button);
             break;
           }
-          if (isSearchCardAlreadyAdded(card)) { selectedCards.delete(card.card_uuid); continue; }
-          if (await applySearchPrinting(card, button)) selectedCards.delete(card.card_uuid);
+          if (isSearchCardAlreadyAdded(card, existingLookup)) { selectedCards.delete(card.card_uuid); continue; }
+          if (await applySearchPrinting(card, button)) {
+            selectedCards.delete(card.card_uuid);
+            existingLookup.cardUuids.add(card.card_uuid);
+          }
           else failed++;
         }
       } finally {
@@ -957,8 +1019,8 @@
     async function applySearchPrinting(card, button) {
       const switchError = switchSelectedPrintings && config.getPrintingSwitchError?.(card);
       if (switchError) { setSearchStatus(switchError, true); showMessage(switchError, true); return false; }
-      // Resolve against the current set each time, including changes made earlier
-      // in this batch. Cards that have no existing entry still use the Add path.
+      // Replacement selection allows one target per card name. Resolve its
+      // current set entry; cards without an existing entry use the Add path.
       const target = switchSelectedPrintings ? config.getExistingPrintingTarget(card) : null;
       if (target) {
         const switched = await changeCardPrinting(card.card_uuid, button, {
@@ -1201,6 +1263,7 @@
       const lookup = {
         cardUuids: new Set(clientAddedCardUuidLookup),
         printingKeys: new Set(clientAddedPrintingKeyLookup),
+        cardNames: new Set(clientAddedCardNameLookup),
       };
 
       if (typeof config.getExistingCardLookup === "function") {
@@ -1215,6 +1278,9 @@
             lookup.printingKeys.add(printingKey);
           },
         );
+        Array.from(pageLookup.cardNames || []).forEach(function (cardName) {
+          lookup.cardNames.add(String(cardName || "").trim().toLowerCase());
+        });
       }
 
       return lookup;
@@ -1741,7 +1807,7 @@
         (searchYearStartFilter && (searchYearStartFilter.value || "").trim()) ||
         (searchYearEndFilter && (searchYearEndFilter.value || "").trim()) ||
         (searchExcludeAddedFilter &&
-          (searchExcludeAddedFilter.value || "").trim() === "exclude"),
+          (searchExcludeAddedFilter.value || "").trim()),
       );
     }
 
@@ -2140,7 +2206,7 @@
     }
 
     function refreshSearchResultAddedStates() {
-      if (!searchResults) {
+      if (selectionBusy || !searchResults) {
         return;
       }
 
@@ -2250,6 +2316,7 @@
     }
 
     function updateSearchResultGroupFromAddedRow(resultRow) {
+      if (selectionBusy) return;
       const group = resultRow?.closest(".custom-draft-card-search-group");
       if (!group) return;
       const restoreFocus = resultRow.contains(document.activeElement);
@@ -2263,6 +2330,7 @@
     }
 
     function renderGroupPrintings(groupElement, cards, allPrintings) {
+      if (selectionBusy) return;
       // Capture the current position at response time, not at request time:
       // browsing elsewhere while printings load must not scroll the user back.
       if (groupElement.classList.contains("custom-draft-card-search-group-expanded")) rememberPrintingPosition(groupElement);
@@ -2283,6 +2351,7 @@
     }
 
     async function loadAllPrintings(groupElement) {
+      if (selectionBusy) return;
       if (groupElement.allPrintingCards) {
         if (seeAnyPrinting?.checked) renderGroupPrintings(groupElement, groupElement.allPrintingCards, true);
         return;
@@ -2315,6 +2384,7 @@
         if (seeAnyPrinting?.checked) renderGroupPrintings(groupElement, groupElement.allPrintingCards, true);
         feedback.classList.add("hidden");
       } catch (error) {
+        if (error.name === "AbortError") feedback.classList.add("hidden");
         if (error.name !== "AbortError" && groupElement.isConnected && seeAnyPrinting?.checked) {
           feedback.textContent = "Could not load all printings. ";
           const retry = document.createElement("button");
@@ -2469,7 +2539,7 @@
     }
 
     function filterSearchResults() {
-      if (!searchResults) {
+      if (selectionBusy || !searchResults) {
         return;
       }
 
@@ -2493,6 +2563,14 @@
       const excludeAddedValue = searchExcludeAddedFilter
         ? (searchExcludeAddedFilter.value || "").trim().toLowerCase()
         : "";
+      const excludedCardNames = excludeAddedValue === "exclude_all"
+        ? getExistingCardLookup().cardNames
+        : new Set();
+      if (excludeAddedValue === "exclude_all") {
+        searchResults.querySelectorAll(".custom-draft-card-search-row-disabled").forEach(row => {
+          excludedCardNames.add(String(row.dataset.cardName || "").trim().toLowerCase());
+        });
+      }
 
       const groups = Array.from(
         searchResults.querySelectorAll(".custom-draft-card-search-group"),
@@ -2531,8 +2609,10 @@
           const fullArtMatches = !fullArtValue || row.searchCard?.full_art === (fullArtValue === "yes");
           const textlessMatches = !textlessValue || row.searchCard?.textless === (textlessValue === "yes");
           const excludeAddedMatches =
-            excludeAddedValue !== "exclude" ||
-            !row.classList.contains("custom-draft-card-search-row-disabled");
+            excludeAddedValue === "exclude_all"
+              ? !excludedCardNames.has(String(row.dataset.cardName || "").trim().toLowerCase())
+              : excludeAddedValue !== "exclude" ||
+                !row.classList.contains("custom-draft-card-search-row-disabled");
 
           const matchesFilters =
             (!window.DeckadenceCardTags || window.DeckadenceCardTags.matches(row, "search")) &&
@@ -2609,6 +2689,7 @@
     let cardSearchController = null;
     async function runCardSearch(page) {
       if (closing) return;
+      if (selectionBusy) { pendingSearchPage = page || 1; return; }
       const revision = ++cardSearchRevision;
       cardSearchController?.abort();
       importedSearchCards = null;
@@ -2713,6 +2794,7 @@
         setSearchStatus(error.message || "Card search failed.", true);
       } finally {
         if (revision === cardSearchRevision) {
+          cardSearchController = null;
           searchButton.disabled = false;
           searchButton.classList.remove("action-button-loading");
           searchButton.textContent = "Search";
@@ -3026,19 +3108,25 @@
           if (resultPrintingKey) {
             clientAddedPrintingKeyLookup.add(resultPrintingKey);
           }
-
-          resultRow.classList.add("custom-draft-card-search-row-disabled");
-          updateSearchResultGroupFromAddedRow(resultRow);
+          const resultCardName = String(resultRow.dataset.cardName || "").trim().toLowerCase();
+          if (resultCardName) {
+            clientAddedCardNameLookup.add(resultCardName);
+          }
         }
 
-        if (typeof config.onAddSuccess === "function") {
-          config.onAddSuccess(payload, {
+        applyCardUpdate(deferRefresh => {
+          if (resultRow) {
+            resultRow.classList.add("custom-draft-card-search-row-disabled");
+            updateSearchResultGroupFromAddedRow(resultRow);
+          }
+          config.onAddSuccess?.(payload, {
             cardUuid: cardUuid,
             button: button,
             resultRow: resultRow,
             setStatus: setSearchStatus,
+            deferRefresh: deferRefresh,
           });
-        }
+        });
 
         setSearchStatus(
           payload.message || "Card added. Search results remain open.",
@@ -3105,17 +3193,18 @@
         const resultRow = button.closest(".custom-draft-card-search-row");
 
         if (typeof config.onChangePrintingSuccess === "function") {
-          config.onChangePrintingSuccess(payload, {
+          applyCardUpdate(deferRefresh => config.onChangePrintingSuccess(payload, {
             cardUuid: cardUuid,
             button: button,
             resultRow: resultRow,
             activeChangePrintingState: changeState,
             keepOpen: Boolean(options.keepOpen),
+            deferRefresh: deferRefresh,
             setStatus: (message, isError) => setSearchStatus(message, isError, "success"),
             close: close,
             updateSearchResultGroupFromAddedRow:
               updateSearchResultGroupFromAddedRow,
-          });
+          }));
         } else {
           setSearchStatus(payload.message || "Printing updated.", false);
           if (!options.keepOpen) close();
@@ -3296,6 +3385,7 @@
        */
       clientAddedCardUuidLookup.clear();
       clientAddedPrintingKeyLookup.clear();
+      clientAddedCardNameLookup.clear();
       switchedPrintingAddedStates.clear();
 
       setModalTitle(
@@ -3674,6 +3764,7 @@
       searchFullArtFilter?.addEventListener("change", refreshPrintingFilters);
       searchTextlessFilter?.addEventListener("change", refreshPrintingFilters);
       searchMultiplePrintingsFilter?.addEventListener("change", refreshPrintingFilters);
+      searchExcludeAddedFilter?.addEventListener("change", refreshPrintingFilters);
       [searchSetCodeFilter, searchYearStartFilter, searchYearEndFilter].forEach(field => {
         field?.addEventListener("change", () => {
           if (searchMultiplePrintingsFilter?.value && !importedSearchCards) runCardSearch(1);
@@ -3685,7 +3776,6 @@
         searchManaValueFilter,
         searchTypeFilter,
         searchDigitalFilter,
-        searchExcludeAddedFilter,
       ].forEach(function (filterElement) {
         if (filterElement) {
           filterElement.addEventListener("input", () => {

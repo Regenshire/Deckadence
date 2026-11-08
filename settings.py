@@ -306,7 +306,7 @@ DEFAULT_CONFIG = {
     # the legacy shared print settings until each scope is saved once.
     "momir_print_template": "",
     "momir_print_color_mode": "",
-    "momir_use_pdf_print": "",
+    "momir_use_pdf_print": "1",
     "momir_pdf_width_mm": "",
     "momir_pdf_height_mm": "",
     "momir_print_bleed_size_mm": "",

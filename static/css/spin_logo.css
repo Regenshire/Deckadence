@@ -1,0 +1,35 @@
+/* *** SHARED SPIN LOGO - All roulette and draft screens *** */
+.chaos-draft-spin-cta[data-spin-logo] {
+  width: min(448px, 100%);
+  height: auto;
+  aspect-ratio: 13 / 11;
+}
+
+@media (max-width: 700px), (max-height: 600px) {
+  .chaos-draft-spin-cta[data-spin-logo] {
+    width: min(376px, 100%);
+  }
+}
+
+.chaos-draft-spin-logo .chaos-draft-orbit-canvas {
+  display: none;
+}
+
+.chaos-draft-spin-logo.is-orbit-ready .chaos-draft-orbit-canvas {
+  display: block;
+}
+
+.chaos-draft-spin-logo.is-orbit-ready .chaos-draft-spin-logo-base {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chaos-draft-spin-cta[data-spin-logo] {
+    transition: none;
+  }
+
+  .chaos-draft-spin-cta[data-spin-logo]:hover {
+    transform: none;
+  }
+}
+

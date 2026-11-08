@@ -3784,6 +3784,16 @@ def get_momir_print_template_options():
     )
 
 
+def is_legacy_momir_label_layout(template_id, width_mm, height_mm, slots):
+    return (
+        template_id == "dk-1234" and width_mm == 63.0 and height_mm == 86.0
+        and len(slots) == 1
+        and slots[0]["width_mm"] == 63.0 and slots[0]["height_mm"] == 86.0
+        and slots[0]["x_mm"] == 0.0 and slots[0]["y_mm"] == 0.0
+        and int(slots[0].get("rotation_degrees", 0) or 0) == 0
+    )
+
+
 def get_print_template_catalog():
     registry = get_print_template_registry()
     catalog = []
@@ -3810,7 +3820,17 @@ def get_print_template_catalog():
             f"{int(template.rows)}"
         )
 
+        momir_paper_size = metadata_value("paper_size")
+        momir_description = template.description or ""
+        if is_legacy_momir_label_layout(
+            template.template_id, template.page_width_mm, template.page_height_mm, template.slot_defs,
+        ):
+            momir_paper_size = "60 x 86 mm"
+            momir_description = "60 x 86 mm single-card label layout."
+
         catalog.append({
+            "momir_paper_size": momir_paper_size,
+            "momir_description": momir_description,
             "template_id": (
                 template.template_id
             ),
@@ -4529,6 +4549,50 @@ def get_card_print_href(card_key):
         return url_for("print_card_pdf", card_key=card_key)
 
     return url_for("print_card", card_key=card_key)
+
+def get_momir_card_print_href(card_key):
+    return url_for(
+        "momir_print_card",
+        card_key=card_key,
+        format="pdf" if resolve_pdf_print_settings()["use_pdf_print"] else "html",
+    )
+
+
+def prepare_momir_card_print_layout():
+    """Keep the Momir card job's physical media independent of legacy routes."""
+    print_settings = dict(resolve_print_settings())
+    layout = build_momir_registry_template_layout(print_settings["print_template"])
+    pdf_layout = dict(resolve_pdf_template_layout())
+
+    # The legacy DK-1234 template uses a card width (63 mm) for a 60 mm
+    # Brother label. Correct that legacy geometry only for this Momir route;
+    # other modes and deliberately customized templates retain their layouts.
+    if is_legacy_momir_label_layout(
+        layout["print_template"], layout["page_width_mm"], layout["page_height_mm"], layout["slot_defs"],
+    ):
+        layout = dict(layout)
+        layout["page_width_mm"] = layout["sheet_width_mm"] = 60.0
+        layout["page_width_css"] = layout["sheet_width_css"] = "60mm"
+        layout["slot_defs"] = [dict(layout["slot_defs"][0], width_mm=60.0)]
+
+    for key in pdf_layout.keys() & layout.keys():
+        pdf_layout[key] = layout[key]
+    for target, source in (
+        ("print_width", "page_width_css"), ("print_height", "page_height_css"),
+        ("sheet_width", "sheet_width_css"), ("sheet_height", "sheet_height_css"),
+        ("sheet_offset_x", "sheet_offset_x_css"), ("sheet_offset_y", "sheet_offset_y_css"),
+    ):
+        print_settings[target] = layout[source]
+    for target, source in (
+        ("page_width_mm", "page_width_mm"), ("page_height_mm", "page_height_mm"),
+        ("draw_width_mm", "sheet_width_mm"), ("draw_height_mm", "sheet_height_mm"),
+        ("draw_x_mm", "sheet_offset_x_mm"), ("draw_y_mm", "sheet_offset_y_mm"),
+        ("slot_defs", "slot_defs"),
+    ):
+        pdf_layout[target] = layout[source]
+    g._print_settings_cache = print_settings
+    g._pdf_template_layout_cache = pdf_layout
+    return layout
 
 def get_default_token_print_href():
     pdf_settings = resolve_pdf_print_settings()
@@ -8172,10 +8236,10 @@ def build_html_print_slots(template_layout):
     return html_slots
 
 
-def render_print_page(card, image_src):
+def render_print_page(card, image_src, *, template_layout=None, momir_print_options=None):
     print_settings = resolve_print_settings()
 
-    template_layout = (
+    template_layout = template_layout or (
         build_momir_registry_template_layout(
             print_settings[
                 "print_template"
@@ -8228,6 +8292,7 @@ def render_print_page(card, image_src):
         registration_background_src=(
             registration_background_src
         ),
+        momir_print_options=momir_print_options,
     )
 
 # *** PACK LABEL ART - Draw Icons, Text, and Borders ***
@@ -20327,7 +20392,7 @@ def result():
         current_game_mode=current_game_mode,
         enabled_type_options=selected_type_info["enabled_types"],
         selected_type_value=selected_type_info["selected_value"],
-        card_print_href=get_card_print_href(card["card_key"]) if card else "",
+        card_print_href=get_momir_card_print_href(card["card_key"]) if card else "",
         open_print_in_new_tab=print_settings["open_in_new_tab"],
     )
 
@@ -20483,6 +20548,60 @@ def print_template_registration_background(
         "Cache-Control"
     ] = "no-store"
 
+    return response
+
+
+@app.route("/play/momir/print/<card_key>")
+def momir_print_card(card_key):
+    output_format = (request.args.get("format") or "html").strip().lower()
+    if output_format not in {"html", "preview", "pdf", "open-pdf"}:
+        return "Unsupported Momir print format", 400
+    card = get_card_by_key(card_key)
+    if not card:
+        return "Card not found", 404
+
+    layout = prepare_momir_card_print_layout()
+    pdf_settings = resolve_pdf_print_settings()
+    print_settings = resolve_print_settings()
+    slots = layout["slot_defs"]
+    slot = slots[0] if len(slots) == 1 else None
+    single_card = bool(
+        layout["print_template"] in {"dk-1234", "standard"} and slot
+        and slot["x_mm"] == 0 and slot["y_mm"] == 0
+        and slot["width_mm"] == layout["page_width_mm"]
+        and slot["height_mm"] == layout["page_height_mm"]
+        and not slot.get("rotation_degrees", 0)
+        and not layout["uses_fixed_inner_margin"]
+        and not layout.get("round_the_corners", False)
+        and not layout.get("registration_background_path")
+    )
+    if output_format == "pdf":
+        card = ensure_card_has_local_image(card)
+        image_path = (card["image_cache_path"] or "").strip() if card else ""
+        if not image_path or not os.path.isfile(os.path.abspath(image_path)):
+            return "Image not available", 404
+        pdf_buffer = build_single_image_pdf_buffer(os.path.abspath(image_path))
+        return build_inline_pdf_response(pdf_buffer, f"momir-{safe_filename(card_key)}.pdf")
+
+    response = app.make_response(render_print_page(
+        card=card,
+        image_src=url_for("card_image", card_key=card_key),
+        template_layout=layout,
+        momir_print_options={
+            "href": get_momir_card_print_href(card_key),
+            "pdf_href": url_for("momir_print_card", card_key=card_key, format="pdf"),
+            "pdf_open_href": url_for("momir_print_card", card_key=card_key, format="open-pdf"),
+            "use_pdf": pdf_settings["use_pdf_print"],
+            "new_tab": print_settings["open_in_new_tab"],
+            "auto_print": output_format == "html",
+            "open_pdf": output_format == "open-pdf",
+            "single_card": single_card,
+            "crop_border": pdf_settings["pdf_crop_border"] and not (
+                layout["uses_fixed_inner_margin"] or layout.get("round_the_corners", False)
+            ),
+        },
+    ))
+    response.headers["Cache-Control"] = "no-store"
     return response
 
 
@@ -39585,7 +39704,7 @@ def custom_draft_set_cards_add(set_code):
 
     added_card = None
 
-    for row in get_custom_draft_set_card_rows(clean_set_code):
+    for row in get_custom_draft_set_card_rows(clean_set_code, card_uuid=card_uuid):
         if (row["card_uuid"] or "").strip() == card_uuid:
             added_card = serialize_custom_draft_current_card_result(row)
             break

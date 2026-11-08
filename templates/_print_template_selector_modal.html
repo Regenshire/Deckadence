@@ -194,6 +194,10 @@
                     data-paper-stock="{{ template.paper_stock|e }}"
                     data-paper-stock-type="{{ template.paper_stock_type|e }}"
                     data-paper-size="{{ template.paper_size|e }}"
+                    data-default-paper-size="{{ template.paper_size|e }}"
+                    data-default-description="{{ template.description|e }}"
+                    data-momir-paper-size="{{ template.momir_paper_size|default(template.paper_size)|e }}"
+                    data-momir-description="{{ template.momir_description|default(template.description)|e }}"
                     data-layout="{{ template.layout|e }}"
                     data-orientation="{{ template.orientation|e }}"
                     data-silhouette="{{ 'true' if template.silhouette_support else 'false' }}"
@@ -211,7 +215,7 @@
                     {% endif %}
 
                     <span class="print-template-selector-card-details">
-                        <span>
+                        <span data-template-paper-size>
                             {{ template.paper_size }}
                         </span>
 

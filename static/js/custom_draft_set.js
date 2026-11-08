@@ -1073,6 +1073,7 @@
     const lookup = {
       cardUuids: new Set(),
       printingKeys: new Set(),
+      cardNames: new Set(),
     };
 
     if (!currentCardList) {
@@ -1083,6 +1084,7 @@
       currentCardList.querySelectorAll(".custom-draft-current-card-row"),
     ).forEach(function (row) {
       const cardUuid = String(row.dataset.cardUuid || "").trim();
+      const cardName = String(row.dataset.displayCardName || row.dataset.cardName || "").trim().toLowerCase();
       const printingKey = buildCurrentSetPrintingKey(
         row.dataset.displayCardName || row.dataset.cardName || "",
         row.dataset.setCode || "",
@@ -1091,6 +1093,10 @@
 
       if (cardUuid) {
         lookup.cardUuids.add(cardUuid);
+      }
+
+      if (cardName) {
+        lookup.cardNames.add(cardName);
       }
 
       if (printingKey) {
@@ -1613,7 +1619,7 @@
     return row;
   }
 
-  function addCurrentCardRowFromAddPayload(card) {
+  function addCurrentCardRowFromAddPayload(card, deferRefresh = false) {
     if (!card || !currentCardList) {
       return null;
     }
@@ -1654,7 +1660,7 @@
     currentCardList.appendChild(newRow);
     invalidateCurrentCardRowsCache();
     bindCurrentCardRowControls(newRow);
-    updateCurrentCardCountBadge();
+    if (!deferRefresh) updateCurrentCardCountBadge();
 
     // The onAddSuccess callback refreshes the views after insertion.
     return newRow;
@@ -4211,10 +4217,10 @@
 
     onAddSuccess: function (payload, context) {
       if (payload.card) {
-        addCurrentCardRowFromAddPayload(payload.card);
+        addCurrentCardRowFromAddPayload(payload.card, context?.deferRefresh);
       }
 
-      filterCurrentCards();
+      if (!context?.deferRefresh) filterCurrentCards();
 
       if (context && typeof context.setStatus === "function") {
         context.setStatus(
@@ -4247,8 +4253,13 @@
       context.setStatus(payload.message || "Printing updated.", false);
 
       if (!context.keepOpen) context.close();
-      filterCurrentCards();
+      if (!context.deferRefresh) filterCurrentCards();
       if (!context.keepOpen) showUiMessage(payload.message || "Printing updated.", false);
+    },
+
+    onCardBatchComplete: function () {
+      updateCurrentCardCountBadge();
+      filterCurrentCards({preservePage: true});
     },
   });
 

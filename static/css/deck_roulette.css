@@ -240,24 +240,6 @@
   object-fit: contain;
 }
 
-#deckRouletteSpinButton .chaos-draft-spin-logo-rotor {
-  animation: deck-roulette-logo-idle 18s linear infinite;
-}
-
-#deckRouletteSpinButton:hover .chaos-draft-spin-logo-rotor {
-  animation-duration: 1.2s;
-}
-
-@keyframes deck-roulette-logo-idle {
-  from {
-    transform: rotate(0deg);
-  }
-
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .deck-roulette-winner-browser {
   margin-top: 18px;
   display: grid;

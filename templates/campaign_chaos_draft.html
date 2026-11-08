@@ -12,8 +12,9 @@
 >
 <link
     rel="stylesheet"
-    href="{{ url_for('static', filename='css/chaos_draft.css', v='empty-inserts-7') }}"
+    href="{{ url_for('static', filename='css/chaos_draft.css', v='shared-spin-1') }}"
 >
+<link rel="stylesheet" href="{{ url_for('static', filename='css/spin_logo.css', v='arcane-1') }}">
 {% if global_card_upscaling_control_enabled %}
 <link
     rel="stylesheet"
@@ -214,22 +215,12 @@
                     type="button"
                     id="chaosSpinButton"
                     class="chaos-draft-spin-cta"
+                    data-spin-logo
                     aria-label="Spin Chaos Draft"
                     data-help-id="chaos_spin" 
                     {% if not card_database_ready %}disabled{% endif %}
                 >
-                    <span class="chaos-draft-spin-logo" aria-hidden="true">
-                        <img
-                            src="{{ url_for('static', filename='img/Logos/spinlogo_D.svg') }}"
-                            alt=""
-                            class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-base"
-                        >
-                        <img
-                            src="{{ url_for('static', filename='img/Logos/spinlogo_spinning.svg') }}"
-                            alt=""
-                            class="chaos-draft-spin-logo-layer chaos-draft-spin-logo-rotor"
-                        >
-                    </span>
+                    {% include "_spin_logo.html" %}
                 </button>
             </div>
 
@@ -358,7 +349,8 @@
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='legal-1') }}"></script>
 {% endif %}
 <script src="{{ url_for('static', filename='js/deckadence_message_cards.js', v='shared-footer-5') }}"></script>
-<script src="{{ url_for('static', filename='js/chaos_draft.js', v='card-size-2') }}"></script>
+<script src="{{ url_for('static', filename='js/spin_logo.js', v='arcane-1') }}"></script>
+<script src="{{ url_for('static', filename='js/chaos_draft.js', v='shared-spin-1') }}"></script>
 <script src="{{ url_for('static', filename='js/campaign_chaos_draft.js', v='next-player-1') }}"></script>
 
 {% endblock %}

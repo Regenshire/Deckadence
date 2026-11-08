@@ -1,12 +1,30 @@
 {# *** PRINT PAGE - Printable Card Layout *** #}
+{% if momir_print_options and momir_print_options.open_pdf %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Print - {{ card["name"] }}</title>
+</head>
+<body data-momir-pdf-url="{{ momir_print_options.pdf_href }}">
+    <p>Opening printable PDF… <a href="{{ momir_print_options.pdf_href }}">Open PDF</a></p>
+    <script src="{{ url_for('static', filename='js/momir.js', v='momir-print-5') }}"></script>
+</body>
+</html>
+{% else %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Print - {{ card["name"] }}</title>
+    {% if momir_print_options %}
+    <link rel="stylesheet" data-momir-print-styles href="{{ url_for('static', filename='css/momir_print.css', v='momir-print-4') }}">
+    {% else %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/print.css') }}">
-    <style>
+    {% endif %}
+    <style {% if momir_print_options %}data-momir-print-geometry{% endif %}>
         :root {
             --print-width: {{ print_width }};
             --print-height: {{ print_height }};
@@ -22,8 +40,22 @@
         }
     </style>
 </head>
-<body class="print-page print-mode-{{ print_mode }}">
-    {% if print_slots %}
+<body class="print-page print-mode-{{ print_mode }}{% if momir_print_options %} momir-print-document{% endif %}"
+    {% if momir_print_options %}
+    data-momir-print-document
+    data-print-href="{{ momir_print_options.href }}"
+    data-pdf-href="{{ momir_print_options.pdf_href }}"
+    data-use-pdf="{{ '1' if momir_print_options.use_pdf else '0' }}"
+    data-new-tab="{{ '1' if momir_print_options.new_tab else '0' }}"
+    data-auto-print="{{ '1' if momir_print_options.auto_print else '0' }}"
+    {% endif %}>
+    {% if momir_print_options %}
+    <main id="momirPrintSheet" class="momir-print-sheet print-mode-{{ print_mode }}{% if momir_print_options.crop_border %} momir-print-crop{% endif %}" aria-label="Printable card">
+    {% endif %}
+    {% if momir_print_options and momir_print_options.single_card %}
+        {# Momir's single-image structure, before the shared slot renderer. #}
+        <img src="{{ image_src }}" alt="{{ card['name'] }}" class="print-card-image">
+    {% elif print_slots %}
         {% if registration_background_src %}
         <img
             src="{{ registration_background_src }}"
@@ -54,6 +86,15 @@
             >
         </div>
     {% endif %}
+    {% if momir_print_options %}
+    </main>
+    <div class="print-return-bar">
+        <button type="button" class="print-return-button print-now-button" data-momir-print-now disabled>Loading card…</button>
+        <button type="button" class="print-return-button" data-momir-print-close>Close print tab</button>
+        <p class="momir-print-help" data-momir-print-status role="status">{{ print_width }} × {{ print_height }}. Print at 100% using the matching paper size.</p>
+    </div>
+    <script src="{{ url_for('static', filename='js/momir.js', v='momir-print-5') }}"></script>
+    {% else %}
     <div class="print-return-bar">
         <button type="button" class="print-return-button" onclick="window.history.back()">
             Back to Deckadence
@@ -109,5 +150,7 @@
             });
         })();
     </script>
+    {% endif %}
 </body>
 </html>
+{% endif %}

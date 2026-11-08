@@ -3807,7 +3807,7 @@ def get_custom_draft_card_section(card):
     return "lands" if "basic" in types and "land" in types else "main"
 
 
-def get_custom_draft_set_card_rows(set_code, search_text=""):
+def get_custom_draft_set_card_rows(set_code, search_text="", *, card_uuid=None):
     clean_set_code = normalize_custom_draft_set_code(set_code)
     clean_search_text = str(search_text or "").strip().lower()
 
@@ -3863,6 +3863,10 @@ def get_custom_draft_set_card_rows(set_code, search_text=""):
     """
 
     params = [clean_set_code]
+
+    if card_uuid is not None:
+        sql += " AND cdsc.card_uuid = ?"
+        params.append(str(card_uuid).strip())
 
     if clean_search_text:
         normalized_search_text = normalize_search_text_for_sql(clean_search_text)
@@ -4092,7 +4096,7 @@ def search_chaos_cards_for_custom_draft_set(
     if clean_digital_filter not in {"exclude", "only"}:
         clean_digital_filter = ""
 
-    if clean_exclude_added_filter != "exclude":
+    if clean_exclude_added_filter not in {"exclude", "exclude_all"}:
         clean_exclude_added_filter = ""
 
     parsed_exclude_deck_id = None
@@ -4157,7 +4161,7 @@ def search_chaos_cards_for_custom_draft_set(
         parsed_year_start is not None,
         parsed_year_end is not None,
         clean_digital_filter == "only",
-        clean_exclude_added_filter == "exclude",
+        clean_exclude_added_filter,
         clean_frame_effects,
         clean_full_art_filter,
         clean_textless_filter,
@@ -4394,7 +4398,7 @@ def search_chaos_cards_for_custom_draft_set(
         where_clauses.append("CAST(SUBSTR(COALESCE(s.release_date, ''), 1, 4) AS INTEGER) <= ?")
         params.append(parsed_year_end)
 
-    if clean_exclude_added_filter == "exclude":
+    if clean_exclude_added_filter:
         if parsed_exclude_deck_id is not None:
             where_clauses.append(
                 """
@@ -4410,6 +4414,20 @@ def search_chaos_cards_for_custom_draft_set(
                 """
             )
             params.append(parsed_exclude_deck_id)
+        elif clean_exclude_added_filter == "exclude_all":
+            # Canonical card names are shared across alternate printings and sets.
+            where_clauses.append(
+                """
+                LOWER(TRIM(COALESCE(cc.card_name, ''))) NOT IN (
+                    SELECT LOWER(TRIM(COALESCE(existing_cc.card_name, '')))
+                    FROM custom_draft_set_cards existing_cdsc
+                    JOIN chaos_cards existing_cc
+                        ON existing_cc.card_uuid = existing_cdsc.card_uuid
+                    WHERE existing_cdsc.set_code = ?
+                )
+                """
+            )
+            params.append(clean_set_code)
         else:
             where_clauses.append(
                 """

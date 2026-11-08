@@ -501,6 +501,23 @@
             return;
         }
 
+        // Momir's label job corrects the legacy DK-1234 media width. Restore the
+        // original catalog values when this shared picker opens for other modes.
+        cards.forEach((card) => {
+            card.dataset.defaultPaperSize ??= card.dataset.paperSize || "";
+            card.dataset.defaultDescription ??= card.dataset.description || "";
+            card.dataset.paperSize = activeScope === "momir"
+                ? (card.dataset.momirPaperSize || card.dataset.defaultPaperSize)
+                : card.dataset.defaultPaperSize;
+            card.dataset.description = activeScope === "momir"
+                ? (card.dataset.momirDescription || card.dataset.defaultDescription)
+                : card.dataset.defaultDescription;
+            const size = card.querySelector('[data-template-paper-size]');
+            const description = card.querySelector('.print-template-selector-card-description');
+            if (size) size.textContent = card.dataset.paperSize;
+            if (description) description.textContent = card.dataset.description;
+        });
+
         scopeLabel.textContent = (
             activeScope === "momir"
                 ? "Showing templates that support the Momir print flow."

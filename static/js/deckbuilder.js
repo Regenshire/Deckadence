@@ -6302,15 +6302,21 @@
       const lookup = {
         cardUuids: new Set(),
         printingKeys: new Set(),
+        cardNames: new Set(),
       };
 
       Array.from(
         document.querySelectorAll(".deckbuilder-card[data-card-uuid]"),
       ).forEach(function (cardElement) {
         const cardUuid = String(cardElement.dataset.cardUuid || "").trim();
+        const cardName = String(cardElement.dataset.cardName || "").trim().toLowerCase();
 
         if (cardUuid) {
           lookup.cardUuids.add(cardUuid);
+        }
+
+        if (cardName) {
+          lookup.cardNames.add(cardName);
         }
       });
 

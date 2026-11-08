@@ -55,6 +55,9 @@
 .momir-message-card > svg { display: block; }
 
 /* Momir's game surface follows the shared theme frame. */
+#momirPrintRoot { display: none; }
+.momir-print-feedback { margin: 8px 0; font-size: 13px; color: var(--muted); }
+.momir-result .print-button[aria-disabled="true"] { opacity: .6; }
 html[data-theme] :is(.momir-input .mana-panel, .momir-result .result-panel) {
   border: 4px solid var(--insert-frame, var(--border)); border-radius: 26px;
   background: var(--panel); box-shadow: none; padding: 20px;

@@ -216,7 +216,7 @@
 
     {% if include_advanced_print_settings %}
     <label class="toggle-row settings-field">
-        <span>Use PDF Printing</span>
+        <span>{{ "Open PDF Directly" if scope == "momir" else "Use PDF Printing" }}</span>
         <input
             type="checkbox"
             name="{{ scope }}_use_pdf_print"
@@ -224,6 +224,10 @@
         >
     </label>
 
+    {% if scope == "momir" %}
+    <p class="cutting-guide-settings-help">On by default. Print opens the card PDF directly. On iPhone or iPad, use Share → Print from the PDF. Turn this off to use the HTML page and browser auto-print instead.</p>
+    <p class="cutting-guide-settings-help">Paper and card size come from the selected template. The built-in Momir card presets print DK-1234 at 60 × 86 mm and Standard at 63.5 × 88.9 mm. Standard is not a DK-1234 label size.</p>
+    {% else %}
     <label class="toggle-row settings-field">
         <span>Card Width (mm)</span>
         <input
@@ -257,6 +261,7 @@
             value="{{ values.get('print_bleed_size_mm', '3.0') }}"
         >
     </label>
+    {% endif %}
     {% endif %}
 
     <label class="toggle-row settings-field">
@@ -343,6 +348,9 @@
             {% if values.get("open_print_in_new_tab", "1") == "1" %}checked{% endif %}
         >
     </label>
+    {% if scope == "momir" %}
+    <p class="cutting-guide-settings-help">On keeps your game open while the print document opens in another tab. Off opens the PDF in the current tab, or prints here when Open PDF Directly is off.</p>
+    {% endif %}
     {% endif %}
 
     <div class="config-section-divider"></div>

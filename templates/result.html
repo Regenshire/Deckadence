@@ -5,7 +5,10 @@
 
 {# Page Styles #}
 {% block page_styles %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/momir.css', v='theme-3') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/momir.css', v='momir-print-2') }}">
+{% if current_game_mode != "tower_of_power" %}
+<link rel="stylesheet" media="print" data-momir-print-styles href="{{ url_for('static', filename='css/momir_print.css', v='momir-print-4') }}">
+{% endif %}
 <script src="{{ url_for('static', filename='js/momir_layout.js', v='theme-3') }}"></script>
 <script src="{{ url_for('static', filename='js/deckadence_message_cards.js', v='shared-footer-5') }}"></script>
 {% endblock %}
@@ -189,7 +192,9 @@
                 <a
                     class="action-button print-button"
                     href="{{ card_print_href }}"
+                    data-momir-print-preview="{{ url_for('momir_print_card', card_key=card['card_key'], format='preview') }}"
                     {% if open_print_in_new_tab %}target="_blank"{% endif %}
+                    rel="noopener"
                 >
                     Print
                 </a>
@@ -297,5 +302,8 @@
 
 {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/result_faces.js', v='1') }}"></script>
-<script src="{{ url_for('static', filename='js/result.js', v='footer-no-removed-1') }}"></script>
+<script src="{{ url_for('static', filename='js/result.js', v='momir-print-2') }}"></script>
+{% if current_game_mode != "tower_of_power" %}
+<script src="{{ url_for('static', filename='js/momir.js', v='momir-print-5') }}"></script>
+{% endif %}
 {% endblock %}
