@@ -4805,6 +4805,12 @@
     const foilMenuItem = menu.querySelector(
       '[data-card-context-action="foil"]',
     );
+    const removeButton = sourceRow.querySelector(".custom-draft-card-remove-button");
+    const removeMenuItem = menu.querySelector('[data-card-context-action="remove-card"]');
+
+    if (removeMenuItem) {
+      removeMenuItem.disabled = !removeButton || removeButton.disabled;
+    }
 
     if (foilMenuItem) {
       foilMenuItem.textContent =
@@ -4816,6 +4822,11 @@
     const sourceRow = getCustomDraftContextSourceRow(cardElement);
 
     if (!sourceRow) {
+      return;
+    }
+
+    if (actionName === "remove-card") {
+      sourceRow.querySelector(".custom-draft-card-remove-button")?.click();
       return;
     }
 

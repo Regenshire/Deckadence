@@ -198,6 +198,15 @@
    Set Card List Visibility
    ========================================== */
 
+#customDraftCardContextMenu [data-card-context-action="remove-card"] {
+  color: var(--theme-error, #ffb4b4);
+}
+
+#customDraftCardContextMenu [data-card-context-action="remove-card"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-error, #ffb4b4) 12%, var(--panel));
+  border-color: var(--theme-error, #ffb4b4);
+}
+
 #customDraftCurrentCardList > .custom-draft-current-card-row[hidden],
 #customDraftCurrentCardGrid > .custom-draft-current-grid-card[hidden] {
   display: none !important;

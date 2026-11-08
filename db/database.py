@@ -3799,10 +3799,19 @@ def generate_custom_draft_set_pack_cards(set_code, booster_name, batch_card_name
 # *** CUSTOM SET CARDS - List and Search Cards ***
 def get_custom_draft_card_section(card):
     """Classify the actual printing, independently of any alternate artwork."""
-    type_line = str(card["type_line"] or "").lower()
+    type_line = str(card["type_line"] or "").strip().lower()
     layout = str(card["layout"] or "").lower() if "layout" in card.keys() else ""
     if layout in {"token", "double_faced_token", "emblem"} or re.search(r"\b(token|emblem)\b", type_line):
         return "tokens"
+    # Announced Secret Lair printings can have a name and artwork but no type data.
+    if not type_line:
+        card_name = str(card["card_name"] or "").strip().lower() if "card_name" in card.keys() else ""
+        if card_name in {
+            "plains", "island", "swamp", "mountain", "forest", "wastes",
+            "snow-covered plains", "snow-covered island", "snow-covered swamp",
+            "snow-covered mountain", "snow-covered forest",
+        }:
+            return "lands"
     types = re.split(r"\s+[—–-]\s+| // ", type_line, maxsplit=1)[0].split()
     return "lands" if "basic" in types and "land" in types else "main"
 

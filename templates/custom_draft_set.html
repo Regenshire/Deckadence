@@ -15,7 +15,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 />
 <link
   rel="stylesheet"
-  href="{{ url_for('static', filename='css/custom_draft_set.css', v='effect-loading-1') }}"
+  href="{{ url_for('static', filename='css/custom_draft_set.css', v='context-remove-1') }}"
 />
 
 <link
@@ -1511,6 +1511,15 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
       Upscale Image
     </button>
     {% endif %}
+
+    <div class="imomir-card-context-menu-divider"></div>
+    <button
+      type="button"
+      class="imomir-card-context-menu-item"
+      data-card-context-action="remove-card"
+    >
+      Remove Card
+    </button>
   </div>
 
   {% set print_export_subject_label = "custom draft set" %} {% include
@@ -1542,7 +1551,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
 
 <script src="{{ url_for('static', filename='js/stats_modal.js', v='analysis-multicolor-3') }}"></script>
 <script src="{{ url_for('static', filename='js/card_flip.js', v='custom-backs-1') }}"></script>
-<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=collections-1"></script>
+<script src="{{ url_for('static', filename='js/custom_draft_set.js') }}?v=context-remove-1"></script>
 {% endblock %} {% block page_scripts_after_app %}
 <script src="{{ url_for('static', filename='js/image_compare.js', v='legal-1') }}"></script>
 <script src="{{ url_for('static', filename='js/upscale_batch.js', v='legal-1') }}"></script>
