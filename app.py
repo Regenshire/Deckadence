@@ -2,6 +2,7 @@ from update_system import guard_startup
 guard_startup()
 
 from foil_effects import render_print_foil, normalize_print_foil_intensity
+from print_tuning import PrintTuningProcessor, preferences as print_tuning_preferences, validate_settings as validate_print_tuning
 # *** DECKADENCE - Setup the App and Handle Page Actions ***
 from user_backup_system import recover_interrupted_import
 
@@ -38,8 +39,10 @@ from datetime import datetime, timezone
 from contextlib import ExitStack, closing
 from functools import lru_cache, wraps
 from tempfile import TemporaryDirectory
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 from uuid import uuid4
+from itsdangerous import URLSafeTimedSerializer, BadSignature
+from werkzeug.exceptions import HTTPException
 
 import qrcode
 import requests
@@ -15297,6 +15300,11 @@ def build_chaos_pack_pdf(
 ):
     if card_tracking_codes is not None and len(card_tracking_codes) != len(cards or []):
         raise ValueError("Each card must have a matching pack code.")
+    tuning_settings = validate_print_tuning(
+        request.form.get("print_tuning", print_tuning_preferences(get_request_config())["default"])
+        if has_request_context() else print_tuning_preferences(get_config())["default"]
+    )
+    tuning_processor = PrintTuningProcessor(tuning_settings)
     pdf_settings = resolve_pdf_print_settings(
         print_labels_enabled_override=print_labels_enabled_override,
     )
@@ -15306,11 +15314,15 @@ def build_chaos_pack_pdf(
     width_mm = pdf_template_layout["page_width_mm"]
     height_mm = pdf_template_layout["page_height_mm"]
 
-    print_settings = resolve_print_settings()
+    print_settings = dict(resolve_print_settings())
+    if tuning_settings["mode"] != "none":
+        # New tuning replaces legacy grayscale/optimal enhancements for this job.
+        print_settings["print_mode"] = "color"
     is_silhouette_layout = pdf_template_layout.get("is_silhouette_layout", False)
 
     buffer = BytesIO()
     c = CutterCanvas(buffer, pagesize=(width_mm * mm, height_mm * mm), pdfVersion=tuple(map(int, pdf_settings["pdf_version"].split("."))))
+    c.print_tuning_processor = tuning_processor
     # Edit is part of the printable artwork, even with the finish plates off.
     finishing_requested = any(pdf_settings.get(key) for key in ("include_spot_foil", "include_gloss", "include_effect1", "include_effect2"))
     c.spot_foil_job = SpotFoilPdfJob(get_db_connection,
@@ -15320,7 +15332,7 @@ def build_chaos_pack_pdf(
                                    include_foil=pdf_settings.get("include_spot_foil", False),
                                    include_gloss=pdf_settings.get("include_gloss", False),
                                    include_effect1=pdf_settings.get("include_effect1", False),
-                                   include_effect2=pdf_settings.get("include_effect2", False), cmyk_profile=pdf_settings.get("cmyk_profile"), separate_effect_layers=pdf_settings.get("separate_effect_layers", False))
+                                   include_effect2=pdf_settings.get("include_effect2", False), cmyk_profile=pdf_settings.get("cmyk_profile"), separate_effect_layers=pdf_settings.get("separate_effect_layers", False), print_tuning=tuning_settings)
     c.setTitle(
         str(
             pack_display_name
@@ -15794,6 +15806,7 @@ def build_chaos_pack_pdf(
 
                     rendered_image_entries.append({
                         "temp_path": foil_path or cached_result["absolute_path"],
+                        "tuning_source_path": cached_result["absolute_path"],
                         "page_kind": (page_entry.get("page_kind") or "").strip().lower(),
                         "card_uuid": (page_entry.get("card_uuid") or card_uuid or "").strip(),
                         "card_row": card_row,
@@ -22323,6 +22336,99 @@ def card_back_custom_image(filename):
         max_age=0,
     )
 
+def get_print_tuning_selection():
+    """Reuse print selection functions without opening packs or starting a PDF job."""
+    print_url = urlparse(request.form.get("print_url", ""))
+    if print_url.netloc or print_url.scheme or not print_url.path.startswith("/"):
+        raise ValueError("Reopen Print / Export to choose a card selection.")
+    try:
+        # Form values still contain URL escapes; Werkzeug's matcher expects
+        # the decoded PATH_INFO a real print request receives (e.g. SET%5E).
+        endpoint, values = app.url_map.bind("").match(unquote(print_url.path), method="POST")
+    except HTTPException as exc:
+        raise ValueError("This print selection is unavailable.") from exc
+    if endpoint == "deckbuilder_print":
+        cards = get_deckbuilder_print_request_cards(values["deck_id"])
+    elif endpoint == "custom_draft_set_print":
+        selected = get_custom_draft_selected_card_ids_from_form()
+        if request.form.get("custom_set_selection_required") == "1" and not selected:
+            raise ValueError("Choose at least one printing to preview.")
+        cards = get_custom_draft_set_print_cards(normalize_custom_draft_set_code(values["set_code"]), selected_card_ids=selected)
+    elif endpoint == "simulator_opening_print":
+        cards = simulator_print_selection(str(values["opening_id"]), preview=True)["cards"]
+    elif endpoint == "campaign_chaos_packs_print":
+        cards = []
+        for pack_id in get_campaign_print_export_pack_ids_from_form():
+            cards.extend((get_tracked_pack_state_by_id(pack_id) or {}).get("cards", []))
+    elif endpoint == "campaign_chaos_pack_preview_print":
+        pack = get_chaos_session_state("pending_manage_pack_preview", default_value=None)
+        validate_preview_isolation(pack)
+        cards = (pack or {}).get("cards", [])
+    elif endpoint in {"chaos_draft_open", "campaign_chaos_open"}:
+        cards = (get_chaos_session_state("pending_opened_pack", default_value=None) or {}).get("cards", [])
+    else:
+        raise ValueError("Preview is unavailable for this print selection.")
+    if len(cards) > 10000:
+        raise ValueError("Choose up to 10,000 cards for a tuning preview.")
+    signer = URLSafeTimedSerializer(app.secret_key, salt="print-tuning-card-v1")
+    result, seen = [], {}
+    for card in cards:
+        identity = {"card_uuid": card.get("card_uuid"), "image_scope_id": card.get("image_scope_id")}
+        key = (identity["card_uuid"], identity["image_scope_id"])
+        if key in seen:
+            for item in seen[key]:
+                item["copies"] += 1
+            continue
+        row = get_chaos_card_for_image(identity)
+        if not row:
+            continue
+        entries = []
+        for page in build_chaos_print_pages_for_card(row):
+            token = signer.dumps({**identity, "face": page["page_kind"]})
+            item = {"token": token, "name": page.get("face_name") or row["card_name"],
+                    "printing": " · ".join(str(v) for v in (row.get("set_code"), row.get("collector_number"), page["page_kind"]) if v), "copies": 1}
+            result.append(item)
+            entries.append(item)
+        seen[key] = entries
+    if not result:
+        raise ValueError("No cards in this print selection are available to preview.")
+    return result
+
+
+def resolve_print_tuning_source(token):
+    if not isinstance(token, str) or len(token) > 4096:
+        raise ValueError("Choose a card from this print selection.")
+    try:
+        identity = URLSafeTimedSerializer(app.secret_key, salt="print-tuning-card-v1").loads(token, max_age=7200)
+    except BadSignature as exc:
+        raise ValueError("This preview expired. Reopen Print Tuning.") from exc
+    row = get_chaos_card_for_image(identity)
+    if not row:
+        raise ValueError("This card is no longer available.")
+    page = next((p for p in build_chaos_print_pages_for_card(row) if p["page_kind"] == identity["face"]), None)
+    if not page:
+        raise ValueError("This card face is no longer available.")
+    source = resolve_card_image_source_for_page(row, page["page_kind"], page.get("image_url") or "")
+    cached = get_local_card_image_result_from_source(source)
+    if cached is None and page.get("image_url"):
+        cached = download_chaos_image_to_cache(row["card_uuid"], page["page_kind"], page.get("face_name"), page["image_url"])
+    if not cached:
+        raise ValueError("This card image is unavailable. Download or replace it first.")
+    return cached["absolute_path"]
+
+
+def prepare_print_tuning_preview(image, settings):
+    if settings["mode"] == "none":
+        config = resolve_scoped_print_config(get_request_config(), "chaos")
+        return apply_print_mode_to_image(image, config.get("print_color_mode") or "grayscale")
+    return image
+
+
+from ui.print_tuning import register_print_tuning_routes
+register_print_tuning_routes(app, get_config, update_config_values, get_print_tuning_selection,
+                             resolve_print_tuning_source, prepare_print_tuning_preview, isolation_guard)
+
+
 @app.route(
     "/print-export/progress",
     methods=["GET"],
@@ -25792,7 +25898,7 @@ def campaign_chaos_pack_preview_view():
 
 
 # *** PACK PREVIEWS - Print, Export, and Save Pack Selections ***
-def simulator_print_selection(opening_id):
+def simulator_print_selection(opening_id, preview=False):
     from db.pack_simulator import get_opening, get_simulator_pack_tracking_codes
     opening = get_opening(opening_id)
     if not opening:
@@ -25827,6 +25933,8 @@ def simulator_print_selection(opening_id):
         cards = [card for card in cards if str(card.get('rarity') or '').lower() not in {'common', 'uncommon'}]
     if not cards:
         raise ValueError("No cards match the selected print / export options.")
+    if preview:
+        return {"cards": cards}
     pack_indices_by_card = {card['index']: index for index, pack in indexed_packs for card in pack['cards']}
     selected_pack_indices = {pack_indices_by_card[card['index']] for card in cards}
     codes = get_simulator_pack_tracking_codes(opening_id, [
@@ -27289,6 +27397,7 @@ def get_print_export_defaults_from_config(config):
         label_text_mode = "pack_code"
 
     return {
+        "print_tuning": print_tuning_preferences(config)["default"],
         "foil_print_intensity": normalize_print_foil_intensity(config.get("foil_print_intensity", 100)),
         "pdf_version": load_studio_preferences(config)["pdf_version"],
         "include_effect1": load_studio_preferences(config)["include_effect1_default"],

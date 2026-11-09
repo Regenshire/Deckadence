@@ -181,6 +181,13 @@
         <div class="print-export-settings-section">
           <div class="print-export-settings-section-title">PDF Printing</div>
 
+          <div class="toggle-row print-tuning-launch-row">
+            <div><span>Print Tuning</span><small id="printTuningSummary">None</small></div>
+            <input type="hidden" id="printTuningSettings" name="print_tuning"
+              value='{{ (print_export_defaults.print_tuning if print_export_defaults and print_export_defaults.print_tuning else {"mode": "none"}) | tojson }}'>
+            <button type="button" id="printTuningOpen" class="action-button secondary-button">Adjust color &amp; tone</button>
+          </div>
+
           <label class="toggle-row">
             <span>Print Card Backs</span>
             <input type="hidden" name="print_card_backs" value="0" />
@@ -604,3 +611,6 @@
     </form>
   </div>
 </div>
+{% include "_print_tuning_modal.html" %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/print_tuning.css', v='5') }}">
+<script src="{{ url_for('static', filename='js/print_tuning.js', v='6') }}"></script>

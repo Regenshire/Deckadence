@@ -184,7 +184,7 @@ from .foil_workflows import validate_pdf_version
 
 
 class SpotFoilPdfJob:
-    def __init__(self, get_connection, output='spot_pdf', tone='grayscale', display_colors=None, *, workflow=None, include_white_inverse=False, include_foil=True, include_gloss=False, include_effect1=False, include_effect2=False, cmyk_profile=None, separate_effect_layers=False, pdf_version="1.5"):
+    def __init__(self, get_connection, output='spot_pdf', tone='grayscale', display_colors=None, *, workflow=None, include_white_inverse=False, include_foil=True, include_gloss=False, include_effect1=False, include_effect2=False, cmyk_profile=None, separate_effect_layers=False, pdf_version="1.5", print_tuning=None):
         if output not in ('spot_pdf', 'mask_pdf') or tone not in ('grayscale', 'binary'):
             raise ValueError('Choose a valid spot-foiling PDF format and ink coverage mode.')
         self.get_connection, self.output, self.tone = get_connection, output, tone
@@ -192,6 +192,11 @@ class SpotFoilPdfJob:
         self.include_foil, self.include_gloss = bool(include_foil), bool(include_gloss)
         self.pdf_version = validate_pdf_version(pdf_version)
         self.cmyk_profile = cmyk_profile
+        self.print_tuning = print_tuning or {}
+        self.tuning_icc = self.print_tuning.get('mode', 'none') != 'none' and self.print_tuning.get('output') == 'icc'
+        if self.tuning_icc:
+            self.cmyk_profile = self.print_tuning['icc']
+            profile_bytes(self.cmyk_profile)
         self.separate_effect_layers = bool(separate_effect_layers)
         self.include_effects = {"effect1":bool(include_effect1), "effect2":bool(include_effect2)}
         self.effect_placements = []
@@ -294,6 +299,8 @@ class SpotFoilPdfJob:
             source.seek(0)
             writer = PdfWriter(); writer.clone_document_from_reader(PdfReader(source))
             writer.pdf_header = "%PDF-" + self.pdf_version
+            if self.tuning_icc and not self.mask_only:
+                self.convert_artwork(writer)
             output = BytesIO(); writer.write(output); output.seek(0)
             return output
         channels = {(r['options']['spot_name'], r['options']['layer_type']) for _, r, *_ in self.placements if r['workflow_id'] != 'standard_inkjet'}
@@ -507,8 +514,8 @@ class SpotFoilPdfJob:
             stream = DecodedStreamObject(); stream.set_data(spot_content + artwork_content + effect_content + gloss_content + inverse_content + inkjet_content + guide_content)
             page[NameObject('/Contents')] = writer._add_object(stream.flate_encode())
         _layer_catalog(writer, groups)
-        if channels and not self.mask_only:
-            convert_pdf_artwork(writer, profile_bytes(self.cmyk_profile) if self.cmyk_profile else None)
+        if (channels or self.tuning_icc) and not self.mask_only:
+            self.convert_artwork(writer)
         subject = ('Standard Inkjet: editable per-card process-white overlays in RDG_WHITE. Percent Foil controls overlay opacity; the saved Foil Mask controls its shape.'
                    if self.inkjet else 'Saved card spot masks. Spot plates use the configured display colors; their names select physical inks in the RIP. White underbase is the inverse of foil visibility.')
         writer.add_metadata({'/Subject':subject,
@@ -516,6 +523,11 @@ class SpotFoilPdfJob:
                              '/DeckadenceSpotOutput': self.output,
                              '/DeckadenceWhiteInverse': '1' if self.include_white_inverse else '0'})
         output = BytesIO(); writer.write(output); output.seek(0); return output
+
+    def convert_artwork(self, writer):
+        convert_pdf_artwork(writer, profile_bytes(self.cmyk_profile) if self.cmyk_profile else None,
+                            intent=0 if self.tuning_icc and self.print_tuning.get('intent') == 'perceptual' else 1,
+                            black_point=self.print_tuning.get('black_point', True) if self.tuning_icc else True)
 
 
 def place_spot_foil(canvas, entry, slot, **kwargs):
@@ -530,6 +542,11 @@ def place_spot_foil(canvas, entry, slot, **kwargs):
 def draw_print_artwork(canvas, *args, finishing_entry=None, finishing_slot=None, finishing_bleed=False, **kwargs):
     """Suppress card pixels only for mask-only exports; keep registration marks."""
     if not getattr(getattr(canvas, 'spot_foil_job', None), 'mask_only', False):
+        tuning = getattr(canvas, 'print_tuning_processor', None)
+        if tuning is not None:
+            artwork = tuning.artwork(args[0] if args else kwargs.get('image'), finishing_entry)
+            if args: args = (artwork, *args[1:])
+            else: kwargs['image'] = artwork
         if getattr(canvas,'spot_foil_job',None):
             artwork = args[0] if args else kwargs.get('image')
             canvas._finishing_baked = False

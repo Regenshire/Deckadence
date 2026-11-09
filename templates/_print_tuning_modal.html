@@ -1,0 +1,82 @@
+<dialog id="printTuningModal" class="print-tuning-dialog" aria-labelledby="printTuningTitle"
+  data-settings-url="{{ url_for('print_tuning_settings') }}"
+  data-selection-url="{{ url_for('print_tuning_selection') }}"
+  data-preview-url="{{ url_for('print_tuning_preview') }}"
+  data-upload-url="{{ url_for('spot_foil_icc_upload') }}">
+  <header class="print-tuning-header">
+    <div><span class="print-tuning-eyebrow">PDF PRINTING</span><h2 id="printTuningTitle">Print Tuning</h2><p>Shape the print. Keep the original.</p></div>
+    <div class="print-tuning-window-actions">
+      <button type="button" id="printTuningMaximize" class="print-tuning-window-button" aria-label="Maximize Print Tuning" title="Maximize" aria-pressed="false">
+        <svg class="print-tuning-maximize-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="1"/></svg>
+        <svg class="print-tuning-restore-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h12v12M4 8h12v12H4z"/></svg>
+      </button>
+      <button type="button" data-tuning-close class="print-tuning-window-button print-tuning-close" aria-label="Close Print Tuning" title="Close">×</button>
+    </div>
+  </header>
+  <div class="print-tuning-scroll">
+    <div class="print-tuning-modes" role="group" aria-label="Tuning mode">
+      <button type="button" data-tuning-mode="none" aria-pressed="true">None</button>
+      <button type="button" data-tuning-mode="manual" aria-pressed="false">Manual</button>
+      <button type="button" data-tuning-mode="auto" aria-pressed="false">Auto</button>
+    </div>
+    <p id="printTuningModeHelp" class="print-tuning-help"></p>
+    <div class="print-tuning-workspace">
+      <section class="print-tuning-preview" aria-label="Card preview">
+        <div class="print-tuning-section-heading"><h3>Preview a card</h3><span id="printTuningCardPosition"></span></div>
+        <div class="print-tuning-card-picker">
+          <button type="button" id="printTuningPrevious" aria-label="Previous card">‹</button>
+          <select id="printTuningCard" aria-label="Card from the current print selection"></select>
+          <button type="button" id="printTuningNext" aria-label="Next card">›</button>
+        </div>
+        <p id="printTuningPrinting" class="print-tuning-help"></p>
+        <div class="print-tuning-comparison-labels" data-tuning-active><span id="printTuningBeforeLabel">Original</span><span id="printTuningAfterLabel">Tuned</span></div>
+        <div class="print-tuning-comparison" id="printTuningComparison" hidden>
+          <img id="printTuningOriginal" alt="Card before tuning">
+          <img id="printTuningResult" alt="Card after tuning" data-tuning-active>
+          <span aria-hidden="true" class="print-tuning-divider" data-tuning-active></span>
+        </div>
+        <p id="printTuningPreviewStatus" role="status">Loading your print selection…</p>
+        <label class="print-tuning-slider" data-tuning-active>Before / after<input id="printTuningWipe" type="range" min="0" max="100" value="50" aria-label="Before and after comparison position"></label>
+        <p id="printTuningAnalysis" class="print-tuning-help" aria-live="polite" data-tuning-active></p>
+        <button type="button" id="printTuningRetry" class="print-tuning-link" hidden>Retry preview</button>
+        <p class="print-tuning-help">Card color preview. Paper, ICC conversion and finishing layers are not simulated.</p>
+      </section>
+      <section class="print-tuning-controls" aria-label="Color and tone adjustments" data-tuning-active>
+        <label class="print-tuning-field">Paper / finish<select id="printTuningPaper" aria-describedby="printTuningPaperHelp printTuningPaperNote"></select></label>
+        <p id="printTuningPaperHelp" class="print-tuning-help"></p>
+        <p id="printTuningPaperNote" class="print-tuning-help">Starting presets, not calibrated printer profiles. Refine with a test print and save your printer/paper setup.</p>
+        <label class="print-tuning-field"><span id="printTuningProfileLabel">Starting profile</span><select id="printTuningProfile"></select></label>
+        <p id="printTuningProfileHelp" class="print-tuning-help"></p>
+        <label class="print-tuning-slider" id="printTuningAutoStrength"><span>Auto strength <output id="printTuningStrengthValue" for="printTuningStrength">60%</output></span><input id="printTuningStrength" type="range" min="0" max="100" value="60"></label>
+        <div class="print-tuning-section-heading"><h3>Fine-tune</h3><span id="printTuningOffsets"></span></div>
+        <div id="printTuningPrimarySliders"></div>
+        <details class="print-tuning-selective" open>
+          <summary>Individual color strength</summary>
+          <p id="printTuningColorStrengthHelp" class="print-tuning-help">Increase a color for richer, deeper tones; decrease it to soften that color. Nearby hues blend smoothly, and neutral grays stay unchanged.</p>
+          <div id="printTuningColorSliders" class="print-tuning-color-sliders"></div>
+          <button type="button" id="printTuningResetColors" class="print-tuning-link">Reset individual colors</button>
+        </details>
+        <details class="print-tuning-advanced"><summary>Shadows, highlights &amp; color balance</summary><div id="printTuningExtraSliders"></div></details>
+        <button type="button" id="printTuningReset" class="print-tuning-link">Reset adjustments</button>
+      </section>
+    </div>
+    <details class="print-tuning-color" data-tuning-active><summary>Color management <span id="printTuningOutputSummary"></span></summary>
+      <label class="print-tuning-field">Output color handling<select id="printTuningOutput"><option value="current">Current PDF behavior</option><option value="icc">Convert with a printer / paper ICC (CMYK)</option></select></label>
+      <div id="printTuningIccFields" hidden>
+        <div class="print-tuning-color-grid">
+          <label class="print-tuning-field">Printer / paper ICC<select id="printTuningIcc"><option value="">Choose a profile…</option></select></label>
+          <label class="print-tuning-field">Rendering intent<select id="printTuningIntent"><option value="relative">Relative colorimetric</option><option value="perceptual">Perceptual</option></select></label>
+        </div>
+        <div class="print-tuning-color-actions"><label class="print-tuning-check"><input type="checkbox" id="printTuningBlackPoint" checked> Black point compensation</label><label class="print-tuning-upload">Import ICC<input id="printTuningIccUpload" type="file" accept=".icc,.icm"></label></div>
+        <p class="print-tuning-help">Match the ICC to your printer, ink and paper. This overrides the finishing export’s ICC for this PDF. Disable a second color conversion in your PDF print workflow.</p>
+      </div>
+    </details>
+    <section class="print-tuning-library" aria-label="Saved print settings">
+      <div class="print-tuning-library-row"><label class="print-tuning-field">Saved settings<select id="printTuningSaved"><option value="">Choose saved settings…</option></select></label><button type="button" id="printTuningSaveAs">Save as…</button><button type="button" id="printTuningDelete" disabled>Delete</button></div>
+      <div class="print-tuning-save-row" id="printTuningSaveForm" hidden><label class="print-tuning-field">Settings name<input type="text" id="printTuningSaveName" maxlength="60" placeholder="My matte card setup"></label><button type="button" id="printTuningSaveConfirm">Save</button></div>
+      <div class="print-tuning-default-row"><span>App default: <strong id="printTuningDefault">None</strong></span><button type="button" id="printTuningSetDefault" class="print-tuning-link">Set current as default</button></div>
+      <p id="printTuningStatus" role="status"></p>
+    </section>
+  </div>
+  <footer class="print-tuning-footer"><span>Applies to card artwork in this PDF selection</span><div><button type="button" data-tuning-close>Cancel</button><button type="button" id="printTuningApply" class="print-tuning-primary">Apply to PDF</button></div></footer>
+</dialog>

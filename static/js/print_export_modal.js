@@ -83,6 +83,15 @@
     let activePrintUrl = config.printUrl || "";
     let activeExportZipUrl = config.exportZipUrl || "";
     let activeExtraFormFields = {};
+    const printTuning = window.DeckadencePrintTuning?.init({
+      form,
+      getSelectionForm: function () {
+        const data = new FormData(form);
+        appendExtraFormFields(data);
+        data.set("print_url", new URL(activePrintUrl, window.location.href).pathname);
+        return data;
+      },
+    });
 
     const defaultSubtitleText = subtitle
       ? String(subtitle.textContent || "").trim()
@@ -488,6 +497,8 @@
 
       modal.classList.toggle("hidden", !isVisible);
       modal.setAttribute("aria-hidden", isVisible ? "false" : "true");
+      if (isVisible) printTuning?.beginJob();
+      else printTuning?.close();
     }
 
     function setSettingsVisible(isVisible) {
@@ -741,6 +752,11 @@
       }
 
       const isExport = actionType === "export";
+      if (!isExport) {
+        try { await printTuning?.ready(); }
+        catch (error) { showMessage(error.message, true); return; }
+        if (printButton?.disabled) return;
+      }
       if ((spotFoilCheckbox?.checked || glossCheckbox?.checked) && !isExport) {
         if (!spotData) {
           setSettingsVisible(true);

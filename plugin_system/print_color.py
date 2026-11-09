@@ -58,12 +58,12 @@ def upload_profile(filename, data):
     return name
 
 @lru_cache(maxsize=8)
-def transform(data):
-    return ImageCms.buildTransform(ImageCms.createProfile("sRGB"), ImageCms.ImageCmsProfile(BytesIO(data)), "RGB", "CMYK", renderingIntent=1, flags=0x2000)
+def transform(data, intent=1, black_point=True):
+    return ImageCms.buildTransform(ImageCms.createProfile("sRGB"), ImageCms.ImageCmsProfile(BytesIO(data)), "RGB", "CMYK", renderingIntent=intent, flags=0x2000 if black_point else 0)
 
-def convert_pdf_artwork(writer, profile_data=None):
+def convert_pdf_artwork(writer, profile_data=None, *, intent=1, black_point=True):
     from pypdf.generic import ArrayObject, ContentStream, DecodedStreamObject, DictionaryObject, FloatObject, NameObject, NumberObject, TextStringObject
-    conversion=transform(profile_data) if profile_data else None
+    conversion=transform(profile_data, intent, black_point) if profile_data else None
     def convert(image):
         return ImageCms.applyTransform(image, conversion) if conversion else image.convert("CMYK")
     seen=set(); colors={}
