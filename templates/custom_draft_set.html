@@ -26,7 +26,7 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
   rel="stylesheet"
   href="{{ url_for('static', filename='css/alternate_image_modal.css', v='card-back-picker-1') }}"
 />
-<link rel="stylesheet" href="{{ url_for('static', filename='css/custom_draft_set_theme.css') }}?v=collections-1">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/custom_draft_set_theme.css') }}?v=collection-tabs-2">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/card_search_theme.css', v='card-back-picker-1') }}">
 {% endblock %} {% block content %}
 <div class="screen screen-wide">
@@ -640,16 +640,6 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
         </div>
       </div>
 
-      <div class="custom-draft-collection-tabs" role="tablist" aria-label="Set card collections">
-        <button type="button" role="tab" id="customDraftMainTab" data-card-section="main" aria-selected="true" aria-controls="customDraftCollectionBody">Main Cards <span data-section-count="main">0</span></button>
-        <button type="button" role="tab" id="customDraftLandsTab" data-card-section="lands" aria-selected="false" aria-controls="customDraftCollectionBody" tabindex="-1">Basic Lands <span data-section-count="lands">0</span></button>
-        <button type="button" role="tab" id="customDraftTokensTab" data-card-section="tokens" aria-selected="false" aria-controls="customDraftCollectionBody" tabindex="-1">Tokens <span data-section-count="tokens">0</span></button>
-      </div>
-      <div class="custom-draft-collection-heading">
-        <div><h3 id="customDraftCollectionTitle">Main Cards</h3><p id="customDraftCollectionSummary" aria-live="polite"></p></div>
-        <label class="chaos-card-size-control" for="customDraftCardSizeSelect"><span>Zoom</span><select id="customDraftCardSizeSelect">{% include "_card_size_options.html" %}</select></label>
-      </div>
-      <div id="customDraftCollectionBody" role="tabpanel" aria-labelledby="customDraftMainTab">
       <div
         id="customDraftCurrentCardTools"
         class="custom-draft-current-card-tools"
@@ -964,6 +954,43 @@ custom_set.set_code }}{% endblock %} {% block page_styles %}
         </div>
       </div>
 
+      <div class="custom-draft-collection-tabs" role="tablist" aria-label="Set card collections">
+        <button type="button" role="tab" id="customDraftMainTab" data-card-section="main" aria-selected="true" aria-controls="customDraftCollectionBody">
+          <span class="custom-draft-collection-tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+              <path d="m12 3 9 5-9 5-9-5 9-5Z"></path>
+              <path d="m3 13 9 5 9-5"></path>
+            </svg>
+          </span>
+          <span class="custom-draft-collection-tab-label">Main Cards</span>
+          <span data-section-count="main">0</span>
+        </button>
+        <button type="button" role="tab" id="customDraftLandsTab" data-card-section="lands" aria-selected="false" aria-controls="customDraftCollectionBody" tabindex="-1">
+          <span class="custom-draft-collection-tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+              <path d="M3 20 9 7l4 7 3-10 6 16H3Z"></path>
+              <path d="m6.7 12 2.3 1 1.7-3M14.3 10l1.7 1 1.7-2.5"></path>
+            </svg>
+          </span>
+          <span class="custom-draft-collection-tab-label">Basic Lands</span>
+          <span data-section-count="lands">0</span>
+        </button>
+        <button type="button" role="tab" id="customDraftTokensTab" data-card-section="tokens" aria-selected="false" aria-controls="customDraftCollectionBody" tabindex="-1">
+          <span class="custom-draft-collection-tab-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false">
+              <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"></path>
+              <path d="m12 7 1.4 3.6L17 12l-3.6 1.4L12 17l-1.4-3.6L7 12l3.6-1.4L12 7Z"></path>
+            </svg>
+          </span>
+          <span class="custom-draft-collection-tab-label">Tokens</span>
+          <span data-section-count="tokens">0</span>
+        </button>
+      </div>
+      <div id="customDraftCollectionBody" role="tabpanel" aria-labelledby="customDraftMainTab">
+      <div class="custom-draft-collection-heading">
+        <div><h3 id="customDraftCollectionTitle">Main Cards</h3><p id="customDraftCollectionSummary" aria-live="polite"></p></div>
+        <label class="chaos-card-size-control" for="customDraftCardSizeSelect"><span>Zoom</span><select id="customDraftCardSizeSelect">{% include "_card_size_options.html" %}</select></label>
+      </div>
       <div class="custom-draft-current-selection-toolbar">
         <div class="custom-draft-current-selection-links">
           <button

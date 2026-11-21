@@ -92,11 +92,19 @@ html[data-theme-scheme="light"] #customDraftBatchUpscaleSelectedButton.custom-dr
 
 /* Set collections share the existing card grid, spacing, filters and actions. */
 #customDraftCollectionBody{display:contents}
-#customDraftSetCardListPanel .custom-draft-collection-tabs{display:flex;gap:26px;flex:0 0 auto;margin:0 calc(-1 * var(--custom-set-panel-inset));padding:0 24px;border-bottom:1px solid var(--insert-frame);overflow-x:auto}
-#customDraftSetCardListPanel .custom-draft-collection-tabs button{display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;margin:0;padding:16px 0 13px;min-height:46px;width:auto;border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:var(--muted);font:700 14px/1.4 Arial,sans-serif;cursor:pointer}
-#customDraftSetCardListPanel .custom-draft-collection-tabs button[aria-selected=true]{color:var(--text);border-bottom-color:var(--accent)}
-#customDraftSetCardListPanel .custom-draft-collection-tabs span{padding:2px 7px;border-radius:5px;background:var(--panel-2);font:400 12px/1.2 Arial,sans-serif;font-variant-numeric:tabular-nums}
-#customDraftSetCardListPanel .custom-draft-collection-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 0 0;flex:0 0 auto}
+#customDraftSetCardListPanel .custom-draft-collection-tabs{display:flex;gap:8px;flex:0 0 auto;margin:0 calc(-1 * var(--custom-set-panel-inset));padding:0 24px;border-top:1px solid var(--insert-frame);border-bottom:1px solid var(--insert-frame);background:color-mix(in srgb,var(--panel-2) 35%,var(--panel))}
+#customDraftSetCardListPanel .custom-draft-collection-tabs button{position:relative;display:inline-flex;align-items:center;gap:9px;flex:0 0 auto;margin:0;padding:13px 14px 14px;min-height:62px;width:auto;border:0;border-radius:0;background:transparent;color:var(--muted);font:700 14px/1.4 Arial,sans-serif;cursor:pointer}
+#customDraftSetCardListPanel .custom-draft-collection-tabs button:hover,#customDraftSetCardListPanel .custom-draft-collection-tabs button[aria-selected=true]{color:var(--text);background:var(--panel-2)}
+#customDraftSetCardListPanel .custom-draft-collection-tabs button[aria-selected=true]::after{content:"";position:absolute;inset:auto 12px -1px;height:3px;border-radius:3px 3px 0 0;background:var(--accent)}
+#customDraftSetCardListPanel .custom-draft-collection-tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-4px}
+#customDraftSetCardListPanel .custom-draft-collection-tabs [data-section-count]{padding:2px 7px;border-radius:5px;background:var(--panel-2);font:400 12px/1.2 Arial,sans-serif;font-variant-numeric:tabular-nums}
+#customDraftSetCardListPanel .custom-draft-collection-tabs button[aria-selected=true] [data-section-count]{background:color-mix(in srgb,var(--accent) 18%,var(--panel-2));color:var(--text)}
+#customDraftSetCardListPanel .custom-draft-collection-tab-label{white-space:nowrap}
+#customDraftSetCardListPanel .custom-draft-collection-tab-icon{--collection-icon-color:color-mix(in srgb,var(--accent) 70%,var(--text));display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;border-radius:9px;background:color-mix(in srgb,var(--collection-icon-color) 15%,var(--panel));color:var(--collection-icon-color)}
+#customDraftSetCardListPanel [data-card-section=lands] .custom-draft-collection-tab-icon{--collection-icon-color:var(--theme-success)}
+#customDraftSetCardListPanel [data-card-section=tokens] .custom-draft-collection-tab-icon{--collection-icon-color:var(--theme-warning)}
+#customDraftSetCardListPanel .custom-draft-collection-tab-icon svg{display:block;width:21px;height:21px}
+#customDraftSetCardListPanel .custom-draft-collection-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0;flex:0 0 auto}
 #customDraftSetCardListPanel .custom-draft-collection-heading h3{margin:0;color:var(--text);font:700 17px/1.3 Arial,sans-serif}
 #customDraftCollectionSummary{margin:4px 0 0;color:var(--muted);font:400 12px/1.4 Arial,sans-serif}
 #customDraftSetCardListPanel .chaos-card-size-control{display:flex;align-items:center;gap:8px;color:var(--muted);font:400 12px/1.4 Arial,sans-serif;flex:0 0 auto}
@@ -117,6 +125,7 @@ html[data-theme-scheme="light"] #customDraftBatchUpscaleSelectedButton.custom-dr
 .custom-draft-print-scope{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 16px;align-items:center;margin:0 0 16px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--panel-2);color:var(--text)}
 .custom-draft-print-scope label{font-weight:700}
 .custom-draft-print-scope p{grid-column:1/-1;margin:0;color:var(--muted);font-size:13px}
-#customDraftSetCardListPanel.custom-draft-set-card-list-panel-maximized .custom-draft-collection-heading{padding-top:10px}
-#customDraftSetCardListPanel.custom-draft-set-card-list-panel-maximized .custom-draft-collection-tabs button{padding-top:10px;padding-bottom:9px;min-height:40px}
-@media(max-width:560px){#customDraftSetCardListPanel .custom-draft-collection-tabs{gap:16px;padding-inline:16px}#customDraftSetCardListPanel .custom-draft-collection-tabs button{font-size:12px}#customDraftSetCardListPanel .custom-draft-collection-heading{flex-wrap:wrap;gap:8px}.custom-draft-print-scope{grid-template-columns:minmax(0,1fr)}#customDraftPrintScopeSelect{width:100%;max-width:100%}}
+#customDraftSetCardListPanel.custom-draft-set-card-list-panel-maximized .custom-draft-collection-heading{padding-block:10px}
+#customDraftSetCardListPanel.custom-draft-set-card-list-panel-maximized .custom-draft-collection-tabs button{padding-top:10px;padding-bottom:9px;min-height:52px}
+@media(max-width:700px){#customDraftSetCardListPanel .custom-draft-collection-tabs{gap:2px;padding-inline:12px}#customDraftSetCardListPanel .custom-draft-collection-tabs button{gap:6px;padding-inline:9px;font-size:12px}}
+@media(max-width:560px){#customDraftSetCardListPanel .custom-draft-collection-tabs{padding-inline:8px}#customDraftSetCardListPanel .custom-draft-collection-tabs button{flex:1 1 0;min-width:0;flex-direction:column;gap:4px;padding-inline:3px;font-size:11px}#customDraftSetCardListPanel .custom-draft-collection-tab-icon{width:28px;height:28px}#customDraftSetCardListPanel .custom-draft-collection-tabs [data-section-count]{font-size:11px}#customDraftSetCardListPanel .custom-draft-collection-heading{flex-wrap:wrap;gap:8px}.custom-draft-print-scope{grid-template-columns:minmax(0,1fr)}#customDraftPrintScopeSelect{width:100%;max-width:100%}}

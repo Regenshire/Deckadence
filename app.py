@@ -21,6 +21,7 @@ import gzip
 import hashlib
 import json
 import math
+import mimetypes
 import os
 import click
 import random
@@ -527,6 +528,10 @@ from deck_art import (
 )
 
 # *** APP SETUP - Setup Flask and Shared App Services ***
+# Windows registry associations can label .js files as text/plain. ES modules
+# require a JavaScript MIME type, so register it after loading system defaults.
+mimetypes.init()
+mimetypes.add_type("text/javascript", ".js")
 app = Flask(
     __name__,
     template_folder=get_template_dir(),
